@@ -18,7 +18,9 @@ rsync -avz --force --delete \
     --exclude='.git/' \
     --exclude='node_modules/' \
     --exclude='frontend/dist/' \
+    --exclude='backend/dist/' \
     --exclude='frontend/node_modules/' \
+    --exclude='backend/node_modules/' \
     --exclude='*.sqlite' \
     --exclude='*.sqlite-journal' \
     "$ROOT_DIR/" "${TARGET_USER}@${TARGET_IP}:${TARGET_DIR}/"
