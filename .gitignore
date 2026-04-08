@@ -3,3 +3,4 @@ backend/*.sqlite
 backend/*.sqlite.temp
 backend/public/images/*
 !backend/public/images/default_scene.png
+backend/dist

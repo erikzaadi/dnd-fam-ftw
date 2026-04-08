@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { Session, Character, TurnResult } from '../types';
+import { api, imgSrc } from '../lib/api';
 import { PartyBox } from '../components/PartyBox';
 import { CharacterPopup } from '../components/CharacterPopup';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -24,11 +25,11 @@ export const SessionPage = () => {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const joinSession = useCallback(async (sessionId: string) => {
-    const res = await fetch(`/api/session/${sessionId}`);
+    const res = await fetch(api(`/session/${sessionId}`));
     if (res.ok) {
       const data = await res.json();
       setSession(data);
-      const hRes = await fetch(`/api/session/${data.id}/history`);
+      const hRes = await fetch(api(`/session/${data.id}/history`));
       const hData = await hRes.json();
       setHistory(hData);
       setViewedTurnIdx(hData.length - 1);
@@ -38,16 +39,17 @@ export const SessionPage = () => {
   }, [navigate]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (id) { joinSession(id); }
   }, [id, joinSession]);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id) {return;}
     let es: EventSource;
     let reconnectTimer: ReturnType<typeof setTimeout>;
 
     const connect = () => {
-      es = new EventSource(`/api/session/${id}/events`);
+      es = new EventSource(api(`/session/${id}/events`));
 
       es.onmessage = (e: MessageEvent) => {
         const data = JSON.parse(e.data);
@@ -77,7 +79,7 @@ export const SessionPage = () => {
     const actingCharacterId = session.activeCharacterId;
     setLoading(true);
     setActionError(null);
-    const res = await fetch(`/api/session/${session.id}/action`, {
+    const res = await fetch(api(`/session/${session.id}/action`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: label, statUsed: stat, difficulty: diff, characterId: actingCharacterId })
@@ -105,7 +107,7 @@ export const SessionPage = () => {
   if (history.length === 0) {
       const startAdventure = async () => {
         setLoading(true);
-        await fetch(`/api/session/${id}/start`, { method: 'POST' });
+        await fetch(api(`/session/${id}/start`), { method: 'POST' });
         await joinSession(id!);
         setLoading(false);
       };
@@ -156,7 +158,7 @@ export const SessionPage = () => {
             <div className="space-y-6">
                 <div className="bg-slate-900 rounded-[50px] border border-slate-800 overflow-hidden h-[600px]">
                     {displayTurn?.imageUrl ? (
-                        <img src={displayTurn.imageUrl} className="w-full h-full object-cover cursor-pointer" onClick={() => setFullscreenImage(displayTurn.imageUrl!)} />
+                        <img src={imgSrc(displayTurn.imageUrl)} className="w-full h-full object-cover cursor-pointer" onClick={() => setFullscreenImage(imgSrc(displayTurn.imageUrl))} />
                     ) : <div className="flex items-center justify-center h-full text-slate-600">Scene image...</div>}
                 </div>
                 <Inventory party={session.party} />

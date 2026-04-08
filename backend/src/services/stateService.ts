@@ -15,6 +15,67 @@ export class StateService {
   }
 
   private static migrate(db: DB) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS sessions (
+        id TEXT PRIMARY KEY,
+        scene TEXT NOT NULL,
+        sceneId TEXT NOT NULL,
+        worldDescription TEXT,
+        turn INTEGER NOT NULL DEFAULT 1,
+        activeCharacterId TEXT NOT NULL DEFAULT '',
+        tone TEXT NOT NULL DEFAULT 'thrilling adventure',
+        displayName TEXT NOT NULL DEFAULT '',
+        difficulty TEXT NOT NULL DEFAULT 'normal',
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS characters (
+        id TEXT PRIMARY KEY,
+        sessionId TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        class TEXT NOT NULL,
+        species TEXT NOT NULL,
+        quirk TEXT NOT NULL,
+        hp INTEGER NOT NULL DEFAULT 10,
+        max_hp INTEGER NOT NULL DEFAULT 10,
+        might INTEGER NOT NULL DEFAULT 1,
+        magic INTEGER NOT NULL DEFAULT 1,
+        mischief INTEGER NOT NULL DEFAULT 1,
+        avatarUrl TEXT,
+        avatarPrompt TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS inventory (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        characterId TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        statBonuses TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS turn_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sessionId TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        characterId TEXT REFERENCES characters(id),
+        narration TEXT NOT NULL,
+        imagePrompt TEXT,
+        imageSuggested INTEGER NOT NULL DEFAULT 0,
+        imageUrl TEXT,
+        actionAttempt TEXT,
+        actionStat TEXT,
+        actionSuccess INTEGER,
+        actionRoll INTEGER
+      );
+
+      CREATE TABLE IF NOT EXISTS turn_choices (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        turnId INTEGER NOT NULL REFERENCES turn_history(id) ON DELETE CASCADE,
+        label TEXT NOT NULL,
+        difficulty TEXT NOT NULL,
+        stat TEXT NOT NULL
+      );
+    `);
+
     const turnCols = (db.prepare("PRAGMA table_info(turn_history)").all() as { name: string }[]).map(r => r.name);
     if (!turnCols.includes('actionAttempt')) {
       db.prepare("ALTER TABLE turn_history ADD COLUMN actionAttempt TEXT").run();
@@ -150,18 +211,18 @@ export class StateService {
     const imagesDir = path.join(import.meta.dirname, '../../public/images');
 
     const deleteImageFile = (url: string | null) => {
-      if (!url) return;
+      if (!url) {return;}
       const filePath = path.join(imagesDir, path.basename(url));
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      if (fs.existsSync(filePath)) {fs.unlinkSync(filePath);}
     };
 
     // Delete scene images
     const history = db.prepare('SELECT imageUrl FROM turn_history WHERE sessionId = ?').all(id) as { imageUrl: string | null }[];
-    for (const row of history) deleteImageFile(row.imageUrl);
+    for (const row of history) {deleteImageFile(row.imageUrl);}
 
     // Delete avatar images
     const characters = db.prepare('SELECT avatarUrl FROM characters WHERE sessionId = ?').all(id) as { avatarUrl: string | null }[];
-    for (const char of characters) deleteImageFile(char.avatarUrl);
+    for (const char of characters) {deleteImageFile(char.avatarUrl);}
 
     db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
     db.prepare('DELETE FROM turn_history WHERE sessionId = ?').run(id);

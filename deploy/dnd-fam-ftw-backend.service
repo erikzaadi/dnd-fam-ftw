@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 User=ubuntu
 WorkingDirectory=/var/www/dnd-fam-ftw
-ExecStart=/usr/bin/npx tsx server/index.ts
+ExecStart=/usr/bin/npx tsx backend/index.ts
 Restart=on-failure
 Environment=NODE_ENV=production
 Environment=PORT=3001

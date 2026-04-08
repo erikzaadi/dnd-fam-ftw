@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../lib/api';
 
 export const CreateSession = () => {
   const [worldDescription, setWorldDescription] = useState("");
@@ -12,7 +13,7 @@ export const CreateSession = () => {
   const createSession = async () => {
     setIsLoading(true);
     setError(null);
-    const res = await fetch('/api/session/create', {
+    const res = await fetch(api('/session/create'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ worldDescription, difficulty })

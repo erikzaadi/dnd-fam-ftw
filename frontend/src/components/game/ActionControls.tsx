@@ -1,4 +1,5 @@
 import type { TurnResult, Choice, Character } from '../../types';
+import { imgSrc } from '../../lib/api';
 
 interface ActionControlsProps {
   turn: TurnResult | null;
@@ -28,15 +29,15 @@ const deriveStatFromText = (text: string): 'might' | 'magic' | 'mischief' => {
   const might    = score(['attack','fight','strike','punch','kick','push','break','smash','climb','jump','charge','block','lift','throw','force','grab','wrestle','run','bash','slay']);
   const magic    = score(['cast','spell','magic','enchant','summon','hex','curse','charm','heal','teleport','conjure','arcane','ritual','invoke','divine','mystic','ward','channel','manifest']);
   const mischief = score(['sneak','steal','trick','deceive','hide','distract','bluff','lie','pickpocket','disguise','bribe','scheme','persuade','mock','taunt','distract','lure','outsmart','con']);
-  if (might > magic && might > mischief) return 'might';
-  if (magic > might && magic > mischief) return 'magic';
+  if (might > magic && might > mischief) {return 'might';}
+  if (magic > might && magic > mischief) {return 'magic';}
   return 'mischief';
 };
 
 export const ActionControls = ({ turn, loading, onSubmit, customAction, setCustomAction, activeCharacter }: ActionControlsProps) => (
     <div className="flex gap-6 p-6 bg-slate-900/50 rounded-[40px] border border-slate-800">
       <div className="flex flex-col items-center gap-2 w-32 shrink-0">
-        <img src={activeCharacter?.avatarUrl || '/api/images/default_scene.png'} className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-500" />
+        <img src={imgSrc(activeCharacter?.avatarUrl)} className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-500" />
         <span className="font-black text-xs uppercase tracking-widest text-center">{activeCharacter?.name}</span>
         {activeCharacter && (
           <div className="text-center space-y-0.5">

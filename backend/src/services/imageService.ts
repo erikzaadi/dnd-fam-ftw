@@ -1,5 +1,4 @@
 import OpenAI from 'openai';
-import dotenv from 'dotenv';
 import crypto from 'crypto';
 import axios from 'axios';
 import fs from 'fs';
@@ -9,11 +8,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-dotenv.config({ path: '../.env' });
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+let _openai: OpenAI | null = null;
+const openai = () => (_openai ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY }));
 
 export class ImageService {
   private static PUBLIC_DIR = path.join(__dirname, '..', '..', 'public', 'images');
@@ -31,7 +27,7 @@ export class ImageService {
     }
 
     try {
-      const response = await openai.images.generate({
+      const response = await openai().images.generate({
         model: "dall-e-3",
         prompt: `NO TEXT. NO WORDS. NO LETTERS. NO WRITING OF ANY KIND. Fantasy portrait illustration only: ${prompt}. Purely graphical illustration with zero text, zero captions, zero labels, zero handwriting, zero logos, zero watermarks. Clear sharp character details.`,
         n: 1,
@@ -70,7 +66,7 @@ export class ImageService {
 
     try {
       console.log(`Generating image for session ${sessionId}: ${prompt}`);
-      const response = await openai.images.generate({
+      const response = await openai().images.generate({
         model: "dall-e-3",
         prompt: `Fantasy style, vibrant colors: ${prompt}`,
         n: 1,
@@ -120,14 +116,14 @@ export class ImageService {
   private static async generateSanitizedImage(originalPrompt: string, localPath: string, publicUrl: string): Promise<string> {
     const sanitized = this.sanitizePrompt(originalPrompt);
     try {
-      const response = await openai.images.generate({
+      const response = await openai().images.generate({
         model: "dall-e-3",
         prompt: `Fantasy style, vibrant colors, family-friendly: ${sanitized}`,
         n: 1,
         size: "1024x1024",
       });
       const imageUrl = response.data?.[0]?.url;
-      if (!imageUrl) return this.DEFAULT_IMAGE;
+      if (!imageUrl) {return this.DEFAULT_IMAGE;}
 
       const imageRes = await axios.get(imageUrl, { responseType: 'stream' });
       const writer = fs.createWriteStream(localPath);

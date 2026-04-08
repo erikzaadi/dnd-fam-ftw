@@ -35,7 +35,7 @@ export default tseslint.config(
 
   // Server/Backend Configuration
   {
-    files: ["server/**/*.ts"],
+    files: ["backend/src/**/*.ts"],
     languageOptions: {
       ecmaVersion: 2020,
       globals: {

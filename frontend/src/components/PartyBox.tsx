@@ -1,4 +1,5 @@
 import type { Character } from '../types';
+import { imgSrc } from '../lib/api';
 
 interface PartyBoxProps {
   party: Character[];
@@ -12,7 +13,7 @@ export const PartyBox = ({ party, activeCharacterId, onCharacterClick }: PartyBo
       {party.map(c => (
         <div key={c.id} className="relative group">
           <img
-            src={c.avatarUrl || '/api/images/default_scene.png'}
+            src={imgSrc(c.avatarUrl)}
             onClick={() => onCharacterClick(c)}
             className={`w-12 h-12 rounded-full object-cover cursor-pointer border-2 transition-all hover:scale-110 ${c.id === activeCharacterId ? 'border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.6)]' : 'border-slate-800'}`}
             alt={c.name}

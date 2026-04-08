@@ -1,7 +1,9 @@
-import express from 'express';
-import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+dotenv.config({ path: path.join(import.meta.dirname, '../../.env') });
+
+import express from 'express';
+import cors from 'cors';
 import { EventEmitter } from 'events';
 import { StateService } from './services/stateService.js';
 import { GameEngine } from './services/gameEngine.js';
@@ -11,8 +13,6 @@ import { Character } from './types.js';
 
 import OpenAI from 'openai';
 import Database from 'better-sqlite3';
-
-dotenv.config({ path: '../.env' });
 
 
 const db = new Database('./database.sqlite');
@@ -59,7 +59,7 @@ app.get('/api/characters/all', asyncHandler(async (req, res) => {
   // Fetch session names for all characters
   const sessions = await StateService.listSessions();
   const sessionMap = new Map(sessions.map(s => [s.id, s.displayName]));
-  
+
   const enhancedCharacters = await Promise.all(characters.map(async (char) => {
       const sessionId = await StateService.getSessionIdForCharacter(char.id);
       return { ...char, sessionName: sessionId ? sessionMap.get(sessionId) : 'Unknown' };

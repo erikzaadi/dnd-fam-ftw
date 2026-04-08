@@ -1,4 +1,5 @@
 import type { Choice, Character, ActionAttempt } from '../../types';
+import { imgSrc } from '../../lib/api';
 
 interface TurnHistoryCardProps {
   choices: Choice[];
@@ -66,7 +67,7 @@ export const TurnHistoryCard = ({ choices, takenAction, character }: TurnHistory
       {/* Character column */}
       <div className="flex flex-col items-center gap-2 w-28 shrink-0">
         <img
-          src={character?.avatarUrl || '/api/images/default_scene.png'}
+          src={imgSrc(character?.avatarUrl)}
           className="w-18 h-18 w-[72px] h-[72px] rounded-2xl object-cover border-2 border-slate-600"
         />
         <span className="font-black text-xs uppercase tracking-widest text-center text-slate-300">{character?.name ?? '—'}</span>

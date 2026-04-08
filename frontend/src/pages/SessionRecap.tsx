@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { TurnResult, Session, Character } from '../types';
+import { api, imgSrc } from '../lib/api';
 
 type Mode = 'choose' | 'tldr' | 'movie';
 
@@ -12,7 +13,7 @@ const TldrView = ({ sessionId, onEnter }: { sessionId: string; onEnter: () => vo
   const [summary, setSummary] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/session/${sessionId}/summary`)
+    fetch(api(`/session/${sessionId}/summary`))
       .then(r => r.json())
       .then(d => setSummary(d.summary));
   }, [sessionId]);
@@ -44,7 +45,7 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
   const actor = turn.characterId ? party.find(c => c.id === turn.characterId) : null;
 
   useEffect(() => {
-    if (!playing || isLast) return;
+    if (!playing || isLast) {return;}
     const t = setTimeout(() => setIdx(i => i + 1), MOVIE_INTERVAL_MS);
     return () => clearTimeout(t);
   }, [idx, playing, isLast]);
@@ -65,7 +66,7 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
       {/* Scene */}
       <div key={idx} className="w-full animate-in fade-in zoom-in-95 duration-700">
         {turn.imageUrl ? (
-          <img src={turn.imageUrl} className="w-full h-72 object-cover rounded-[40px] border border-slate-800 shadow-2xl" />
+          <img src={imgSrc(turn.imageUrl)} className="w-full h-72 object-cover rounded-[40px] border border-slate-800 shadow-2xl" />
         ) : (
           <div className="w-full h-72 rounded-[40px] border border-slate-800 bg-slate-900 flex items-center justify-center text-slate-600">No image</div>
         )}
@@ -75,7 +76,7 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
       <div key={`n-${idx}`} className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200 text-center px-4">
         {actor && (
           <div className="flex items-center justify-center gap-2 mb-3">
-            <img src={actor.avatarUrl || '/api/images/default_scene.png'} className="w-8 h-8 rounded-full object-cover border border-slate-600" />
+            <img src={imgSrc(actor.avatarUrl)} className="w-8 h-8 rounded-full object-cover border border-slate-600" />
             <span className="text-xs font-black uppercase tracking-widest text-slate-400">{actor.name}</span>
           </div>
         )}
@@ -117,18 +118,18 @@ export const SessionRecap = () => {
   const enter = useCallback(() => navigate(`/session/${id}`), [id, navigate]);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id) {return;}
     Promise.all([
-      fetch(`/api/session/${id}`).then(r => r.json()),
-      fetch(`/api/session/${id}/history`).then(r => r.json()),
+      fetch(api(`/session/${id}`)).then(r => r.json()),
+      fetch(api(`/session/${id}/history`)).then(r => r.json()),
     ]).then(([s, h]) => {
       setSession(s);
       setHistory(h);
-      if (!h.length) enter();
+      if (!h.length) {enter();}
     });
   }, [id, enter]);
 
-  if (!session) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-amber-500 animate-pulse font-black uppercase tracking-widest">Loading...</div>;
+  if (!session) {return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-amber-500 animate-pulse font-black uppercase tracking-widest">Loading...</div>;}
 
   return (
     <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col items-center justify-center p-8 gap-10">

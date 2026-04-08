@@ -1,4 +1,5 @@
 import type { Character } from '../../types';
+import { imgSrc } from '../../lib/api';
 
 interface InventoryProps {
   party: Character[];
@@ -17,7 +18,7 @@ export const Inventory = ({ party }: InventoryProps) => {
           {partyWithItems.map(char => (
             <div key={char.id}>
               <div className="flex items-center gap-2 mb-2">
-                <img src={char.avatarUrl || '/api/images/default_scene.png'} className="w-5 h-5 rounded-full object-cover border border-slate-600" alt={char.name} />
+                <img src={imgSrc(char.avatarUrl)} className="w-5 h-5 rounded-full object-cover border border-slate-600" alt={char.name} />
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{char.name}</span>
               </div>
               <div className="grid grid-cols-2 gap-2">

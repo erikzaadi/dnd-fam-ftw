@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
-    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "start": "node --env-file=../.env dist/index.js",
+    "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix",
     "test": "tsx src/services/gameEngine.test.ts"
   },

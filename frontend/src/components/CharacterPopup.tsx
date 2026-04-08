@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { Character } from '../types';
+import { imgSrc } from '../lib/api';
 
 interface CharacterPopupProps {
   character: Character;
@@ -20,8 +21,8 @@ export const CharacterPopup = ({ character, onClose, onAvatarClick }: CharacterP
         <button onClick={onClose} className="absolute top-6 right-6 text-slate-500 hover:text-white">✕</button>
         <div className="flex gap-6 mb-8">
           <img 
-            src={character.avatarUrl || '/api/images/default_scene.png'} 
-            onClick={() => onAvatarClick(character.avatarUrl || '/api/images/default_scene.png')} 
+            src={imgSrc(character.avatarUrl)}
+            onClick={() => onAvatarClick(imgSrc(character.avatarUrl))}
             className="w-32 h-32 rounded-2xl object-cover cursor-zoom-in" 
             alt={character.name}
           />

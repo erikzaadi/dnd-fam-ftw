@@ -1,12 +1,8 @@
 import { AIInput, TurnResult } from '../types.js';
 import OpenAI from 'openai';
-import dotenv from 'dotenv';
 
-dotenv.config({ path: '../.env' });
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+let _openai: OpenAI | null = null;
+const openai = () => (_openai ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY }));
 
 export class AiDmService {
   private static SYSTEM_PROMPT = `
@@ -63,7 +59,7 @@ Return your response in STRICT JSON format:
 
   public static async generateTurnResult(input: AIInput): Promise<TurnResult> {
     try {
-      const response = await openai.chat.completions.create({
+      const response = await openai().chat.completions.create({
         model: "gpt-4o",
         messages: [
           { role: "system", content: this.SYSTEM_PROMPT },

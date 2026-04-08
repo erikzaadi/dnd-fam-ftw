@@ -1,4 +1,5 @@
 import type { Character } from '../types';
+import { imgSrc } from '../lib/api';
 
 interface CharacterImportModalProps {
   characters: Character[];
@@ -26,7 +27,7 @@ export const CharacterImportModal = ({ characters, onImport, onClose, loading }:
               onClick={() => onImport(char)}
               className="flex flex-col items-center p-6 bg-slate-800 rounded-3xl hover:border-amber-500 border-2 border-transparent transition-all"
             >
-              <img src={char.avatarUrl || '/api/images/default_scene.png'} className="w-24 h-24 rounded-2xl object-cover mb-4" alt={char.name} />
+              <img src={imgSrc(char.avatarUrl)} className="w-24 h-24 rounded-2xl object-cover mb-4" alt={char.name} />
               <h3 className="font-bold text-lg">{char.name}</h3>
               <p className="text-xs text-slate-400 uppercase tracking-widest">{char.species} {char.class}</p>
               <p className="text-[10px] text-amber-600 mt-2 italic">from {char.sessionName}</p>

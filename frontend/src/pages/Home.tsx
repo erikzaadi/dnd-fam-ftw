@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { api } from '../lib/api';
 
 export const Home = () => {
   const [activeSessions, setActiveSessions] = useState<{ id: string; displayName: string }[]>([]);
@@ -8,7 +9,7 @@ export const Home = () => {
   const navigate = useNavigate();
 
   const loadSessions = () => {
-    fetch('/api/sessions')
+    fetch(api('/sessions'))
       .then(res => res.json())
       .then(data => setActiveSessions(data));
   };
@@ -19,7 +20,7 @@ export const Home = () => {
     setConfirmDialog({
       message: `Permanently destroy this world (${id})?`,
       onConfirm: async () => {
-        await fetch(`/api/session/${id}`, { method: 'DELETE' });
+        await fetch(api(`/session/${id}`), { method: 'DELETE' });
         loadSessions();
         setConfirmDialog(null);
       }

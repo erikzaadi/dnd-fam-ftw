@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { TurnResult, Character } from '../../types';
+import { imgSrc } from '../../lib/api';
 
 interface NarrationProps {
   history: TurnResult[];
@@ -64,7 +65,7 @@ export const Narration = ({ history, party, loading, onTurnClick, viewedTurnIdx 
               {turnChar && (
                 <div className="shrink-0 flex flex-col items-center gap-1 w-10">
                   <img
-                    src={turnChar.avatarUrl || '/api/images/default_scene.png'}
+                    src={imgSrc(turnChar.avatarUrl)}
                     className="w-10 h-10 rounded-full object-cover border border-slate-600"
                     alt={turnChar.name}
                   />

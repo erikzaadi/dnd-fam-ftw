@@ -27,7 +27,7 @@ cp -r "$ROOT_DIR"/* "$PROJECT_DIR/"
 # 3. Install dependencies
 echo "Installing dependencies..."
 cd "$PROJECT_DIR"
-npm install
+npm run install:all
 
 # 4. Build the frontend for subpath /dnd-fam-ftw/
 echo "Building the frontend..."

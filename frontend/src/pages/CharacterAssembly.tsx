@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Character, Session } from '../types';
+import { api, imgSrc } from '../lib/api';
 import { CharacterPopup } from '../components/CharacterPopup';
 import { CharacterForm } from '../components/CharacterForm';
 import { CharacterImportModal } from '../components/CharacterImportModal';
@@ -23,13 +24,13 @@ export const CharacterAssembly = () => {
   const [error, setError] = useState<string | null>(null);
 
   const loadSession = useCallback(async () => {
-    const res = await fetch(`/api/session/${id}`);
+    const res = await fetch(api(`/session/${id}`));
     const data = await res.json();
     setSession(data);
   }, [id]);
 
   const loadAllCharacters = useCallback(async () => {
-    const res = await fetch('/api/characters/all');
+    const res = await fetch(api('/characters/all'));
     const data = await res.json();
     setAvailableCharacters(data);
   }, []);
@@ -43,7 +44,7 @@ export const CharacterAssembly = () => {
     if (!session) {return;}
     setLoading(true);
     const { id: _id, ...characterData } = char;
-    await fetch('/api/character/create', {
+    await fetch(api('/character/create'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId: session.id, characterData })
@@ -60,7 +61,7 @@ export const CharacterAssembly = () => {
             if (!session) {return;}
             setLoading(true);
             try {
-                await fetch(`/api/session/${session.id}/character/${charId}`, { method: 'DELETE' });
+                await fetch(api(`/session/${session.id}/character/${charId}`), { method: 'DELETE' });
                 await Promise.all([loadSession(), loadAllCharacters()]);
             } catch (err) {
                 console.error("Failed to delete character:", err);
@@ -86,13 +87,13 @@ export const CharacterAssembly = () => {
     };
     
     if (editingChar) {
-      await fetch(`/api/character/${editingChar.id}`, {
+      await fetch(api(`/character/${editingChar.id}`), {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionId: session.id, characterData: charData })
       });
     } else {
-      await fetch('/api/character/create', {
+      await fetch(api('/character/create'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId: session.id, characterData: charData })
@@ -107,7 +108,7 @@ export const CharacterAssembly = () => {
   const startJourney = async () => {
     setIsStarting(true);
     setError(null);
-    const res = await fetch(`/api/session/${id}/start`, { method: 'POST' });
+    const res = await fetch(api(`/session/${id}/start`), { method: 'POST' });
     setIsStarting(false);
     if (res.status === 429) {
       const data = await res.json();
@@ -137,7 +138,7 @@ export const CharacterAssembly = () => {
               {session.party.map(c => (
                 <div key={c.id} className="flex items-center gap-4 p-4 bg-slate-800/60 rounded-2xl border border-slate-700/50">
                   <img
-                    src={c.avatarUrl || '/api/images/default_scene.png'}
+                    src={imgSrc(c.avatarUrl)}
                     className="w-12 h-12 rounded-xl object-cover border border-slate-600 cursor-pointer"
                     onClick={() => setViewingChar(c)}
                     alt={c.name}

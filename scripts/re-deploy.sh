@@ -12,19 +12,24 @@ echo "🔄 Syncing and Re-deploying from $ROOT_DIR to $PROJECT_DIR..."
 
 # 1. Sync latest files to deployment directory
 # We use the absolute ROOT_DIR path to ensure we sync the right files
-sudo rsync -av --exclude='node_modules' --exclude='.git' --exclude='frontend/dist' --exclude='*.sqlite' --exclude='*.sqlite-journal' "$ROOT_DIR/" "$PROJECT_DIR/"
+sudo rsync -av --exclude='node_modules' --exclude='.git' --exclude='backend/dist' --exclude='frontend/dist' --exclude='*.sqlite' --exclude='*.sqlite-journal' "$ROOT_DIR/" "$PROJECT_DIR/"
 
 # 2. Switch to deployment directory and clean
 cd "$PROJECT_DIR"
 sudo rm -rf frontend/dist
+sudo rm -rf backend/dist
 sudo rm -rf frontend/node_modules/.vite
 
 # 3. Ensure dependencies are up to date
-npm install
+npm run install:all
 
 # 4. Build the frontend
 echo "Building frontend..."
 npm run build
+
+# 4. Build the backend
+echo "Building backend..."
+npm run build:backend
 
 # 5. Force kill any lingering node/tsx processes
 # echo "Ensuring old backend processes are terminated..."

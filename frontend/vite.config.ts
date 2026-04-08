@@ -3,17 +3,20 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
+const BASE = '/dnd-fam-ftw/';
+
 export default defineConfig({
+  base: BASE,
   plugins: [
     react(),
     tailwindcss(),
   ],
   server: {
     proxy: {
-      '/api': {
+      [`${BASE}api`]: {
         target: 'http://localhost:3001',
         changeOrigin: true,
-        secure: false,
+        rewrite: (path) => path.replace(/^\/dnd-fam-ftw/, ''),
       },
     },
   },
