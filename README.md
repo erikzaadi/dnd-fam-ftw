@@ -212,3 +212,7 @@ Pick a difficulty, describe your world (or leave it blank for a surprise), and h
 ---
 
 *Built with love, bad puns, and an irresponsible number of API calls.*
+
+---
+
+[Beerware License](LICENSE) — if you like it, buy me a beer someday.
