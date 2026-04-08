@@ -1,27 +1,82 @@
-import type { TurnResult } from '../../types';
+import { useEffect, useRef } from 'react';
+import type { TurnResult, Character } from '../../types';
 
 interface NarrationProps {
   history: TurnResult[];
+  party: Character[];
   loading: boolean;
   onTurnClick: (i: number) => void;
   viewedTurnIdx: number;
 }
 
-export const Narration = ({ history, loading, onTurnClick, viewedTurnIdx }: NarrationProps) => (
-  <div className="bg-slate-900 rounded-[50px] border border-slate-800 shadow-2xl h-[600px] flex flex-col relative overflow-hidden">
-    <div className="flex-grow p-10 space-y-6 overflow-y-auto">
-      {history.map((turn, i) => (
-        <button key={i} onClick={() => onTurnClick(i)} className={`text-left p-6 rounded-3xl transition-all flex gap-4 ${viewedTurnIdx === i ? 'bg-amber-500/10' : ''}`}>
-          {turn.lastAction && (
-              <div className="shrink-0 flex flex-col items-center gap-2">
-                  <img src={turn.imageUrl || '/api/images/default_scene.png'} className="w-12 h-12 rounded-full object-cover border border-slate-700" alt="Action" />
-                  <span className="text-[9px] font-black uppercase text-slate-500">Action</span>
+export const Narration = ({ history, party, loading, onTurnClick, viewedTurnIdx }: NarrationProps) => {
+  const lastIdx = history.length - 1;
+  const bottomRef = useRef<HTMLDivElement>(null);
+  // Scroll when loading starts (shows "DM is narrating..." loader)
+  // and when history grows (new turn rendered after loading finishes)
+  useEffect(() => {
+    if (loading) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [loading]);
+
+  useEffect(() => {
+    if (history.length > 0) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [history.length]);
+
+  return (
+    <div className="bg-slate-900 rounded-[50px] border border-slate-800 shadow-2xl h-[600px] flex flex-col relative overflow-hidden">
+      <div className="flex-grow p-10 space-y-4 overflow-y-auto">
+        {history.map((turn, i) => {
+          const isCurrent = i === lastIdx;
+          const isSelected = viewedTurnIdx === i;
+          // Character who produced this turn (took the action leading here)
+          const turnChar = turn.characterId ? party.find(c => c.id === turn.characterId) : null;
+
+          return (
+            <button
+              key={i}
+              onClick={() => onTurnClick(i)}
+              className={`w-full text-left p-5 rounded-3xl transition-all flex gap-4 border
+                ${isSelected ? 'bg-amber-500/10 border-amber-500/30' : 'border-transparent hover:bg-slate-800/50'}
+                ${!isCurrent && !isSelected ? 'opacity-60' : ''}
+              `}
+            >
+              <div className="flex-grow min-w-0">
+                {isCurrent && (
+                  <span className={`not-italic text-[9px] font-black uppercase tracking-widest mb-2 block ${loading ? 'text-slate-400 animate-pulse' : 'text-amber-500'}`}>
+                    {loading ? '⚙ Computing...' : 'Now'}
+                  </span>
+                )}
+                <p className={`leading-relaxed italic font-narrative ${
+                  isCurrent
+                    ? 'text-2xl text-slate-100'
+                    : isSelected
+                      ? 'text-lg text-slate-200'
+                      : 'text-sm text-slate-400'
+                }`}>
+                  {turn.narration}
+                </p>
               </div>
-          )}
-          <p className="text-lg text-slate-300 leading-relaxed">{turn.narration}</p>
-        </button>
-      ))}
-      {loading && <div className="p-6 text-amber-500 animate-pulse">DM is narrating...</div>}
+
+              {turnChar && (
+                <div className="shrink-0 flex flex-col items-center gap-1 w-10">
+                  <img
+                    src={turnChar.avatarUrl || '/api/images/default_scene.png'}
+                    className="w-10 h-10 rounded-full object-cover border border-slate-600"
+                    alt={turnChar.name}
+                  />
+                  <span className="text-[8px] font-black uppercase text-slate-500 text-center leading-tight">{turnChar.name}</span>
+                </div>
+              )}
+            </button>
+          );
+        })}
+        {loading && <div className="p-6 text-amber-500 animate-pulse">DM is narrating...</div>}
+        <div ref={bottomRef} />
+      </div>
     </div>
-  </div>
-);
+  );
+};

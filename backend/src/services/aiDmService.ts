@@ -29,10 +29,21 @@ Image Strategy:
   - major events
   - very funny/dramatic moments
 - Otherwise set imageSuggested: false
+- imagePrompt must be safe for DALL-E 3. Rules:
+  - Never use: undead, corpse, dead, zombie, skeleton, gore, blood, kill, death, decapitate, mutilate
+  - Instead use: spectral, ethereal, skeletal warrior, cursed, shadowy, necrotic, withered
+  - Describe actions as: clashes with, faces, confronts, battles, defends against
+  - Focus on visual mood, colors, and scene composition rather than violent action
 
 Inventory:
-- If players find an item, provide a structured object for suggestedInventoryAdd:
-  { "name": "string", "description": "string" }
+- The party's current inventory is provided in the input. Use it actively:
+  - Reference carried items in narration when relevant (e.g. a torch in a dark cave, a sword in a fight)
+  - Suggest actions that use existing gear when it makes sense (e.g. "Throw the smoke bomb", "Brandish the cursed blade")
+  - Never suggest picking up an item the party already carries
+- CRITICAL: If your narration mentions giving, finding, receiving, looting, or rewarding ANY item, you MUST set suggestedInventoryAdd. Never narrate an item being obtained without setting this field.
+- To grant a new item, set suggestedInventoryAdd: { "name": "string", "description": "string", "statBonuses": { "might": 0, "magic": 0, "mischief": 0 } }
+- statBonuses values should reflect the item's nature (a sword: might +1, a spellbook: magic +2, a thieves' kit: mischief +1). Omit stats with 0 bonus. Most items should have at most one or two non-zero bonuses, capped at +3.
+- Only grant items when the narrative earns it (found in a chest, rewarded, looted, etc.)
 - Otherwise set suggestedInventoryAdd: null.
 - Descriptions should be flavorful but brief.
 
@@ -46,7 +57,7 @@ Return your response in STRICT JSON format:
   ],
   "imagePrompt": "string | null",
   "imageSuggested": boolean,
-  "suggestedInventoryAdd": { "name": "string", "description": "string" } | null
+  "suggestedInventoryAdd": { "name": "string", "description": "string", "statBonuses": { "might": 0, "magic": 0, "mischief": 0 } } | null
 }
 `;
 
@@ -65,7 +76,11 @@ Return your response in STRICT JSON format:
       if (!content) {throw new Error("AI returned empty content");}
 
       return JSON.parse(content) as TurnResult;
-    } catch (error) {
+    } catch (error: unknown) {
+      const status = (error as { status?: number })?.status;
+      if (status === 429) {
+        throw error;
+      }
       console.error("Error calling AI service:", error);
       return {
         narration: "The magic in the air flickers, and for a moment, the world feels uncertain. But you must press on!",

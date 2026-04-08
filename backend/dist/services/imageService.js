@@ -78,7 +78,13 @@ export class ImageService {
             });
         }
         catch (error) {
-            console.error("Error generating image:", error);
+            const code = error?.code;
+            if (code === 'content_policy_violation') {
+                console.warn(`Image skipped (content policy): "${prompt.substring(0, 80)}..."`);
+            }
+            else {
+                console.error("Error generating image:", error);
+            }
             return this.DEFAULT_IMAGE;
         }
     }

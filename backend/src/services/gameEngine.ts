@@ -44,15 +44,17 @@ export class GameEngine {
     }
 
     const statValue = character.stats[statName];
+    const itemBonus = character.inventory.reduce((sum, item) => sum + (item.statBonuses?.[statName] ?? 0), 0);
     const { roll, total } = this.rollDice(statValue);
-    const success = this.checkSuccess(total, difficulty);
+    const success = this.checkSuccess(total + itemBonus, difficulty);
 
     return {
       actionAttempt: action,
       actionResult: {
         success,
         roll,
-        statUsed: statName
+        statUsed: statName,
+        ...(itemBonus > 0 && { itemBonus }),
       }
     };
   }
@@ -90,12 +92,10 @@ export class GameEngine {
             actingChar.hp = Math.max(0, actingChar.hp - damage);
         }
 
-        // Inventory - Now handles InventoryItem objects
-        if (aiSuggestedChanges && Array.isArray(aiSuggestedChanges.suggestedInventoryAdd)) {
-            // This was previously just an object, the type might need update
-        }
-        if (aiSuggestedChanges && typeof aiSuggestedChanges.suggestedInventoryAdd === 'object') {
-            actingChar.inventory.push(aiSuggestedChanges.suggestedInventoryAdd as InventoryItem);
+        // Inventory
+        const item = aiSuggestedChanges?.suggestedInventoryAdd;
+        if (item && typeof item === 'object' && !Array.isArray(item)) {
+            actingChar.inventory.push(item as InventoryItem);
         }
 
         // 3. TURN ROTATION (Round Robin)

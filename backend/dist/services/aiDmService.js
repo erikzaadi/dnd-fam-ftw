@@ -62,6 +62,10 @@ Return your response in STRICT JSON format:
             return JSON.parse(content);
         }
         catch (error) {
+            const status = error?.status;
+            if (status === 429) {
+                throw error;
+            }
             console.error("Error calling AI service:", error);
             return {
                 narration: "The magic in the air flickers, and for a moment, the world feels uncertain. But you must press on!",

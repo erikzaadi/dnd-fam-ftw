@@ -13,12 +13,14 @@ export const CharacterAssembly = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [availableCharacters, setAvailableCharacters] = useState<Character[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [viewingChar, setViewingChar] = useState<Character | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
   const [editingChar, setEditingChar] = useState<Character | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const loadSession = useCallback(async () => {
     const res = await fetch(`/api/session/${id}`);
@@ -103,85 +105,77 @@ export const CharacterAssembly = () => {
   };
 
   const startJourney = async () => {
-    setLoading(true);
-    await fetch(`/api/session/${id}/start`, { method: 'POST' });
-    setLoading(false);
+    setIsStarting(true);
+    setError(null);
+    const res = await fetch(`/api/session/${id}/start`, { method: 'POST' });
+    setIsStarting(false);
+    if (res.status === 429) {
+      const data = await res.json();
+      setError(data.message ?? 'The AI is busy, please try again.');
+      return;
+    }
     navigate(`/session/${id}`);
   };
 
   const importableCharacters = availableCharacters.filter(char => !session?.party.find(p => p.id === char.id));
 
   return (
-    <div className="min-h-screen bg-slate-950 p-12 text-white">
-      {fullscreenImage && (
-        <FullscreenImage url={fullscreenImage} onClose={() => setFullscreenImage(null)} />
-      )}
+    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex items-center justify-center p-8">
+      {fullscreenImage && <FullscreenImage url={fullscreenImage} onClose={() => setFullscreenImage(null)} />}
+      {isCreating && <CharacterForm onSave={saveCharacter} onCancel={() => { setIsCreating(false); setEditingChar(null); }} isLoading={loading} initialValues={editingChar} />}
+      {showImportModal && <CharacterImportModal characters={importableCharacters} onImport={importCharacter} onClose={() => setShowImportModal(false)} loading={loading} />}
+      {viewingChar && <CharacterPopup character={viewingChar} onClose={() => setViewingChar(null)} onAvatarClick={(url) => { setViewingChar(null); setFullscreenImage(url); }} />}
+      {confirmDialog && <ConfirmDialog message={confirmDialog.message} onConfirm={() => { confirmDialog.onConfirm(); setConfirmDialog(null); }} onCancel={() => setConfirmDialog(null)} />}
 
-      {isCreating && (
-        <CharacterForm 
-          onSave={saveCharacter} 
-          onCancel={() => { setIsCreating(false); setEditingChar(null); }} 
-          isLoading={loading} 
-          initialValues={editingChar}
-        />
-      )}
+      <div className="max-w-4xl w-full space-y-12">
+        <h1 className="text-6xl font-display font-black text-amber-500 italic tracking-tighter text-center drop-shadow-[0_6px_6px_rgba(0,0,0,0.5)]">Assemble Your Party</h1>
 
-      {showImportModal && (
-        <CharacterImportModal 
-            characters={importableCharacters}
-            onImport={importCharacter}
-            onClose={() => setShowImportModal(false)}
-            loading={loading}
-        />
-      )}
-
-      {viewingChar && (
-        <CharacterPopup 
-            character={viewingChar} 
-            onClose={() => setViewingChar(null)} 
-            onAvatarClick={(url) => { setViewingChar(null); setFullscreenImage(url); }} 
-        />
-      )}
-
-      {confirmDialog && (
-        <ConfirmDialog 
-            message={confirmDialog.message} 
-            onConfirm={() => { confirmDialog.onConfirm(); setConfirmDialog(null); }} 
-            onCancel={() => setConfirmDialog(null)} 
-        />
-      )}
-
-      <h1 className="text-4xl font-black mb-12">Assemble Your Party</h1>
-
-      {session && (
-        <div className="mb-12">
-            <h2 className="text-2xl font-bold mb-4">Current Party</h2>
-            <div className="flex gap-4">
-                {session.party.map(c => (
-                    <div key={c.id} className="p-4 bg-slate-800 rounded-xl flex items-center gap-4">
-                        <button onClick={() => setViewingChar(c)}>{c.name}</button>
-                        <div className="flex gap-2">
-                            <button onClick={() => { setEditingChar(c); setIsCreating(true); }} className="text-amber-500 hover:text-amber-400">✎</button>
-                            <button onClick={() => removeCharacter(c.id)} className="text-rose-500 hover:text-rose-400">✕</button>
-                        </div>
-                    </div>
-                ))}
+        {session && session.party.length > 0 && (
+          <div className="bg-slate-900 rounded-[48px] border border-slate-800 p-8 space-y-4">
+            <h2 className="text-xs font-black uppercase tracking-widest text-amber-500/70 mb-6">Current Heroes</h2>
+            <div className="flex flex-wrap gap-4">
+              {session.party.map(c => (
+                <div key={c.id} className="flex items-center gap-4 p-4 bg-slate-800/60 rounded-2xl border border-slate-700/50">
+                  <img
+                    src={c.avatarUrl || '/api/images/default_scene.png'}
+                    className="w-12 h-12 rounded-xl object-cover border border-slate-600 cursor-pointer"
+                    onClick={() => setViewingChar(c)}
+                    alt={c.name}
+                  />
+                  <div className="min-w-0">
+                    <div className="font-black text-sm text-slate-100 cursor-pointer hover:text-amber-400 transition-colors" onClick={() => setViewingChar(c)}>{c.name}</div>
+                    <div className="text-[10px] text-slate-500 uppercase tracking-wide">{c.class} · {c.species}</div>
+                  </div>
+                  <div className="flex gap-1 ml-2">
+                    <button onClick={() => { setEditingChar(c); setIsCreating(true); }} className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-700 text-amber-500 hover:bg-amber-500/20 text-xs transition-colors">✎</button>
+                    <button onClick={() => removeCharacter(c.id)} className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-700 text-rose-500 hover:bg-rose-500/20 text-xs transition-colors">✕</button>
+                  </div>
+                </div>
+              ))}
             </div>
-        </div>
-      )}
+          </div>
+        )}
 
-      <div className="flex gap-6">
-        <button onClick={() => { setEditingChar(null); setIsCreating(true); }} className="p-8 bg-amber-600 rounded-3xl text-left hover:bg-amber-500 transition-all">
-            <h2 className="text-xl font-bold">+ Create New Hero</h2>
-        </button>
-        {importableCharacters.length > 0 && (
-          <button onClick={() => setShowImportModal(true)} className="p-8 bg-slate-800 rounded-3xl text-left hover:bg-slate-700 transition-all">
-              <h2 className="text-xl font-bold">+ Import Hero</h2>
+        <div className="flex gap-4">
+          <button onClick={() => { setEditingChar(null); setIsCreating(true); }} className="flex-1 py-6 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm transition-all">+ Create New Hero</button>
+          {importableCharacters.length > 0 && (
+            <button onClick={() => setShowImportModal(true)} className="flex-1 py-6 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm transition-all">+ Import Hero</button>
+          )}
+        </div>
+
+        {error && (
+          <div className="flex items-center justify-between gap-4 px-6 py-3 bg-rose-950/60 border border-rose-700 rounded-2xl text-rose-300 text-sm">
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="text-rose-500 hover:text-rose-200 font-black">✕</button>
+          </div>
+        )}
+
+        {session && session.party.length > 0 && (
+          <button onClick={startJourney} disabled={isStarting || loading} className="w-full py-8 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-4xl font-black shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter disabled:opacity-50 disabled:shadow-none">
+            {isStarting ? 'SUMMONING THE DM...' : 'BEGIN ADVENTURE'}
           </button>
         )}
       </div>
-
-      <button onClick={startJourney} disabled={loading} className="mt-12 px-12 py-6 bg-slate-700 rounded-2xl text-2xl font-black">START JOURNEY</button>
     </div>
   );
 };

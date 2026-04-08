@@ -1,13 +1,12 @@
 import type { TurnResult, Choice, Character } from '../../types';
 
 interface ActionControlsProps {
-  lastTurn: TurnResult | null;
+  turn: TurnResult | null;
   loading: boolean;
   onSubmit: (label: string, stat: string, diff: string) => void;
   customAction: string;
   setCustomAction: (action: string) => void;
   activeCharacter: Character | null;
-  disabled?: boolean;
 }
 
 const STAT_COLORS: Record<string, string> = {
@@ -23,51 +22,57 @@ const DIFF_COLORS: Record<string, string> = {
   hard: 'shadow-[inset_0_0_10px_rgba(239,68,68,0.3)]'
 };
 
-export const ActionControls = ({ lastTurn, loading, onSubmit, customAction, setCustomAction, activeCharacter, disabled }: ActionControlsProps) => {
-  const isActionTaken = !!lastTurn?.lastAction;
-  const takenAction = lastTurn?.lastAction?.actionAttempt || "";
-  
-  // If disabled (past turn), use character from the lastAction if available
-  const displayCharacter = !disabled ? activeCharacter : (lastTurn?.lastAction ? activeCharacter : activeCharacter); 
-  // Wait, if lastTurn has history, we should have the character that took that action.
-  // The current TurnResult interface doesn't store character info, so we may need to assume 
-  // the 'activeCharacter' is sufficient or update the interface if needed.
-  // For now, sticking to activeCharacter display is safest, but we can refine if character info is added to TurnResult.
+const deriveStatFromText = (text: string): 'might' | 'magic' | 'mischief' => {
+  const t = text.toLowerCase();
+  const score = (words: string[]) => words.filter(w => t.includes(w)).length;
+  const might    = score(['attack','fight','strike','punch','kick','push','break','smash','climb','jump','charge','block','lift','throw','force','grab','wrestle','run','bash','slay']);
+  const magic    = score(['cast','spell','magic','enchant','summon','hex','curse','charm','heal','teleport','conjure','arcane','ritual','invoke','divine','mystic','ward','channel','manifest']);
+  const mischief = score(['sneak','steal','trick','deceive','hide','distract','bluff','lie','pickpocket','disguise','bribe','scheme','persuade','mock','taunt','distract','lure','outsmart','con']);
+  if (might > magic && might > mischief) return 'might';
+  if (magic > might && magic > mischief) return 'magic';
+  return 'mischief';
+};
 
-  return (
+export const ActionControls = ({ turn, loading, onSubmit, customAction, setCustomAction, activeCharacter }: ActionControlsProps) => (
     <div className="flex gap-6 p-6 bg-slate-900/50 rounded-[40px] border border-slate-800">
-      <div className="flex flex-col items-center gap-3 w-32 shrink-0">
-        <img src={displayCharacter?.avatarUrl || '/api/images/default_scene.png'} className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-500" />
-        <span className="font-black text-xs uppercase tracking-widest">{displayCharacter?.name}</span>
+      <div className="flex flex-col items-center gap-2 w-32 shrink-0">
+        <img src={activeCharacter?.avatarUrl || '/api/images/default_scene.png'} className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-500" />
+        <span className="font-black text-xs uppercase tracking-widest text-center">{activeCharacter?.name}</span>
+        {activeCharacter && (
+          <div className="text-center space-y-0.5">
+            <div className="text-[9px] text-slate-400 uppercase tracking-wide">{activeCharacter.class} · {activeCharacter.species}</div>
+            <div className="text-[9px] text-amber-500 font-black">{activeCharacter.hp}/{activeCharacter.max_hp} HP</div>
+          </div>
+        )}
       </div>
 
       <div className="flex-grow space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {lastTurn?.choices.map((choice: Choice, i: number) => (
-            <button 
-                key={i} 
-                onClick={() => onSubmit(choice.label, choice.stat, choice.difficulty)} 
-                disabled={loading || disabled} 
-                className={`p-4 rounded-2xl border-2 text-xs font-black uppercase transition-all 
-                  ${isActionTaken && choice.label === takenAction ? 'border-amber-400 bg-amber-500/20' : STAT_COLORS[choice.stat]} 
-                  ${DIFF_COLORS[choice.difficulty]} hover:scale-105 disabled:opacity-50`}
+          {turn?.choices.map((choice: Choice, i: number) => (
+            <button
+              key={i}
+              onClick={() => onSubmit(choice.label, choice.stat, choice.difficulty)}
+              disabled={loading}
+              className={`p-4 rounded-2xl border-2 text-sm font-black uppercase transition-all flex flex-col items-center justify-between min-h-[80px]
+                ${STAT_COLORS[choice.stat]} ${DIFF_COLORS[choice.difficulty]} hover:scale-105 disabled:opacity-50`}
             >
-                {choice.label}
-                <div className="text-[10px] opacity-70 mt-1">{choice.stat} ({choice.difficulty})</div>
+              <span className="leading-tight text-center">{choice.label}</span>
+              <span className={`text-[9px] font-black tracking-widest px-2 py-0.5 rounded-full opacity-80
+                ${choice.stat === 'might' ? 'bg-rose-900/60' : choice.stat === 'magic' ? 'bg-blue-900/60' : 'bg-purple-900/60'}`}>
+                {choice.stat} · {choice.difficulty}
+              </span>
             </button>
           ))}
         </div>
         <div className="flex gap-4">
-            <input 
-                value={isActionTaken && !lastTurn?.choices.length ? takenAction : customAction}
-                onChange={(e) => setCustomAction(e.target.value)}
-                disabled={disabled}
-                className="flex-grow p-4 bg-slate-800 rounded-xl disabled:opacity-50"
-                placeholder="What do you do?"
-            />
-            <button onClick={() => onSubmit(customAction, 'none', 'normal')} disabled={loading || disabled} className="px-8 py-4 bg-amber-600 rounded-xl font-black uppercase disabled:opacity-50">UNLEASH</button>
+          <input
+            value={customAction}
+            onChange={(e) => setCustomAction(e.target.value)}
+            className="flex-grow p-4 bg-slate-800 rounded-xl"
+            placeholder="What do you do?"
+          />
+          <button onClick={() => onSubmit(customAction, deriveStatFromText(customAction), 'normal')} disabled={loading} className="px-8 py-4 bg-amber-600 rounded-xl font-black uppercase disabled:opacity-50">UNLEASH</button>
         </div>
       </div>
     </div>
-  );
-};
+);

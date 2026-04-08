@@ -3,6 +3,7 @@ import { Home } from './pages/Home';
 import { SessionPage } from './pages/Session';
 import { CreateSession } from './pages/CreateSession';
 import { CharacterAssembly } from './pages/CharacterAssembly';
+import { SessionRecap } from './pages/SessionRecap';
 
 function App() {
   return (
@@ -10,6 +11,7 @@ function App() {
       <Route path="/" element={<Home />} />
       <Route path="/create-session" element={<CreateSession />} />
       <Route path="/session/:id" element={<SessionPage />} />
+      <Route path="/session/:id/recap" element={<SessionRecap />} />
       <Route path="/session/:id/assembly" element={<CharacterAssembly />} />
     </Routes>
   );

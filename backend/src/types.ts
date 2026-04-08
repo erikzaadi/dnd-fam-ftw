@@ -1,6 +1,7 @@
 export interface InventoryItem {
   name: string;
   description: string;
+  statBonuses?: { might?: number; magic?: number; mischief?: number };
 }
 
 export interface Character {
@@ -12,6 +13,7 @@ export interface Character {
   hp: number;
   max_hp: number;
   avatarUrl?: string;
+  avatarPrompt?: string;
   stats: {
     might: number;
     magic: number;
@@ -61,6 +63,7 @@ export interface ActionAttempt {
     success: boolean;
     roll: number;
     statUsed: 'might' | 'magic' | 'mischief' | 'none';
+    itemBonus?: number;
   };
 }
 

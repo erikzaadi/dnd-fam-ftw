@@ -80,8 +80,17 @@ const broadcastUpdate = (sessionId: string, type: string, payload: Record<string
 // API Endpoints
 app.post('/api/session/create', asyncHandler(async (req, res) => {
   const { worldDescription, difficulty } = req.body;
-  const session = await StateService.createSession(worldDescription, difficulty);
-  res.json(session);
+  try {
+    const session = await StateService.createSession(worldDescription, difficulty);
+    res.json(session);
+  } catch (error: unknown) {
+    const status = (error as { status?: number })?.status;
+    if (status === 429) {
+      res.status(429).json({ error: 'rate_limit', message: 'The AI is overwhelmed with requests. Wait a moment and try again.' });
+      return;
+    }
+    throw error;
+  }
 }));
 
 app.delete('/api/session/:id', asyncHandler(async (req, res) => {
@@ -107,7 +116,7 @@ app.post('/api/character/create', asyncHandler(async (req, res) => {
     return;
   }
 
-  const avatarUrl = await ImageService.generateAvatar(characterData, sessionId);
+  const { url: avatarUrl, prompt: avatarPrompt } = await ImageService.generateAvatar(characterData, sessionId);
 
   const character: Character = {
     id: Math.random().toString(36).substring(7),
@@ -115,11 +124,12 @@ app.post('/api/character/create', asyncHandler(async (req, res) => {
     max_hp: 10,
     inventory: [],
     avatarUrl,
+    avatarPrompt,
     ...characterData
   };
 
-  db.prepare('INSERT INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(character.id, sessionId, character.name, character.class, character.species, character.quirk, character.hp, character.max_hp, characterData.stats.might, characterData.stats.magic, characterData.stats.mischief, character.avatarUrl);
+  db.prepare('INSERT INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(character.id, sessionId, character.name, character.class, character.species, character.quirk, character.hp, character.max_hp, characterData.stats.might, characterData.stats.magic, characterData.stats.mischief, character.avatarUrl, character.avatarPrompt);
 
   session.party.push(character);
   if (!session.activeCharacterId) {
@@ -146,8 +156,8 @@ app.put('/api/character/:charId', asyncHandler(async (req, res) => {
   }
 
   // Generate new avatar
-  const avatarUrl = await ImageService.generateAvatar(characterData, sessionId);
-  const updatedChar = { ...session.party[charIndex], ...characterData, avatarUrl };
+  const { url: avatarUrl, prompt: avatarPrompt } = await ImageService.generateAvatar(characterData, sessionId);
+  const updatedChar = { ...session.party[charIndex], ...characterData, avatarUrl, avatarPrompt };
 
   session.party[charIndex] = updatedChar;
   await StateService.updateSession(sessionId, session);
@@ -196,9 +206,22 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
     return;
   }
 
+  broadcastUpdate(sessionId, 'dm_narrating', {});
+
   const actionAttempt = GameEngine.resolveAction(character, action, statUsed, difficulty || 'normal');
   const aiInput = { ...session, ...actionAttempt };
-  const turnResult = await AiDmService.generateTurnResult(aiInput);
+
+  let turnResult;
+  try {
+    turnResult = await AiDmService.generateTurnResult(aiInput);
+  } catch (error: unknown) {
+    const status = (error as { status?: number })?.status;
+    if (status === 429) {
+      res.status(429).json({ error: 'rate_limit', message: 'The AI is overwhelmed with requests. Wait a moment and try again.' });
+      return;
+    }
+    throw error;
+  }
 
   const newState = GameEngine.updateState(session, actionAttempt, turnResult as unknown as Record<string, unknown>);
   await StateService.updateSession(sessionId, newState);
@@ -206,7 +229,9 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
   turnResult.lastAction = actionAttempt;
 
   if (turnResult.imageSuggested && turnResult.imagePrompt) {
-    turnResult.imageUrl = await ImageService.generateImage(turnResult.imagePrompt, session.id, newState.sceneId);
+    const partyDesc = session.party.map(c => c.avatarPrompt ?? `${c.name} (${c.species} ${c.class})`).join('; ');
+    const enrichedPrompt = `${turnResult.imagePrompt}. Party: ${partyDesc}`;
+    turnResult.imageUrl = await ImageService.generateImage(enrichedPrompt, session.id, newState.sceneId);
   } else {
     turnResult.imageUrl = turnResult.imageUrl || ImageService.getDefaultImage();
   }
@@ -237,9 +262,19 @@ app.post('/api/session/:id/start', asyncHandler(async (req, res) => {
   }
 
   // Initial turn: "Adventure begins!"
-  const initialTurn = await AiDmService.generateTurnResult({ ...session, actionAttempt: "Adventure begins!", actionResult: { success: true, roll: 20, statUsed: 'none' } });
+  let initialTurn;
+  try {
+    initialTurn = await AiDmService.generateTurnResult({ ...session, actionAttempt: "Adventure begins!", actionResult: { success: true, roll: 20, statUsed: 'none' } });
+  } catch (error: unknown) {
+    const status = (error as { status?: number })?.status;
+    if (status === 429) {
+      res.status(429).json({ error: 'rate_limit', message: 'The AI is overwhelmed with requests. Wait a moment and try again.' });
+      return;
+    }
+    throw error;
+  }
   initialTurn.imageUrl = await ImageService.generateImage(initialTurn.imagePrompt || "A fantasy world map", sessionId, session.sceneId);
-  await StateService.addTurnResult(sessionId, initialTurn, "");
+  await StateService.addTurnResult(sessionId, initialTurn, null);
 
   broadcastUpdate(sessionId, 'turn_complete', { session, turnResult: initialTurn });
   res.json({ success: true });

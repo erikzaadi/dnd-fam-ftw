@@ -61,8 +61,18 @@ const broadcastUpdate = (sessionId, type, payload) => {
 // API Endpoints
 app.post('/api/session/create', asyncHandler(async (req, res) => {
     const { worldDescription, difficulty } = req.body;
-    const session = await StateService.createSession(worldDescription, difficulty);
-    res.json(session);
+    try {
+        const session = await StateService.createSession(worldDescription, difficulty);
+        res.json(session);
+    }
+    catch (error) {
+        const status = error?.status;
+        if (status === 429) {
+            res.status(429).json({ error: 'rate_limit', message: 'The AI is overwhelmed with requests. Wait a moment and try again.' });
+            return;
+        }
+        throw error;
+    }
 }));
 app.delete('/api/session/:id', asyncHandler(async (req, res) => {
     await StateService.deleteSession(req.params.id);
@@ -161,7 +171,18 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
     }
     const actionAttempt = GameEngine.resolveAction(character, action, statUsed, difficulty || 'normal');
     const aiInput = { ...session, ...actionAttempt };
-    const turnResult = await AiDmService.generateTurnResult(aiInput);
+    let turnResult;
+    try {
+        turnResult = await AiDmService.generateTurnResult(aiInput);
+    }
+    catch (error) {
+        const status = error?.status;
+        if (status === 429) {
+            res.status(429).json({ error: 'rate_limit', message: 'The AI is overwhelmed with requests. Wait a moment and try again.' });
+            return;
+        }
+        throw error;
+    }
     const newState = GameEngine.updateState(session, actionAttempt, turnResult);
     await StateService.updateSession(sessionId, newState);
     turnResult.lastAction = actionAttempt;
@@ -193,7 +214,18 @@ app.post('/api/session/:id/start', asyncHandler(async (req, res) => {
         return;
     }
     // Initial turn: "Adventure begins!"
-    const initialTurn = await AiDmService.generateTurnResult({ ...session, actionAttempt: "Adventure begins!", actionResult: { success: true, roll: 20, statUsed: 'none' } });
+    let initialTurn;
+    try {
+        initialTurn = await AiDmService.generateTurnResult({ ...session, actionAttempt: "Adventure begins!", actionResult: { success: true, roll: 20, statUsed: 'none' } });
+    }
+    catch (error) {
+        const status = error?.status;
+        if (status === 429) {
+            res.status(429).json({ error: 'rate_limit', message: 'The AI is overwhelmed with requests. Wait a moment and try again.' });
+            return;
+        }
+        throw error;
+    }
     initialTurn.imageUrl = await ImageService.generateImage(initialTurn.imagePrompt || "A fantasy world map", sessionId, session.sceneId);
     await StateService.addTurnResult(sessionId, initialTurn, "");
     broadcastUpdate(sessionId, 'turn_complete', { session, turnResult: initialTurn });

@@ -1,6 +1,7 @@
 export interface InventoryItem {
   name: string;
   description: string;
+  statBonuses?: { might?: number; magic?: number; mischief?: number };
 }
 
 export interface Character {
@@ -33,6 +34,7 @@ export interface ActionAttempt {
     success: boolean;
     roll: number;
     statUsed: 'might' | 'magic' | 'mischief' | 'none';
+    itemBonus?: number;
   };
 }
 
@@ -53,4 +55,5 @@ export interface TurnResult {
   imageUrl?: string | null;
   suggestedInventoryAdd?: InventoryItem | null;
   lastAction?: ActionAttempt | null;
+  characterId?: string;
 }

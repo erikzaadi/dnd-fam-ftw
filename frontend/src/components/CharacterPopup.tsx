@@ -33,9 +33,14 @@ export const CharacterPopup = ({ character, onClose, onAvatarClick }: CharacterP
         </div>
         <h4 className="text-xs font-black uppercase tracking-widest text-slate-600 mb-4">Inventory</h4>
         <div className="flex flex-wrap gap-2">
-          {(character.inventory || []).map((item, i) => (
+          {(character.inventory || []).length === 0 ? (
+            <p className="text-slate-600 text-sm italic">Empty pockets...</p>
+          ) : (character.inventory || []).map((item, i) => (
             <div key={i} className="group relative px-4 py-2 bg-slate-800 rounded-xl text-xs font-bold border border-slate-700">
               {item.name}
+              {item.statBonuses && Object.entries(item.statBonuses).filter(([,v]) => v && v > 0).map(([stat, val]) => (
+                <span key={stat} className="ml-1 text-amber-400">+{val} {stat}</span>
+              ))}
               <div className="absolute bottom-full left-0 mb-2 w-48 p-4 bg-slate-700 rounded-lg text-[10px] hidden group-hover:block z-10">{item.description}</div>
             </div>
           ))}

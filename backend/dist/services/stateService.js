@@ -6,8 +6,18 @@ export class StateService {
     static getDb() {
         if (!this.db) {
             this.db = new Database('./database.sqlite');
+            this.migrate(this.db);
         }
         return this.db;
+    }
+    static migrate(db) {
+        const cols = db.prepare("PRAGMA table_info(turn_history)").all().map(r => r.name);
+        if (!cols.includes('actionAttempt')) {
+            db.prepare("ALTER TABLE turn_history ADD COLUMN actionAttempt TEXT").run();
+            db.prepare("ALTER TABLE turn_history ADD COLUMN actionStat TEXT").run();
+            db.prepare("ALTER TABLE turn_history ADD COLUMN actionSuccess INTEGER").run();
+            db.prepare("ALTER TABLE turn_history ADD COLUMN actionRoll INTEGER").run();
+        }
     }
     static async createSession(worldDescription, difficulty = 'normal') {
         const db = this.getDb();
@@ -21,6 +31,11 @@ export class StateService {
                 messages: [{ role: 'user', content: `Give me a short, evocative name (max 3 words) for a story setting based on: ${worldDescription || 'a random world'}` }]
             })
         });
+        if (!response.ok) {
+            const err = new Error('OpenAI API error');
+            err.status = response.status;
+            throw err;
+        }
         const result = await response.json();
         const displayName = result.choices[0].message.content.replace(/"/g, '');
         db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, turn, tone, displayName, difficulty) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
@@ -137,20 +152,30 @@ export class StateService {
         const rows = db.prepare('SELECT * FROM turn_history WHERE sessionId = ?').all(id);
         return rows.map(r => {
             const choices = db.prepare('SELECT * FROM turn_choices WHERE turnId = ?').all(r.id);
+            const lastAction = r.actionAttempt ? {
+                actionAttempt: r.actionAttempt,
+                actionResult: {
+                    success: !!r.actionSuccess,
+                    roll: r.actionRoll ?? 0,
+                    statUsed: (r.actionStat ?? 'none')
+                }
+            } : null;
             return {
                 narration: r.narration,
                 imagePrompt: r.imagePrompt,
                 imageSuggested: !!r.imageSuggested,
                 imageUrl: r.imageUrl,
                 characterId: r.characterId || undefined,
-                choices: choices
+                choices,
+                lastAction
             };
         });
     }
     static async addTurnResult(id, turn, characterId) {
         const db = this.getDb();
-        const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, narration, imagePrompt, imageSuggested, imageUrl) VALUES (?, ?, ?, ?, ?, ?)')
-            .run(id, characterId, turn.narration, turn.imagePrompt, turn.imageSuggested ? 1 : 0, turn.imageUrl || null);
+        const action = turn.lastAction ?? null;
+        const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, narration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+            .run(id, characterId, turn.narration, turn.imagePrompt, turn.imageSuggested ? 1 : 0, turn.imageUrl || null, action?.actionAttempt ?? null, action?.actionResult?.statUsed ?? null, action?.actionResult?.success ? 1 : 0, action?.actionResult?.roll ?? null);
         const turnId = info.lastInsertRowid;
         for (const choice of turn.choices) {
             db.prepare('INSERT INTO turn_choices (turnId, label, difficulty, stat) VALUES (?, ?, ?, ?)')
