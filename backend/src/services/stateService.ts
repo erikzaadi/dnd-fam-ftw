@@ -26,6 +26,7 @@ export class StateService {
         tone TEXT NOT NULL DEFAULT 'thrilling adventure',
         displayName TEXT NOT NULL DEFAULT '',
         difficulty TEXT NOT NULL DEFAULT 'normal',
+        savingsMode INTEGER NOT NULL DEFAULT 0,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -93,6 +94,11 @@ export class StateService {
     if (!invCols.includes('statBonuses')) {
       db.prepare("ALTER TABLE inventory ADD COLUMN statBonuses TEXT").run();
     }
+
+    const sessionCols = (db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[]).map(r => r.name);
+    if (!sessionCols.includes('savingsMode')) {
+      db.prepare("ALTER TABLE sessions ADD COLUMN savingsMode INTEGER NOT NULL DEFAULT 0").run();
+    }
   }
 
   public static async createSession(worldDescription?: string, difficulty: string = 'normal'): Promise<SessionState> {
@@ -133,7 +139,8 @@ export class StateService {
       tone: "thrilling adventure",
       recentHistory: ["Adventure begins!"],
       displayName,
-      difficulty
+      difficulty,
+      savingsMode: false
     };
   }  public static async getSession(id: string): Promise<SessionState | undefined> {
     const db = this.getDb();
@@ -147,6 +154,7 @@ export class StateService {
       tone: string;
       displayName: string;
       difficulty: string;
+      savingsMode: number;
     } | undefined;
     if (!row) {
       return undefined;
@@ -202,8 +210,14 @@ export class StateService {
       tone: row.tone,
       recentHistory: ["Adventure begins!"],
       displayName: row.displayName,
-      difficulty: row.difficulty
+      difficulty: row.difficulty,
+      savingsMode: !!row.savingsMode
     };
+  }
+
+  public static async setSavingsMode(id: string, enabled: boolean): Promise<void> {
+    const db = this.getDb();
+    db.prepare('UPDATE sessions SET savingsMode = ? WHERE id = ?').run(enabled ? 1 : 0, id);
   }
 
   public static async deleteSession(id: string): Promise<void> {

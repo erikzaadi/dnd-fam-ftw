@@ -7,6 +7,11 @@ export const api = (path: string) => `${BASE}api${path}`;
  *  imgSrc('/api/images/foo.png') → '/dnd-fam-ftw/api/images/foo.png'
  *  imgSrc(null) → '/dnd-fam-ftw/api/images/default_scene.png'
  */
+/** Returns an animationDelay that phases an element into the global pulse cycle,
+ *  so elements rendered at different times stay visually in sync. */
+export const pulseSyncDelay = (durationMs = 2500) =>
+  `-${(performance.now() % durationMs) / 1000}s`;
+
 export const imgSrc = (url: string | null | undefined) => {
   const src = url || '/api/images/default_scene.png';
   return `${BASE}${src.replace(/^\//, '')}`;

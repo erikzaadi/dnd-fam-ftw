@@ -1,5 +1,5 @@
 import type { Character } from '../types';
-import { imgSrc } from '../lib/api';
+import { imgSrc, pulseSyncDelay } from '../lib/api';
 
 interface PartyBoxProps {
   party: Character[];
@@ -15,7 +15,8 @@ export const PartyBox = ({ party, activeCharacterId, onCharacterClick }: PartyBo
           <img
             src={imgSrc(c.avatarUrl)}
             onClick={() => onCharacterClick(c)}
-            className={`w-12 h-12 rounded-full object-cover cursor-pointer border-2 transition-all hover:scale-110 ${c.id === activeCharacterId ? 'border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.6)]' : 'border-slate-800'}`}
+            className={`w-12 h-12 rounded-full object-cover cursor-pointer border-2 transition-all hover:scale-110 ${c.id === activeCharacterId ? 'border-amber-500 animate-border-pulse' : 'border-slate-800'}`}
+            style={c.id === activeCharacterId ? { animationDelay: pulseSyncDelay() } : undefined}
             alt={c.name}
           />
           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">

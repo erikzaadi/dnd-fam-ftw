@@ -17,17 +17,17 @@ export const CharacterPopup = ({ character, onClose, onAvatarClick }: CharacterP
 
   return (
     <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 animate-in fade-in duration-300">
-      <div className="bg-slate-900 p-10 rounded-[40px] border-2 border-amber-500/30 shadow-2xl max-w-lg w-full relative">
+      <div className="bg-slate-900 p-6 md:p-10 rounded-[40px] border-2 border-amber-500/30 shadow-2xl max-w-lg w-full relative">
         <button onClick={onClose} className="absolute top-6 right-6 text-slate-500 hover:text-white">✕</button>
-        <div className="flex gap-6 mb-8">
-          <img 
+        <div className="flex gap-4 md:gap-6 mb-6 md:mb-8">
+          <img
             src={imgSrc(character.avatarUrl)}
             onClick={() => onAvatarClick(imgSrc(character.avatarUrl))}
-            className="w-32 h-32 rounded-2xl object-cover cursor-zoom-in" 
+            className="w-24 h-24 md:w-32 md:h-32 rounded-2xl object-cover cursor-zoom-in shrink-0"
             alt={character.name}
           />
           <div>
-            <h3 className="text-3xl font-black text-white">{character.name}</h3>
+            <h3 className="text-2xl md:text-3xl font-black text-white">{character.name}</h3>
             <p className="text-amber-500">{character.species} {character.class}</p>
             <p className="text-sm text-slate-400 mt-2 italic">"{character.quirk}"</p>
           </div>

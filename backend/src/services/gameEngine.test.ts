@@ -28,7 +28,8 @@ const mockSession: SessionState = {
   tone: "thrilling",
   recentHistory: [],
   displayName: "Test World",
-  difficulty: "normal"
+  difficulty: "normal",
+  savingsMode: false
   };
 console.log("Testing GameEngine...");
 

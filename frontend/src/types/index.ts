@@ -45,6 +45,7 @@ export interface Session {
   party: Character[];
   activeCharacterId: string;
   displayName: string;
+  savingsMode: boolean;
 }
 
 export interface TurnResult {

@@ -9,7 +9,7 @@ export const Inventory = ({ party }: InventoryProps) => {
   const partyWithItems = party.filter(c => c.inventory?.length > 0);
 
   return (
-    <div className="bg-slate-900 p-8 rounded-[40px] border border-slate-800 shadow-2xl">
+    <div className="bg-slate-900 p-4 md:p-8 rounded-[40px] border border-slate-800 shadow-2xl">
       <h3 className="text-sm font-black uppercase tracking-widest text-amber-500/70 mb-4">Treasure & Gear</h3>
       {partyWithItems.length === 0 ? (
         <p className="text-slate-600 text-sm italic">Empty pockets...</p>
@@ -21,7 +21,7 @@ export const Inventory = ({ party }: InventoryProps) => {
                 <img src={imgSrc(char.avatarUrl)} className="w-5 h-5 rounded-full object-cover border border-slate-600" alt={char.name} />
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{char.name}</span>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {char.inventory.map((item, i) => {
                   const bonuses = item.statBonuses ? Object.entries(item.statBonuses).filter(([, v]) => v && v > 0) : [];
                   return (

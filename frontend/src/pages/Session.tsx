@@ -74,6 +74,17 @@ export const SessionPage = () => {
     return () => { es?.close(); clearTimeout(reconnectTimer); };
   }, [id, joinSession]);
 
+  const toggleSavingsMode = async () => {
+    if (!session) {return;}
+    const enabled = !session.savingsMode;
+    await fetch(api(`/session/${session.id}/savings-mode`), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled })
+    });
+    setSession({ ...session, savingsMode: enabled });
+  };
+
   const submitAction = async (label: string, stat: string, diff: string) => {
     if (!session) {return;}
     const actingCharacterId = session.activeCharacterId;
@@ -131,16 +142,25 @@ export const SessionPage = () => {
   const activeChar = session.party.find(c => c.id === session.activeCharacterId) || null;
 
   return (
-    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-slate-100 p-8">
-        <header className="flex justify-between items-center mb-8 pb-6 border-b border-slate-800/60">
-            <div className="flex items-center gap-6">
-                <h1 className="text-amber-500 text-3xl font-display font-black italic tracking-tight">{session.displayName}</h1>
+    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-slate-100 p-4 md:p-8 overflow-x-hidden">
+        <header className="flex flex-wrap justify-between items-center gap-y-3 mb-4 md:mb-8 pb-4 md:pb-6 border-b border-slate-800/60">
+            <div className="flex items-center gap-3 md:gap-6 flex-wrap">
+                <h1 className="text-amber-500 text-xl md:text-3xl font-display font-black italic tracking-tight">{session.displayName}</h1>
                 <PartyBox party={session.party} activeCharacterId={session.activeCharacterId} onCharacterClick={setSelectedCharacter} />
             </div>
-            <Link to="/" className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 uppercase font-black text-xs tracking-widest transition-all">Exit World</Link>
+            <div className="flex items-center gap-2">
+                <button
+                  onClick={toggleSavingsMode}
+                  title={session.savingsMode ? 'Savings mode on — no scene images' : 'Savings mode off — generating scene images'}
+                  className={`px-3 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all cursor-pointer ${session.savingsMode ? 'border-amber-500 text-amber-400 bg-amber-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
+                >
+                  {session.savingsMode ? '🪙 Saving' : '🖼 Images'}
+                </button>
+                <Link to="/" className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 uppercase font-black text-xs tracking-widest transition-all">Exit World</Link>
+            </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8 mt-4 md:mt-8">
             <div className="space-y-6">
                 <Narration history={history} party={session.party} loading={loading} onTurnClick={setViewedTurnIdx} viewedTurnIdx={viewedTurnIdx} />
                 {actionError && (
@@ -156,9 +176,9 @@ export const SessionPage = () => {
             </div>
             
             <div className="space-y-6">
-                <div className="bg-slate-900 rounded-[50px] border border-slate-800 overflow-hidden h-[600px]">
+                <div className="bg-slate-900 rounded-[50px] border border-slate-800 overflow-hidden h-[280px] sm:h-[400px] lg:h-[600px]">
                     {displayTurn?.imageUrl ? (
-                        <img src={imgSrc(displayTurn.imageUrl)} className="w-full h-full object-cover cursor-pointer" onClick={() => setFullscreenImage(imgSrc(displayTurn.imageUrl))} />
+                        <img src={imgSrc(displayTurn.imageUrl)} className="w-full h-full object-cover cursor-pointer animate-ken-burns" onClick={() => setFullscreenImage(imgSrc(displayTurn.imageUrl))} />
                     ) : <div className="flex items-center justify-center h-full text-slate-600">Scene image...</div>}
                 </div>
                 <Inventory party={session.party} />

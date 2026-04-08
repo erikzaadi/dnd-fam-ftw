@@ -228,7 +228,7 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
 
   turnResult.lastAction = actionAttempt;
 
-  if (turnResult.imageSuggested && turnResult.imagePrompt) {
+  if (!session.savingsMode && turnResult.imageSuggested && turnResult.imagePrompt) {
     const partyDesc = session.party.map(c => c.avatarPrompt ?? `${c.name} (${c.species} ${c.class})`).join('; ');
     const enrichedPrompt = `${turnResult.imagePrompt}. Party: ${partyDesc}`;
     turnResult.imageUrl = await ImageService.generateImage(enrichedPrompt, session.id, newState.sceneId);
@@ -273,11 +273,21 @@ app.post('/api/session/:id/start', asyncHandler(async (req, res) => {
     }
     throw error;
   }
-  initialTurn.imageUrl = await ImageService.generateImage(initialTurn.imagePrompt || "A fantasy world map", sessionId, session.sceneId);
+  if (!session.savingsMode) {
+    initialTurn.imageUrl = await ImageService.generateImage(initialTurn.imagePrompt || "A fantasy world map", sessionId, session.sceneId);
+  } else {
+    initialTurn.imageUrl = ImageService.getDefaultImage();
+  }
   await StateService.addTurnResult(sessionId, initialTurn, null);
 
   broadcastUpdate(sessionId, 'turn_complete', { session, turnResult: initialTurn });
   res.json({ success: true });
+}));
+
+app.post('/api/session/:id/savings-mode', asyncHandler(async (req, res) => {
+  const { enabled } = req.body as { enabled: boolean };
+  await StateService.setSavingsMode(req.params.id as string, enabled);
+  res.json({ savingsMode: enabled });
 }));
 
 app.listen(PORT, () => {

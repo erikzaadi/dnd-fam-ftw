@@ -62,26 +62,28 @@ export const TurnHistoryCard = ({ choices, takenAction, character }: TurnHistory
   const hasRoll = statUsed !== 'none';
 
   return (
-    <div className="flex gap-5 p-6 bg-slate-900/50 rounded-[40px] border border-slate-800">
+    <div className="flex flex-col lg:flex-row gap-4 p-4 lg:p-6 bg-slate-900/50 rounded-[40px] border border-slate-800">
 
       {/* Character column */}
-      <div className="flex flex-col items-center gap-2 w-28 shrink-0">
+      <div className="flex lg:flex-col items-center gap-3 lg:gap-2 lg:w-28 lg:shrink-0">
         <img
           src={imgSrc(character?.avatarUrl)}
           className="w-18 h-18 w-[72px] h-[72px] rounded-2xl object-cover border-2 border-slate-600"
         />
-        <span className="font-black text-xs uppercase tracking-widest text-center text-slate-300">{character?.name ?? '—'}</span>
-        {character && (
-          <div className="text-center space-y-0.5">
-            <div className="text-[9px] text-slate-500 uppercase tracking-wide">{character.class} · {character.species}</div>
-            <div className="text-[9px] text-slate-400 font-black">{character.hp}/{character.max_hp} HP</div>
-          </div>
-        )}
+        <div className="lg:text-center">
+          <div className="font-black text-xs uppercase tracking-widest text-slate-300">{character?.name ?? '—'}</div>
+          {character && (
+            <div className="space-y-0.5">
+              <div className="text-[9px] text-slate-500 uppercase tracking-wide">{character.class} · {character.species}</div>
+              <div className="text-[9px] text-slate-400 font-black">{character.hp}/{character.max_hp} HP</div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Choices column */}
-      <div className="flex-grow space-y-3 min-w-0">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="flex-grow min-w-0 space-y-3">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
           {choices.map((choice, i) => {
             const isChosen = choice.label === takenLabel;
             return (

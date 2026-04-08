@@ -3,4 +3,19 @@
 @theme {
   --font-display: 'Cinzel', serif;
   --font-narrative: 'Lora', serif;
+  --animate-border-pulse: border-pulse 2.5s ease-in-out infinite;
+  --animate-ken-burns: ken-burns 24s ease-in-out infinite alternate;
+}
+
+@keyframes border-pulse {
+  0%, 100% { box-shadow: 0 0 6px 1px rgba(245, 158, 11, 0.5); }
+  50%       { box-shadow: 0 0 18px 4px rgba(245, 158, 11, 0.9); }
+}
+
+@keyframes ken-burns {
+  0%   { transform: scale(1.08) translate(0%, 0%); }
+  25%  { transform: scale(1.13) translate(-2%, -1.5%); }
+  50%  { transform: scale(1.10) translate(1.5%, 2%); }
+  75%  { transform: scale(1.14) translate(2%, -1%); }
+  100% { transform: scale(1.09) translate(-1%, 1.5%); }
 }

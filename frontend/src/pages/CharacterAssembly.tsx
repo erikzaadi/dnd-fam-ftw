@@ -121,15 +121,15 @@ export const CharacterAssembly = () => {
   const importableCharacters = availableCharacters.filter(char => !session?.party.find(p => p.id === char.id));
 
   return (
-    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex items-center justify-center p-8">
+    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex items-center justify-center p-4 md:p-8">
       {fullscreenImage && <FullscreenImage url={fullscreenImage} onClose={() => setFullscreenImage(null)} />}
       {isCreating && <CharacterForm onSave={saveCharacter} onCancel={() => { setIsCreating(false); setEditingChar(null); }} isLoading={loading} initialValues={editingChar} />}
       {showImportModal && <CharacterImportModal characters={importableCharacters} onImport={importCharacter} onClose={() => setShowImportModal(false)} loading={loading} />}
       {viewingChar && <CharacterPopup character={viewingChar} onClose={() => setViewingChar(null)} onAvatarClick={(url) => { setViewingChar(null); setFullscreenImage(url); }} />}
       {confirmDialog && <ConfirmDialog message={confirmDialog.message} onConfirm={() => { confirmDialog.onConfirm(); setConfirmDialog(null); }} onCancel={() => setConfirmDialog(null)} />}
 
-      <div className="max-w-4xl w-full space-y-12">
-        <h1 className="text-6xl font-display font-black text-amber-500 italic tracking-tighter text-center drop-shadow-[0_6px_6px_rgba(0,0,0,0.5)]">Assemble Your Party</h1>
+      <div className="max-w-4xl w-full space-y-8 md:space-y-12">
+        <h1 className="text-3xl md:text-6xl font-display font-black text-amber-500 italic tracking-tighter text-center drop-shadow-[0_6px_6px_rgba(0,0,0,0.5)]">Assemble Your Party</h1>
 
         {session && session.party.length > 0 && (
           <div className="bg-slate-900 rounded-[48px] border border-slate-800 p-8 space-y-4">
@@ -172,7 +172,7 @@ export const CharacterAssembly = () => {
         )}
 
         {session && session.party.length > 0 && (
-          <button onClick={startJourney} disabled={isStarting || loading} className="w-full py-8 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-4xl font-black shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter disabled:opacity-50 disabled:shadow-none">
+          <button onClick={startJourney} disabled={isStarting || loading} className="w-full py-6 md:py-8 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-2xl md:text-4xl font-black shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter disabled:opacity-50 disabled:shadow-none">
             {isStarting ? 'SUMMONING THE DM...' : 'BEGIN ADVENTURE'}
           </button>
         )}

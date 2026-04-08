@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { TurnResult, Session, Character } from '../types';
 import { api, imgSrc } from '../lib/api';
+import { FullscreenImage } from '../components/FullscreenImage';
 
 type Mode = 'choose' | 'tldr' | 'movie';
 
@@ -40,6 +41,7 @@ const TldrView = ({ sessionId, onEnter }: { sessionId: string; onEnter: () => vo
 const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: Character[]; onEnter: () => void }) => {
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(true);
+  const [fullscreenUrl, setFullscreenUrl] = useState<string | null>(null);
   const turn = history[idx];
   const isLast = idx === history.length - 1;
   const actor = turn.characterId ? party.find(c => c.id === turn.characterId) : null;
@@ -52,6 +54,7 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
 
   return (
     <div className="flex flex-col items-center gap-6 w-full max-w-3xl animate-in fade-in duration-500">
+      {fullscreenUrl && <FullscreenImage url={fullscreenUrl} onClose={() => setFullscreenUrl(null)} />}
       {/* Progress dots */}
       <div className="flex gap-1.5 flex-wrap justify-center">
         {history.map((_, i) => (
@@ -66,9 +69,14 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
       {/* Scene */}
       <div key={idx} className="w-full animate-in fade-in zoom-in-95 duration-700">
         {turn.imageUrl ? (
-          <img src={imgSrc(turn.imageUrl)} className="w-full h-72 object-cover rounded-[40px] border border-slate-800 shadow-2xl" />
+          <div
+            className="w-full h-48 md:h-72 rounded-[40px] border border-slate-800 shadow-2xl overflow-hidden cursor-zoom-in"
+            onClick={() => { setFullscreenUrl(imgSrc(turn.imageUrl)); setPlaying(false); }}
+          >
+            <img src={imgSrc(turn.imageUrl)} className="w-full h-full object-cover animate-ken-burns" />
+          </div>
         ) : (
-          <div className="w-full h-72 rounded-[40px] border border-slate-800 bg-slate-900 flex items-center justify-center text-slate-600">No image</div>
+          <div className="w-full h-48 md:h-72 rounded-[40px] border border-slate-800 bg-slate-900 flex items-center justify-center text-slate-600">No image</div>
         )}
       </div>
 
@@ -132,22 +140,22 @@ export const SessionRecap = () => {
   if (!session) {return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-amber-500 animate-pulse font-black uppercase tracking-widest">Loading...</div>;}
 
   return (
-    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col items-center justify-center p-8 gap-10">
+    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col items-center justify-center p-4 md:p-8 gap-8 md:gap-10">
       <div className="flex items-center justify-between w-full max-w-3xl">
-        <h1 className="text-3xl font-display font-black text-amber-500 italic tracking-tight">{session.displayName}</h1>
+        <h1 className="text-xl md:text-3xl font-display font-black text-amber-500 italic tracking-tight">{session.displayName}</h1>
         <Link to="/" className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 uppercase font-black text-xs tracking-widest transition-all">Exit World</Link>
       </div>
 
       {mode === 'choose' && (
         <div className="flex flex-col items-center gap-6 animate-in fade-in zoom-in duration-500">
           <p className="text-slate-400 font-black uppercase tracking-widest text-sm">How would you like to catch up?</p>
-          <div className="flex gap-6">
-            <button onClick={() => setMode('tldr')} className="flex flex-col items-center gap-3 p-8 bg-slate-900 hover:bg-slate-800 rounded-[32px] border border-slate-700 hover:border-amber-500/50 transition-all w-44">
+          <div className="flex gap-4 md:gap-6">
+            <button onClick={() => setMode('tldr')} className="flex flex-col items-center gap-3 p-6 md:p-8 bg-slate-900 hover:bg-slate-800 rounded-[32px] border border-slate-700 hover:border-amber-500/50 transition-all w-36 md:w-44">
               <span className="text-4xl">📜</span>
               <span className="font-black uppercase tracking-widest text-sm">TLDR</span>
               <span className="text-xs text-slate-500 text-center">AI summary of the adventure</span>
             </button>
-            <button onClick={() => setMode('movie')} className="flex flex-col items-center gap-3 p-8 bg-slate-900 hover:bg-slate-800 rounded-[32px] border border-slate-700 hover:border-amber-500/50 transition-all w-44">
+            <button onClick={() => setMode('movie')} className="flex flex-col items-center gap-3 p-6 md:p-8 bg-slate-900 hover:bg-slate-800 rounded-[32px] border border-slate-700 hover:border-amber-500/50 transition-all w-36 md:w-44">
               <span className="text-4xl">🎬</span>
               <span className="font-black uppercase tracking-widest text-sm">Movie</span>
               <span className="text-xs text-slate-500 text-center">Relive each turn with scenes</span>

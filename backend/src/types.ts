@@ -37,6 +37,7 @@ export interface SessionState {
   recentHistory: string[];
   displayName: string;
   difficulty: string;
+  savingsMode: boolean;
 }
 
 
