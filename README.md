@@ -4,6 +4,8 @@
 
 A family-friendly, AI-powered D&D adventure game built for short, hilarious story nights. An AI Dungeon Master narrates your adventure, generates scene artwork, and never lets the story get boring.
 
+![Home screen](docs/home-screen.png)
+
 ---
 
 ## What Is This?
@@ -17,19 +19,42 @@ No prep required. No DM experience required. Just vibes and a d20.
 ## Features
 
 ### The Adventure
+
+![Scene image with savings toggle](docs/scene-image-gameplay.png)
+
 - **AI Dungeon Master** — GPT-4o narrates your story in real-time
-- **DALL-E 3 scene images** — every major moment gets illustrated
+- **DALL-E 3 scene images** — every major moment gets illustrated, with a slow Ken Burns pan across the scene
 - **Three stats** — Might, Magic, and Mischief (it's a family game)
 - **d20 rolls** — classic dice mechanics, displayed with a satisfying SVG die
 - **Inventory with stat bonuses** — find a magic sword, actually get +1 Might
 - **Real-time multi-device sync** — everyone at the table can follow along via SSE
 
+![Session header with party avatars](docs/session-header-party.png)
+
+![AI narration panel](docs/narration-panel.png)
+
+![Action choices and d20 result](docs/turn-history-card.png)
+
+![Inventory panel with stat bonus item](docs/inventory-panel.png)
+
 ### Your Party
+
+![Assemble your party screen](docs/assemble-party.png)
+
 - **Custom hero creation** — name, species, class, quirk, and auto-generated AI portrait
 - **Hero library** — import characters from previous adventures
 - **HP tracking** — fail a roll, take damage; the stakes are real (ish)
 
+![Create new hero form](docs/create-hero-form.png)
+
+Every hero gets a generated portrait and carries their quirk into the story:
+
+![Character popup - Pundemic](docs/character-popup-pundemic.png) ![Character popup - Mambadelic](docs/character-popup-mambadelic.png)
+
 ### Between Sessions
+
+![Recap mode selection](docs/recap-mode-select.png)
+
 - **TLDR mode** — AI summarises the whole adventure in 3 sentences for latecomers
 - **Movie mode** — animated slideshow of every scene, with Ken Burns effect and pause/play controls. Click any image for fullscreen.
 
@@ -114,6 +139,7 @@ dnd-fam-ftw/
 │           └── game/             # Narration, ActionControls, Inventory…
 │
 ├── deploy/                       # Nginx config + systemd service
+├── docs/                         # Screenshots
 ├── scripts/                      # Deploy + install scripts
 └── .env                          # OPENAI_API_KEY goes here
 ```
@@ -156,6 +182,14 @@ SSE broadcasts turn_complete → all connected clients update
 ```
 
 The AI **cannot mutate game state directly** — it only returns structured JSON. The backend owns all mechanics.
+
+---
+
+## Starting a New World
+
+![New world creation form](docs/create-world.png)
+
+Pick a difficulty, describe your world (or leave it blank for a surprise), and hit **Next: Assemble Heroes**.
 
 ---
 
