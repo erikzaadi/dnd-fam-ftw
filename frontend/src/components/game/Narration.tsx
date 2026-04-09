@@ -12,24 +12,29 @@ interface NarrationProps {
 
 export const Narration = ({ history, party, loading, onTurnClick, viewedTurnIdx }: NarrationProps) => {
   const lastIdx = history.length - 1;
-  const bottomRef = useRef<HTMLDivElement>(null);
-  // Scroll when loading starts (shows "DM is narrating..." loader)
-  // and when history grows (new turn rendered after loading finishes)
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  };
+
   useEffect(() => {
     if (loading) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      scrollToBottom();
     }
   }, [loading]);
 
   useEffect(() => {
     if (history.length > 0) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      scrollToBottom();
     }
   }, [history.length]);
 
   return (
     <div className="bg-slate-900 rounded-[50px] border border-slate-800 shadow-2xl h-[400px] md:h-[600px] flex flex-col relative overflow-hidden">
-      <div className="flex-grow p-4 md:p-10 space-y-4 overflow-y-auto">
+      <div ref={scrollRef} className="flex-grow p-4 md:p-10 space-y-4 overflow-y-auto scrollbar-hide">
         {history.map((turn, i) => {
           const isCurrent = i === lastIdx;
           const isSelected = viewedTurnIdx === i;
@@ -76,7 +81,6 @@ export const Narration = ({ history, party, loading, onTurnClick, viewedTurnIdx 
           );
         })}
         {loading && <div className="p-6 text-amber-500 animate-pulse">DM is narrating...</div>}
-        <div ref={bottomRef} />
       </div>
     </div>
   );

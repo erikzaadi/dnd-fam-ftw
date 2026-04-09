@@ -1,5 +1,6 @@
 import Database, { Database as DB } from 'better-sqlite3';
 import { SessionState, Character, TurnResult, InventoryItem } from '../types.js';
+import { createChatClient } from '../ai/AiProviderFactory.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -27,6 +28,7 @@ export class StateService {
         displayName TEXT NOT NULL DEFAULT '',
         difficulty TEXT NOT NULL DEFAULT 'normal',
         savingsMode INTEGER NOT NULL DEFAULT 0,
+        useLocalAI INTEGER NOT NULL DEFAULT 0,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -99,31 +101,47 @@ export class StateService {
     if (!sessionCols.includes('savingsMode')) {
       db.prepare("ALTER TABLE sessions ADD COLUMN savingsMode INTEGER NOT NULL DEFAULT 0").run();
     }
+    if (!sessionCols.includes('useLocalAI')) {
+      db.prepare("ALTER TABLE sessions ADD COLUMN useLocalAI INTEGER NOT NULL DEFAULT 0").run();
+    }
   }
 
-  public static async createSession(worldDescription?: string, difficulty: string = 'normal'): Promise<SessionState> {
+  public static async createSession(worldDescription?: string, difficulty: string = 'normal', useLocalAI: boolean = false): Promise<SessionState> {
     const db = this.getDb();
     const id = Math.random().toString(36).substring(7);
 
-    // Generate Display Name (using the same prompt as before)
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` },
-        body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [{ role: 'user', content: `Give me a short, evocative name (max 3 words) for a story setting based on: ${worldDescription || 'a random world'}` }]
-        })
-    });
-    if (!response.ok) {
-      const err = new Error('OpenAI API error') as Error & { status: number };
-      err.status = response.status;
-      throw err;
+    // Generate Display Name
+    const { client, model } = createChatClient(useLocalAI);
+    const isLocal = process.env.AI_NARRATION_PROVIDER === 'localai';
+    console.log(`[Session] Generating display name via ${isLocal ? 'LocalAI' : 'OpenAI'} model=${model}`);
+    const nameStart = Date.now();
+    let displayName = 'A New World';
+    try {
+      const nameResponse = await client.chat.completions.create({
+        model,
+        messages: [{ role: 'user', content: `/no_think Give me a short, evocative name (max 3 words) for a story setting based on: ${worldDescription || 'a random world'}. Reply with the name only, no explanation.` }],
+        max_tokens: 100,
+      }, { signal: AbortSignal.timeout(20_000) });
+      console.log(`[Session] Display name received in ${Date.now() - nameStart}ms`);
+      const msg = nameResponse.choices[0].message;
+      const rawName = msg.content || (msg as unknown as Record<string, string>)['reasoning_content'] || '';
+      console.log(`[Session] Raw display name response: ${JSON.stringify(rawName)}`);
+      displayName = rawName
+        .replace(/<think>[\s\S]*?<\/think>/g, '')
+        .replace(/\*\*/g, '')
+        .replace(/\*/g, '')
+        .replace(/\(.*?\)/g, '')
+        .replace(/"/g, '')
+        .replace(/\s*[-–—].*/g, '')
+        .split('\n')
+        .map((l: string) => l.trim())
+        .find((l: string) => l.length > 0) ?? 'A New World';
+    } catch (err) {
+      console.warn(`[Session] Display name generation failed or timed out (${Date.now() - nameStart}ms), using fallback:`, err);
     }
-    const result = await response.json();
-    const displayName = result.choices[0].message.content.replace(/"/g, '');
 
-    db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, turn, tone, displayName, difficulty) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, "A New World", "start-1", worldDescription || null, 1, "thrilling adventure", displayName, difficulty);
+    db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, turn, tone, displayName, difficulty, useLocalAI) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, "A New World", "start-1", worldDescription || null, 1, "thrilling adventure", displayName, difficulty, useLocalAI ? 1 : 0);
 
     return {
       id,
@@ -140,7 +158,8 @@ export class StateService {
       recentHistory: ["Adventure begins!"],
       displayName,
       difficulty,
-      savingsMode: false
+      savingsMode: false,
+      useLocalAI,
     };
   }  public static async getSession(id: string): Promise<SessionState | undefined> {
     const db = this.getDb();
@@ -155,6 +174,7 @@ export class StateService {
       displayName: string;
       difficulty: string;
       savingsMode: number;
+      useLocalAI: number;
     } | undefined;
     if (!row) {
       return undefined;
@@ -211,7 +231,8 @@ export class StateService {
       recentHistory: ["Adventure begins!"],
       displayName: row.displayName,
       difficulty: row.difficulty,
-      savingsMode: !!row.savingsMode
+      savingsMode: !!row.savingsMode,
+      useLocalAI: !!row.useLocalAI,
     };
   }
 
@@ -220,23 +241,36 @@ export class StateService {
     db.prepare('UPDATE sessions SET savingsMode = ? WHERE id = ?').run(enabled ? 1 : 0, id);
   }
 
+  public static async setUseLocalAI(id: string, enabled: boolean): Promise<void> {
+    const db = this.getDb();
+    db.prepare('UPDATE sessions SET useLocalAI = ? WHERE id = ?').run(enabled ? 1 : 0, id);
+  }
+
   public static async deleteSession(id: string): Promise<void> {
     const db = this.getDb();
     const imagesDir = path.join(import.meta.dirname, '../../public/images');
 
     const deleteImageFile = (url: string | null) => {
-      if (!url) {return;}
+      if (!url) {
+        return;
+      }
       const filePath = path.join(imagesDir, path.basename(url));
-      if (fs.existsSync(filePath)) {fs.unlinkSync(filePath);}
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     };
 
     // Delete scene images
     const history = db.prepare('SELECT imageUrl FROM turn_history WHERE sessionId = ?').all(id) as { imageUrl: string | null }[];
-    for (const row of history) {deleteImageFile(row.imageUrl);}
+    for (const row of history) {
+      deleteImageFile(row.imageUrl);
+    }
 
     // Delete avatar images
     const characters = db.prepare('SELECT avatarUrl FROM characters WHERE sessionId = ?').all(id) as { avatarUrl: string | null }[];
-    for (const char of characters) {deleteImageFile(char.avatarUrl);}
+    for (const char of characters) {
+      deleteImageFile(char.avatarUrl);
+    }
 
     db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
     db.prepare('DELETE FROM turn_history WHERE sessionId = ?').run(id);
@@ -248,13 +282,13 @@ export class StateService {
       .run(state.scene, state.sceneId, state.turn, state.activeCharacterId, state.tone, id);
 
     for (const char of state.party) {
-        db.prepare('INSERT OR REPLACE INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-          .run(char.id, id, char.name, char.class, char.species, char.quirk, char.hp, char.max_hp, char.stats.might, char.stats.magic, char.stats.mischief, char.avatarUrl || null, char.avatarPrompt || null);
+      db.prepare('INSERT OR REPLACE INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(char.id, id, char.name, char.class, char.species, char.quirk, char.hp, char.max_hp, char.stats.might, char.stats.magic, char.stats.mischief, char.avatarUrl || null, char.avatarPrompt || null);
 
-        db.prepare('DELETE FROM inventory WHERE characterId = ?').run(char.id);
-        for (const item of (char.inventory ?? [])) {
-            db.prepare('INSERT INTO inventory (characterId, name, description, statBonuses) VALUES (?, ?, ?, ?)').run(char.id, item.name, item.description, item.statBonuses ? JSON.stringify(item.statBonuses) : null);
-        }
+      db.prepare('DELETE FROM inventory WHERE characterId = ?').run(char.id);
+      for (const item of (char.inventory ?? [])) {
+        db.prepare('INSERT INTO inventory (characterId, name, description, statBonuses) VALUES (?, ?, ?, ?)').run(char.id, item.name, item.description, item.statBonuses ? JSON.stringify(item.statBonuses) : null);
+      }
     }
   }
 
@@ -286,16 +320,16 @@ export class StateService {
         avatarUrl: string | null;
     }[];
     return rows.map(char => ({
-        id: char.id,
-        name: char.name,
-        class: char.class,
-        species: char.species,
-        quirk: char.quirk,
-        hp: char.hp,
-        max_hp: char.max_hp,
-        avatarUrl: char.avatarUrl || undefined,
-        stats: { might: char.might, magic: char.magic, mischief: char.mischief },
-        inventory: []
+      id: char.id,
+      name: char.name,
+      class: char.class,
+      species: char.species,
+      quirk: char.quirk,
+      hp: char.hp,
+      max_hp: char.max_hp,
+      avatarUrl: char.avatarUrl || undefined,
+      stats: { might: char.might, magic: char.magic, mischief: char.mischief },
+      inventory: []
     }));
   }
 
@@ -315,30 +349,36 @@ export class StateService {
     }[];
 
     return rows.map(r => {
-        const choices = db.prepare('SELECT * FROM turn_choices WHERE turnId = ?').all(r.id) as {
+      const choices = db.prepare('SELECT * FROM turn_choices WHERE turnId = ?').all(r.id) as {
             label: string;
             difficulty: 'easy' | 'normal' | 'hard';
             stat: 'might' | 'magic' | 'mischief';
         }[];
-        const lastAction = r.actionAttempt ? {
-            actionAttempt: r.actionAttempt,
-            actionResult: {
-                success: !!r.actionSuccess,
-                roll: r.actionRoll ?? 0,
-                statUsed: (r.actionStat ?? 'none') as 'might' | 'magic' | 'mischief' | 'none'
-            }
-        } : null;
-        return {
-            narration: r.narration,
-            imagePrompt: r.imagePrompt,
-            imageSuggested: !!r.imageSuggested,
-            imageUrl: r.imageUrl,
-            characterId: r.characterId || undefined,
-            choices,
-            lastAction
-        };
+      const lastAction = r.actionAttempt ? {
+        actionAttempt: r.actionAttempt,
+        actionResult: {
+          success: !!r.actionSuccess,
+          roll: r.actionRoll ?? 0,
+          statUsed: (r.actionStat ?? 'none') as 'might' | 'magic' | 'mischief' | 'none'
+        }
+      } : null;
+      return {
+        narration: r.narration,
+        imagePrompt: r.imagePrompt,
+        imageSuggested: !!r.imageSuggested,
+        imageUrl: r.imageUrl,
+        characterId: r.characterId || undefined,
+        choices,
+        lastAction
+      };
     });
   }
+  public static async updateLatestTurnImageUrl(sessionId: string, imageUrl: string): Promise<void> {
+    const db = this.getDb();
+    db.prepare('UPDATE turn_history SET imageUrl = ? WHERE id = (SELECT MAX(id) FROM turn_history WHERE sessionId = ?)')
+      .run(imageUrl, sessionId);
+  }
+
   public static async addTurnResult(id: string, turn: TurnResult, characterId: string | null): Promise<void> {
     const db = this.getDb();
     const action = turn.lastAction ?? null;
@@ -353,8 +393,8 @@ export class StateService {
 
     const turnId = info.lastInsertRowid;
     for (const choice of (turn.choices ?? [])) {
-        db.prepare('INSERT INTO turn_choices (turnId, label, difficulty, stat) VALUES (?, ?, ?, ?)')
-          .run(turnId, choice.label, choice.difficulty, choice.stat);
+      db.prepare('INSERT INTO turn_choices (turnId, label, difficulty, stat) VALUES (?, ?, ?, ?)')
+        .run(turnId, choice.label, choice.difficulty, choice.stat);
     }
   }
 }

@@ -72,8 +72,8 @@ Every hero gets a generated portrait and carries their quirk into the story:
 | Frontend | React 19 + Vite + TailwindCSS 4 + TypeScript |
 | Backend | Node.js + Express 5 + TypeScript |
 | Database | SQLite via `better-sqlite3` (auto-migrated) |
-| AI Narration | OpenAI GPT-4o (structured JSON responses only) |
-| AI Images | DALL-E 3 (cached by prompt hash) |
+| AI Narration | OpenAI GPT-4o **or** LocalAI (OpenAI-compatible, e.g. Qwen3) |
+| AI Images | DALL-E 3 **or** LocalAI (Stable Diffusion via `stablediffusion-ggml`) |
 | Real-time | Server-Sent Events |
 | Fonts | Cinzel (display) + Lora (narrative) |
 
@@ -83,15 +83,52 @@ Every hero gets a generated portrait and carries their quirk into the story:
 
 ### Prerequisites
 - Node.js 20+
-- An OpenAI API key
+- One of the AI options below — **no paid account required**
+
+### AI options
+
+**No API key? No problem.** You have three paths:
+
+| Option | Narration | Images | Cost |
+|--------|-----------|--------|------|
+| OpenAI | GPT-4o | DALL-E 3 | Pay-per-use |
+| [Gemini](https://ai.google.dev/gemini-api/docs/openai) (free tier) | Gemini 2.5 Flash Lite | *(paid plan only)* | Free narration with a Google account |
+| [LocalAI](https://localai.io) | Any GGUF model | Stable Diffusion | Free, runs on your machine |
 
 ### 1. Set up environment
 
-Create a `.env` file at the project root:
+Create a `backend/.env` file.
 
+**OpenAI:**
 ```
 OPENAI_API_KEY=sk-proj-...
 ```
+
+**Gemini (free — any Gmail account):**
+Get a key at [aistudio.google.com](https://aistudio.google.com/apikey), then:
+```
+OPENAI_API_KEY=your-gemini-api-key
+OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+OPENAI_MODEL=gemini-2.5-flash-lite
+AI_NARRATION_PROVIDER=gemini
+# Image generation requires a paid Gemini plan — omit for SVG initials fallback
+# AI_IMAGE_PROVIDER=openai
+# OPENAI_IMAGE_MODEL=gemini-2.5-flash-image
+```
+
+**LocalAI (fully self-hosted):**
+```
+AI_NARRATION_PROVIDER=localai
+AI_IMAGE_PROVIDER=localai
+LOCALAI_BASE_URL=http://127.0.0.1:8080
+LOCALAI_NARRATION_MODEL=qwen3-1.7b
+LOCALAI_IMAGE_MODEL=sd-3.5-large-ggml
+LOCALAI_IMAGE_STEPS=8
+# Optional: separate LocalAI instance just for images (e.g. GPU-only container)
+# LOCALAI_IMAGE_BASE_URL=http://127.0.0.1:8081
+```
+
+You can also switch between cloud and local per-session using the toggle on the new world screen.
 
 ### 2. Install dependencies
 
@@ -165,6 +202,22 @@ The backend runs as a systemd service (`node --env-file=.env dist/index.js`). Se
 
 ---
 
+## AI Usage
+
+There are five distinct AI calls in the app, each with a different purpose and cost profile:
+
+| Call | Where | Cloud model | Local alternative | When |
+|---|---|---|---|---|
+| **Turn narration** | `aiDmService.ts` | gpt-4o | LocalAI (Qwen3 etc.) | Every action — the core DM loop |
+| **Scene image** | `imageService.ts` | dall-e-3 | LocalAI (SD 3.5 Large) | Every turn, async via SSE, cached by prompt hash |
+| **Avatar generation** | `imageService.ts` | dall-e-3 | LocalAI (SD 3.5 Large) | Once per character creation, cached permanently |
+| **TLDR summary** | `index.ts` (route) | gpt-4o-mini | — | On demand in recap screen |
+| **Session naming** | `stateService.ts` | gpt-4o-mini | LocalAI | Once at world creation |
+
+Turn narration is the only call that blocks the player response. Scene images are generated asynchronously after the turn — the story text appears immediately, and the image arrives via SSE a few seconds later.
+
+---
+
 ## How a Turn Works
 
 ```
@@ -172,13 +225,15 @@ Player picks action
        ↓
 Backend rolls d20 + stat vs. difficulty (easy=8 / normal=12 / hard=16)
        ↓
-Result sent to GPT-4o with full session context
+Result sent to AI (GPT-4o or local model) with full session context
        ↓
 AI narrates outcome + suggests 3 new choices + optionally grants an item
        ↓
-If a significant scene: DALL-E 3 generates image (cached by prompt hash)
+SSE broadcasts turn_complete → all connected clients update immediately
        ↓
-SSE broadcasts turn_complete → all connected clients update
+Image generation runs in background (DALL-E 3 or LocalAI SD)
+       ↓
+SSE broadcasts image_ready → scene image appears on all clients
 ```
 
 The AI **cannot mutate game state directly** — it only returns structured JSON. The backend owns all mechanics.

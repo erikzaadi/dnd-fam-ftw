@@ -38,6 +38,7 @@ export interface SessionState {
   displayName: string;
   difficulty: string;
   savingsMode: boolean;
+  useLocalAI: boolean;
 }
 
 

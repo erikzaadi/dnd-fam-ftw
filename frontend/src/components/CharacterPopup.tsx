@@ -10,7 +10,11 @@ interface CharacterPopupProps {
 
 export const CharacterPopup = ({ character, onClose, onAvatarClick }: CharacterPopupProps) => {
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') {onClose();} };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      } 
+    };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);

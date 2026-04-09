@@ -42,26 +42,28 @@ export const Home = () => {
         </div>
 
         <div className="flex flex-col gap-8 md:gap-12 items-center">
-            <button
-                onClick={() => navigate('/create-session')}
-                className="px-8 py-6 md:px-16 md:py-8 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-2xl md:text-4xl font-black shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter w-full sm:w-auto"
-            >
+          <button
+            onClick={() => navigate('/create-session')}
+            className="px-8 py-6 md:px-16 md:py-8 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-2xl md:text-4xl font-black shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter w-full sm:w-auto"
+          >
                 START A NEW WORLD
-            </button>
+          </button>
 
-            {activeSessions.length > 0 && (
-                <div className="w-full bg-slate-900 p-6 md:p-12 rounded-[40px] md:rounded-[60px] border-2 border-slate-800 shadow-2xl flex flex-col space-y-6 md:space-y-8">
-                    <h3 className="text-2xl md:text-4xl font-black uppercase tracking-tighter text-white italic">Active Worlds</h3>
-                    <div className="flex-grow overflow-y-auto space-y-4 max-h-[400px]">
-                    {activeSessions.map(sess => (
-                        <div key={sess.id} className="w-full p-6 bg-black/40 hover:bg-amber-500/10 rounded-[32px] border-2 border-slate-800 text-amber-500 cursor-pointer flex justify-between items-center" onClick={() => navigate(`/session/${sess.id}/recap`)}>
-                        <span>{sess.displayName}</span>
-                        <button onClick={(e) => { e.stopPropagation(); deleteSession(sess.id); }} className="text-rose-500/20 hover:text-rose-500">✕</button>
-                        </div>
-                    ))}
-                    </div>
-                </div>
-            )}
+          {activeSessions.length > 0 && (
+            <div className="w-full bg-slate-900 p-6 md:p-12 rounded-[40px] md:rounded-[60px] border-2 border-slate-800 shadow-2xl flex flex-col space-y-6 md:space-y-8">
+              <h3 className="text-2xl md:text-4xl font-black uppercase tracking-tighter text-white italic">Active Worlds</h3>
+              <div className="flex-grow overflow-y-auto space-y-4 max-h-[400px]">
+                {activeSessions.map(sess => (
+                  <div key={sess.id} className="w-full p-6 bg-black/40 hover:bg-amber-500/10 rounded-[32px] border-2 border-slate-800 text-amber-500 cursor-pointer flex justify-between items-center" onClick={() => navigate(`/session/${sess.id}/recap`)}>
+                    <span>{sess.displayName}</span>
+                    <button onClick={(e) => {
+                      e.stopPropagation(); deleteSession(sess.id); 
+                    }} className="text-rose-500/20 hover:text-rose-500">✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

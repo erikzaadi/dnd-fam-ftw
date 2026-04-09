@@ -30,6 +30,8 @@ export default tseslint.config(
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-empty-object-type": "off",
       "curly": ["error", "all"],
+      "brace-style": ["error", "1tbs"],
+      "indent": ["error", 2],
     },
   },
 
@@ -46,6 +48,8 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "warn",
       "@typescript-eslint/no-explicit-any": "warn",
       "curly": ["error", "all"],
+      "brace-style": ["error", "1tbs"],
+      "indent": ["error", 2],
       "no-console": "off", // Usually OK for backends
     },
   }

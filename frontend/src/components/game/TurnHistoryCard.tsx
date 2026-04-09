@@ -1,5 +1,6 @@
 import type { Choice, Character, ActionAttempt } from '../../types';
 import { imgSrc } from '../../lib/api';
+import { D20 } from './D20';
 
 interface TurnHistoryCardProps {
   choices: Choice[];
@@ -20,40 +21,6 @@ const DIFF_COLORS: Record<string, string> = {
   hard: 'shadow-[inset_0_0_8px_rgba(239,68,68,0.2)]'
 };
 
-const D20 = ({ roll, success }: { roll: number; success: boolean }) => {
-  const isNat20 = roll === 20;
-  const isNat1 = roll === 1;
-  const color = isNat20 ? '#22c55e' : isNat1 ? '#ef4444' : success ? '#f59e0b' : '#f87171';
-  const fontSize = roll >= 10 ? 27 : 32;
-
-  return (
-    <svg viewBox="0 0 100 112" width="72" height="81" fill="none">
-      {/* Outer hex shape */}
-      <polygon
-        points="50,4 95,30 95,82 50,108 5,82 5,30"
-        stroke={color} strokeWidth="2.5" fill={`${color}18`}
-      />
-      {/* Top cap divider */}
-      <line x1="5" y1="30" x2="95" y2="30" stroke={color} strokeWidth="1.5" opacity="0.35"/>
-      {/* Bottom cap divider */}
-      <line x1="5" y1="82" x2="95" y2="82" stroke={color} strokeWidth="1.5" opacity="0.35"/>
-      {/* Top facet lines */}
-      <line x1="50" y1="4" x2="5" y2="30" stroke={color} strokeWidth="1" opacity="0.2"/>
-      <line x1="50" y1="4" x2="95" y2="30" stroke={color} strokeWidth="1" opacity="0.2"/>
-      {/* Roll number */}
-      <text
-        x="50" y="68"
-        textAnchor="middle"
-        fontSize={fontSize}
-        fontWeight="900"
-        fill={color}
-        fontFamily="sans-serif"
-      >
-        {roll}
-      </text>
-    </svg>
-  );
-};
 
 export const TurnHistoryCard = ({ choices, takenAction, character }: TurnHistoryCardProps) => {
   const takenLabel = takenAction?.actionAttempt ?? '';

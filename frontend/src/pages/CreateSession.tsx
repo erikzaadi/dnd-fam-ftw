@@ -5,10 +5,17 @@ import { api } from '../lib/api';
 export const CreateSession = () => {
   const [worldDescription, setWorldDescription] = useState("");
   const [difficulty, setDifficulty] = useState("normal");
+  const [useLocalAI, setUseLocalAI] = useState(() => localStorage.getItem('useLocalAI') === 'true');
   const [showWorldDescription, setShowWorldDescription] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  const toggleLocalAI = () => {
+    const next = !useLocalAI;
+    setUseLocalAI(next);
+    localStorage.setItem('useLocalAI', String(next));
+  };
 
   const createSession = async () => {
     setIsLoading(true);
@@ -16,7 +23,7 @@ export const CreateSession = () => {
     const res = await fetch(api('/session/create'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ worldDescription, difficulty })
+      body: JSON.stringify({ worldDescription, difficulty, useLocalAI })
     });
     const data = await res.json();
     setIsLoading(false);
@@ -36,6 +43,14 @@ export const CreateSession = () => {
             <button key={d} onClick={() => setDifficulty(d)} className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${difficulty === d ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-500'}`}>{d}</button>
           ))}
         </div>
+        <div className="flex justify-center">
+          <button
+            onClick={toggleLocalAI}
+            className={`px-4 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all ${useLocalAI ? 'border-purple-500 text-purple-400 bg-purple-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
+          >
+            {useLocalAI ? '🏠 Local AI' : '☁️ Cloud AI'}
+          </button>
+        </div>
         {showWorldDescription ? (
           <textarea 
             placeholder="Describe the world..." 
@@ -53,7 +68,7 @@ export const CreateSession = () => {
           </div>
         )}
         <button onClick={createSession} disabled={isLoading} className="w-full py-8 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-4xl font-black shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter">
-            {isLoading ? 'FORGING...' : 'NEXT: ASSEMBLE HEROES'}
+          {isLoading ? 'FORGING...' : 'NEXT: ASSEMBLE HEROES'}
         </button>
       </div>
     </div>

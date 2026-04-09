@@ -7,6 +7,14 @@
   --animate-ken-burns: ken-burns 24s ease-in-out infinite alternate;
 }
 
+.scrollbar-hide {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/Mac */
+}
+
 @keyframes border-pulse {
   0%, 100% { box-shadow: 0 0 6px 1px rgba(245, 158, 11, 0.5); }
   50%       { box-shadow: 0 0 18px 4px rgba(245, 158, 11, 0.9); }

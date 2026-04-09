@@ -41,9 +41,11 @@ export const CharacterAssembly = () => {
   }, [loadSession, loadAllCharacters]);
 
   const importCharacter = async (char: Character) => {
-    if (!session) {return;}
+    if (!session) {
+      return;
+    }
     setLoading(true);
-    const { id: _id, ...characterData } = char;
+    const { id: _id, avatarUrl: _avatarUrl, ...characterData } = char;
     await fetch(api('/character/create'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -56,26 +58,30 @@ export const CharacterAssembly = () => {
 
   const removeCharacter = async (charId: string) => {
     setConfirmDialog({
-        message: 'Are you sure you want to remove this hero?',
-        onConfirm: async () => {
-            if (!session) {return;}
-            setLoading(true);
-            try {
-                await fetch(api(`/session/${session.id}/character/${charId}`), { method: 'DELETE' });
-                await Promise.all([loadSession(), loadAllCharacters()]);
-            } catch (err) {
-                console.error("Failed to delete character:", err);
-            } finally {
-                setLoading(false);
-                setConfirmDialog(null);
-            }
+      message: 'Are you sure you want to remove this hero?',
+      onConfirm: async () => {
+        if (!session) {
+          return;
         }
+        setLoading(true);
+        try {
+          await fetch(api(`/session/${session.id}/character/${charId}`), { method: 'DELETE' });
+          await Promise.all([loadSession(), loadAllCharacters()]);
+        } catch (err) {
+          console.error("Failed to delete character:", err);
+        } finally {
+          setLoading(false);
+          setConfirmDialog(null);
+        }
+      }
     });
   };
 
   const saveCharacter = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!session) {return;}
+    if (!session) {
+      return;
+    }
     setLoading(true);
     const formData = new FormData(e.currentTarget);
     const charData = {
@@ -88,9 +94,9 @@ export const CharacterAssembly = () => {
     
     if (editingChar) {
       await fetch(api(`/character/${editingChar.id}`), {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: session.id, characterData: charData })
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: session.id, characterData: charData })
       });
     } else {
       await fetch(api('/character/create'), {
@@ -118,15 +124,25 @@ export const CharacterAssembly = () => {
     navigate(`/session/${id}`);
   };
 
-  const importableCharacters = availableCharacters.filter(char => !session?.party.find(p => p.id === char.id));
+  const importableCharacters = Object.values(
+    availableCharacters
+      .filter(char => !session?.party.find(p => p.name === char.name))
+      .reduce<Record<string, Character>>((acc, char) => ({ ...acc, [char.name]: char }), {})
+  );
 
   return (
     <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex items-center justify-center p-4 md:p-8">
       {fullscreenImage && <FullscreenImage url={fullscreenImage} onClose={() => setFullscreenImage(null)} />}
-      {isCreating && <CharacterForm onSave={saveCharacter} onCancel={() => { setIsCreating(false); setEditingChar(null); }} isLoading={loading} initialValues={editingChar} />}
+      {isCreating && <CharacterForm onSave={saveCharacter} onCancel={() => {
+        setIsCreating(false); setEditingChar(null); 
+      }} isLoading={loading} initialValues={editingChar} />}
       {showImportModal && <CharacterImportModal characters={importableCharacters} onImport={importCharacter} onClose={() => setShowImportModal(false)} loading={loading} />}
-      {viewingChar && <CharacterPopup character={viewingChar} onClose={() => setViewingChar(null)} onAvatarClick={(url) => { setViewingChar(null); setFullscreenImage(url); }} />}
-      {confirmDialog && <ConfirmDialog message={confirmDialog.message} onConfirm={() => { confirmDialog.onConfirm(); setConfirmDialog(null); }} onCancel={() => setConfirmDialog(null)} />}
+      {viewingChar && <CharacterPopup character={viewingChar} onClose={() => setViewingChar(null)} onAvatarClick={(url) => {
+        setViewingChar(null); setFullscreenImage(url); 
+      }} />}
+      {confirmDialog && <ConfirmDialog message={confirmDialog.message} onConfirm={() => {
+        confirmDialog.onConfirm(); setConfirmDialog(null); 
+      }} onCancel={() => setConfirmDialog(null)} />}
 
       <div className="max-w-4xl w-full space-y-8 md:space-y-12">
         <h1 className="text-3xl md:text-6xl font-display font-black text-amber-500 italic tracking-tighter text-center drop-shadow-[0_6px_6px_rgba(0,0,0,0.5)]">Assemble Your Party</h1>
@@ -148,7 +164,9 @@ export const CharacterAssembly = () => {
                     <div className="text-[10px] text-slate-500 uppercase tracking-wide">{c.class} · {c.species}</div>
                   </div>
                   <div className="flex gap-1 ml-2">
-                    <button onClick={() => { setEditingChar(c); setIsCreating(true); }} className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-700 text-amber-500 hover:bg-amber-500/20 text-xs transition-colors">✎</button>
+                    <button onClick={() => {
+                      setEditingChar(c); setIsCreating(true); 
+                    }} className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-700 text-amber-500 hover:bg-amber-500/20 text-xs transition-colors">✎</button>
                     <button onClick={() => removeCharacter(c.id)} className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-700 text-rose-500 hover:bg-rose-500/20 text-xs transition-colors">✕</button>
                   </div>
                 </div>
@@ -158,7 +176,9 @@ export const CharacterAssembly = () => {
         )}
 
         <div className="flex gap-4">
-          <button onClick={() => { setEditingChar(null); setIsCreating(true); }} className="flex-1 py-6 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm transition-all">+ Create New Hero</button>
+          <button onClick={() => {
+            setEditingChar(null); setIsCreating(true); 
+          }} className="flex-1 py-6 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm transition-all">+ Create New Hero</button>
           {importableCharacters.length > 0 && (
             <button onClick={() => setShowImportModal(true)} className="flex-1 py-6 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm transition-all">+ Import Hero</button>
           )}

@@ -46,6 +46,7 @@ export interface Session {
   activeCharacterId: string;
   displayName: string;
   savingsMode: boolean;
+  useLocalAI: boolean;
 }
 
 export interface TurnResult {

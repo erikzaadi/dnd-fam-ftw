@@ -47,7 +47,9 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
   const actor = turn.characterId ? party.find(c => c.id === turn.characterId) : null;
 
   useEffect(() => {
-    if (!playing || isLast) {return;}
+    if (!playing || isLast) {
+      return;
+    }
     const t = setTimeout(() => setIdx(i => i + 1), MOVIE_INTERVAL_MS);
     return () => clearTimeout(t);
   }, [idx, playing, isLast]);
@@ -60,7 +62,9 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
         {history.map((_, i) => (
           <button
             key={i}
-            onClick={() => { setIdx(i); setPlaying(false); }}
+            onClick={() => {
+              setIdx(i); setPlaying(false); 
+            }}
             className={`w-2 h-2 rounded-full transition-all ${i === idx ? 'bg-amber-500 w-4' : i < idx ? 'bg-slate-600' : 'bg-slate-800'}`}
           />
         ))}
@@ -71,7 +75,9 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
         {turn.imageUrl ? (
           <div
             className="w-full h-48 md:h-72 rounded-[40px] border border-slate-800 shadow-2xl overflow-hidden cursor-zoom-in"
-            onClick={() => { setFullscreenUrl(imgSrc(turn.imageUrl)); setPlaying(false); }}
+            onClick={() => {
+              setFullscreenUrl(imgSrc(turn.imageUrl)); setPlaying(false); 
+            }}
           >
             <img src={imgSrc(turn.imageUrl)} className="w-full h-full object-cover animate-ken-burns" />
           </div>
@@ -98,11 +104,15 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
 
       {/* Controls */}
       <div className="flex items-center gap-4">
-        <button onClick={() => { setIdx(i => Math.max(0, i - 1)); setPlaying(false); }} disabled={idx === 0} className="px-4 py-2 bg-slate-800 rounded-xl font-black text-sm disabled:opacity-30">←</button>
+        <button onClick={() => {
+          setIdx(i => Math.max(0, i - 1)); setPlaying(false); 
+        }} disabled={idx === 0} className="px-4 py-2 bg-slate-800 rounded-xl font-black text-sm disabled:opacity-30">←</button>
         <button onClick={() => setPlaying(p => !p)} className="px-4 py-2 bg-slate-800 rounded-xl font-black text-sm w-20">
           {playing ? 'Pause' : 'Play'}
         </button>
-        <button onClick={() => { setIdx(i => Math.min(history.length - 1, i + 1)); setPlaying(false); }} disabled={isLast} className="px-4 py-2 bg-slate-800 rounded-xl font-black text-sm disabled:opacity-30">→</button>
+        <button onClick={() => {
+          setIdx(i => Math.min(history.length - 1, i + 1)); setPlaying(false); 
+        }} disabled={isLast} className="px-4 py-2 bg-slate-800 rounded-xl font-black text-sm disabled:opacity-30">→</button>
       </div>
 
       {isLast && (
@@ -126,18 +136,24 @@ export const SessionRecap = () => {
   const enter = useCallback(() => navigate(`/session/${id}`), [id, navigate]);
 
   useEffect(() => {
-    if (!id) {return;}
+    if (!id) {
+      return;
+    }
     Promise.all([
       fetch(api(`/session/${id}`)).then(r => r.json()),
       fetch(api(`/session/${id}/history`)).then(r => r.json()),
     ]).then(([s, h]) => {
       setSession(s);
       setHistory(h);
-      if (!h.length) {enter();}
+      if (!h.length) {
+        enter();
+      }
     });
   }, [id, enter]);
 
-  if (!session) {return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-amber-500 animate-pulse font-black uppercase tracking-widest">Loading...</div>;}
+  if (!session) {
+    return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-amber-500 animate-pulse font-black uppercase tracking-widest">Loading...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col items-center justify-center p-4 md:p-8 gap-8 md:gap-10">

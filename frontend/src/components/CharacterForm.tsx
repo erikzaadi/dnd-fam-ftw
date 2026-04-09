@@ -10,7 +10,11 @@ interface CharacterFormProps {
 
 export const CharacterForm = ({ onSave, onCancel, isLoading, initialValues }: CharacterFormProps) => {
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') {onCancel();} };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onCancel();
+      } 
+    };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onCancel]);
