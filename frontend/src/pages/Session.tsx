@@ -134,6 +134,23 @@ export const SessionPage = () => {
     setSession({ ...session, useLocalAI: enabled });
   };
 
+  const submitItemAction = async (actionType: 'use_item' | 'give_item', ownerCharId: string, itemId: string, targetCharId: string) => {
+    if (!session) return;
+    setLoading(true);
+    setActionError(null);
+    const res = await fetch(api(`/session/${session.id}/action`), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actionType, characterId: ownerCharId, itemId, targetCharacterId: targetCharId })
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      setLoading(false);
+      setActionError(data.message ?? data.error ?? 'Item action failed.');
+    }
+    // loading cleared + session refreshed via SSE turn_complete
+  };
+
   const submitAction = async (label: string, stat: string, diff: string) => {
     if (!session) {
       return;
@@ -252,7 +269,7 @@ export const SessionPage = () => {
               ))
             : <TurnHistoryCard choices={displayTurn?.choices ?? []} takenAction={takenAction} character={takenChar} />
           }
-          {session.savingsMode && <Inventory party={session.party} />}
+          {session.savingsMode && <Inventory party={session.party} onUseItem={(o,i,t) => submitItemAction('use_item',o,i,t)} onGiveItem={(o,i,t) => submitItemAction('give_item',o,i,t)} disabled={loading} />}
         </div>
 
         {!session.savingsMode && (
@@ -267,7 +284,7 @@ export const SessionPage = () => {
                 </div>
               ) : <img src={imgSrc('/api/images/default_scene.png')} className="w-full h-full object-cover opacity-40" />}
             </div>
-            <Inventory party={session.party} />
+            <Inventory party={session.party} onUseItem={(o,i,t) => submitItemAction('use_item',o,i,t)} onGiveItem={(o,i,t) => submitItemAction('give_item',o,i,t)} disabled={loading} />
           </div>
         )}
       </div>
