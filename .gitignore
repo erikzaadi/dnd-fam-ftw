@@ -3,4 +3,6 @@ backend/*.sqlite
 backend/*.sqlite.temp
 backend/public/images/*
 !backend/public/images/default_scene.png
+!backend/public/images/intervention_dragon.png
+!backend/public/images/sanctuary_light.png
 backend/dist

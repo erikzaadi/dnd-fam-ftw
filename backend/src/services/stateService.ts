@@ -86,6 +86,14 @@ export class StateService {
       db.prepare("ALTER TABLE turn_history ADD COLUMN actionSuccess INTEGER").run();
       db.prepare("ALTER TABLE turn_history ADD COLUMN actionRoll INTEGER").run();
     }
+    if (!turnCols.includes('turnType')) {
+      db.prepare("ALTER TABLE turn_history ADD COLUMN turnType TEXT NOT NULL DEFAULT 'normal'").run();
+    }
+    if (!turnCols.includes('actionStatBonus')) {
+      db.prepare("ALTER TABLE turn_history ADD COLUMN actionStatBonus INTEGER").run();
+      db.prepare("ALTER TABLE turn_history ADD COLUMN actionItemBonus INTEGER").run();
+      db.prepare("ALTER TABLE turn_history ADD COLUMN actionIsCritical INTEGER").run();
+    }
 
     const charCols = (db.prepare("PRAGMA table_info(characters)").all() as { name: string }[]).map(r => r.name);
     if (!charCols.includes('avatarPrompt')) {
@@ -129,7 +137,7 @@ export class StateService {
     }
   }
 
-  public static async createSession(worldDescription?: string, difficulty: string = 'normal', useLocalAI: boolean = false): Promise<SessionState> {
+  public static async createSession(worldDescription?: string, difficulty: string = 'normal', useLocalAI: boolean = false, savingsMode: boolean = false): Promise<SessionState> {
     const db = this.getDb();
     const id = Math.random().toString(36).substring(7);
 
@@ -163,8 +171,8 @@ export class StateService {
       console.warn(`[Session] Display name generation failed or timed out (${Date.now() - nameStart}ms), using fallback:`, err);
     }
 
-    db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, turn, tone, displayName, difficulty, useLocalAI) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, "A New World", "start-1", worldDescription || null, 1, "thrilling adventure", displayName, difficulty, useLocalAI ? 1 : 0);
+    db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, turn, tone, displayName, difficulty, useLocalAI, savingsMode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, "A New World", "start-1", worldDescription || null, 1, "thrilling adventure", displayName, difficulty, useLocalAI ? 1 : 0, savingsMode ? 1 : 0);
 
     return {
       id,
@@ -181,7 +189,7 @@ export class StateService {
       recentHistory: ["Adventure begins!"],
       displayName,
       difficulty,
-      savingsMode: false,
+      savingsMode,
       useLocalAI,
       interventionState: { used: false },
       storySummary: '',
@@ -396,6 +404,10 @@ export class StateService {
       actionStat: string | null;
       actionSuccess: number | null;
       actionRoll: number | null;
+      actionStatBonus: number | null;
+      actionItemBonus: number | null;
+      actionIsCritical: number | null;
+      turnType: string | null;
     }[];
 
     return rows.map(r => {
@@ -409,7 +421,10 @@ export class StateService {
         actionResult: {
           success: !!r.actionSuccess,
           roll: r.actionRoll ?? 0,
-          statUsed: (r.actionStat ?? 'none') as 'might' | 'magic' | 'mischief' | 'none'
+          statUsed: (r.actionStat ?? 'none') as 'might' | 'magic' | 'mischief' | 'none',
+          ...(r.actionStatBonus != null && { statBonus: r.actionStatBonus }),
+          ...(r.actionItemBonus != null && r.actionItemBonus > 0 && { itemBonus: r.actionItemBonus }),
+          ...(r.actionIsCritical && { isCritical: true }),
         }
       } : null;
       return {
@@ -419,7 +434,8 @@ export class StateService {
         imageUrl: r.imageUrl,
         characterId: r.characterId || undefined,
         choices,
-        lastAction
+        lastAction,
+        turnType: (r.turnType as TurnResult['turnType']) ?? 'normal',
       };
     });
   }
@@ -437,13 +453,17 @@ export class StateService {
   public static async addTurnResult(id: string, turn: TurnResult, characterId: string | null): Promise<void> {
     const db = this.getDb();
     const action = turn.lastAction ?? null;
-    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, narration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, narration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionIsCritical, turnType) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(
         id, characterId || null, turn.narration, turn.imagePrompt, turn.imageSuggested ? 1 : 0, turn.imageUrl || null,
         action?.actionAttempt ?? null,
         action?.actionResult?.statUsed ?? null,
         action?.actionResult?.success ? 1 : 0,
-        action?.actionResult?.roll ?? null
+        action?.actionResult?.roll ?? null,
+        action?.actionResult?.statBonus ?? null,
+        action?.actionResult?.itemBonus ?? null,
+        action?.actionResult?.isCritical ? 1 : null,
+        turn.turnType ?? 'normal'
       );
 
     const turnId = info.lastInsertRowid;

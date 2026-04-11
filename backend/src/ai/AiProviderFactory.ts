@@ -31,12 +31,16 @@ export function createChatClient(useLocalAI?: boolean): { client: OpenAI; model:
 
   if (isLocal) {
     const baseURL = process.env.LOCALAI_BASE_URL ?? 'http://127.0.0.1:8080';
+    console.log(`[AI] Chat client: LocalAI baseURL=${baseURL}`);
     return {
       client: new OpenAI({ apiKey: 'localai', baseURL: `${baseURL}/v1` }),
       model: process.env.LOCALAI_NARRATION_MODEL ?? 'qwen_qwen3.5-4b',
     };
   }
 
+  if (process.env.OPENAI_BASE_URL) {
+    console.log(`[AI] Chat client: OpenAI baseURL=${process.env.OPENAI_BASE_URL}`);
+  }
   return {
     client: new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,

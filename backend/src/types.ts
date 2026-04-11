@@ -60,6 +60,8 @@ export interface Choice {
   stat: 'might' | 'magic' | 'mischief';
 }
 
+export type TurnType = 'normal' | 'intervention' | 'sanctuary';
+
 export interface TurnResult {
   narration: string;
   choices: Choice[];
@@ -69,6 +71,7 @@ export interface TurnResult {
   suggestedInventoryAdd?: Omit<InventoryItem, 'id'> | null;
   lastAction?: ActionAttempt | null;
   characterId?: string;
+  turnType?: TurnType;
 }
 
 export interface ActionAttempt {
@@ -77,7 +80,9 @@ export interface ActionAttempt {
     success: boolean;
     roll: number;
     statUsed: 'might' | 'magic' | 'mischief' | 'none';
+    statBonus?: number;
     itemBonus?: number;
+    isCritical?: boolean;
   };
 }
 

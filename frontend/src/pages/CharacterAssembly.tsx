@@ -41,11 +41,21 @@ export const CharacterAssembly = () => {
   }, [loadSession, loadAllCharacters]);
 
   const importCharacter = async (char: Character) => {
-    if (!session) {
-      return;
-    }
+    if (!session) return;
     setLoading(true);
-    const { id: _id, avatarUrl: _avatarUrl, ...characterData } = char;
+    const { id: _id, avatarUrl: _avatarUrl, sessionName: _sessionName, status: _status, hp: _hp, ...rest } = char as Character & { sessionName?: string };
+
+    let stats = rest.stats;
+    try {
+      const statsRes = await fetch(api('/character/suggest-stats'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: rest.name, class: rest.class, species: rest.species, quirk: rest.quirk, useLocalAI: session.useLocalAI })
+      });
+      if (statsRes.ok) stats = await statsRes.json();
+    } catch { /* keep original stats */ }
+
+    const characterData = { ...rest, stats, hp: rest.max_hp, status: 'active' };
     await fetch(api('/character/create'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -84,14 +94,31 @@ export const CharacterAssembly = () => {
     }
     setLoading(true);
     const formData = new FormData(e.currentTarget);
+    const name = formData.get('name') as string;
+    const charClass = formData.get('class') as string;
+    const species = formData.get('species') as string;
+    const quirk = formData.get('quirk') as string;
+
+    let stats = { might: 2, magic: 2, mischief: 3 };
+    try {
+      const statsRes = await fetch(api('/character/suggest-stats'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, class: charClass, species, quirk, useLocalAI: session.useLocalAI })
+      });
+      if (statsRes.ok) stats = await statsRes.json();
+    } catch {
+      // fallback to defaults
+    }
+
     const charData = {
-      name: formData.get('name'),
-      class: formData.get('class'),
-      species: formData.get('species'),
-      quirk: formData.get('quirk'),
-      stats: { might: 2, magic: 2, mischief: 2 }
+      name,
+      class: charClass,
+      species,
+      quirk,
+      stats,
     };
-    
+
     if (editingChar) {
       await fetch(api(`/character/${editingChar.id}`), {
         method: 'PUT',

@@ -19,12 +19,20 @@ const inventoryAddSchema = z.object({
   transferable: z.boolean().optional(),
 });
 
+const reviveSchema = z.object({
+  characterName: z.string().min(1),
+  hp: z.number().int().min(1).max(999),
+});
+
 export const narrationOutputSchema = z.object({
   narration: z.string().min(1),
   choices: z.array(choiceSchema).length(3),
   imagePrompt: z.string().nullable(),
   imageSuggested: z.boolean(),
   suggestedInventoryAdd: inventoryAddSchema.nullable(),
+  suggestedRevive: reviveSchema.nullable().default(null),
+  suggestedHeal: z.array(reviveSchema).nullable().default(null),
+  suggestedDamage: z.number().int().min(0).max(20).nullable().default(null),
 });
 
 export type ValidNarrationOutput = z.infer<typeof narrationOutputSchema>;
@@ -39,4 +47,7 @@ export const NARRATION_FALLBACK: ValidNarrationOutput = {
   imagePrompt: null,
   imageSuggested: false,
   suggestedInventoryAdd: null,
+  suggestedRevive: null,
+  suggestedHeal: null,
+  suggestedDamage: null,
 };

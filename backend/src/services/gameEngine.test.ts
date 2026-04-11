@@ -377,4 +377,171 @@ if (afterMixed.party[0].hp !== 5) throw new Error("Active character HP should be
 if (afterMixed.party[1].hp !== 1) throw new Error("Downed character should be at 1 HP");
 console.log("- Active character untouched.");
 
+// ── suggestedRevive via updateState ────────────────────────────────────────
+
+// Test 33: suggestedRevive revives a downed character
+console.log("Test 33: suggestedRevive revives a downed party member...");
+const t33Session = makeSession({
+  party: [
+    makeChar({ id: 'healer', name: 'Pip', status: 'active', hp: 8 }),
+    makeChar({ id: 'downed-z', name: 'Zomgush', status: 'downed', hp: 0 }),
+  ],
+  activeCharacterId: 'healer',
+});
+const t33Attempt = { actionAttempt: 'Revive Zomgush using a healing ritual', actionResult: { success: true, roll: 20, statUsed: 'magic' as const } };
+const t33After = GameEngine.updateState(t33Session, t33Attempt, {
+  suggestedRevive: { characterName: 'Zomgush', hp: 3 },
+  choices: [{ label: 'Continue', difficulty: 'easy', stat: 'might' }],
+});
+const t33Revived = t33After.party.find(c => c.name === 'Zomgush')!;
+if (t33Revived.status !== 'active') throw new Error(`Expected active, got '${t33Revived.status}'`);
+if (t33Revived.hp !== 3) throw new Error(`Expected hp 3, got ${t33Revived.hp}`);
+console.log(`- Zomgush: status=${t33Revived.status}, hp=${t33Revived.hp} ✓`);
+
+// Test 34: suggestedRevive hp is clamped to max_hp
+console.log("Test 34: suggestedRevive hp clamped to max_hp...");
+const clampSession = makeSession({
+  party: [makeChar({ id: 'hero', name: 'Barnaby', status: 'downed', hp: 0, max_hp: 10 })],
+  activeCharacterId: 'hero',
+});
+const clampAttempt = { actionAttempt: 'Full heal', actionResult: { success: true, roll: 15, statUsed: 'magic' as const } };
+const afterClamp = GameEngine.updateState(clampSession, clampAttempt, {
+  suggestedRevive: { characterName: 'Barnaby', hp: 999 },
+  choices: [{ label: 'Go', difficulty: 'easy', stat: 'might' }],
+});
+if (afterClamp.party[0].hp !== 10) throw new Error(`Expected hp clamped to 10, got ${afterClamp.party[0].hp}`);
+console.log(`- hp clamped to max_hp (10) ✓`);
+
+// Test 35: suggestedRevive does not affect an already-active character
+console.log("Test 35: suggestedRevive ignored for active characters...");
+const activeSession = makeSession({
+  party: [makeChar({ id: 'hero', name: 'Barnaby', status: 'active', hp: 5 })],
+  activeCharacterId: 'hero',
+});
+const activeAttempt = { actionAttempt: 'Heal Barnaby', actionResult: { success: true, roll: 12, statUsed: 'magic' as const } };
+const afterActive = GameEngine.updateState(activeSession, activeAttempt, {
+  suggestedRevive: { characterName: 'Barnaby', hp: 10 },
+  choices: [{ label: 'Go', difficulty: 'easy', stat: 'might' }],
+});
+if (afterActive.party[0].hp !== 5) throw new Error(`Active character HP should be unchanged (5), got ${afterActive.party[0].hp}`);
+if (afterActive.party[0].status !== 'active') throw new Error('Status should still be active');
+console.log(`- Active character unchanged ✓`);
+
+// Test 36: suggestedRevive name match is case-insensitive
+console.log("Test 36: suggestedRevive name match is case-insensitive...");
+const caseSession = makeSession({
+  party: [makeChar({ id: 'hero', name: 'Zomgush', status: 'downed', hp: 0 })],
+  activeCharacterId: 'hero',
+});
+const caseAttempt = { actionAttempt: 'Revive', actionResult: { success: true, roll: 10, statUsed: 'magic' as const } };
+const afterCase = GameEngine.updateState(caseSession, caseAttempt, {
+  suggestedRevive: { characterName: 'zomgush', hp: 2 },
+  choices: [{ label: 'Go', difficulty: 'easy', stat: 'might' }],
+});
+if (afterCase.party[0].status !== 'active') throw new Error(`Expected active after case-insensitive match`);
+console.log(`- Case-insensitive match works ✓`);
+
+// Test 37: null suggestedRevive leaves downed character unchanged
+console.log("Test 37: null suggestedRevive leaves downed character unchanged...");
+const noReviveSession = makeSession({
+  party: [makeChar({ id: 'hero', name: 'Barnaby', status: 'downed', hp: 0 })],
+  activeCharacterId: 'hero',
+});
+const noReviveAttempt = { actionAttempt: 'Do something else', actionResult: { success: true, roll: 10, statUsed: 'might' as const } };
+const afterNoRevive = GameEngine.updateState(noReviveSession, noReviveAttempt, {
+  suggestedRevive: null,
+  choices: [{ label: 'Go', difficulty: 'easy', stat: 'might' }],
+});
+if (afterNoRevive.party[0].status !== 'downed') throw new Error('Downed character should remain downed');
+console.log(`- Downed character unchanged ✓`);
+
+// ── suggestedHeal via updateState ──────────────────────────────────────────
+
+// Test 38: suggestedHeal heals an active party member
+console.log("Test 38: suggestedHeal heals an active character...");
+const t38Session = makeSession({
+  party: [makeChar({ id: 'hero', name: 'Barnaby', status: 'active', hp: 4, max_hp: 10 })],
+  activeCharacterId: 'hero',
+});
+const t38Attempt = { actionAttempt: 'Rest by the campfire', actionResult: { success: true, roll: 0, statUsed: 'none' as const } };
+const afterHeal = GameEngine.updateState(t38Session, t38Attempt, {
+  suggestedHeal: [{ characterName: 'Barnaby', hp: 3 }],
+  choices: [{ label: 'Continue', difficulty: 'easy', stat: 'might' }],
+});
+if (afterHeal.party[0].hp !== 7) throw new Error(`Expected hp 7, got ${afterHeal.party[0].hp}`);
+console.log(`- Barnaby healed from 4 to 7 ✓`);
+
+// Test 39: suggestedHeal hp is clamped to max_hp
+console.log("Test 39: suggestedHeal hp clamped to max_hp...");
+const healClampSession = makeSession({
+  party: [makeChar({ id: 'hero', name: 'Barnaby', status: 'active', hp: 8, max_hp: 10 })],
+  activeCharacterId: 'hero',
+});
+const afterHealClamp = GameEngine.updateState(healClampSession, t38Attempt, {
+  suggestedHeal: [{ characterName: 'Barnaby', hp: 99 }],
+  choices: [{ label: 'Continue', difficulty: 'easy', stat: 'might' }],
+});
+if (afterHealClamp.party[0].hp !== 10) throw new Error(`Expected hp clamped to 10, got ${afterHealClamp.party[0].hp}`);
+console.log(`- hp clamped to max_hp (10) ✓`);
+
+// Test 40: suggestedHeal does NOT affect downed characters
+console.log("Test 40: suggestedHeal does not affect downed characters...");
+const downedHealSession = makeSession({
+  party: [makeChar({ id: 'hero', name: 'Barnaby', status: 'downed', hp: 0, max_hp: 10 })],
+  activeCharacterId: 'hero',
+});
+const afterDownedHeal = GameEngine.updateState(downedHealSession, t38Attempt, {
+  suggestedHeal: [{ characterName: 'Barnaby', hp: 5 }],
+  choices: [{ label: 'Continue', difficulty: 'easy', stat: 'might' }],
+});
+if (afterDownedHeal.party[0].hp !== 0) throw new Error(`Downed character should not be healed, got hp=${afterDownedHeal.party[0].hp}`);
+if (afterDownedHeal.party[0].status !== 'downed') throw new Error('Downed character should remain downed');
+console.log(`- Downed character unaffected by suggestedHeal ✓`);
+
+// Test 41: suggestedHeal heals multiple characters at once
+console.log("Test 41: suggestedHeal heals multiple active characters...");
+const multiHealSession = makeSession({
+  party: [
+    makeChar({ id: 'c1', name: 'Pip', status: 'active', hp: 3, max_hp: 10 }),
+    makeChar({ id: 'c2', name: 'Zomgush', status: 'active', hp: 2, max_hp: 8 }),
+  ],
+  activeCharacterId: 'c1',
+});
+const afterMultiHeal = GameEngine.updateState(multiHealSession, t38Attempt, {
+  suggestedHeal: [
+    { characterName: 'Pip', hp: 4 },
+    { characterName: 'Zomgush', hp: 3 },
+  ],
+  choices: [{ label: 'Continue', difficulty: 'easy', stat: 'might' }],
+});
+if (afterMultiHeal.party[0].hp !== 7) throw new Error(`Expected Pip hp 7, got ${afterMultiHeal.party[0].hp}`);
+if (afterMultiHeal.party[1].hp !== 5) throw new Error(`Expected Zomgush hp 5, got ${afterMultiHeal.party[1].hp}`);
+console.log(`- Both characters healed correctly ✓`);
+
+// Test 42: null suggestedHeal leaves HP unchanged
+console.log("Test 42: null suggestedHeal leaves HP unchanged...");
+const noHealSession = makeSession({
+  party: [makeChar({ id: 'hero', name: 'Barnaby', status: 'active', hp: 5, max_hp: 10 })],
+  activeCharacterId: 'hero',
+});
+const afterNoHeal = GameEngine.updateState(noHealSession, t38Attempt, {
+  suggestedHeal: null,
+  choices: [{ label: 'Continue', difficulty: 'easy', stat: 'might' }],
+});
+if (afterNoHeal.party[0].hp !== 5) throw new Error(`HP should be unchanged at 5, got ${afterNoHeal.party[0].hp}`);
+console.log(`- HP unchanged with null suggestedHeal ✓`);
+
+// Test 43: suggestedHeal name match is case-insensitive
+console.log("Test 43: suggestedHeal name match is case-insensitive...");
+const healCaseSession = makeSession({
+  party: [makeChar({ id: 'hero', name: 'Barnaby', status: 'active', hp: 3, max_hp: 10 })],
+  activeCharacterId: 'hero',
+});
+const afterHealCase = GameEngine.updateState(healCaseSession, t38Attempt, {
+  suggestedHeal: [{ characterName: 'BARNABY', hp: 4 }],
+  choices: [{ label: 'Continue', difficulty: 'easy', stat: 'might' }],
+});
+if (afterHealCase.party[0].hp !== 7) throw new Error(`Expected hp 7 after case-insensitive heal, got ${afterHealCase.party[0].hp}`);
+console.log(`- Case-insensitive name match works ✓`);
+
 console.log("\nAll tests passed!");

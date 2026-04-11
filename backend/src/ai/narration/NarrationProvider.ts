@@ -7,6 +7,7 @@ export type NarrationChoice = {
 export type NarrationInput = {
   scene: string;
   storySummary?: string;
+  activeCharacterName?: string;
   party: Array<{
     name: string;
     class: string;
@@ -52,6 +53,9 @@ export type NarrationOutput = {
     consumable?: boolean;
     transferable?: boolean;
   } | null;
+  suggestedRevive: { characterName: string; hp: number } | null;
+  suggestedHeal: Array<{ characterName: string; hp: number }> | null;
+  suggestedDamage: number | null;
 };
 
 export interface NarrationProvider {

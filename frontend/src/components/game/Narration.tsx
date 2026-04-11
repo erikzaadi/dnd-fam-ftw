@@ -33,7 +33,7 @@ export const Narration = ({ history, party, loading, onTurnClick, viewedTurnIdx 
   }, [history.length]);
 
   return (
-    <div className="bg-slate-900 rounded-[50px] border border-slate-800 shadow-2xl h-[400px] md:h-[600px] flex flex-col relative overflow-hidden">
+    <div className="bg-slate-900 rounded-[50px] border border-slate-800 shadow-2xl h-[400px] md:h-[500px] lg:h-full flex flex-col relative overflow-hidden">
       <div ref={scrollRef} className="flex-grow p-4 md:p-10 space-y-4 overflow-y-auto scrollbar-hide">
         {history.map((turn, i) => {
           const isCurrent = i === lastIdx;

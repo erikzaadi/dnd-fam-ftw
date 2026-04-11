@@ -168,6 +168,7 @@ export class GameEngine {
     const itemBonus = character.inventory.reduce((sum, item) => sum + (item.statBonuses?.[statName] ?? 0), 0);
     const { roll, total } = this.rollDice(statValue);
     const success = this.checkSuccess(total + itemBonus, difficulty);
+    const isCritical = roll === 20;
 
     return {
       actionAttempt: action,
@@ -175,7 +176,9 @@ export class GameEngine {
         success,
         roll,
         statUsed: statName,
+        statBonus: statValue,
         ...(itemBonus > 0 && { itemBonus }),
+        ...(isCritical && { isCritical: true }),
       }
     };
   }
@@ -195,24 +198,52 @@ export class GameEngine {
       const activeIdx = newState.party.findIndex(c => c.id === state.activeCharacterId);
       const actingChar = activeIdx !== -1 ? newState.party[activeIdx] : newState.party[0];
 
-      // HP Damage on failure
+      // HP Damage on failure - AI decides; fallback to difficulty-based if AI returned null
       if (!actionAttempt.actionResult.success && actionAttempt.actionResult.statUsed !== 'none') {
-        const lastTurnChoices = state.lastChoices || [];
-        const relevantChoice = lastTurnChoices.find(c => c.label === actionAttempt.actionAttempt);
-        const difficultyLabel = relevantChoice ? relevantChoice.difficulty : 'normal';
+        const aiDamage = typeof aiSuggestedChanges?.suggestedDamage === 'number'
+          ? (aiSuggestedChanges.suggestedDamage as number)
+          : null;
 
-        let damage = this.DAMAGE_BY_DIFFICULTY[difficultyLabel as keyof typeof this.DAMAGE_BY_DIFFICULTY] || 2;
-
-        // Critical Failure: Natural 1 means +1 extra damage
-        if (actionAttempt.actionResult.roll === 1) {
-          damage += 1;
+        let damage: number;
+        if (aiDamage !== null) {
+          damage = aiDamage;
+        } else {
+          const lastTurnChoices = state.lastChoices || [];
+          const relevantChoice = lastTurnChoices.find(c => c.label === actionAttempt.actionAttempt);
+          const difficultyLabel = relevantChoice ? relevantChoice.difficulty : 'normal';
+          damage = this.DAMAGE_BY_DIFFICULTY[difficultyLabel as keyof typeof this.DAMAGE_BY_DIFFICULTY] || 2;
+          // Critical Failure: Natural 1 means +1 extra damage
+          if (actionAttempt.actionResult.roll === 1) {
+            damage += 1;
+          }
         }
 
-        actingChar.hp = Math.max(0, actingChar.hp - damage);
+        if (damage > 0) {
+          actingChar.hp = Math.max(0, actingChar.hp - damage);
+          if (actingChar.hp === 0) {
+            actingChar.status = 'downed';
+          }
+        }
+      }
 
-        // Auto-down at 0 HP
-        if (actingChar.hp === 0) {
-          actingChar.status = 'downed';
+      // Character revival from AI suggestion (perform action that narratively revives a downed party member)
+      const revive = aiSuggestedChanges?.suggestedRevive as { characterName: string; hp: number } | null | undefined;
+      if (revive && typeof revive === 'object' && revive.characterName) {
+        const target = newState.party.find(c => c.name.toLowerCase() === revive.characterName.toLowerCase());
+        if (target && target.status === 'downed') {
+          target.hp = Math.min(target.max_hp, Math.max(1, Math.round(revive.hp)));
+          target.status = 'active';
+        }
+      }
+
+      // HP healing from rest/campfire/sanctuary (for active characters only)
+      const heals = aiSuggestedChanges?.suggestedHeal as Array<{ characterName: string; hp: number }> | null | undefined;
+      if (Array.isArray(heals)) {
+        for (const heal of heals) {
+          const target = newState.party.find(c => c.name.toLowerCase() === heal.characterName.toLowerCase());
+          if (target && target.status === 'active') {
+            target.hp = Math.min(target.max_hp, target.hp + Math.max(0, Math.round(heal.hp)));
+          }
         }
       }
 

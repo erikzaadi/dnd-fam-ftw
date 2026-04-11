@@ -5,10 +5,12 @@ import { NARRATION_FALLBACK } from '../ai/narration/narrationSchemas.js';
 
 export function toNarrationInput(input: AIInput): NarrationInput {
   const activeChar = input.party.find(c => c.id === input.activeCharacterId);
+  const activeCharName = activeChar?.name;
 
   return {
     scene: input.scene,
     storySummary: input.storySummary || undefined,
+    activeCharacterName: activeCharName,
     party: input.party.map(c => ({
       name: c.name,
       class: c.class,

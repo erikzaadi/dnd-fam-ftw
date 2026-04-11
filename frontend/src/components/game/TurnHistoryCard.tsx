@@ -1,4 +1,4 @@
-import type { Choice, Character, ActionAttempt } from '../../types';
+import type { Choice, Character, ActionAttempt, TurnType } from '../../types';
 import { imgSrc } from '../../lib/api';
 import { D20 } from './D20';
 
@@ -6,6 +6,8 @@ interface TurnHistoryCardProps {
   choices: Choice[];
   takenAction: ActionAttempt | null;
   character: Character | null;
+  turnType?: TurnType;
+  narration?: string;
 }
 
 const STAT_COLORS: Record<string, string> = {
@@ -21,8 +23,43 @@ const DIFF_COLORS: Record<string, string> = {
   hard: 'shadow-[inset_0_0_8px_rgba(239,68,68,0.2)]'
 };
 
+const SPECIAL_TURNS: Record<string, { img: string; label: string; borderClass: string; textClass: string }> = {
+  intervention: {
+    img: '/api/images/intervention_dragon.png',
+    label: 'Miraculous Rescue',
+    borderClass: 'border-amber-500/60',
+    textClass: 'text-amber-400',
+  },
+  sanctuary: {
+    img: '/api/images/sanctuary_light.png',
+    label: 'Sanctuary',
+    borderClass: 'border-blue-400/60',
+    textClass: 'text-blue-300',
+  },
+};
 
-export const TurnHistoryCard = ({ choices, takenAction, character }: TurnHistoryCardProps) => {
+export const TurnHistoryCard = ({ choices, takenAction, character, turnType, narration }: TurnHistoryCardProps) => {
+  const special = turnType && turnType !== 'normal' ? SPECIAL_TURNS[turnType] : null;
+
+  if (special) {
+    return (
+      <div className={`flex flex-col sm:flex-row gap-4 p-4 lg:p-6 bg-slate-900/50 rounded-[40px] border ${special.borderClass}`}>
+        <div className="flex sm:flex-col items-center gap-3 sm:gap-2 sm:w-28 sm:shrink-0">
+          <img
+            src={imgSrc(special.img)}
+            className="w-[72px] h-[72px] rounded-2xl object-cover border-2 border-slate-600"
+          />
+          <div className="sm:text-center">
+            <div className={`font-black text-xs uppercase tracking-widest ${special.textClass}`}>{special.label}</div>
+          </div>
+        </div>
+        <div className="flex-grow min-w-0 flex items-center">
+          <p className="text-slate-400 text-sm leading-relaxed italic">{narration}</p>
+        </div>
+      </div>
+    );
+  }
+
   const takenLabel = takenAction?.actionAttempt ?? '';
   const { roll = 0, success = true, statUsed = 'none' } = takenAction?.actionResult ?? {};
   const isCustomAction = takenLabel && !choices.some(c => c.label === takenLabel);

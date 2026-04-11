@@ -58,18 +58,23 @@ export class LocalAINarrationProvider implements NarrationProvider {
   private async callModel(input: NarrationInput, strict = false): Promise<string> {
     const extra = strict ? '\nCRITICAL: Return ONLY valid JSON matching the exact schema. No markdown, no explanation, no code fences.' : '';
     console.log(`[LocalAINarration] Sending request to ${this.client.baseURL} model=${this.model} strict=${strict}`);
+    // console.log(`[LocalAINarration] Input : ${JSON.stringify(input)}`);
+		const systemContent = NARRATION_SYSTEM_PROMPT + extra;
+		const userContent = buildNarrationUserContent(input);
+    // console.log(`[LocalAINarration] Content: ${JSON.stringify({userContent, systemContent })}`);
     const start = Date.now();
     const response = await this.client.chat.completions.create({
       model: this.model,
       messages: [
-        { role: 'system', content: NARRATION_SYSTEM_PROMPT + extra },
-        { role: 'user', content: buildNarrationUserContent(input) },
+        { role: 'system', content: systemContent },
+        { role: 'user', content: userContent },
       ],
       // No response_format here — some local models return empty when forced to JSON mode
       // JSON compliance is enforced via prompt + Zod validation instead
       temperature: 0.2,
     });
     console.log(`[LocalAINarration] Response received in ${Date.now() - start}ms`);
+    // console.log(`[LocalAINarration] Response ${JSON.stringify(response)}`);
 
     const content = response.choices[0].message.content;
     if (!content) {
