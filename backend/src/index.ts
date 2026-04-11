@@ -11,6 +11,7 @@ import { AiDmService } from './services/aiDmService.js';
 import { ImageService } from './services/imageService.js';
 import { createChatClient } from './ai/AiProviderFactory.js';
 import { SettingsService } from './services/settingsService.js';
+import { StorySummaryService } from './services/storySummaryService.js';
 import { Character } from './types.js';
 
 import Database from 'better-sqlite3';
@@ -305,6 +306,9 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
   broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
   res.json({ actionAttempt, turnResult, session: newState });
 
+  // Async story summary compression (every 5 turns)
+  void StorySummaryService.maybeUpdate(sessionId, newState.turn, session.useLocalAI);
+
   // Party wipe intervention (once per session safety valve)
   if (GameEngine.isPartyWiped(newState) && !newState.interventionState?.used) {
     void (async () => {
@@ -325,6 +329,7 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
         await StateService.updateSession(sessionId, postState);
         await StateService.addTurnResult(sessionId, interventionTurn, null);
         broadcastUpdate(sessionId, 'intervention', { session: postState, turnResult: interventionTurn });
+        void StorySummaryService.updateAfterIntervention(sessionId, interventionTurn.narration, session.useLocalAI);
         console.log('[Intervention] Rescue complete');
       } catch (err) {
         console.error('[Intervention] Failed:', err);

@@ -14,6 +14,9 @@ const inventoryAddSchema = z.object({
     magic: z.number().optional(),
     mischief: z.number().optional(),
   }),
+  healValue: z.number().optional(),
+  consumable: z.boolean().optional(),
+  transferable: z.boolean().optional(),
 });
 
 export const narrationOutputSchema = z.object({

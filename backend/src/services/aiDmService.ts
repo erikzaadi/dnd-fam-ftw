@@ -3,24 +3,31 @@ import { createNarrationProvider } from '../ai/AiProviderFactory.js';
 import type { NarrationInput } from '../ai/narration/NarrationProvider.js';
 import { NARRATION_FALLBACK } from '../ai/narration/narrationSchemas.js';
 
-function toNarrationInput(input: AIInput): NarrationInput {
+export function toNarrationInput(input: AIInput): NarrationInput {
   const activeChar = input.party.find(c => c.id === input.activeCharacterId);
-  const allInventory = input.party.flatMap(c => c.inventory ?? []);
 
   return {
     scene: input.scene,
+    storySummary: input.storySummary || undefined,
     party: input.party.map(c => ({
       name: c.name,
       class: c.class,
       hp: c.hp,
       maxHp: c.max_hp,
+      status: c.status ?? 'active',
       quirk: c.quirk,
     })),
-    inventory: allInventory.map(item => ({
-      name: item.name,
-      description: item.description,
-      statBonuses: item.statBonuses ?? {},
-    })),
+    inventory: input.party.flatMap(c =>
+      (c.inventory ?? []).map(item => ({
+        ownerName: c.name,
+        name: item.name,
+        description: item.description,
+        statBonuses: item.statBonuses ?? {},
+        healValue: item.healValue,
+        consumable: item.consumable,
+        transferable: item.transferable,
+      }))
+    ),
     actionAttempt: input.actionAttempt,
     actionResult: {
       success: input.actionResult.success,

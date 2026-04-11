@@ -6,17 +6,23 @@ export type NarrationChoice = {
 
 export type NarrationInput = {
   scene: string;
+  storySummary?: string;
   party: Array<{
     name: string;
     class: string;
     hp: number;
     maxHp: number;
+    status: 'active' | 'downed';
     quirk?: string;
   }>;
   inventory: Array<{
+    ownerName: string;
     name: string;
     description: string;
     statBonuses: { might?: number; magic?: number; mischief?: number };
+    healValue?: number;
+    consumable?: boolean;
+    transferable?: boolean;
   }>;
   actionAttempt: string;
   actionResult: {
@@ -41,6 +47,9 @@ export type NarrationOutput = {
     name: string;
     description: string;
     statBonuses: { might?: number; magic?: number; mischief?: number };
+    healValue?: number;
+    consumable?: boolean;
+    transferable?: boolean;
   } | null;
 };
 

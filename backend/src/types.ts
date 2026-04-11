@@ -51,6 +51,7 @@ export interface SessionState {
   savingsMode: boolean;
   useLocalAI: boolean;
   interventionState: InterventionState;
+  storySummary: string;
 }
 
 export interface Choice {

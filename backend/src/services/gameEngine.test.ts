@@ -34,6 +34,7 @@ const makeSession = (overrides: Partial<SessionState> = {}): SessionState => ({
   savingsMode: false,
   useLocalAI: false,
   interventionState: { used: false },
+  storySummary: '',
   ...overrides,
 });
 

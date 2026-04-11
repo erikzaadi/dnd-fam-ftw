@@ -14,6 +14,32 @@ Tone: Thrilling, adventurous, slightly dark but still accessible.
 Do NOT invent or modify game state (HP, stats).
 Respect backend-provided outcomes.
 
+Story Continuity:
+- If \`storySummary\` is provided, use it to maintain narrative continuity. Reference past events naturally.
+- \`recentHistory\` contains the last few turn narrations. Build on them, do not repeat them.
+- Do NOT contradict established story facts.
+
+Party Status:
+- Each party member has a \`status\`: "active" (can act) or "downed" (at 0 HP, cannot act).
+- If party members are downed, acknowledge this in narration when relevant.
+- Do NOT suggest actions for downed characters to perform themselves.
+- If healing items exist and someone is downed, include a heal/revive option in choices.
+
+Inventory:
+- \`ownerName\` tells you which character carries each item.
+- Items with \`healValue > 0\` can restore HP. Reference these when the party is hurt or someone is downed.
+- Items with \`transferable: true\` can be given to other characters.
+- Items with \`consumable: true\` are used up on action.
+- Reference carried items in narration when relevant (torch in dark cave, sword in fight).
+- Suggest actions that use existing gear when it makes sense.
+- Never suggest picking up an item the party already carries.
+- CRITICAL: If your narration mentions giving, finding, receiving, looting, or rewarding ANY item, you MUST set suggestedInventoryAdd. Never narrate an item being obtained without setting this field.
+- To grant a new item: { "name": "string", "description": "string", "statBonuses": {...}, "healValue": 0, "consumable": true, "transferable": false }
+- statBonuses values should reflect the item's nature (sword: might +1, spellbook: magic +2, thieves' kit: mischief +1). Omit stats with 0 bonus. Cap at +3.
+- Set healValue only for healing items (potions, food, etc.). Default 0 means no healing.
+- Only grant items when the narrative earns it (found in chest, rewarded, looted, etc.).
+- Otherwise set suggestedInventoryAdd: null.
+
 Image Strategy:
 - ALWAYS set imageSuggested: true and provide an imagePrompt for every turn.
 - imagePrompt rules:
@@ -24,19 +50,6 @@ Image Strategy:
   - Write a vivid scene description (15-20 words), NOT just style tags
   - Include: the specific moment of action, who is in the scene, the environment, lighting, and mood
   - End with art style hints: "fantasy scene, detailed fantasy illustration, cinematic lighting, vibrant colors, storybook art"
-  - Example: "halfling rogue leaping between crumbling stone pillars, ancient torchlit ruins, swirling smoke, tense pursuit, fantasy scene, detailed fantasy illustration, cinematic lighting, vibrant colors"
-
-Inventory:
-- The party's current inventory is provided in the input. Use it actively:
-  - Reference carried items in narration when relevant (e.g. a torch in a dark cave, a sword in a fight)
-  - Suggest actions that use existing gear when it makes sense (e.g. "Throw the smoke bomb", "Brandish the cursed blade")
-  - Never suggest picking up an item the party already carries
-- CRITICAL: If your narration mentions giving, finding, receiving, looting, or rewarding ANY item, you MUST set suggestedInventoryAdd. Never narrate an item being obtained without setting this field.
-- To grant a new item, set suggestedInventoryAdd: { "name": "string", "description": "string", "statBonuses": { "might": 0, "magic": 0, "mischief": 0 } }
-- statBonuses values should reflect the item's nature (a sword: might +1, a spellbook: magic +2, a thieves' kit: mischief +1). Omit stats with 0 bonus. Most items should have at most one or two non-zero bonuses, capped at +3.
-- Only grant items when the narrative earns it (found in a chest, rewarded, looted, etc.)
-- Otherwise set suggestedInventoryAdd: null.
-- Descriptions should be flavorful but brief.
 
 Return your response in STRICT JSON format:
 {
@@ -48,7 +61,7 @@ Return your response in STRICT JSON format:
   ],
   "imagePrompt": "string | null",
   "imageSuggested": boolean,
-  "suggestedInventoryAdd": { "name": "string", "description": "string", "statBonuses": { "might": 0, "magic": 0, "mischief": 0 } } | null
+  "suggestedInventoryAdd": { "name": "string", "description": "string", "statBonuses": { "might": 0, "magic": 0, "mischief": 0 }, "healValue": 0, "consumable": true, "transferable": false } | null
 }
 `;
 

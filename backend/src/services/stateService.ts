@@ -124,6 +124,9 @@ export class StateService {
     if (!sessionCols.includes('interventionUsed')) {
       db.prepare("ALTER TABLE sessions ADD COLUMN interventionUsed INTEGER NOT NULL DEFAULT 0").run();
     }
+    if (!sessionCols.includes('storySummary')) {
+      db.prepare("ALTER TABLE sessions ADD COLUMN storySummary TEXT NOT NULL DEFAULT ''").run();
+    }
   }
 
   public static async createSession(worldDescription?: string, difficulty: string = 'normal', useLocalAI: boolean = false): Promise<SessionState> {
@@ -181,6 +184,7 @@ export class StateService {
       savingsMode: false,
       useLocalAI,
       interventionState: { used: false },
+      storySummary: '',
     };
   }  public static async getSession(id: string): Promise<SessionState | undefined> {
     const db = this.getDb();
@@ -197,6 +201,7 @@ export class StateService {
       savingsMode: number;
       useLocalAI: number;
       interventionUsed: number;
+      storySummary: string;
     } | undefined;
     if (!row) {
       return undefined;
@@ -265,12 +270,16 @@ export class StateService {
       quests: [],
       lastChoices: [],
       tone: row.tone,
-      recentHistory: ["Adventure begins!"],
+      recentHistory: (() => {
+        const rows = db.prepare('SELECT narration FROM turn_history WHERE sessionId = ? ORDER BY id DESC LIMIT 3').all(id) as { narration: string }[];
+        return rows.length > 0 ? rows.reverse().map(r => r.narration) : ['Adventure begins!'];
+      })(),
       displayName: row.displayName,
       difficulty: row.difficulty,
       savingsMode: !!row.savingsMode,
       useLocalAI: !!row.useLocalAI,
       interventionState: { used: !!row.interventionUsed },
+      storySummary: row.storySummary ?? '',
     };
   }
 
@@ -316,8 +325,8 @@ export class StateService {
 
   public static async updateSession(id: string, state: SessionState): Promise<void> {
     const db = this.getDb();
-    db.prepare('UPDATE sessions SET scene = ?, sceneId = ?, turn = ?, activeCharacterId = ?, tone = ?, interventionUsed = ? WHERE id = ?')
-      .run(state.scene, state.sceneId, state.turn, state.activeCharacterId, state.tone, state.interventionState?.used ? 1 : 0, id);
+    db.prepare('UPDATE sessions SET scene = ?, sceneId = ?, turn = ?, activeCharacterId = ?, tone = ?, interventionUsed = ?, storySummary = ? WHERE id = ?')
+      .run(state.scene, state.sceneId, state.turn, state.activeCharacterId, state.tone, state.interventionState?.used ? 1 : 0, state.storySummary ?? '', id);
 
     for (const char of state.party) {
       db.prepare('INSERT OR REPLACE INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
@@ -414,6 +423,11 @@ export class StateService {
       };
     });
   }
+  public static async updateStorySummary(sessionId: string, summary: string): Promise<void> {
+    const db = this.getDb();
+    db.prepare('UPDATE sessions SET storySummary = ? WHERE id = ?').run(summary, sessionId);
+  }
+
   public static async updateLatestTurnImageUrl(sessionId: string, imageUrl: string): Promise<void> {
     const db = this.getDb();
     db.prepare('UPDATE turn_history SET imageUrl = ? WHERE id = (SELECT MAX(id) FROM turn_history WHERE sessionId = ?)')
