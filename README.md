@@ -44,6 +44,9 @@ No prep required. No DM experience required. Just vibes and a d20.
 - **Custom hero creation** — name, species, class, quirk, and auto-generated AI portrait
 - **Hero library** — import characters from previous adventures
 - **HP tracking** — fail a roll, take damage; the stakes are real (ish)
+- **Downed state** — reach 0 HP and your hero collapses; teammates must revive you
+- **Party wipe rescue** — if everyone goes down, a once-per-session magical intervention saves the party at 1 HP each; a second wipe wakes them in a sanctuary
+- **Rolling story summary** — the AI compresses the adventure every 5 turns so context stays sharp across long sessions
 
 ![Create new hero form](docs/create-hero-form.png)
 
@@ -229,6 +232,20 @@ Turn narration is the only call that blocks the player response. Scene images ar
 
 ---
 
+## Real-time Events (SSE)
+
+All connected clients receive the same events via Server-Sent Events:
+
+| Event | When | What happens on the client |
+|-------|------|----------------------------|
+| `turn_complete` | After every turn | Narration + new choices appear; session state refreshes |
+| `image_ready` | After async image generation | Scene image fades in |
+| `party_update` | After a `use_item` / `give_item` action | Party HP and inventory update without a full turn refresh |
+| `intervention` | All party members downed, first time | Amber 🐉 rescue banner shown for 8 s |
+| `sanctuary_recovery` | All party members downed, second time | Grey 🏕️ sanctuary banner shown for 10 s |
+
+---
+
 ## How a Turn Works
 
 ```
@@ -248,6 +265,8 @@ SSE broadcasts image_ready → scene image appears on all clients
 ```
 
 The AI **cannot mutate game state directly** — it only returns structured JSON. The backend owns all mechanics.
+
+For the complete ruleset — dice math, downed state, party wipes, item mechanics, story compression, SSE events — see **[GAME_ENGINE_RULES.md](GAME_ENGINE_RULES.md)**.
 
 ---
 

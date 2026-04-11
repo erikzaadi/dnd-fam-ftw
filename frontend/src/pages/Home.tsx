@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { HowToPlay } from '../components/HowToPlay';
 import { api } from '../lib/api';
 
 export const Home = () => {
   const [activeSessions, setActiveSessions] = useState<{ id: string; displayName: string }[]>([]);
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
   const navigate = useNavigate();
 
   const loadSessions = () => {
@@ -29,11 +31,7 @@ export const Home = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4 md:p-8">
-      <button
-        onClick={() => navigate('/settings')}
-        className="fixed top-4 right-4 text-slate-600 hover:text-amber-500 transition-colors text-2xl"
-        title="Settings"
-      >⚙</button>
+      {showHowToPlay && <HowToPlay onClose={() => setShowHowToPlay(false)} />}
       {confirmDialog && (
         <ConfirmDialog
           message={confirmDialog.message}
@@ -62,13 +60,28 @@ export const Home = () => {
                   <div key={sess.id} className="w-full p-6 bg-black/40 hover:bg-amber-500/10 rounded-[32px] border-2 border-slate-800 text-amber-500 cursor-pointer flex justify-between items-center" onClick={() => navigate(`/session/${sess.id}/recap`)}>
                     <span>{sess.displayName}</span>
                     <button onClick={(e) => {
-                      e.stopPropagation(); deleteSession(sess.id); 
+                      e.stopPropagation(); deleteSession(sess.id);
                     }} className="text-rose-500/20 hover:text-rose-500">✕</button>
                   </div>
                 ))}
               </div>
             </div>
           )}
+
+          <div className="flex gap-4 w-full sm:w-auto">
+            <button
+              onClick={() => setShowHowToPlay(true)}
+              className="flex-1 sm:flex-none px-8 py-4 bg-slate-800 hover:bg-slate-700 rounded-[24px] text-base font-black uppercase italic tracking-tighter transition-colors border-2 border-slate-700"
+            >
+              📖 How to Play
+            </button>
+            <button
+              onClick={() => navigate('/settings')}
+              className="flex-1 sm:flex-none px-8 py-4 bg-slate-800 hover:bg-slate-700 rounded-[24px] text-base font-black uppercase italic tracking-tighter transition-colors border-2 border-slate-700"
+            >
+              ⚙ Settings
+            </button>
+          </div>
         </div>
       </div>
     </div>
