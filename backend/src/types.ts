@@ -1,7 +1,13 @@
+export type CharacterStatus = 'active' | 'downed';
+
 export interface InventoryItem {
+  id: string;
   name: string;
   description: string;
   statBonuses?: { might?: number; magic?: number; mischief?: number };
+  healValue?: number;
+  transferable?: boolean;
+  consumable?: boolean;
 }
 
 export interface Character {
@@ -12,6 +18,7 @@ export interface Character {
   quirk: string;
   hp: number;
   max_hp: number;
+  status: CharacterStatus;
   avatarUrl?: string;
   avatarPrompt?: string;
   stats: {
@@ -41,7 +48,6 @@ export interface SessionState {
   useLocalAI: boolean;
 }
 
-
 export interface Choice {
   label: string;
   difficulty: 'easy' | 'normal' | 'hard';
@@ -54,7 +60,7 @@ export interface TurnResult {
   imagePrompt: string | null;
   imageSuggested: boolean;
   imageUrl?: string | null;
-  suggestedInventoryAdd?: InventoryItem | null;
+  suggestedInventoryAdd?: Omit<InventoryItem, 'id'> | null;
   lastAction?: ActionAttempt | null;
   characterId?: string;
 }

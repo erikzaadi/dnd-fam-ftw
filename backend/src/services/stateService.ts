@@ -96,6 +96,23 @@ export class StateService {
     if (!invCols.includes('statBonuses')) {
       db.prepare("ALTER TABLE inventory ADD COLUMN statBonuses TEXT").run();
     }
+    if (!invCols.includes('itemId')) {
+      db.prepare("ALTER TABLE inventory ADD COLUMN itemId TEXT").run();
+    }
+    if (!invCols.includes('healValue')) {
+      db.prepare("ALTER TABLE inventory ADD COLUMN healValue INTEGER").run();
+    }
+    if (!invCols.includes('transferable')) {
+      db.prepare("ALTER TABLE inventory ADD COLUMN transferable INTEGER").run();
+    }
+    if (!invCols.includes('consumable')) {
+      db.prepare("ALTER TABLE inventory ADD COLUMN consumable INTEGER").run();
+    }
+
+    const charCols2 = (db.prepare("PRAGMA table_info(characters)").all() as { name: string }[]).map(r => r.name);
+    if (!charCols2.includes('status')) {
+      db.prepare("ALTER TABLE characters ADD COLUMN status TEXT NOT NULL DEFAULT 'active'").run();
+    }
 
     const sessionCols = (db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[]).map(r => r.name);
     if (!sessionCols.includes('savingsMode')) {
@@ -193,13 +210,27 @@ export class StateService {
       mischief: number;
       avatarUrl: string | null;
       avatarPrompt: string | null;
+      status: string | null;
     }[];
     for (const char of characters) {
-      const rawInv = db.prepare('SELECT * FROM inventory WHERE characterId = ?').all(char.id) as { name: string; description: string; statBonuses: string | null }[];
+      const rawInv = db.prepare('SELECT * FROM inventory WHERE characterId = ?').all(char.id) as {
+        id: number;
+        itemId: string | null;
+        name: string;
+        description: string;
+        statBonuses: string | null;
+        healValue: number | null;
+        transferable: number | null;
+        consumable: number | null;
+      }[];
       (char as unknown as { inventory: InventoryItem[] }).inventory = rawInv.map(i => ({
+        id: i.itemId ?? String(i.id),
         name: i.name,
         description: i.description,
         statBonuses: i.statBonuses ? JSON.parse(i.statBonuses) : undefined,
+        healValue: i.healValue ?? undefined,
+        transferable: i.transferable != null ? !!i.transferable : undefined,
+        consumable: i.consumable != null ? !!i.consumable : undefined,
       }));
       (char as unknown as { stats: { might: number, magic: number, mischief: number } }).stats = { might: char.might, magic: char.magic, mischief: char.mischief };
     }
@@ -218,6 +249,7 @@ export class StateService {
         quirk: c.quirk,
         hp: c.hp,
         max_hp: c.max_hp,
+        status: c.hp === 0 ? 'downed' : ((c.status as 'active' | 'downed') ?? 'active'),
         avatarUrl: c.avatarUrl || undefined,
         avatarPrompt: c.avatarPrompt || undefined,
         stats: (c as unknown as { stats: { might: number, magic: number, mischief: number } }).stats,
@@ -282,12 +314,13 @@ export class StateService {
       .run(state.scene, state.sceneId, state.turn, state.activeCharacterId, state.tone, id);
 
     for (const char of state.party) {
-      db.prepare('INSERT OR REPLACE INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(char.id, id, char.name, char.class, char.species, char.quirk, char.hp, char.max_hp, char.stats.might, char.stats.magic, char.stats.mischief, char.avatarUrl || null, char.avatarPrompt || null);
+      db.prepare('INSERT OR REPLACE INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(char.id, id, char.name, char.class, char.species, char.quirk, char.hp, char.max_hp, char.stats.might, char.stats.magic, char.stats.mischief, char.avatarUrl || null, char.avatarPrompt || null, char.status ?? 'active');
 
       db.prepare('DELETE FROM inventory WHERE characterId = ?').run(char.id);
       for (const item of (char.inventory ?? [])) {
-        db.prepare('INSERT INTO inventory (characterId, name, description, statBonuses) VALUES (?, ?, ?, ?)').run(char.id, item.name, item.description, item.statBonuses ? JSON.stringify(item.statBonuses) : null);
+        db.prepare('INSERT INTO inventory (characterId, itemId, name, description, statBonuses, healValue, transferable, consumable) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+          .run(char.id, item.id, item.name, item.description, item.statBonuses ? JSON.stringify(item.statBonuses) : null, item.healValue ?? null, item.transferable != null ? (item.transferable ? 1 : 0) : null, item.consumable != null ? (item.consumable ? 1 : 0) : null);
       }
     }
   }
@@ -318,6 +351,7 @@ export class StateService {
         magic: number;
         mischief: number;
         avatarUrl: string | null;
+        status: string | null;
     }[];
     return rows.map(char => ({
       id: char.id,
@@ -327,6 +361,7 @@ export class StateService {
       quirk: char.quirk,
       hp: char.hp,
       max_hp: char.max_hp,
+      status: (char.status as 'active' | 'downed') ?? 'active',
       avatarUrl: char.avatarUrl || undefined,
       stats: { might: char.might, magic: char.magic, mischief: char.mischief },
       inventory: []

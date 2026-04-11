@@ -225,7 +225,26 @@ export const SessionPage = () => {
             </div>
           )}
           {isCurrentTurn
-            ? (!loading && <ActionControls turn={displayTurn} loading={loading} onSubmit={submitAction} customAction={customAction} setCustomAction={setCustomAction} activeCharacter={activeChar} />)
+            ? (!loading && (
+                activeChar?.status === 'downed'
+                  ? (
+                    <div className="flex flex-col items-center gap-3 p-6 bg-slate-900/50 rounded-[40px] border border-slate-800 text-center">
+                      <div className="flex items-center gap-3">
+                        <img src={imgSrc(activeChar.avatarUrl)} className="w-12 h-12 rounded-full object-cover grayscale opacity-50 border-2 border-slate-700" />
+                        <div>
+                          <div className="font-black text-sm uppercase tracking-widest text-slate-400">{activeChar.name} is downed</div>
+                          <div className="text-[10px] text-slate-600 uppercase tracking-widest">0/{activeChar.max_hp} HP</div>
+                        </div>
+                      </div>
+                      <p className="text-slate-500 text-sm">
+                        {session.party.every(c => c.status === 'downed')
+                          ? 'The whole party is down... the adventure hangs by a thread.'
+                          : 'Another party member needs to use a healing item to revive them.'}
+                      </p>
+                    </div>
+                  )
+                  : <ActionControls turn={displayTurn} loading={loading} onSubmit={submitAction} customAction={customAction} setCustomAction={setCustomAction} activeCharacter={activeChar} />
+              ))
             : <TurnHistoryCard choices={displayTurn?.choices ?? []} takenAction={takenAction} character={takenChar} />
           }
           {session.savingsMode && <Inventory party={session.party} />}

@@ -20,15 +20,106 @@ export class GameEngine {
   }
 
   public static checkSuccess(total: number, difficultyLabel: 'easy' | 'normal' | 'hard' | number): boolean {
-    const difficulty = typeof difficultyLabel === 'number' 
-      ? difficultyLabel 
+    const difficulty = typeof difficultyLabel === 'number'
+      ? difficultyLabel
       : (this.DIFFICULTIES[difficultyLabel] || 12);
     return total >= difficulty;
   }
 
+  public static isPartyWiped(state: SessionState): boolean {
+    return state.party.length > 0 && state.party.every(c => c.status === 'downed');
+  }
+
+  public static applyItemUse(
+    state: SessionState,
+    actingCharId: string,
+    itemId: string,
+    targetCharId: string
+  ): { newState: SessionState; actionAttempt: ActionAttempt; error?: string } {
+    const newState: SessionState = JSON.parse(JSON.stringify(state));
+    const actingChar = newState.party.find(c => c.id === actingCharId);
+    if (!actingChar) {
+      return { newState, actionAttempt: { actionAttempt: 'use item', actionResult: { success: false, roll: 0, statUsed: 'none' } }, error: 'Acting character not found' };
+    }
+
+    const itemIdx = actingChar.inventory.findIndex(i => i.id === itemId);
+    if (itemIdx === -1) {
+      return { newState, actionAttempt: { actionAttempt: 'use item', actionResult: { success: false, roll: 0, statUsed: 'none' } }, error: 'Item not found in inventory' };
+    }
+
+    const item = actingChar.inventory[itemIdx];
+    const targetChar = newState.party.find(c => c.id === targetCharId) ?? actingChar;
+
+    let description = `${actingChar.name} used ${item.name}`;
+    if (targetChar.id !== actingChar.id) {
+      description += ` on ${targetChar.name}`;
+    }
+
+    // Apply heal
+    if (item.healValue && item.healValue > 0) {
+      const wasDown = targetChar.status === 'downed';
+      targetChar.hp = Math.min(targetChar.max_hp, targetChar.hp + item.healValue);
+      if (targetChar.hp > 0 && targetChar.status === 'downed') {
+        targetChar.status = 'active';
+      }
+      description += wasDown
+        ? `, reviving ${targetChar.name} to ${targetChar.hp} HP`
+        : `, healing ${targetChar.name} for ${item.healValue} HP`;
+    }
+
+    // Remove consumable after successful use
+    if (item.consumable) {
+      actingChar.inventory.splice(itemIdx, 1);
+    }
+
+    return {
+      newState,
+      actionAttempt: {
+        actionAttempt: description,
+        actionResult: { success: true, roll: 0, statUsed: 'none' }
+      }
+    };
+  }
+
+  public static applyGiveItem(
+    state: SessionState,
+    actingCharId: string,
+    itemId: string,
+    targetCharId: string
+  ): { newState: SessionState; actionAttempt: ActionAttempt; error?: string } {
+    const newState: SessionState = JSON.parse(JSON.stringify(state));
+    const actingChar = newState.party.find(c => c.id === actingCharId);
+    const targetChar = newState.party.find(c => c.id === targetCharId);
+
+    if (!actingChar || !targetChar) {
+      return { newState, actionAttempt: { actionAttempt: 'give item', actionResult: { success: false, roll: 0, statUsed: 'none' } }, error: 'Character not found' };
+    }
+
+    const itemIdx = actingChar.inventory.findIndex(i => i.id === itemId);
+    if (itemIdx === -1) {
+      return { newState, actionAttempt: { actionAttempt: 'give item', actionResult: { success: false, roll: 0, statUsed: 'none' } }, error: 'Item not found in inventory' };
+    }
+
+    const item = actingChar.inventory[itemIdx];
+    if (!item.transferable) {
+      return { newState, actionAttempt: { actionAttempt: 'give item', actionResult: { success: false, roll: 0, statUsed: 'none' } }, error: 'Item is not transferable' };
+    }
+
+    actingChar.inventory.splice(itemIdx, 1);
+    targetChar.inventory.push(item);
+
+    return {
+      newState,
+      actionAttempt: {
+        actionAttempt: `${actingChar.name} gave ${item.name} to ${targetChar.name}`,
+        actionResult: { success: true, roll: 0, statUsed: 'none' }
+      }
+    };
+  }
+
   public static resolveAction(
-    character: Character, 
-    action: string, 
+    character: Character,
+    action: string,
     statName: 'might' | 'magic' | 'mischief' | 'none',
     difficulty: 'easy' | 'normal' | 'hard' = 'normal'
   ): ActionAttempt {
@@ -62,7 +153,7 @@ export class GameEngine {
   public static updateState(state: SessionState, actionAttempt: ActionAttempt, aiSuggestedChanges?: Record<string, unknown>): SessionState {
     const newState: SessionState = JSON.parse(JSON.stringify(state));
     newState.turn += 1;
-    
+
     // 1. History
     newState.recentHistory.push(actionAttempt.actionAttempt);
     if (newState.recentHistory.length > 5) {
@@ -71,36 +162,51 @@ export class GameEngine {
 
     // 2. Resolve mechanics (HP, Inventory)
     if (newState.party.length > 0) {
-      // Find who acted
       const activeIdx = newState.party.findIndex(c => c.id === state.activeCharacterId);
       const actingChar = activeIdx !== -1 ? newState.party[activeIdx] : newState.party[0];
 
-      // HP Damage on failure - Increased Stakes
+      // HP Damage on failure
       if (!actionAttempt.actionResult.success && actionAttempt.actionResult.statUsed !== 'none') {
-        // Find the difficulty of the action to determine damage
         const lastTurnChoices = state.lastChoices || [];
         const relevantChoice = lastTurnChoices.find(c => c.label === actionAttempt.actionAttempt);
         const difficultyLabel = relevantChoice ? relevantChoice.difficulty : 'normal';
-            
+
         let damage = this.DAMAGE_BY_DIFFICULTY[difficultyLabel as keyof typeof this.DAMAGE_BY_DIFFICULTY] || 2;
-            
+
         // Critical Failure: Natural 1 means +1 extra damage
         if (actionAttempt.actionResult.roll === 1) {
           damage += 1;
         }
 
         actingChar.hp = Math.max(0, actingChar.hp - damage);
+
+        // Auto-down at 0 HP
+        if (actingChar.hp === 0) {
+          actingChar.status = 'downed';
+        }
       }
 
-      // Inventory
+      // Inventory add from AI suggestion (assign id)
       const item = aiSuggestedChanges?.suggestedInventoryAdd;
       if (item && typeof item === 'object' && !Array.isArray(item)) {
-        actingChar.inventory.push(item as InventoryItem);
+        const newItem = item as Omit<InventoryItem, 'id'>;
+        actingChar.inventory.push({
+          ...newItem,
+          id: Math.random().toString(36).substring(7),
+        });
       }
 
-      // 3. TURN ROTATION (Round Robin)
-      const nextIdx = (activeIdx + 1) % newState.party.length;
-      newState.activeCharacterId = newState.party[nextIdx].id;
+      // 3. TURN ROTATION (round-robin, skip downed)
+      let nextIdx = (activeIdx + 1) % newState.party.length;
+      let attempts = 0;
+      while (newState.party[nextIdx].status === 'downed' && attempts < newState.party.length) {
+        nextIdx = (nextIdx + 1) % newState.party.length;
+        attempts++;
+      }
+      // If all downed, activeCharacterId stays as-is (wipe handled by caller)
+      if (newState.party[nextIdx].status !== 'downed') {
+        newState.activeCharacterId = newState.party[nextIdx].id;
+      }
     }
 
     // 4. Scene Transition & Choices Update

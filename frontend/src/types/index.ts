@@ -1,7 +1,13 @@
+export type CharacterStatus = 'active' | 'downed';
+
 export interface InventoryItem {
+  id: string;
   name: string;
   description: string;
   statBonuses?: { might?: number; magic?: number; mischief?: number };
+  healValue?: number;
+  transferable?: boolean;
+  consumable?: boolean;
 }
 
 export interface Character {
@@ -12,6 +18,7 @@ export interface Character {
   quirk: string;
   hp: number;
   max_hp: number;
+  status: CharacterStatus;
   avatarUrl?: string;
   sessionName?: string;
   stats: {

@@ -132,6 +132,7 @@ app.post('/api/character/create', asyncHandler(async (req, res) => {
     id: Math.random().toString(36).substring(7),
     hp: 10,
     max_hp: 10,
+    status: 'active',
     inventory: [],
     avatarUrl,
     avatarPrompt,
@@ -223,7 +224,7 @@ app.get('/api/session/:id/summary', asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
-  const { action, statUsed, difficulty, characterId } = req.body;
+  const { action, statUsed, difficulty, characterId, actionType, itemId, targetCharacterId } = req.body;
   const sessionId = req.params.id as string;
   const session = await StateService.getSession(sessionId);
   if (!session) {
@@ -231,13 +232,54 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
     return;
   }
 
-  const character = session.party.find(c => c.id === characterId) || session.party.find(c => c.id === session.activeCharacterId) || session.party[0];
+  const actingCharId = characterId || session.activeCharacterId;
+  const character = session.party.find(c => c.id === actingCharId) || session.party[0];
   if (!character) {
     res.status(400).json({ error: 'No character in session' });
     return;
   }
 
   broadcastUpdate(sessionId, 'dm_narrating', {});
+
+  // Deterministic item actions — apply effect first, then narrate
+  if (actionType === 'use_item' || actionType === 'give_item') {
+    const targetId = targetCharacterId || actingCharId;
+    const { newState: itemState, actionAttempt: itemAttempt, error } = actionType === 'use_item'
+      ? GameEngine.applyItemUse(session, actingCharId, itemId, targetId)
+      : GameEngine.applyGiveItem(session, actingCharId, itemId, targetId);
+
+    if (error) {
+      res.status(400).json({ error });
+      return;
+    }
+
+    const aiInput = { ...itemState, ...itemAttempt };
+    let turnResult;
+    try {
+      turnResult = await AiDmService.generateTurnResult(aiInput, session.useLocalAI);
+    } catch (err: unknown) {
+      const status = (err as { status?: number })?.status;
+      if (status === 429) {
+        res.status(429).json({ error: 'rate_limit', message: 'The AI is overwhelmed with requests. Wait a moment and try again.' });
+        return;
+      }
+      throw err;
+    }
+
+    const newState = GameEngine.updateState(itemState, itemAttempt, turnResult as unknown as Record<string, unknown>);
+    await StateService.updateSession(sessionId, newState);
+    turnResult.lastAction = itemAttempt;
+    await StateService.addTurnResult(sessionId, turnResult, actingCharId);
+    broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
+    res.json({ actionAttempt: itemAttempt, turnResult, session: newState });
+    return;
+  }
+
+  // Normal stat-roll action — downed characters cannot act
+  if (character.status === 'downed') {
+    res.status(400).json({ error: 'downed', message: `${character.name} is downed and cannot act.` });
+    return;
+  }
 
   const actionAttempt = GameEngine.resolveAction(character, action, statUsed, difficulty || 'normal');
   const aiInput = { ...session, ...actionAttempt };
@@ -259,7 +301,7 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
 
   turnResult.lastAction = actionAttempt;
 
-  await StateService.addTurnResult(sessionId, turnResult, characterId);
+  await StateService.addTurnResult(sessionId, turnResult, actingCharId);
   broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
   res.json({ actionAttempt, turnResult, session: newState });
 

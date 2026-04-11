@@ -40,10 +40,7 @@ export const TurnHistoryCard = ({ choices, takenAction, character }: TurnHistory
         <div className="lg:text-center">
           <div className="font-black text-xs uppercase tracking-widest text-slate-300">{character?.name ?? '—'}</div>
           {character && (
-            <div className="space-y-0.5">
-              <div className="text-[9px] text-slate-500 uppercase tracking-wide">{character.class} · {character.species}</div>
-              <div className="text-[9px] text-slate-400 font-black">{character.hp}/{character.max_hp} HP</div>
-            </div>
+            <div className="text-[9px] text-slate-500 uppercase tracking-wide">{character.class} · {character.species}</div>
           )}
         </div>
       </div>
