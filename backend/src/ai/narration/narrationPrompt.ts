@@ -53,6 +53,9 @@ Return your response in STRICT JSON format:
 `;
 
 export function buildNarrationUserContent(input: NarrationInput): string {
+  if (input.interventionRescue) {
+    return '[INTERVENTION] The entire party was just knocked out and nearly lost forever. A mysterious magical force intervened at the last second — a dragon swooped in, time rewound, a divine blessing struck, or some gloriously absurd coincidence saved them. Write a dramatic, surprising rescue (2-3 sentences). Every party member is now alive but barely standing at 1 HP. Then provide 3 fresh choices for the battered-but-breathing party to continue.\n\n' + JSON.stringify(input);
+  }
   const prefix = input.isFirstTurn
     ? '[OPENING SCENE] This is the very start of the adventure. Write a vivid opening that sets the world and hooks the party. Do NOT reference prior events or continuations.\n\n'
     : '';

@@ -305,6 +305,33 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
   broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
   res.json({ actionAttempt, turnResult, session: newState });
 
+  // Party wipe intervention (once per session safety valve)
+  if (GameEngine.isPartyWiped(newState) && !newState.interventionState?.used) {
+    void (async () => {
+      try {
+        console.log('[Intervention] Party wiped — triggering intervention rescue');
+        const rescuedState = GameEngine.applyIntervention(newState);
+        await StateService.updateSession(sessionId, rescuedState);
+
+        const interventionInput: import('./types.js').AIInput = {
+          ...rescuedState,
+          actionAttempt: 'A mysterious force saved the party from doom',
+          actionResult: { success: true, roll: 0, statUsed: 'none' },
+          interventionRescue: true,
+        };
+        const interventionTurn = await AiDmService.generateTurnResult(interventionInput, session.useLocalAI);
+
+        const postState = GameEngine.updateState(rescuedState, interventionInput, interventionTurn as unknown as Record<string, unknown>);
+        await StateService.updateSession(sessionId, postState);
+        await StateService.addTurnResult(sessionId, interventionTurn, null);
+        broadcastUpdate(sessionId, 'intervention', { session: postState, turnResult: interventionTurn });
+        console.log('[Intervention] Rescue complete');
+      } catch (err) {
+        console.error('[Intervention] Failed:', err);
+      }
+    })();
+  }
+
   console.log(`[Action] imageSuggested=${turnResult.imageSuggested} imagePrompt=${turnResult.imagePrompt ?? 'null'} savingsMode=${session.savingsMode}`);
   if (!session.savingsMode && SettingsService.get().imagesEnabled && turnResult.imageSuggested && turnResult.imagePrompt) {
     void ImageService.generateImage(turnResult.imagePrompt, session.id, newState.turn, session.useLocalAI).then(async imageUrl => {

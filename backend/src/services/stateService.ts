@@ -121,6 +121,9 @@ export class StateService {
     if (!sessionCols.includes('useLocalAI')) {
       db.prepare("ALTER TABLE sessions ADD COLUMN useLocalAI INTEGER NOT NULL DEFAULT 0").run();
     }
+    if (!sessionCols.includes('interventionUsed')) {
+      db.prepare("ALTER TABLE sessions ADD COLUMN interventionUsed INTEGER NOT NULL DEFAULT 0").run();
+    }
   }
 
   public static async createSession(worldDescription?: string, difficulty: string = 'normal', useLocalAI: boolean = false): Promise<SessionState> {
@@ -177,6 +180,7 @@ export class StateService {
       difficulty,
       savingsMode: false,
       useLocalAI,
+      interventionState: { used: false },
     };
   }  public static async getSession(id: string): Promise<SessionState | undefined> {
     const db = this.getDb();
@@ -192,6 +196,7 @@ export class StateService {
       difficulty: string;
       savingsMode: number;
       useLocalAI: number;
+      interventionUsed: number;
     } | undefined;
     if (!row) {
       return undefined;
@@ -265,6 +270,7 @@ export class StateService {
       difficulty: row.difficulty,
       savingsMode: !!row.savingsMode,
       useLocalAI: !!row.useLocalAI,
+      interventionState: { used: !!row.interventionUsed },
     };
   }
 
@@ -310,8 +316,8 @@ export class StateService {
 
   public static async updateSession(id: string, state: SessionState): Promise<void> {
     const db = this.getDb();
-    db.prepare('UPDATE sessions SET scene = ?, sceneId = ?, turn = ?, activeCharacterId = ?, tone = ? WHERE id = ?')
-      .run(state.scene, state.sceneId, state.turn, state.activeCharacterId, state.tone, id);
+    db.prepare('UPDATE sessions SET scene = ?, sceneId = ?, turn = ?, activeCharacterId = ?, tone = ?, interventionUsed = ? WHERE id = ?')
+      .run(state.scene, state.sceneId, state.turn, state.activeCharacterId, state.tone, state.interventionState?.used ? 1 : 0, id);
 
     for (const char of state.party) {
       db.prepare('INSERT OR REPLACE INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')

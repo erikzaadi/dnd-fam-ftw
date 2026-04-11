@@ -26,6 +26,7 @@ export const SessionPage = () => {
   const [actionError, setActionError] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
   const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string } | null>(null);
+  const [interventionBanner, setInterventionBanner] = useState<string | null>(null);
 
   const joinSession = useCallback(async (sessionId: string) => {
     const res = await fetch(api(`/session/${sessionId}`));
@@ -86,6 +87,10 @@ export const SessionPage = () => {
             updated[updated.length - 1] = { ...updated[updated.length - 1], imageUrl: data.imageUrl };
             return updated;
           });
+        } else if (data.type === 'intervention') {
+          setInterventionBanner(data.turnResult?.narration ?? 'A mysterious force saved the party!');
+          joinSession(id);
+          setTimeout(() => setInterventionBanner(null), 8000);
         } else if (data.type === 'party_update') {
           joinSession(id);
         }
@@ -266,6 +271,17 @@ export const SessionPage = () => {
           </div>
         )}
       </div>
+
+      {interventionBanner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/60 animate-in fade-in duration-500" onClick={() => setInterventionBanner(null)}>
+          <div className="flex flex-col items-center gap-6 p-10 rounded-3xl border-2 border-amber-500 bg-amber-950/90 shadow-2xl max-w-lg mx-4 animate-in zoom-in-75 duration-500">
+            <div className="text-6xl">🐉</div>
+            <div className="text-2xl font-black uppercase tracking-tight text-amber-400 text-center">Miraculous Rescue!</div>
+            <p className="text-amber-100 text-center leading-relaxed">{interventionBanner}</p>
+            <span className="text-xs text-amber-600 uppercase tracking-widest">tap to continue</span>
+          </div>
+        </div>
+      )}
 
       {lastRoll && (
         <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/40 animate-in fade-in duration-200">

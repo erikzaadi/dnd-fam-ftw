@@ -32,6 +32,7 @@ function toNarrationInput(input: AIInput): NarrationInput {
     recentHistory: input.recentHistory ?? [],
     tone: input.tone,
     isFirstTurn: input.turn === 1,
+    interventionRescue: input.interventionRescue,
   };
 }
 

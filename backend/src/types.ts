@@ -29,6 +29,10 @@ export interface Character {
   inventory: InventoryItem[];
 }
 
+export interface InterventionState {
+  used: boolean;
+}
+
 export interface SessionState {
   id: string;
   scene: string;
@@ -46,6 +50,7 @@ export interface SessionState {
   difficulty: string;
   savingsMode: boolean;
   useLocalAI: boolean;
+  interventionState: InterventionState;
 }
 
 export interface Choice {
@@ -75,4 +80,6 @@ export interface ActionAttempt {
   };
 }
 
-export interface AIInput extends SessionState, ActionAttempt {}
+export interface AIInput extends SessionState, ActionAttempt {
+  interventionRescue?: boolean;
+}

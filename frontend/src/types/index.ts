@@ -54,6 +54,7 @@ export interface Session {
   displayName: string;
   savingsMode: boolean;
   useLocalAI: boolean;
+  interventionState: { used: boolean };
 }
 
 export interface TurnResult {

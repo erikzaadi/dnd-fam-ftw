@@ -33,6 +33,7 @@ const makeSession = (overrides: Partial<SessionState> = {}): SessionState => ({
   difficulty: 'normal',
   savingsMode: false,
   useLocalAI: false,
+  interventionState: { used: false },
   ...overrides,
 });
 
@@ -277,5 +278,54 @@ console.log(`- Turn: ${finalState.turn}, HP: ${finalState.party[0].hp}, Inventor
 if (finalState.turn !== 2) throw new Error("Turn should advance to 2");
 if (finalState.party[0].hp !== 8) throw new Error(`HP should be 8, got ${finalState.party[0].hp}`);
 if (finalState.party[0].inventory.length !== 0) throw new Error("Consumable should be gone");
+
+// ── Phase 1: applyIntervention ──────────────────────────────────────────────
+
+// Test 25: applyIntervention restores all downed to 1 HP active
+console.log("Test 25: applyIntervention restores all downed characters...");
+const wipedSession = makeSession({
+  party: [
+    makeChar({ id: 'c1', status: 'downed', hp: 0 }),
+    makeChar({ id: 'c2', status: 'downed', hp: 0 }),
+  ],
+  interventionState: { used: false },
+});
+const rescued = GameEngine.applyIntervention(wipedSession);
+if (rescued.party[0].status !== 'active') throw new Error("char c1 should be active after intervention");
+if (rescued.party[1].status !== 'active') throw new Error("char c2 should be active after intervention");
+if (rescued.party[0].hp !== 1) throw new Error(`c1 HP should be 1, got ${rescued.party[0].hp}`);
+if (rescued.party[1].hp !== 1) throw new Error(`c2 HP should be 1, got ${rescued.party[1].hp}`);
+if (!rescued.interventionState.used) throw new Error("interventionState.used should be true");
+console.log("- All downed restored to 1 HP active, intervention marked used.");
+
+// Test 26: applyIntervention does not affect already-active characters
+console.log("Test 26: applyIntervention leaves active characters alone...");
+const mixedWipe = makeSession({
+  party: [
+    makeChar({ id: 'alive', status: 'active', hp: 7 }),
+    makeChar({ id: 'down', status: 'downed', hp: 0 }),
+  ],
+  interventionState: { used: false },
+});
+const rescuedMixed = GameEngine.applyIntervention(mixedWipe);
+if (rescuedMixed.party[0].hp !== 7) throw new Error("Active character HP should be unchanged");
+if (rescuedMixed.party[1].hp !== 1) throw new Error("Downed character should be at 1 HP");
+console.log("- Active character untouched, downed restored.");
+
+// Test 27: isPartyWiped returns false after intervention
+console.log("Test 27: isPartyWiped false after intervention...");
+if (GameEngine.isPartyWiped(rescued)) throw new Error("Party should not be wiped after intervention");
+console.log("- Correctly not wiped after rescue.");
+
+// Test 28: intervention sets activeCharacterId to first party member
+console.log("Test 28: intervention resets activeCharacterId...");
+const session3 = makeSession({
+  party: [makeChar({ id: 'first' }), makeChar({ id: 'second' })],
+  activeCharacterId: 'second',
+  interventionState: { used: false },
+});
+const afterIntervention = GameEngine.applyIntervention(session3);
+if (afterIntervention.activeCharacterId !== 'first') throw new Error(`Expected 'first', got '${afterIntervention.activeCharacterId}'`);
+console.log("- activeCharacterId reset to first party member.");
 
 console.log("\nAll tests passed!");

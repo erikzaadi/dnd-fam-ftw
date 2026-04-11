@@ -30,6 +30,22 @@ export class GameEngine {
     return state.party.length > 0 && state.party.every(c => c.status === 'downed');
   }
 
+  public static applyIntervention(state: SessionState): SessionState {
+    const newState: SessionState = JSON.parse(JSON.stringify(state));
+    for (const char of newState.party) {
+      if (char.status === 'downed') {
+        char.status = 'active';
+        char.hp = 1;
+      }
+    }
+    newState.interventionState = { used: true };
+    // Reset active character to the first one
+    if (newState.party.length > 0) {
+      newState.activeCharacterId = newState.party[0].id;
+    }
+    return newState;
+  }
+
   public static applyItemUse(
     state: SessionState,
     actingCharId: string,

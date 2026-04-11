@@ -29,6 +29,7 @@ export type NarrationInput = {
   recentHistory: string[];
   tone: string;
   isFirstTurn?: boolean;
+  interventionRescue?: boolean;
 };
 
 export type NarrationOutput = {
