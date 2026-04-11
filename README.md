@@ -93,6 +93,7 @@ Every hero gets a generated portrait and carries their quirk into the story:
 |--------|-----------|--------|------|
 | OpenAI | GPT-4o | DALL-E 3 | Pay-per-use |
 | [Gemini](https://ai.google.dev/gemini-api/docs/openai) (free tier) | Gemini 2.5 Flash Lite | *(paid plan only)* | Free narration with a Google account |
+| [OpenRouter](https://openrouter.ai) (free models) | Llama, Mistral, Gemma… | *(not supported)* | Free narration, huge model selection |
 | [LocalAI](https://localai.io) | Any GGUF model | Stable Diffusion | Free, runs on your machine |
 
 ### 1. Set up environment
@@ -115,6 +116,16 @@ AI_NARRATION_PROVIDER=gemini
 # AI_IMAGE_PROVIDER=openai
 # OPENAI_IMAGE_MODEL=gemini-2.5-flash-image
 ```
+
+**OpenRouter (free models available — no credit card required):**
+Get a key at [openrouter.ai/keys](https://openrouter.ai/keys), then:
+```
+OPENAI_API_KEY=sk-or-...
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+OPENAI_MODEL=meta-llama/llama-3.3-8b-instruct:free
+# Images not supported by OpenRouter — avatars fall back to SVG initials
+```
+Browse free models at [openrouter.ai/models?order=top-weekly&supported_parameters=free](https://openrouter.ai/models?order=top-weekly&supported_parameters=free).
 
 **LocalAI (fully self-hosted):**
 ```
