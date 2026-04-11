@@ -14,6 +14,52 @@ export class GameEngine {
     none: 0
   };
 
+  private static normalize(s: string): string {
+    return s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  private static editDistance(a: string, b: string): number {
+    const m = a.length, n = b.length;
+    const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
+      Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
+    );
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        dp[i][j] = a[i - 1] === b[j - 1]
+          ? dp[i - 1][j - 1]
+          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+      }
+    }
+    return dp[m][n];
+  }
+
+  // Fuzzy character lookup: exact → normalized contains → class match → closest edit distance
+  public static findCharacter(party: Character[], targetName: string): Character | undefined {
+    if (!targetName) return undefined;
+    const t = this.normalize(targetName);
+
+    const exact = party.find(c => c.name.toLowerCase() === targetName.toLowerCase());
+    if (exact) return exact;
+
+    const normalized = party.find(c => {
+      const n = this.normalize(c.name);
+      return n === t || n.includes(t) || t.includes(n);
+    });
+    if (normalized) return normalized;
+
+    const byClass = party.find(c => t.includes(this.normalize(c.class)));
+    if (byClass) return byClass;
+
+    // Closest edit distance within threshold of 3
+    let best: Character | undefined;
+    let bestDist = 4;
+    for (const c of party) {
+      const dist = this.editDistance(t, this.normalize(c.name));
+      if (dist < bestDist) { bestDist = dist; best = c; }
+    }
+    return best;
+  }
+
   public static rollDice(stat: number): { roll: number; total: number } {
     const roll = Math.floor(Math.random() * 20) + 1;
     return { roll, total: roll + stat };
@@ -199,7 +245,13 @@ export class GameEngine {
       const actingChar = activeIdx !== -1 ? newState.party[activeIdx] : newState.party[0];
 
       // HP Damage on failure - AI decides; fallback to difficulty-based if AI returned null
-      if (!actionAttempt.actionResult.success && actionAttempt.actionResult.statUsed !== 'none') {
+      // Skip damage entirely if the AI set healing for another character (support/heal action)
+      const healTargets = Array.isArray(aiSuggestedChanges?.suggestedHeal)
+        ? (aiSuggestedChanges.suggestedHeal as Array<{ characterName: string }>).map(h => this.normalize(h.characterName))
+        : [];
+      const isHealingOther = healTargets.length > 0 && !healTargets.includes(this.normalize(actingChar.name));
+
+      if (!actionAttempt.actionResult.success && actionAttempt.actionResult.statUsed !== 'none' && !isHealingOther) {
         const aiDamage = typeof aiSuggestedChanges?.suggestedDamage === 'number'
           ? (aiSuggestedChanges.suggestedDamage as number)
           : null;
@@ -229,19 +281,24 @@ export class GameEngine {
       // Character revival from AI suggestion (perform action that narratively revives a downed party member)
       const revive = aiSuggestedChanges?.suggestedRevive as { characterName: string; hp: number } | null | undefined;
       if (revive && typeof revive === 'object' && revive.characterName) {
-        const target = newState.party.find(c => c.name.toLowerCase() === revive.characterName.toLowerCase());
+        const target = GameEngine.findCharacter(newState.party, revive.characterName);
         if (target && target.status === 'downed') {
           target.hp = Math.min(target.max_hp, Math.max(1, Math.round(revive.hp)));
           target.status = 'active';
         }
       }
 
-      // HP healing from rest/campfire/sanctuary (for active characters only)
+      // HP healing — also handles downed targets in case AI used suggestedHeal instead of suggestedRevive
       const heals = aiSuggestedChanges?.suggestedHeal as Array<{ characterName: string; hp: number }> | null | undefined;
       if (Array.isArray(heals)) {
         for (const heal of heals) {
-          const target = newState.party.find(c => c.name.toLowerCase() === heal.characterName.toLowerCase());
-          if (target && target.status === 'active') {
+          const target = GameEngine.findCharacter(newState.party, heal.characterName);
+          if (!target) continue;
+          if (target.status === 'downed') {
+            // AI should have used suggestedRevive but didn't — revive anyway
+            target.hp = Math.min(target.max_hp, Math.max(1, Math.round(heal.hp)));
+            target.status = 'active';
+          } else {
             target.hp = Math.min(target.max_hp, target.hp + Math.max(0, Math.round(heal.hp)));
           }
         }

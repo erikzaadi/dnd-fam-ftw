@@ -51,10 +51,8 @@ export const Narration = ({ history, party, loading, onTurnClick, viewedTurnIdx 
               `}
             >
               <div className="flex-grow min-w-0">
-                {isCurrent && (
-                  <span className={`not-italic text-[9px] font-black uppercase tracking-widest mb-2 block ${loading ? 'text-slate-400 animate-pulse' : 'text-amber-500'}`}>
-                    {loading ? '⚙ Computing...' : 'Now'}
-                  </span>
+                {isCurrent && !loading && (
+                  <span className="not-italic text-[9px] font-black uppercase tracking-widest mb-2 block text-amber-500">Now</span>
                 )}
                 <p className={`leading-relaxed italic font-narrative ${
                   isCurrent
@@ -80,7 +78,6 @@ export const Narration = ({ history, party, loading, onTurnClick, viewedTurnIdx 
             </button>
           );
         })}
-        {loading && <div className="p-6 text-amber-500 animate-pulse">DM is narrating...</div>}
       </div>
     </div>
   );

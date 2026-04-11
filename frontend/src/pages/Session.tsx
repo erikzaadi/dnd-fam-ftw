@@ -290,7 +290,17 @@ export const SessionPage = () => {
           </div>
         )}
         {isCurrentTurn
-          ? (!loading && (
+          ? loading
+            ? (
+              <div className="relative h-[120px] rounded-[40px] border border-slate-800 overflow-hidden">
+                <img src={imgSrc('/api/images/dm_thinking.png')} className="absolute inset-0 w-full h-full object-cover opacity-30" />
+                <div className="absolute inset-0 flex items-center justify-center gap-3">
+                  <div className="w-5 h-5 border-2 border-slate-600 border-t-amber-500 rounded-full animate-spin" />
+                  <span className="text-sm font-black uppercase tracking-widest text-amber-500/80 animate-pulse">The DM is weaving fate...</span>
+                </div>
+              </div>
+            )
+            : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {activeChar?.status === 'downed'
                   ? (
@@ -313,7 +323,7 @@ export const SessionPage = () => {
                 }
                 <Inventory party={session.party} activeCharacterId={session.activeCharacterId} onUseItem={(o,i,t) => submitItemAction('use_item',o,i,t)} onGiveItem={(o,i,t) => submitItemAction('give_item',o,i,t)} disabled={loading} />
               </div>
-            ))
+            )
           : <TurnHistoryCard choices={displayTurn?.choices ?? []} takenAction={takenAction} character={takenChar} turnType={displayTurn?.turnType} narration={displayTurn?.narration} />
         }
       </div>

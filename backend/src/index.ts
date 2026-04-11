@@ -323,6 +323,7 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
     const newState = GameEngine.updateState(itemState, itemAttempt, turnResult as unknown as Record<string, unknown>);
     await StateService.updateSession(sessionId, newState);
     turnResult.lastAction = itemAttempt;
+    turnResult.characterId = actingCharId;
     await StateService.addTurnResult(sessionId, turnResult, actingCharId);
     broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
     res.json({ actionAttempt: itemAttempt, turnResult, session: newState });
@@ -354,13 +355,14 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
   await StateService.updateSession(sessionId, newState);
 
   turnResult.lastAction = actionAttempt;
+  turnResult.characterId = actingCharId;
 
   await StateService.addTurnResult(sessionId, turnResult, actingCharId);
   broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
   res.json({ actionAttempt, turnResult, session: newState });
 
-  // Async story summary compression (every 5 turns)
-  void StorySummaryService.maybeUpdate(sessionId, newState.turn, session.useLocalAI);
+  // Async story summary compression (every 5 turns) - deferred so SSE flush happens first
+  setImmediate(() => void StorySummaryService.maybeUpdate(sessionId, newState.turn, session.useLocalAI));
 
   // Party wipe intervention (once per session safety valve)
   if (GameEngine.isPartyWiped(newState) && !newState.interventionState?.used) {
@@ -384,7 +386,7 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
         await StateService.updateSession(sessionId, postState);
         await StateService.addTurnResult(sessionId, interventionTurn, null);
         broadcastUpdate(sessionId, 'intervention', { session: postState, turnResult: interventionTurn });
-        void StorySummaryService.updateAfterIntervention(sessionId, interventionTurn.narration, session.useLocalAI);
+        setImmediate(() => void StorySummaryService.updateAfterIntervention(sessionId, interventionTurn.narration, session.useLocalAI));
         console.log('[Intervention] Rescue complete');
       } catch (err) {
         console.error('[Intervention] Failed:', err);
@@ -414,7 +416,7 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
         await StateService.updateSession(sessionId, postState);
         await StateService.addTurnResult(sessionId, sanctuaryTurn, null);
         broadcastUpdate(sessionId, 'sanctuary_recovery', { session: postState, turnResult: sanctuaryTurn });
-        void StorySummaryService.updateAfterIntervention(sessionId, sanctuaryTurn.narration, session.useLocalAI);
+        setImmediate(() => void StorySummaryService.updateAfterIntervention(sessionId, sanctuaryTurn.narration, session.useLocalAI));
         console.log('[Sanctuary] Recovery complete');
       } catch (err) {
         console.error('[Sanctuary] Failed:', err);

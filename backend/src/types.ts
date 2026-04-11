@@ -69,6 +69,9 @@ export interface TurnResult {
   imageSuggested: boolean;
   imageUrl?: string | null;
   suggestedInventoryAdd?: Omit<InventoryItem, 'id'> | null;
+  suggestedRevive?: { characterName: string; hp: number } | null;
+  suggestedHeal?: Array<{ characterName: string; hp: number }> | null;
+  suggestedDamage?: number | null;
   lastAction?: ActionAttempt | null;
   characterId?: string;
   turnType?: TurnType;

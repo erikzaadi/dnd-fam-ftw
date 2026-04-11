@@ -34,25 +34,30 @@ Party Status:
 CRITICAL - Damage on Failure:
 - When the action FAILED (success: false), set suggestedDamage to the HP damage the active character should take.
 - Use 0 for failures with no physical consequence (failed persuasion, missed a clue, social blunder, non-combat stumble).
+- Use 0 for failed healing or support actions (trying to heal someone and failing does NOT hurt the caster).
 - Use 1 for minor physical failures (glancing blow, bad footing, minor burn).
 - Use 2-3 for significant combat failures or dangerous situations.
 - Use null to let the engine apply difficulty-based damage (equivalent to normal combat miss).
-- A natural 1 (roll: 1) always stings - at minimum suggestedDamage should be 1.
+- A natural 1 (roll: 1) always stings in combat - at minimum suggestedDamage should be 1 for combat actions.
 - When the action SUCCEEDED (success: true), set suggestedDamage: 0.
 
-CRITICAL — Character Revival:
-- If the action SUCCEEDED (success: true) AND your narration describes a downed character waking up, being healed, revived, or returning to life in any way, you MUST set suggestedRevive: { "characterName": "exact name as listed in party", "hp": N }
-- hp should reflect the narrative (3 for a modest heal, higher for dramatic full revivals)
-- NEVER narrate a revival and set suggestedRevive: null — that leaves the character permanently stuck as downed in the game
-- Only set suggestedRevive: null when NO downed character is being revived in the narration
-- DO NOT set this for healing an already-active character (only downed -> alive transitions)
+CRITICAL — Character Revival (downed → alive):
+- Rule: if the target has status "downed" and your narration brings them back, you MUST use suggestedRevive, NOT suggestedHeal.
+- If the action SUCCEEDED AND your narration describes a downed character opening their eyes, standing up, being revived, healed back to consciousness, or returning in any way — set suggestedRevive: { "characterName": "exact name", "hp": N }
+- hp: 3 for modest revival, 5-7 for strong healing, up to max for miraculous full revival.
+- NEVER narrate a revival and return suggestedRevive: null — that leaves the character permanently stuck as downed.
+- Examples that require suggestedRevive: "Yggdrasil's eyes flutter open", "she stirs and rises", "the druid breathes again", "he stands, restored".
+- Only set suggestedRevive: null when NO downed character is being revived.
 
-CRITICAL - Rest and Passive Healing:
-- If the action results in the party resting, camping, eating, sleeping, finding sanctuary, meditating, or being healed during a peaceful moment, set suggestedHeal for ALL active party members.
-- Also set suggestedHeal if the action SUCCEEDED with a very high roll (roll >= 18) and the narration involves any recovery or triumph.
-- hp per character: 2-3 for a brief rest or snack, 4-6 for a proper camp or meal, 6-8 for a long sleep, up to max for magical or divine healing.
-- Only include characters with status "active" — do NOT include downed characters in suggestedHeal (use suggestedRevive for those).
-- Examples that trigger suggestedHeal: "rest by the fire", "eat some rations", "meditate", "find a safe camp", "sleep through the night", "drink a healing potion" (if not an item use), "blessed by a healer".
+CRITICAL - Healing (Active and Passive):
+- Set suggestedHeal whenever a character is healed by ANY means: spells, druidic restoration, divine power, natural abilities, potions, food, rest, sleep, meditation, sanctuary, or any recovery narrative.
+- The "characterName" in each suggestedHeal entry MUST be the character RECEIVING the healing — NOT the one casting/performing it. If Druid heals Warrior, characterName = "Warrior's exact name".
+- Active healing (character uses a healing ability/spell targeting someone): include ONLY the healed character(s). hp = 3-6 standard, up to max for powerful healing.
+- Passive/rest healing (resting, camping, eating, sleeping, peaceful moment): include ALL active party members. hp 2-3 brief rest, 4-6 proper camp, 6-8 long sleep.
+- Also set suggestedHeal if the action SUCCEEDED with roll >= 18 and the narration involves any recovery or triumph.
+- Only include characters with status "active" in suggestedHeal — if the target is "downed", use suggestedRevive instead (not suggestedHeal).
+- NEVER narrate healing happening and return suggestedHeal: null — that leaves the character's HP unchanged despite the story.
+- Examples: "channels restoration magic on [target]", "heals wounds", "divine light mends injuries", "rest by the fire", "drink a healing potion", "latent magic restores vigor", "herbs restore strength".
 - Otherwise set suggestedHeal: null.
 
 Inventory:
@@ -64,7 +69,7 @@ Inventory:
 - Suggest actions that use existing gear when it makes sense.
 - Never suggest picking up an item the party already carries.
 
-- CRITICAL: If your narration mentions giving, finding, receiving, looting, or rewarding ANY item, you MUST set suggestedInventoryAdd. Never narrate an item being obtained without setting this field.
+- CRITICAL: If your narration mentions giving, finding, receiving, looting, rewarding, harvesting, gathering, foraging, picking, crafting, buying, or obtaining ANY item, you MUST set suggestedInventoryAdd. Never narrate an item being obtained without setting this field.
 - To grant a new item: { "name": "string", "description": "string", "statBonuses": {...}, "healValue": 0, "consumable": true, "transferable": false }
 - statBonuses values should reflect the item's nature (sword: might +1, spellbook: magic +2, thieves' kit: mischief +1). Omit stats with 0 bonus. Cap at +3.
 - Set healValue only for healing items (potions, food, etc.). Default 0 means no healing.

@@ -28,6 +28,10 @@ const ASSETS = [
     filename: 'sanctuary_light.png',
     prompt: 'NO TEXT. NO WORDS. NO LETTERS. Fantasy style: a serene sanctuary bathed in soft divine golden light streaming through a stone archway, peaceful mossy clearing with magical glowing runes, adventurers resting safely, ethereal glow, healing light, fantasy illustration, cinematic lighting, soft blue and gold tones, storybook art',
   },
+  {
+    filename: 'dm_thinking.png',
+    prompt: 'NO TEXT. NO WORDS. NO LETTERS. Fantasy style: a mysterious hooded dungeon master figure hunched over a massive arcane tome, surrounded by floating magical runes and glowing dice, candlelight flickering in a shadowy tavern, dramatic moody lighting, mystical atmosphere, fantasy illustration, dark and atmospheric storybook art',
+  },
 ];
 
 async function generate(asset: { filename: string; prompt: string }) {
