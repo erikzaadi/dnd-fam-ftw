@@ -1,15 +1,25 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 
 export const CreateSession = () => {
   const [worldDescription, setWorldDescription] = useState("");
   const [difficulty, setDifficulty] = useState("normal");
-  const [useLocalAI, setUseLocalAI] = useState(() => localStorage.getItem('useLocalAI') === 'true');
+  const [useLocalAI, setUseLocalAI] = useState(() => {
+    const stored = localStorage.getItem('useLocalAI');
+    if (stored !== null) return stored === 'true';
+    return false; // backend default applied on load below
+  });
   const [showWorldDescription, setShowWorldDescription] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (localStorage.getItem('useLocalAI') === null) {
+      fetch(api('/settings')).then(r => r.json()).then(s => setUseLocalAI(s.defaultUseLocalAI));
+    }
+  }, []);
 
   const toggleLocalAI = () => {
     const next = !useLocalAI;

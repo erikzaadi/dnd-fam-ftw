@@ -147,7 +147,7 @@ export class ImageService {
     }
   }
 
-  private static generateInitialsSvg(name: string, sessionId: string): string {
+  public static generateInitialsSvg(name: string, sessionId: string): string {
     const words = name.trim().split(/\s+/);
     const initials = words.length >= 2
       ? (words[0][0] + words[1][0]).toUpperCase()

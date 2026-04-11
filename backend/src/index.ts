@@ -10,6 +10,7 @@ import { GameEngine } from './services/gameEngine.js';
 import { AiDmService } from './services/aiDmService.js';
 import { ImageService } from './services/imageService.js';
 import { createChatClient } from './ai/AiProviderFactory.js';
+import { SettingsService } from './services/settingsService.js';
 import { Character } from './types.js';
 
 import Database from 'better-sqlite3';
@@ -70,6 +71,15 @@ app.delete('/api/session/:id', asyncHandler(async (req, res) => {
   res.json({ success: true });
 }));
 
+app.get('/api/settings', (_req, res) => {
+  res.json(SettingsService.get());
+});
+
+app.post('/api/settings', asyncHandler(async (req, res) => {
+  const settings = SettingsService.save(req.body);
+  res.json(settings);
+}));
+
 // Broadcast Helper
 const broadcastUpdate = (sessionId: string, type: string, payload: Record<string, unknown>) => {
   eventEmitter.emit('update', { sessionId, type, ...payload });
@@ -114,7 +124,9 @@ app.post('/api/character/create', asyncHandler(async (req, res) => {
     return;
   }
 
-  const { url: avatarUrl, prompt: avatarPrompt } = await ImageService.generateAvatar(characterData, sessionId, session.useLocalAI);
+  const { url: avatarUrl, prompt: avatarPrompt } = SettingsService.get().imagesEnabled
+    ? await ImageService.generateAvatar(characterData, sessionId, session.useLocalAI)
+    : { url: ImageService.generateInitialsSvg(characterData.name, sessionId), prompt: '' };
 
   const character: Character = {
     id: Math.random().toString(36).substring(7),
@@ -154,7 +166,9 @@ app.put('/api/character/:charId', asyncHandler(async (req, res) => {
   }
 
   // Generate new avatar
-  const { url: avatarUrl, prompt: avatarPrompt } = await ImageService.generateAvatar(characterData, sessionId, session.useLocalAI);
+  const { url: avatarUrl, prompt: avatarPrompt } = SettingsService.get().imagesEnabled
+    ? await ImageService.generateAvatar(characterData, sessionId, session.useLocalAI)
+    : { url: ImageService.generateInitialsSvg(characterData.name, sessionId), prompt: '' };
   const updatedChar = { ...session.party[charIndex], ...characterData, avatarUrl, avatarPrompt };
 
   session.party[charIndex] = updatedChar;
@@ -250,7 +264,7 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
   res.json({ actionAttempt, turnResult, session: newState });
 
   console.log(`[Action] imageSuggested=${turnResult.imageSuggested} imagePrompt=${turnResult.imagePrompt ?? 'null'} savingsMode=${session.savingsMode}`);
-  if (!session.savingsMode && turnResult.imageSuggested && turnResult.imagePrompt) {
+  if (!session.savingsMode && SettingsService.get().imagesEnabled && turnResult.imageSuggested && turnResult.imagePrompt) {
     void ImageService.generateImage(turnResult.imagePrompt, session.id, newState.turn, session.useLocalAI).then(async imageUrl => {
       if (imageUrl) {
         await StateService.updateLatestTurnImageUrl(sessionId, imageUrl);
@@ -295,7 +309,7 @@ app.post('/api/session/:id/start', asyncHandler(async (req, res) => {
   broadcastUpdate(sessionId, 'turn_complete', { session, turnResult: initialTurn });
   res.json({ success: true });
 
-  if (!session.savingsMode) {
+  if (!session.savingsMode && SettingsService.get().imagesEnabled) {
     void ImageService.generateImage(initialTurn.imagePrompt || 'A fantasy world map', sessionId, session.turn, session.useLocalAI).then(async imageUrl => {
       if (imageUrl) {
         await StateService.updateLatestTurnImageUrl(sessionId, imageUrl);

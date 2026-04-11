@@ -29,6 +29,11 @@ export const Home = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4 md:p-8">
+      <button
+        onClick={() => navigate('/settings')}
+        className="fixed top-4 right-4 text-slate-600 hover:text-amber-500 transition-colors text-2xl"
+        title="Settings"
+      >⚙</button>
       {confirmDialog && (
         <ConfirmDialog
           message={confirmDialog.message}
