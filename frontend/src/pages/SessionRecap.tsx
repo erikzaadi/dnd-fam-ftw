@@ -96,7 +96,7 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
         )}
         {turn.lastAction && (
           <p className="text-[10px] font-black uppercase tracking-widest text-amber-500/70 mb-2">
-            "{turn.lastAction.actionAttempt}" — {turn.lastAction.actionResult.success ? '✓ success' : '✗ failed'}
+            "{turn.lastAction.actionAttempt}" - {turn.lastAction.actionResult.success ? '✓ success' : '✗ failed'}
           </p>
         )}
         <p className="font-narrative text-lg text-slate-200 italic leading-relaxed">{turn.narration}</p>

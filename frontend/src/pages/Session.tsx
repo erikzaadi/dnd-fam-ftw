@@ -226,14 +226,14 @@ export const SessionPage = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={toggleUseLocalAI}
-            title={session.useLocalAI ? 'Using LocalAI — click to switch to OpenAI' : 'Using OpenAI — click to switch to LocalAI'}
+            title={session.useLocalAI ? 'Using LocalAI - click to switch to OpenAI' : 'Using OpenAI - click to switch to LocalAI'}
             className={`px-3 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all cursor-pointer ${session.useLocalAI ? 'border-purple-500 text-purple-400 bg-purple-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
           >
             {session.useLocalAI ? '🏠 Local' : '☁️ Cloud'}
           </button>
           <button
             onClick={toggleSavingsMode}
-            title={session.savingsMode ? 'Savings mode on — no scene images' : 'Savings mode off — generating scene images'}
+            title={session.savingsMode ? 'Savings mode on - no scene images' : 'Savings mode off - generating scene images'}
             className={`px-3 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all cursor-pointer ${session.savingsMode ? 'border-amber-500 text-amber-400 bg-amber-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
           >
             {session.savingsMode ? '🪙 Saving' : '🖼 Images'}

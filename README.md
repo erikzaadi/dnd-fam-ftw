@@ -1,4 +1,4 @@
-# 🐉 AI DM — Family D&D Night, Powered by AI
+# 🐉 AI DM - Family D&D Night, Powered by AI
 
 > *"Roll for initiative. The DM never sleeps, never gets tired, and always has a pun ready."*
 
@@ -22,12 +22,12 @@ No prep required. No DM experience required. Just vibes and a d20.
 
 ![Scene image with savings toggle](docs/scene-image-gameplay.png)
 
-- **AI Dungeon Master** — GPT-4o narrates your story in real-time
-- **DALL-E 3 scene images** — every major moment gets illustrated, with a slow Ken Burns pan across the scene
-- **Three stats** — Might, Magic, and Mischief (it's a family game)
-- **d20 rolls** — classic dice mechanics, displayed with a satisfying SVG die
-- **Inventory with stat bonuses** — find a magic sword, actually get +1 Might
-- **Real-time multi-device sync** — everyone at the table can follow along via SSE
+- **AI Dungeon Master** : GPT-4o narrates your story in real-time
+- **DALL-E 3 scene images** : every major moment gets illustrated, with a slow Ken Burns pan across the scene
+- **Three stats** : Might, Magic, and Mischief (it's a family game)
+- **d20 rolls** : classic dice mechanics, displayed with a satisfying SVG die
+- **Inventory with stat bonuses** : find a magic sword, actually get +1 Might
+- **Real-time multi-device sync** : everyone at the table can follow along via SSE
 
 ![Session header with party avatars](docs/session-header-party.png)
 
@@ -41,12 +41,12 @@ No prep required. No DM experience required. Just vibes and a d20.
 
 ![Assemble your party screen](docs/assemble-party.png)
 
-- **Custom hero creation** — name, species, class, quirk, and auto-generated AI portrait
-- **Hero library** — import characters from previous adventures
-- **HP tracking** — fail a roll, take damage; the stakes are real (ish)
-- **Downed state** — reach 0 HP and your hero collapses; teammates must revive you
-- **Party wipe rescue** — if everyone goes down, a once-per-session magical intervention saves the party at 1 HP each; a second wipe wakes them in a sanctuary
-- **Rolling story summary** — the AI compresses the adventure every 5 turns so context stays sharp across long sessions
+- **Custom hero creation** : name, species, class, quirk, and auto-generated AI portrait
+- **Hero library** : import characters from previous adventures
+- **HP tracking** : fail a roll, take damage; the stakes are real (ish)
+- **Downed state** : reach 0 HP and your hero collapses; teammates must revive you
+- **Party wipe rescue** : if everyone goes down, a once-per-session magical intervention saves the party at 1 HP each; a second wipe wakes them in a sanctuary
+- **Rolling story summary** : the AI compresses the adventure every 5 turns so context stays sharp across long sessions
 
 ![Create new hero form](docs/create-hero-form.png)
 
@@ -58,13 +58,13 @@ Every hero gets a generated portrait and carries their quirk into the story:
 
 ![Recap mode selection](docs/recap-mode-select.png)
 
-- **TLDR mode** — AI summarises the whole adventure in 3 sentences for latecomers
-- **Movie mode** — animated slideshow of every scene, with Ken Burns effect and pause/play controls. Click any image for fullscreen.
+- **TLDR mode** : AI summarises the whole adventure in 3 sentences for latecomers
+- **Movie mode** : animated slideshow of every scene, with Ken Burns effect and pause/play controls. Click any image for fullscreen.
 
 ### Quality of Life
-- **Savings mode** — toggle off image generation to save on API costs during dev/testing
-- **Session persistence** — SQLite, so your adventure survives a server restart
-- **Mobile & tablet friendly** — playable on the couch
+- **Savings mode** : toggle off image generation to save on API costs during dev/testing
+- **Session persistence** : SQLite, so your adventure survives a server restart
+- **Mobile & tablet friendly** : playable on the couch
 
 ---
 
@@ -86,7 +86,7 @@ Every hero gets a generated portrait and carries their quirk into the story:
 
 ### Prerequisites
 - Node.js 20+
-- One of the AI options below — **no paid account required**
+- One of the AI options below : **no paid account required**
 
 ### AI options
 
@@ -108,25 +108,25 @@ Create a `backend/.env` file.
 OPENAI_API_KEY=sk-proj-...
 ```
 
-**Gemini (free — any Gmail account):**
+**Gemini (free : any Gmail account):**
 Get a key at [aistudio.google.com](https://aistudio.google.com/apikey), then:
 ```
 OPENAI_API_KEY=your-gemini-api-key
 OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
 OPENAI_MODEL=gemini-2.5-flash-lite
 AI_NARRATION_PROVIDER=gemini
-# Image generation requires a paid Gemini plan — omit for SVG initials fallback
+# Image generation requires a paid Gemini plan : omit for SVG initials fallback
 # AI_IMAGE_PROVIDER=openai
 # OPENAI_IMAGE_MODEL=gemini-2.5-flash-image
 ```
 
-**OpenRouter (free models available — no credit card required):**
+**OpenRouter (free models available : no credit card required):**
 Get a key at [openrouter.ai/keys](https://openrouter.ai/keys), then:
 ```
 OPENAI_API_KEY=sk-or-...
 OPENAI_BASE_URL=https://openrouter.ai/api/v1
 OPENAI_MODEL=meta-llama/llama-3.3-8b-instruct:free
-# Images not supported by OpenRouter — avatars fall back to SVG initials
+# Images not supported by OpenRouter : avatars fall back to SVG initials
 ```
 Browse free models at [openrouter.ai/models?order=top-weekly&supported_parameters=free](https://openrouter.ai/models?order=top-weekly&supported_parameters=free).
 
@@ -222,13 +222,13 @@ There are five distinct AI calls in the app, each with a different purpose and c
 
 | Call | Where | Cloud model | Local alternative | When |
 |---|---|---|---|---|
-| **Turn narration** | `aiDmService.ts` | gpt-4o | LocalAI (Qwen3 etc.) | Every action — the core DM loop |
+| **Turn narration** | `aiDmService.ts` | gpt-4o | LocalAI (Qwen3 etc.) | Every action : the core DM loop |
 | **Scene image** | `imageService.ts` | dall-e-3 | LocalAI (SD 3.5 Large) | Every turn, async via SSE, cached by prompt hash |
 | **Avatar generation** | `imageService.ts` | dall-e-3 | LocalAI (SD 3.5 Large) | Once per character creation, cached permanently |
-| **TLDR summary** | `index.ts` (route) | gpt-4o-mini | — | On demand in recap screen |
+| **TLDR summary** | `index.ts` (route) | gpt-4o-mini | : | On demand in recap screen |
 | **Session naming** | `stateService.ts` | gpt-4o-mini | LocalAI | Once at world creation |
 
-Turn narration is the only call that blocks the player response. Scene images are generated asynchronously after the turn — the story text appears immediately, and the image arrives via SSE a few seconds later.
+Turn narration is the only call that blocks the player response. Scene images are generated asynchronously after the turn : the story text appears immediately, and the image arrives via SSE a few seconds later.
 
 ---
 
@@ -264,9 +264,9 @@ Image generation runs in background (DALL-E 3 or LocalAI SD)
 SSE broadcasts image_ready → scene image appears on all clients
 ```
 
-The AI **cannot mutate game state directly** — it only returns structured JSON. The backend owns all mechanics.
+The AI **cannot mutate game state directly** : it only returns structured JSON. The backend owns all mechanics.
 
-For the complete ruleset — dice math, downed state, party wipes, item mechanics, story compression, SSE events — see **[GAME_ENGINE_RULES.md](GAME_ENGINE_RULES.md)**.
+For the complete ruleset : dice math, downed state, party wipes, item mechanics, story compression, SSE events : see **[GAME_ENGINE_RULES.md](GAME_ENGINE_RULES.md)**.
 
 ---
 
@@ -300,4 +300,4 @@ Pick a difficulty, describe your world (or leave it blank for a surprise), and h
 
 ---
 
-[Beerware License](LICENSE) — if you like it, buy me a beer someday.
+[Beerware License](LICENSE) : if you like it, buy me a beer someday.
