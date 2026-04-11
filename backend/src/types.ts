@@ -83,4 +83,5 @@ export interface ActionAttempt {
 
 export interface AIInput extends SessionState, ActionAttempt {
   interventionRescue?: boolean;
+  sanctuaryRecovery?: boolean;
 }

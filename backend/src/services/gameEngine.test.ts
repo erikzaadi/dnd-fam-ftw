@@ -329,4 +329,52 @@ const afterIntervention = GameEngine.applyIntervention(session3);
 if (afterIntervention.activeCharacterId !== 'first') throw new Error(`Expected 'first', got '${afterIntervention.activeCharacterId}'`);
 console.log("- activeCharacterId reset to first party member.");
 
+// ── Phase: applySanctuaryRecovery ───────────────────────────────────────────
+
+// Test 29: applySanctuaryRecovery restores all downed to 1 HP
+console.log("Test 29: applySanctuaryRecovery restores downed characters...");
+const secondWipe = makeSession({
+  party: [
+    makeChar({ id: 's1', status: 'downed', hp: 0 }),
+    makeChar({ id: 's2', status: 'downed', hp: 0 }),
+  ],
+  interventionState: { used: true },
+});
+const sanctuary = GameEngine.applySanctuaryRecovery(secondWipe);
+if (sanctuary.party[0].status !== 'active') throw new Error('s1 should be active');
+if (sanctuary.party[1].status !== 'active') throw new Error('s2 should be active');
+if (sanctuary.party[0].hp !== 1) throw new Error(`s1 HP should be 1, got ${sanctuary.party[0].hp}`);
+if (sanctuary.party[1].hp !== 1) throw new Error(`s2 HP should be 1, got ${sanctuary.party[1].hp}`);
+console.log("- All downed restored to 1 HP active.");
+
+// Test 30: applySanctuaryRecovery does NOT mark intervention used (already was)
+console.log("Test 30: applySanctuaryRecovery leaves interventionState unchanged...");
+if (!sanctuary.interventionState.used) throw new Error("interventionState.used should still be true");
+console.log("- interventionState.used remains true.");
+
+// Test 31: applySanctuaryRecovery resets activeCharacterId to first party member
+console.log("Test 31: applySanctuaryRecovery resets activeCharacterId...");
+const sanctuarySession = makeSession({
+  party: [makeChar({ id: 'first' }), makeChar({ id: 'second' })],
+  activeCharacterId: 'second',
+  interventionState: { used: true },
+});
+const afterSanctuary = GameEngine.applySanctuaryRecovery(sanctuarySession);
+if (afterSanctuary.activeCharacterId !== 'first') throw new Error(`Expected 'first', got '${afterSanctuary.activeCharacterId}'`);
+console.log("- activeCharacterId reset to first party member.");
+
+// Test 32: applySanctuaryRecovery does not affect active characters
+console.log("Test 32: applySanctuaryRecovery leaves active characters alone...");
+const mixedSanctuary = makeSession({
+  party: [
+    makeChar({ id: 'alive', status: 'active', hp: 5 }),
+    makeChar({ id: 'dead', status: 'downed', hp: 0 }),
+  ],
+  interventionState: { used: true },
+});
+const afterMixed = GameEngine.applySanctuaryRecovery(mixedSanctuary);
+if (afterMixed.party[0].hp !== 5) throw new Error("Active character HP should be unchanged");
+if (afterMixed.party[1].hp !== 1) throw new Error("Downed character should be at 1 HP");
+console.log("- Active character untouched.");
+
 console.log("\nAll tests passed!");

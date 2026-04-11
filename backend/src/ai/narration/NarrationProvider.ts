@@ -36,6 +36,7 @@ export type NarrationInput = {
   tone: string;
   isFirstTurn?: boolean;
   interventionRescue?: boolean;
+  sanctuaryRecovery?: boolean;
 };
 
 export type NarrationOutput = {

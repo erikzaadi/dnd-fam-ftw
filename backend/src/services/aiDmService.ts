@@ -40,6 +40,7 @@ export function toNarrationInput(input: AIInput): NarrationInput {
     tone: input.tone,
     isFirstTurn: input.turn === 1,
     interventionRescue: input.interventionRescue,
+    sanctuaryRecovery: input.sanctuaryRecovery,
   };
 }
 

@@ -337,6 +337,34 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
     })();
   }
 
+  // Sanctuary recovery — second wipe after intervention already used
+  if (GameEngine.isPartyWiped(newState) && newState.interventionState?.used) {
+    void (async () => {
+      try {
+        console.log('[Sanctuary] Second wipe — triggering sanctuary recovery');
+        const sanctuaryState = GameEngine.applySanctuaryRecovery(newState);
+        await StateService.updateSession(sessionId, sanctuaryState);
+
+        const sanctuaryInput: import('./types.js').AIInput = {
+          ...sanctuaryState,
+          actionAttempt: 'The party woke up somewhere safe, battered but alive',
+          actionResult: { success: true, roll: 0, statUsed: 'none' },
+          sanctuaryRecovery: true,
+        };
+        const sanctuaryTurn = await AiDmService.generateTurnResult(sanctuaryInput, session.useLocalAI);
+
+        const postState = GameEngine.updateState(sanctuaryState, sanctuaryInput, sanctuaryTurn as unknown as Record<string, unknown>);
+        await StateService.updateSession(sessionId, postState);
+        await StateService.addTurnResult(sessionId, sanctuaryTurn, null);
+        broadcastUpdate(sessionId, 'sanctuary_recovery', { session: postState, turnResult: sanctuaryTurn });
+        void StorySummaryService.updateAfterIntervention(sessionId, sanctuaryTurn.narration, session.useLocalAI);
+        console.log('[Sanctuary] Recovery complete');
+      } catch (err) {
+        console.error('[Sanctuary] Failed:', err);
+      }
+    })();
+  }
+
   console.log(`[Action] imageSuggested=${turnResult.imageSuggested} imagePrompt=${turnResult.imagePrompt ?? 'null'} savingsMode=${session.savingsMode}`);
   if (!session.savingsMode && SettingsService.get().imagesEnabled && turnResult.imageSuggested && turnResult.imagePrompt) {
     void ImageService.generateImage(turnResult.imagePrompt, session.id, newState.turn, session.useLocalAI).then(async imageUrl => {

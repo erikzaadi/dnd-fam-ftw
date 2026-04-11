@@ -27,6 +27,7 @@ export const SessionPage = () => {
   const [imageLoading, setImageLoading] = useState(false);
   const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string } | null>(null);
   const [interventionBanner, setInterventionBanner] = useState<string | null>(null);
+  const [sanctuaryBanner, setSanctuaryBanner] = useState<string | null>(null);
 
   const joinSession = useCallback(async (sessionId: string) => {
     const res = await fetch(api(`/session/${sessionId}`));
@@ -91,6 +92,10 @@ export const SessionPage = () => {
           setInterventionBanner(data.turnResult?.narration ?? 'A mysterious force saved the party!');
           joinSession(id);
           setTimeout(() => setInterventionBanner(null), 8000);
+        } else if (data.type === 'sanctuary_recovery') {
+          setSanctuaryBanner(data.turnResult?.narration ?? 'The party found sanctuary...');
+          joinSession(id);
+          setTimeout(() => setSanctuaryBanner(null), 10000);
         } else if (data.type === 'party_update') {
           joinSession(id);
         }
@@ -288,6 +293,17 @@ export const SessionPage = () => {
           </div>
         )}
       </div>
+
+      {sanctuaryBanner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/70 animate-in fade-in duration-700" onClick={() => setSanctuaryBanner(null)}>
+          <div className="flex flex-col items-center gap-6 p-10 rounded-3xl border-2 border-slate-500 bg-slate-900/95 shadow-2xl max-w-lg mx-4 animate-in zoom-in-75 duration-500">
+            <div className="text-6xl">🏕️</div>
+            <div className="text-2xl font-black uppercase tracking-tight text-slate-300 text-center">Sanctuary</div>
+            <p className="text-slate-400 text-center leading-relaxed">{sanctuaryBanner}</p>
+            <span className="text-xs text-slate-600 uppercase tracking-widest">tap to continue</span>
+          </div>
+        </div>
+      )}
 
       {interventionBanner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/60 animate-in fade-in duration-500" onClick={() => setInterventionBanner(null)}>

@@ -166,4 +166,16 @@ for (const t of [6, 7, 8, 9, 11, 13]) {
 }
 console.log('- turns 6-9, 11, 13: false ✓');
 
+// Test 17: sanctuaryRecovery flag is passed through
+console.log('Test 17: sanctuaryRecovery flag passed through...');
+const out17 = toNarrationInput({ ...makeAIInput(), sanctuaryRecovery: true });
+if (!out17.sanctuaryRecovery) throw new Error('Expected sanctuaryRecovery true');
+console.log('- sanctuaryRecovery: true ✓');
+
+// Test 18: interventionRescue flag is passed through
+console.log('Test 18: interventionRescue flag passed through...');
+const out18 = toNarrationInput({ ...makeAIInput(), interventionRescue: true });
+if (!out18.interventionRescue) throw new Error('Expected interventionRescue true');
+console.log('- interventionRescue: true ✓');
+
 console.log('\nAll aiDmService + StorySummaryService tests passed!');

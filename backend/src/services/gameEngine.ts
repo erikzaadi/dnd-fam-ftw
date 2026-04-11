@@ -30,6 +30,20 @@ export class GameEngine {
     return state.party.length > 0 && state.party.every(c => c.status === 'downed');
   }
 
+  public static applySanctuaryRecovery(state: SessionState): SessionState {
+    const newState: SessionState = JSON.parse(JSON.stringify(state));
+    for (const char of newState.party) {
+      if (char.status === 'downed') {
+        char.status = 'active';
+        char.hp = 1;
+      }
+    }
+    if (newState.party.length > 0) {
+      newState.activeCharacterId = newState.party[0].id;
+    }
+    return newState;
+  }
+
   public static applyIntervention(state: SessionState): SessionState {
     const newState: SessionState = JSON.parse(JSON.stringify(state));
     for (const char of newState.party) {
