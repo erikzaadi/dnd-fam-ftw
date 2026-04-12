@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { DmFooter } from '../components/DmFooter';
 import { api } from '../lib/api';
 
 interface AppSettings {
@@ -46,11 +47,12 @@ export const Settings = () => {
       body: JSON.stringify(settings),
     });
     setSaved(true);
+    setTimeout(() => navigate('/'), 1200);
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4 md:p-8">
-      <div className="max-w-lg w-full space-y-8 animate-in fade-in zoom-in duration-700">
+    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex items-center justify-center p-4 md:p-8 pb-36">
+      <div className="max-w-lg w-full space-y-8 animate-in fade-in zoom-in duration-700 relative z-[10]">
         <div className="flex items-center gap-4">
           <button onClick={() => navigate('/')} className="text-slate-400 hover:text-white transition-colors text-2xl">←</button>
           <h1 className="text-4xl md:text-5xl font-display font-black text-amber-500 italic tracking-tighter">Settings</h1>
@@ -91,6 +93,7 @@ export const Settings = () => {
           </div>
         )}
       </div>
+      <DmFooter />
     </div>
   );
 };

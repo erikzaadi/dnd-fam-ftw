@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { TurnResult, Session, Character } from '../types';
 import { api, imgSrc } from '../lib/api';
 import { FullscreenImage } from '../components/FullscreenImage';
+import { DmFooter } from '../components/DmFooter';
 
 type Mode = 'choose' | 'tldr' | 'movie';
 
@@ -20,7 +21,7 @@ const TldrView = ({ sessionId, onEnter }: { sessionId: string; onEnter: () => vo
   }, [sessionId]);
 
   return (
-    <div className="flex flex-col items-center gap-8 max-w-2xl w-full animate-in fade-in duration-500">
+    <div className="flex flex-col items-center gap-8 max-w-2xl w-full animate-in fade-in duration-500 relative z-[10]">
       <h2 className="text-2xl font-display font-black text-amber-500 uppercase tracking-widest">The Story So Far</h2>
       {summary ? (
         <p className="font-narrative text-xl text-slate-200 leading-relaxed italic text-center">{summary}</p>
@@ -55,7 +56,7 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
   }, [idx, playing, isLast]);
 
   return (
-    <div className="flex flex-col items-center gap-6 w-full max-w-3xl animate-in fade-in duration-500">
+    <div className="flex flex-col items-center gap-6 w-full max-w-3xl animate-in fade-in duration-500 relative z-[10]">
       {fullscreenUrl && <FullscreenImage url={fullscreenUrl} onClose={() => setFullscreenUrl(null)} />}
       {/* Progress dots */}
       <div className="flex gap-1.5 flex-wrap justify-center">
@@ -82,7 +83,10 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
             <img src={imgSrc(turn.imageUrl)} className="w-full h-full object-cover animate-ken-burns" />
           </div>
         ) : (
-          <div className="w-full h-48 md:h-72 rounded-[40px] border border-slate-800 bg-slate-900 flex items-center justify-center text-slate-600">No image</div>
+          <div className="w-full h-48 md:h-72 rounded-[40px] border border-slate-800 overflow-hidden relative">
+            <img src={imgSrc('/api/images/dm_thinking.png')} className="w-full h-full object-cover object-center opacity-20" />
+            <div className="absolute inset-0 bg-slate-900/60" />
+          </div>
         )}
       </div>
 
@@ -156,14 +160,14 @@ export const SessionRecap = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col items-center justify-center p-4 md:p-8 gap-8 md:gap-10">
-      <div className="flex items-center justify-between w-full max-w-3xl">
+    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col items-center justify-center p-4 md:p-8 pb-36 gap-8 md:gap-10">
+      <div className="flex items-center justify-between w-full max-w-3xl relative z-[10]">
         <h1 className="text-xl md:text-3xl font-display font-black text-amber-500 italic tracking-tight">{session.displayName}</h1>
         <Link to="/" className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 uppercase font-black text-xs tracking-widest transition-all">Exit World</Link>
       </div>
 
       {mode === 'choose' && (
-        <div className="flex flex-col items-center gap-6 animate-in fade-in zoom-in duration-500">
+        <div className="flex flex-col items-center gap-6 animate-in fade-in zoom-in duration-500 relative z-[10]">
           <p className="text-slate-400 font-black uppercase tracking-widest text-sm">How would you like to catch up?</p>
           <div className="flex gap-4 md:gap-6">
             <button onClick={() => setMode('tldr')} className="flex flex-col items-center gap-3 p-6 md:p-8 bg-slate-900 hover:bg-slate-800 rounded-[32px] border border-slate-700 hover:border-amber-500/50 transition-all w-36 md:w-44">
@@ -183,6 +187,7 @@ export const SessionRecap = () => {
 
       {mode === 'tldr' && <TldrView sessionId={id!} onEnter={enter} />}
       {mode === 'movie' && history.length > 0 && <MovieView history={history} party={session.party} onEnter={enter} />}
+      <DmFooter />
     </div>
   );
 };

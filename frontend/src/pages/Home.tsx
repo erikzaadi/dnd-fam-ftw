@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { HowToPlay } from '../components/HowToPlay';
+import { DmFooter } from '../components/DmFooter';
 import { api } from '../lib/api';
 
 export const Home = () => {
@@ -30,7 +31,7 @@ export const Home = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4 md:p-8">
+    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex items-center justify-center p-4 md:p-8 pb-36">
       {showHowToPlay && <HowToPlay onClose={() => setShowHowToPlay(false)} />}
       {confirmDialog && (
         <ConfirmDialog
@@ -39,7 +40,7 @@ export const Home = () => {
           onCancel={() => setConfirmDialog(null)}
         />
       )}
-      <div className="max-w-4xl w-full text-center space-y-10 md:space-y-16 animate-in fade-in zoom-in duration-700">
+      <div className="max-w-4xl w-full text-center space-y-10 md:space-y-16 animate-in fade-in zoom-in duration-700 relative z-[10]">
         <div className="space-y-4">
           <h1 className="text-6xl md:text-9xl font-display font-black text-amber-500 drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)] italic tracking-tighter">🐉 AI DM</h1>
         </div>
@@ -84,6 +85,7 @@ export const Home = () => {
           </div>
         </div>
       </div>
+      <DmFooter />
     </div>
   );
 };

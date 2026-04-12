@@ -7,6 +7,7 @@ import { CharacterForm } from '../components/CharacterForm';
 import { CharacterImportModal } from '../components/CharacterImportModal';
 import { FullscreenImage } from '../components/FullscreenImage';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { DmFooter } from '../components/DmFooter';
 
 export const CharacterAssembly = () => {
   const { id } = useParams<{ id: string }>();
@@ -158,7 +159,7 @@ export const CharacterAssembly = () => {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex items-center justify-center p-4 md:p-8">
+    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex items-center justify-center p-4 md:p-8 pb-36">
       {fullscreenImage && <FullscreenImage url={fullscreenImage} onClose={() => setFullscreenImage(null)} />}
       {isCreating && <CharacterForm onSave={saveCharacter} onCancel={() => {
         setIsCreating(false); setEditingChar(null); 
@@ -171,7 +172,7 @@ export const CharacterAssembly = () => {
         confirmDialog.onConfirm(); setConfirmDialog(null); 
       }} onCancel={() => setConfirmDialog(null)} />}
 
-      <div className="max-w-4xl w-full space-y-8 md:space-y-12">
+      <div className="max-w-4xl w-full space-y-8 md:space-y-12 relative z-[10]">
         <h1 className="text-3xl md:text-6xl font-display font-black text-amber-500 italic tracking-tighter text-center drop-shadow-[0_6px_6px_rgba(0,0,0,0.5)]">Assemble Your Party</h1>
 
         {session && session.party.length > 0 && (
@@ -224,6 +225,7 @@ export const CharacterAssembly = () => {
           </button>
         )}
       </div>
+      <DmFooter />
     </div>
   );
 };
