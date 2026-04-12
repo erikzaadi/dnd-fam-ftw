@@ -19,7 +19,7 @@ dotenv.config({ path: path.join(__dirname, '..', '..', '..', '.env') });
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const OUT_DIR = path.join(__dirname, '..', '..', 'public', 'images');
 
-const ASSETS = [
+const ASSETS: Array<{ filename: string; prompt: string; size?: '1024x1024' | '1792x1024' | '1024x1792' }> = [
   {
     filename: 'intervention_dragon.png',
     prompt: 'NO TEXT. NO WORDS. NO LETTERS. Fantasy style: a massive ancient dragon with glowing amber eyes swooping down from stormy skies, wings spread wide, saving tiny adventurers below, dramatic rescue scene, golden light breaking through dark clouds, fantasy illustration, cinematic lighting, vibrant colors, storybook art',
@@ -32,9 +32,14 @@ const ASSETS = [
     filename: 'dm_thinking.png',
     prompt: 'NO TEXT. NO WORDS. NO LETTERS. Fantasy style: a mysterious hooded dungeon master figure hunched over a massive arcane tome, surrounded by floating magical runes and glowing dice, candlelight flickering in a shadowy tavern, dramatic moody lighting, mystical atmosphere, fantasy illustration, dark and atmospheric storybook art',
   },
+  {
+    filename: 'home_banner.png',
+    size: '1792x1024',
+    prompt: 'NO TEXT. NO WORDS. NO LETTERS. Wide cinematic fantasy banner: a colossal ancient dragon with glowing amber eyes soaring above a vast magical landscape at dusk, party of tiny adventurers silhouetted far below on a mountain ridge looking up in awe, sweeping panoramic vista, dramatic orange and gold sky, volumetric light rays, epic scale, fantasy illustration, storybook art, deep atmospheric perspective',
+  },
 ];
 
-async function generate(asset: { filename: string; prompt: string }) {
+async function generate(asset: { filename: string; prompt: string; size?: '1024x1024' | '1792x1024' | '1024x1792' }) {
   const outPath = path.join(OUT_DIR, asset.filename);
   if (fs.existsSync(outPath)) {
     console.log(`[skip] ${asset.filename} already exists`);
@@ -46,7 +51,7 @@ async function generate(asset: { filename: string; prompt: string }) {
     model: process.env.OPENAI_IMAGE_MODEL ?? 'dall-e-3',
     prompt: asset.prompt,
     n: 1,
-    size: '1024x1024',
+    size: asset.size ?? '1024x1024',
     response_format: 'b64_json',
   });
 

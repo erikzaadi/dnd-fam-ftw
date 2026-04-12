@@ -8,6 +8,7 @@ import { CharacterImportModal } from '../components/CharacterImportModal';
 import { FullscreenImage } from '../components/FullscreenImage';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DmFooter } from '../components/DmFooter';
+import { SiteHeader } from '../components/SiteHeader';
 
 export const CharacterAssembly = () => {
   const { id } = useParams<{ id: string }>();
@@ -159,7 +160,8 @@ export const CharacterAssembly = () => {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex items-center justify-center p-4 md:p-8 pb-36">
+    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex items-center justify-center p-4 md:p-8 pt-20 pb-36">
+      <SiteHeader />
       {fullscreenImage && <FullscreenImage url={fullscreenImage} onClose={() => setFullscreenImage(null)} />}
       {isCreating && <CharacterForm onSave={saveCharacter} onCancel={() => {
         setIsCreating(false); setEditingChar(null); 

@@ -6,4 +6,5 @@ backend/public/images/*
 !backend/public/images/intervention_dragon.png
 !backend/public/images/sanctuary_light.png
 !backend/public/images/dm_thinking.png
+!backend/public/images/home_banner.png
 backend/dist

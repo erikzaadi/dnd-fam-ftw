@@ -4,6 +4,7 @@ import type { TurnResult, Session, Character } from '../types';
 import { api, imgSrc } from '../lib/api';
 import { FullscreenImage } from '../components/FullscreenImage';
 import { DmFooter } from '../components/DmFooter';
+import { SiteHeader } from '../components/SiteHeader';
 
 type Mode = 'choose' | 'tldr' | 'movie';
 
@@ -160,7 +161,8 @@ export const SessionRecap = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col items-center justify-center p-4 md:p-8 pb-36 gap-8 md:gap-10">
+    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col items-center justify-center p-4 md:p-8 pt-20 pb-36 gap-8 md:gap-10">
+      <SiteHeader />
       <div className="flex items-center justify-between w-full max-w-3xl relative z-[10]">
         <h1 className="text-xl md:text-3xl font-display font-black text-amber-500 italic tracking-tight">{session.displayName}</h1>
         <Link to="/" className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 uppercase font-black text-xs tracking-widest transition-all">Exit World</Link>

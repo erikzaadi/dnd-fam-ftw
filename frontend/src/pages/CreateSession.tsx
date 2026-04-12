@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DmFooter } from '../components/DmFooter';
+import { SiteHeader } from '../components/SiteHeader';
 import { api } from '../lib/api';
 
 export const CreateSession = () => {
@@ -46,12 +47,10 @@ export const CreateSession = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex items-center justify-center p-4 md:p-8 pb-36">
+    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex items-center justify-center p-4 md:p-8 pt-20 pb-36">
+      <SiteHeader />
       <div className="bg-slate-900/80 backdrop-blur-sm p-8 md:p-12 rounded-[60px] border-2 border-slate-800 shadow-2xl max-w-2xl w-full text-center space-y-8 relative z-[10]">
-        <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/')} className="text-slate-400 hover:text-white transition-colors text-2xl">←</button>
-          <h3 className="flex-1 text-4xl font-display font-black uppercase tracking-tighter text-amber-500 italic">New Journey</h3>
-        </div>
+        <h3 className="text-4xl font-display font-black uppercase tracking-tighter text-amber-500 italic">New Journey</h3>
         <div className="flex gap-2 justify-center">
           {['easy', 'normal', 'hard'].map(d => (
             <button key={d} onClick={() => setDifficulty(d)} className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${difficulty === d ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-500'}`}>{d}</button>
