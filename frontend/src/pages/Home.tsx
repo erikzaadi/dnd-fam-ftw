@@ -51,7 +51,7 @@ export const Home = () => {
       </div>
 
       {/* Content section - flex column, buttons pinned top and bottom */}
-      <div className="flex-1 flex flex-col gap-4 px-4 md:px-6 pt-4 pb-6 relative z-[10] min-h-0 max-w-3xl w-full mx-auto">
+      <div className="flex-1 flex flex-col gap-6 px-4 md:px-6 pt-4 pb-6 relative z-[10] min-h-0 max-w-3xl w-full mx-auto">
         <button
           onClick={() => navigate('/create-session')}
           className="px-8 py-5 md:px-16 md:py-6 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-2xl md:text-4xl font-black shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter w-full flex-shrink-0"

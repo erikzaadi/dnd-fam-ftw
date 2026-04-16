@@ -9,7 +9,10 @@
     "start": "node --env-file=../.env dist/index.js",
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix",
-    "test": "tsx src/services/gameEngine.test.ts && tsx src/services/aiDmService.test.ts && tsx src/services/statSuggestionService.test.ts"
+    "test": "tsx src/services/gameEngine.test.ts && tsx src/services/aiDmService.test.ts && tsx src/services/statSuggestionService.test.ts",
+    "nuke-sessions": "tsx src/scripts/nukeSessions.ts",
+    "seed-sessions": "tsx src/scripts/seedSessions.ts",
+    "list-sessions": "tsx src/scripts/listSessions.ts"
   },
   "keywords": [],
   "author": "",
