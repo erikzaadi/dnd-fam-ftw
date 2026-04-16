@@ -45,6 +45,7 @@ export interface ActionAttempt {
     statBonus?: number;
     itemBonus?: number;
     isCritical?: boolean;
+    difficultyTarget?: number;
   };
 }
 

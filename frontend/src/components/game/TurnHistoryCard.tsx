@@ -2,6 +2,7 @@ import type { Choice, Character, ActionAttempt, TurnType } from '../../types';
 import { imgSrc } from '../../lib/api';
 import { beatTarget } from '../../lib/game';
 import { D20 } from './D20';
+import { RollBreakdown } from './RollBreakdown';
 
 interface TurnHistoryCardProps {
   choices: Choice[];
@@ -119,10 +120,15 @@ export const TurnHistoryCard = ({ choices, takenAction, character, turnType, nar
           <span className={`text-[9px] font-black uppercase tracking-widest ${success ? 'text-amber-500' : 'text-rose-400'}`}>
             {success ? 'success' : 'fail'}
           </span>
+          <RollBreakdown
+            roll={roll}
+            statBonus={takenAction?.actionResult?.statBonus}
+            itemBonus={takenAction?.actionResult?.itemBonus}
+            success={success}
+            difficultyTarget={takenAction?.actionResult?.difficultyTarget}
+            className="text-[9px]"
+          />
           <span className="text-[8px] uppercase tracking-widest text-slate-500">{statUsed}</span>
-          {(takenAction?.actionResult?.itemBonus ?? 0) > 0 && (
-            <span className="text-[9px] font-black text-amber-400">+{takenAction!.actionResult.itemBonus} items</span>
-          )}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center shrink-0 w-[72px]">

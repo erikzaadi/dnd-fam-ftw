@@ -140,6 +140,17 @@ export const SessionRecap = () => {
 
   const enter = useCallback(() => navigate(`/session/${id}`), [id, navigate]);
 
+  const toggleSavingsMode = async () => {
+    if (!session) return;
+    const enabled = !session.savingsMode;
+    await fetch(api(`/session/${session.id}/savings-mode`), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    setSession({ ...session, savingsMode: enabled });
+  };
+
   useEffect(() => {
     if (!id) {
       return;
@@ -165,7 +176,16 @@ export const SessionRecap = () => {
       <SiteHeader />
       <div className="flex items-center justify-between w-full max-w-3xl relative z-[10]">
         <h1 className="text-xl md:text-3xl font-display font-black text-amber-500 italic tracking-tight">{session.displayName}</h1>
-        <Link to="/" className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 uppercase font-black text-xs tracking-widest transition-all">Exit World</Link>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleSavingsMode}
+            title={session.savingsMode ? 'Images off - click to enable' : 'Images on - click to disable'}
+            className={`px-3 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all cursor-pointer ${session.savingsMode ? 'border-amber-500 text-amber-400 bg-amber-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
+          >
+            {session.savingsMode ? '🪙 Saving' : '🖼 Images'}
+          </button>
+          <Link to="/" className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 uppercase font-black text-xs tracking-widest transition-all">Exit World</Link>
+        </div>
       </div>
 
       {mode === 'choose' && (

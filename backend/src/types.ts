@@ -69,7 +69,8 @@ export interface TurnResult {
   imagePrompt: string | null;
   imageSuggested: boolean;
   imageUrl?: string | null;
-  suggestedInventoryAdd?: Omit<InventoryItem, 'id'> | null;
+  suggestedInventoryAdd?: (Omit<InventoryItem, 'id'> & { targetCharacterName?: string }) | null;
+  suggestedInventoryRemove?: { characterName: string; itemName: string } | null;
   suggestedRevive?: { characterName: string; hp: number } | null;
   suggestedHeal?: Array<{ characterName: string; hp: number }> | null;
   suggestedDamage?: number | null;
@@ -87,6 +88,7 @@ export interface ActionAttempt {
     statBonus?: number;
     itemBonus?: number;
     isCritical?: boolean;
+    difficultyTarget?: number;
   };
 }
 

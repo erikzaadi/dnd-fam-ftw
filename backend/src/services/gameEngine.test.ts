@@ -545,17 +545,96 @@ const afterHealCase = GameEngine.updateState(healCaseSession, t38Attempt, {
 if (afterHealCase.party[0].hp !== 7) throw new Error(`Expected hp 7 after case-insensitive heal, got ${afterHealCase.party[0].hp}`);
 console.log(`- Case-insensitive name match works ✓`);
 
+// ── NPC Trades: suggestedInventoryRemove ────────────────────────────────────
+
+// Test 44: suggestedInventoryRemove removes a matching item from the named character
+console.log("Test 44: suggestedInventoryRemove removes item from named character...");
+const tradePotion = { id: 'tp-1', name: 'Herbal Tonic', description: 'A soothing brew', healValue: 3, consumable: true, transferable: true };
+const trader = makeChar({ id: 'trader', name: 'Vex', inventory: [tradePotion] });
+const tradeSession = makeSession({ party: [trader], activeCharacterId: 'trader' });
+const tradeAttempt = { actionAttempt: 'Trade the tonic for the egg', actionResult: { success: true, roll: 14, statUsed: 'might' as const } };
+const afterTrade = GameEngine.updateState(tradeSession, tradeAttempt, {
+  suggestedInventoryRemove: { characterName: 'Vex', itemName: 'Herbal Tonic' },
+  suggestedInventoryAdd: { name: 'Dragon Egg', description: 'Pulses with amber light', statBonuses: {}, consumable: false, transferable: true },
+  choices: [{ label: 'Continue', difficulty: 'easy', stat: 'might' }],
+});
+if (afterTrade.party[0].inventory.length !== 1) throw new Error(`Expected 1 item after trade, got ${afterTrade.party[0].inventory.length}`);
+if (afterTrade.party[0].inventory[0].name !== 'Dragon Egg') throw new Error(`Expected Dragon Egg, got ${afterTrade.party[0].inventory[0].name}`);
+console.log(`- Tonic removed, Dragon Egg added ✓`);
+
+// Test 45: suggestedInventoryRemove uses fuzzy item name match
+console.log("Test 45: suggestedInventoryRemove matches item name fuzzily...");
+const fuzzyChar = makeChar({ id: 'fuzzy', name: 'Pip', inventory: [{ id: 'smoke-1', name: 'Experimental Smoke Bomb', description: 'Unstable', consumable: true, transferable: false }] });
+const fuzzySession = makeSession({ party: [fuzzyChar], activeCharacterId: 'fuzzy' });
+const afterFuzzy = GameEngine.updateState(fuzzySession, tradeAttempt, {
+  suggestedInventoryRemove: { characterName: 'Pip', itemName: 'Smoke Bomb' },
+  choices: [{ label: 'Continue', difficulty: 'easy', stat: 'might' }],
+});
+if (afterFuzzy.party[0].inventory.length !== 0) throw new Error(`Fuzzy match should have removed the item`);
+console.log(`- Fuzzy item name match works ✓`);
+
+// Test 46: suggestedInventoryRemove uses fuzzy character name match
+console.log("Test 46: suggestedInventoryRemove matches character name fuzzily...");
+const namedChar = makeChar({ id: 'named', name: 'Grimble Tinksworth', inventory: [tradePotion] });
+const namedSession = makeSession({ party: [namedChar], activeCharacterId: 'named' });
+const afterNamed = GameEngine.updateState(namedSession, tradeAttempt, {
+  suggestedInventoryRemove: { characterName: 'Grimble', itemName: 'Herbal Tonic' },
+  choices: [{ label: 'Continue', difficulty: 'easy', stat: 'might' }],
+});
+if (afterNamed.party[0].inventory.length !== 0) throw new Error(`Fuzzy character name match should have removed item`);
+console.log(`- Fuzzy character name match works ✓`);
+
+// Test 47: null suggestedInventoryRemove leaves inventory unchanged
+console.log("Test 47: null suggestedInventoryRemove leaves inventory unchanged...");
+const noRemoveChar = makeChar({ id: 'nr', name: 'Solara', inventory: [tradePotion] });
+const noRemoveSession = makeSession({ party: [noRemoveChar], activeCharacterId: 'nr' });
+const afterNoRemove = GameEngine.updateState(noRemoveSession, tradeAttempt, {
+  suggestedInventoryRemove: null,
+  choices: [{ label: 'Continue', difficulty: 'easy', stat: 'might' }],
+});
+if (afterNoRemove.party[0].inventory.length !== 1) throw new Error(`Inventory should be unchanged with null remove`);
+console.log(`- Null remove leaves inventory intact ✓`);
+
+// ── suggestedInventoryAdd with targetCharacterName ───────────────────────────
+
+// Test 48: suggestedInventoryAdd with targetCharacterName adds to the specified character
+console.log("Test 48: suggestedInventoryAdd with targetCharacterName adds to specified character...");
+const actorChar = makeChar({ id: 'actor', name: 'Grimble', inventory: [] });
+const receiverChar = makeChar({ id: 'recv', name: 'Solara', inventory: [] });
+const targetedSession = makeSession({ party: [actorChar, receiverChar], activeCharacterId: 'actor' });
+const targetedAttempt = { actionAttempt: 'The vendor hands the egg to Solara', actionResult: { success: true, roll: 12, statUsed: 'mischief' as const } };
+const afterTargeted = GameEngine.updateState(targetedSession, targetedAttempt, {
+  suggestedInventoryAdd: { name: 'Dragon Egg', description: 'Warm and glowing', targetCharacterName: 'Solara', statBonuses: {}, consumable: false, transferable: true },
+  choices: [{ label: 'Continue', difficulty: 'easy', stat: 'might' }],
+});
+if (afterTargeted.party[0].inventory.length !== 0) throw new Error(`Actor (Grimble) should have no items`);
+if (afterTargeted.party[1].inventory.length !== 1) throw new Error(`Receiver (Solara) should have 1 item`);
+if (afterTargeted.party[1].inventory[0].name !== 'Dragon Egg') throw new Error(`Solara should have Dragon Egg`);
+console.log(`- Item added to targeted character (Solara), not acting character (Grimble) ✓`);
+
+// Test 49: suggestedInventoryAdd without targetCharacterName still adds to acting char
+console.log("Test 49: suggestedInventoryAdd without targetCharacterName adds to acting char...");
+const noTargetSession = makeSession({ party: [actorChar, receiverChar], activeCharacterId: 'actor' });
+const afterNoTarget = GameEngine.updateState(noTargetSession, targetedAttempt, {
+  suggestedInventoryAdd: { name: 'Mystery Stone', description: 'Glows faintly', statBonuses: {}, consumable: false, transferable: true },
+  choices: [{ label: 'Continue', difficulty: 'easy', stat: 'might' }],
+});
+if (afterNoTarget.party[0].inventory.length !== 1) throw new Error(`Acting char (Grimble) should have item`);
+if (afterNoTarget.party[0].inventory[0].name !== 'Mystery Stone') throw new Error(`Grimble should have Mystery Stone`);
+if (afterNoTarget.party[1].inventory.length !== 0) throw new Error(`Non-acting char (Solara) should have no items`);
+console.log(`- No targetCharacterName still defaults to acting character ✓`);
+
 // ── Dynamic Difficulty (difficultyValue override) ───────────────────────────
 
-// Test 44: checkSuccess uses numeric difficultyValue when provided
-console.log("Test 44: checkSuccess uses numeric difficultyValue...");
+// Test 50: checkSuccess uses numeric difficultyValue when provided
+console.log("Test 50: checkSuccess uses numeric difficultyValue...");
 if (!GameEngine.checkSuccess(14, 14)) throw new Error("14 >= 14 should succeed");
 if (!GameEngine.checkSuccess(15, 14)) throw new Error("15 >= 14 should succeed");
 if (GameEngine.checkSuccess(13, 14)) throw new Error("13 < 14 should fail");
 console.log("- Numeric difficultyValue boundary checks pass ✓");
 
 // Test 45: checkSuccess still works with label strings
-console.log("Test 45: checkSuccess still works with difficulty labels...");
+console.log("Test 51: checkSuccess still works with difficulty labels...");
 if (!GameEngine.checkSuccess(8, 'easy')) throw new Error("8 >= 8 (easy) should succeed");
 if (GameEngine.checkSuccess(7, 'easy')) throw new Error("7 < 8 (easy) should fail");
 if (!GameEngine.checkSuccess(12, 'normal')) throw new Error("12 >= 12 (normal) should succeed");
@@ -564,7 +643,7 @@ if (GameEngine.checkSuccess(15, 'hard')) throw new Error("15 < 16 (hard) should 
 console.log("- Label-based thresholds still correct ✓");
 
 // Test 46: resolveAction with low difficultyValue (1) always succeeds
-console.log("Test 46: resolveAction with difficultyValue 1 always succeeds...");
+console.log("Test 52: resolveAction with difficultyValue 1 always succeeds...");
 const trivialChar = makeChar({ stats: { might: 1, magic: 1, mischief: 1 } });
 for (let i = 0; i < 20; i++) {
   const result = GameEngine.resolveAction(trivialChar, 'trivial task', 'might', 'hard', 1);
@@ -573,7 +652,7 @@ for (let i = 0; i < 20; i++) {
 console.log("- Always succeeds when difficultyValue=1 ✓");
 
 // Test 47: resolveAction with impossibly high difficultyValue (26) always fails
-console.log("Test 47: resolveAction with difficultyValue 26 always fails...");
+console.log("Test 53: resolveAction with difficultyValue 26 always fails...");
 const strongChar = makeChar({ stats: { might: 5, magic: 5, mischief: 5 } });
 for (let i = 0; i < 20; i++) {
   const result = GameEngine.resolveAction(strongChar, 'impossible task', 'might', 'easy', 26);
@@ -582,7 +661,7 @@ for (let i = 0; i < 20; i++) {
 console.log("- Always fails when difficultyValue=26 (max total is 25) ✓");
 
 // Test 48: difficultyValue overrides label — easy label with high value causes failure
-console.log("Test 48: difficultyValue overrides difficulty label...");
+console.log("Test 54: difficultyValue overrides difficulty label...");
 // With stat=1, roll max is 20+1=21. difficultyValue=20 means only roll=19 or 20 succeeds.
 // Without override, easy would be threshold 8 (easy pass). With override 20, it's hard.
 // We can't deterministically test this with random rolls, so we verify the threshold used.
@@ -594,7 +673,7 @@ if (GameEngine.checkSuccess(8, 20)) throw new Error("Total 8 should fail with nu
 console.log("- difficultyValue correctly overrides label threshold ✓");
 
 // Test 49: resolveAction without difficultyValue falls back to label threshold
-console.log("Test 49: resolveAction without difficultyValue falls back to label...");
+console.log("Test 55: resolveAction without difficultyValue falls back to label...");
 // Test that 'none' stat still auto-succeeds regardless of any difficultyValue
 const autoSuccess = GameEngine.resolveAction(makeChar(), 'No-roll action', 'none', 'hard', 26);
 if (!autoSuccess.actionResult.success) throw new Error("Stat 'none' should always succeed regardless of difficultyValue");
@@ -602,7 +681,7 @@ if (autoSuccess.actionResult.roll !== 0) throw new Error("Stat 'none' should hav
 console.log("- 'none' stat auto-succeeds even with impossible difficultyValue ✓");
 
 // Test 50: difficultyValue stored in lastChoices flows through updateState correctly
-console.log("Test 50: updateState uses lastChoices difficulty fallback when difficultyValue absent...");
+console.log("Test 56: updateState uses lastChoices difficulty fallback when difficultyValue absent...");
 const diffSession = makeSession({
   party: [makeChar({ hp: 10 })],
   lastChoices: [{ label: 'Fight the dragon', difficulty: 'hard', stat: 'might' }],

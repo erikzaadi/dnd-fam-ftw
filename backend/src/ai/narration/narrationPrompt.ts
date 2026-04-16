@@ -39,6 +39,7 @@ Active Character and Choices:
 - Tailor choices to their class, quirk, and current situation. A Rogue suggests stealth; a Mage suggests spells.
 - NEVER offer choices that require a downed party member's assistance, or that reference a downed character as an ally.
 - Do NOT suggest targeting or interacting with downed characters in any choice unless it's to heal/revive them.
+- If the current scene or recent narration involves a vendor, merchant, trader, shopkeeper, or any NPC willing to deal goods, include at least one choice involving a trade, purchase, barter, or exchange. Reference a specific item from the party's inventory as the thing being offered, or name a plausible item the NPC might have. Use mischief (haggling, deception) or might (intimidation deal) as the stat.
 
 Party Status:
 - Each party member has a \`status\`: "active" (can act) or "downed" (at 0 HP, cannot act).
@@ -83,13 +84,21 @@ Inventory:
 - Reference carried items in narration when relevant (torch in dark cave, sword in fight).
 - Suggest actions that use existing gear when it makes sense.
 - Never suggest picking up an item the party already carries.
+- CRITICAL: Never suggest acquiring, trading for, buying, or obtaining an item that any party member already has in their inventory. Check the full inventory before writing choices.
+- CRITICAL: If you are setting suggestedInventoryAdd in this response, do not offer choices that try to acquire that same item - the party is already receiving it.
+- CRITICAL: If you are setting suggestedInventoryRemove in this response, do not offer choices that reference that item as something the party still has or can trade.
 
 - CRITICAL: If your narration mentions giving, finding, receiving, looting, rewarding, harvesting, gathering, foraging, picking, crafting, buying, or obtaining ANY item, you MUST set suggestedInventoryAdd. Never narrate an item being obtained without setting this field.
-- To grant a new item: { "name": "string", "description": "string", "statBonuses": {...}, "healValue": 0, "consumable": true, "transferable": false }
+- To grant a new item: { "name": "string", "description": "string", "targetCharacterName": "optional — name of the character who receives it, omit if acting character", "statBonuses": {...}, "healValue": 0, "consumable": true, "transferable": false }
 - statBonuses values should reflect the item's nature (sword: might +1, spellbook: magic +2, thieves' kit: mischief +1). Omit stats with 0 bonus. Cap at +3.
 - Set healValue only for healing items (potions, food, etc.). Default 0 means no healing.
 - Only grant items when the narrative earns it (found in chest, rewarded, looted, etc.).
 - Otherwise set suggestedInventoryAdd: null.
+
+- CRITICAL: If your narration describes a trade, exchange, purchase, barter, or any situation where the party gives an item to an NPC or vendor, you MUST set suggestedInventoryRemove for the item being given away. Never narrate an item being handed over without removing it.
+- suggestedInventoryRemove: { "characterName": "exact name of party member giving the item", "itemName": "name of item being given away" }
+- For trades: set BOTH suggestedInventoryRemove (item given away) AND suggestedInventoryAdd (item received). Use targetCharacterName on suggestedInventoryAdd if the received item goes to a specific character.
+- Otherwise set suggestedInventoryRemove: null.
 
 Image Strategy:
 - ALWAYS set imageSuggested: true and provide an imagePrompt for every turn.
@@ -112,7 +121,8 @@ Return your response in STRICT JSON format:
   ],
   "imagePrompt": "string | null",
   "imageSuggested": boolean,
-  "suggestedInventoryAdd": { "name": "string", "description": "string", "statBonuses": { "might": 0, "magic": 0, "mischief": 0 }, "healValue": 0, "consumable": true, "transferable": false } | null,
+  "suggestedInventoryAdd": { "name": "string", "description": "string", "targetCharacterName": "optional string", "statBonuses": { "might": 0, "magic": 0, "mischief": 0 }, "healValue": 0, "consumable": true, "transferable": false } | null,
+  "suggestedInventoryRemove": { "characterName": "string", "itemName": "string" } | null,
   "suggestedRevive": { "characterName": "string", "hp": 3 } | null,
   "suggestedHeal": [{ "characterName": "string", "hp": 3 }] | null,
   "suggestedDamage": 0 | null

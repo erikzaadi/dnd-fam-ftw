@@ -59,6 +59,7 @@ export class AiDmService {
         imagePrompt: output.imagePrompt,
         imageSuggested: output.imageSuggested,
         suggestedInventoryAdd: output.suggestedInventoryAdd ?? null,
+        suggestedInventoryRemove: output.suggestedInventoryRemove ?? null,
         suggestedRevive: output.suggestedRevive ?? null,
         suggestedHeal: output.suggestedHeal ?? null,
         suggestedDamage: output.suggestedDamage ?? null,

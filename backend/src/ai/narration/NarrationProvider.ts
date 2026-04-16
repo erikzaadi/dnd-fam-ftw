@@ -48,11 +48,13 @@ export type NarrationOutput = {
   suggestedInventoryAdd: {
     name: string;
     description: string;
+    targetCharacterName?: string;
     statBonuses: { might?: number; magic?: number; mischief?: number };
     healValue?: number;
     consumable?: boolean;
     transferable?: boolean;
   } | null;
+  suggestedInventoryRemove: { characterName: string; itemName: string } | null;
   suggestedRevive: { characterName: string; hp: number } | null;
   suggestedHeal: Array<{ characterName: string; hp: number }> | null;
   suggestedDamage: number | null;

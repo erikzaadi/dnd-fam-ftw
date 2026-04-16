@@ -11,6 +11,7 @@ import { Inventory } from '../components/game/Inventory';
 import { ActionControls } from '../components/game/ActionControls';
 import { TurnHistoryCard } from '../components/game/TurnHistoryCard';
 import { D20 } from '../components/game/D20';
+import { RollBreakdown } from '../components/game/RollBreakdown';
 
 export const SessionPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -25,7 +26,7 @@ export const SessionPage = () => {
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
-  const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; isCritical?: boolean } | null>(null);
+  const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; isCritical?: boolean; difficultyTarget?: number } | null>(null);
   const [dieExiting, setDieExiting] = useState(false);
   const [interventionBanner, setInterventionBanner] = useState<string | null>(null);
   const [sanctuaryBanner, setSanctuaryBanner] = useState<string | null>(null);
@@ -88,7 +89,7 @@ export const SessionPage = () => {
           }
           const roll = data.turnResult?.lastAction?.actionResult;
           if (roll && roll.statUsed !== 'none') {
-            setLastRoll({ roll: roll.roll, success: roll.success, stat: roll.statUsed, statBonus: roll.statBonus, itemBonus: roll.itemBonus, isCritical: roll.isCritical });
+            setLastRoll({ roll: roll.roll, success: roll.success, stat: roll.statUsed, statBonus: roll.statBonus, itemBonus: roll.itemBonus, isCritical: roll.isCritical, difficultyTarget: roll.difficultyTarget });
             setDieExiting(false);
             setTimeout(() => setDieExiting(true), 3000);
             setTimeout(() => { setLastRoll(null); setDieExiting(false); }, 3500);
@@ -363,11 +364,15 @@ export const SessionPage = () => {
                 ? <span className="text-2xl font-black uppercase tracking-widest text-amber-300">NATURAL 20!</span>
                 : <span className={`text-2xl font-black uppercase tracking-widest ${lastRoll.success ? 'text-emerald-300' : 'text-rose-300'}`}>{lastRoll.success ? 'Success!' : 'Failed!'}</span>
               }
-              <div className="flex items-center gap-2 text-sm font-black text-slate-400">
-                <span className="text-slate-200">{lastRoll.roll}</span>
-                {lastRoll.statBonus != null && lastRoll.statBonus > 0 && <><span>+</span><span className="text-blue-400">{lastRoll.statBonus} {lastRoll.stat}</span></>}
-                {lastRoll.itemBonus != null && lastRoll.itemBonus > 0 && <><span>+</span><span className="text-amber-400">{lastRoll.itemBonus} items</span></>}
-              </div>
+              <RollBreakdown
+                roll={lastRoll.roll}
+                statBonus={lastRoll.statBonus}
+                itemBonus={lastRoll.itemBonus}
+                stat={lastRoll.stat}
+                success={lastRoll.success}
+                difficultyTarget={lastRoll.difficultyTarget}
+                className="text-sm"
+              />
               <span className="text-[10px] uppercase tracking-widest text-slate-600">tap to dismiss</span>
             </div>
           </div>

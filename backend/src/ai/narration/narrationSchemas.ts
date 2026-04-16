@@ -10,6 +10,7 @@ const choiceSchema = z.object({
 const inventoryAddSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
+  targetCharacterName: z.string().optional(),
   statBonuses: z.object({
     might: z.number().optional(),
     magic: z.number().optional(),
@@ -18,6 +19,11 @@ const inventoryAddSchema = z.object({
   healValue: z.number().optional(),
   consumable: z.boolean().optional(),
   transferable: z.boolean().optional(),
+});
+
+const inventoryRemoveSchema = z.object({
+  characterName: z.string().min(1),
+  itemName: z.string().min(1),
 });
 
 const reviveSchema = z.object({
@@ -31,6 +37,7 @@ export const narrationOutputSchema = z.object({
   imagePrompt: z.string().nullable(),
   imageSuggested: z.boolean(),
   suggestedInventoryAdd: inventoryAddSchema.nullable(),
+  suggestedInventoryRemove: inventoryRemoveSchema.nullable().default(null),
   suggestedRevive: reviveSchema.nullable().default(null),
   suggestedHeal: z.array(reviveSchema).nullable().default(null),
   suggestedDamage: z.number().int().min(0).max(20).nullable().default(null),
@@ -48,6 +55,7 @@ export const NARRATION_FALLBACK: ValidNarrationOutput = {
   imagePrompt: null,
   imageSuggested: false,
   suggestedInventoryAdd: null,
+  suggestedInventoryRemove: null,
   suggestedRevive: null,
   suggestedHeal: null,
   suggestedDamage: null,

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { TurnResult, Choice, Character } from '../../types';
 import { api, imgSrc, pulseSyncDelay } from '../../lib/api';
 import { beatTarget } from '../../lib/game';
+import { StatIcon } from './StatIcon';
 
 interface ActionControlsProps {
   turn: TurnResult | null;
@@ -60,17 +61,14 @@ export const ActionControls = ({ turn, loading, onSubmit, customAction, setCusto
             <div className="flex flex-col gap-1">
               <div className="text-xs text-amber-500 font-black">{activeCharacter.hp}/{activeCharacter.max_hp} HP</div>
               <div className="flex gap-2">
-                {(['might', 'magic', 'mischief'] as const).map(stat => {
-                  const base = activeCharacter.stats[stat];
-                  const bonus = activeCharacter.inventory.reduce((s, item) => s + (item.statBonuses?.[stat] ?? 0), 0);
-                  const ICONS = { might: '⚔️', magic: '✨', mischief: '🃏' };
-                  const COLORS = { might: 'text-rose-400', magic: 'text-blue-400', mischief: 'text-purple-400' };
-                  return (
-                    <span key={stat} className={`text-xs font-black ${COLORS[stat]}`}>
-                      {ICONS[stat]} {base}{bonus > 0 ? <span className="text-amber-400">+{bonus}</span> : null}
-                    </span>
-                  );
-                })}
+                {(['might', 'magic', 'mischief'] as const).map(stat => (
+                  <StatIcon
+                    key={stat}
+                    stat={stat}
+                    base={activeCharacter.stats[stat]}
+                    bonus={activeCharacter.inventory.reduce((s, item) => s + (item.statBonuses?.[stat] ?? 0), 0)}
+                  />
+                ))}
               </div>
             </div>
           </div>

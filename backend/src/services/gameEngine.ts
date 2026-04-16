@@ -214,7 +214,8 @@ export class GameEngine {
     const statValue = character.stats[statName];
     const itemBonus = character.inventory.reduce((sum, item) => sum + (item.statBonuses?.[statName] ?? 0), 0);
     const { roll, total } = this.rollDice(statValue);
-    const success = this.checkSuccess(total + itemBonus, difficultyValue ?? difficulty);
+    const target = difficultyValue ?? this.DIFFICULTIES[difficulty] ?? 12;
+    const success = this.checkSuccess(total + itemBonus, target);
     const isCritical = roll === 20;
 
     return {
@@ -224,6 +225,7 @@ export class GameEngine {
         roll,
         statUsed: statName,
         statBonus: statValue,
+        difficultyTarget: target,
         ...(itemBonus > 0 && { itemBonus }),
         ...(isCritical && { isCritical: true }),
       }
@@ -305,12 +307,29 @@ export class GameEngine {
         }
       }
 
-      // Inventory add from AI suggestion (assign id)
+      // Inventory remove from AI suggestion (trade/vendor — item given away)
+      const remove = aiSuggestedChanges?.suggestedInventoryRemove as { characterName: string; itemName: string } | null | undefined;
+      if (remove && typeof remove === 'object' && remove.characterName && remove.itemName) {
+        const owner = GameEngine.findCharacter(newState.party, remove.characterName);
+        if (owner) {
+          const idx = owner.inventory.findIndex(i =>
+            i.name.toLowerCase().includes(remove.itemName.toLowerCase()) ||
+            remove.itemName.toLowerCase().includes(i.name.toLowerCase())
+          );
+          if (idx !== -1) owner.inventory.splice(idx, 1);
+        }
+      }
+
+      // Inventory add from AI suggestion (assign id, optional targetCharacterName for trades)
       const item = aiSuggestedChanges?.suggestedInventoryAdd;
       if (item && typeof item === 'object' && !Array.isArray(item)) {
-        const newItem = item as Omit<InventoryItem, 'id'>;
-        actingChar.inventory.push({
-          ...newItem,
+        const newItem = item as Omit<InventoryItem, 'id'> & { targetCharacterName?: string };
+        const { targetCharacterName, ...itemData } = newItem;
+        const recipient = targetCharacterName
+          ? (GameEngine.findCharacter(newState.party, targetCharacterName) ?? actingChar)
+          : actingChar;
+        recipient.inventory.push({
+          ...itemData,
           id: Math.random().toString(36).substring(7),
         });
       }
