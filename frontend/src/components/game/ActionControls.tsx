@@ -52,10 +52,27 @@ export const ActionControls = ({ turn, loading, onSubmit, customAction, setCusto
       <div className="flex items-center gap-3">
         <img src={imgSrc(activeCharacter?.avatarUrl)} className="w-12 h-12 rounded-2xl object-cover border-2 border-amber-500 animate-border-pulse shrink-0" style={{ animationDelay: pulseSyncDelay() }} />
         {activeCharacter && (
-          <div>
-            <div className="font-black text-xs uppercase tracking-widest">{activeCharacter.name}</div>
-            <div className="text-[9px] text-slate-400 uppercase tracking-wide">{activeCharacter.class} · {activeCharacter.species}</div>
-            <div className="text-[9px] text-amber-500 font-black">{activeCharacter.hp}/{activeCharacter.max_hp} HP</div>
+          <div className="flex items-start gap-4">
+            <div className="flex flex-col gap-0.5">
+              <div className="font-black text-xs uppercase tracking-widest">{activeCharacter.name}</div>
+              <div className="text-[9px] text-slate-400 uppercase tracking-wide">{activeCharacter.class} · {activeCharacter.species}</div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <div className="text-xs text-amber-500 font-black">{activeCharacter.hp}/{activeCharacter.max_hp} HP</div>
+              <div className="flex gap-2">
+                {(['might', 'magic', 'mischief'] as const).map(stat => {
+                  const base = activeCharacter.stats[stat];
+                  const bonus = activeCharacter.inventory.reduce((s, item) => s + (item.statBonuses?.[stat] ?? 0), 0);
+                  const ICONS = { might: '⚔️', magic: '✨', mischief: '🃏' };
+                  const COLORS = { might: 'text-rose-400', magic: 'text-blue-400', mischief: 'text-purple-400' };
+                  return (
+                    <span key={stat} className={`text-xs font-black ${COLORS[stat]}`}>
+                      {ICONS[stat]} {base}{bonus > 0 ? <span className="text-amber-400">+{bonus}</span> : null}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -67,13 +84,13 @@ export const ActionControls = ({ turn, loading, onSubmit, customAction, setCusto
             key={i}
             onClick={() => onSubmit(choice.label, choice.stat, choice.difficulty, choice.difficultyValue)}
             disabled={loading}
-            className={`relative z-0 hover:z-10 w-full min-w-0 overflow-hidden p-4 rounded-2xl border-2 text-sm font-black uppercase transition-all flex flex-col items-center justify-between min-h-[80px]
+            className={`relative z-0 hover:z-10 w-full min-w-0 overflow-hidden p-4 rounded-2xl border-2 text-base font-black uppercase transition-all flex flex-col items-center justify-between min-h-[80px]
                 ${STAT_COLORS[choice.stat]} ${DIFF_COLORS[choice.difficulty]} hover:scale-105 disabled:opacity-50`}
           >
             <span className="leading-tight text-center break-words w-full">{choice.label}</span>
             <span className={`text-[9px] font-black tracking-widest px-2 py-0.5 rounded-full opacity-80 mt-1 shrink-0
                 ${choice.stat === 'might' ? 'bg-rose-900/60' : choice.stat === 'magic' ? 'bg-blue-900/60' : 'bg-purple-900/60'}`}>
-              {choice.stat} · beat {beatTarget(choice.difficultyValue, choice.difficulty)}
+              {choice.stat} · {choice.difficulty} (&gt;{beatTarget(choice.difficultyValue, choice.difficulty)})
             </span>
           </button>
         ))}

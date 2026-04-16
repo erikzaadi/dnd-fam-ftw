@@ -52,7 +52,7 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
 
                     return (
                       <div key={item.id} className="relative group">
-                        <div className={`p-3 bg-slate-800/60 rounded-2xl border transition-colors ${isPendingThis ? 'border-amber-500/60 bg-amber-950/20' : 'border-slate-700/50'}`}>
+                        <div className={`p-3 rounded-2xl border transition-colors ${isPendingThis ? 'border-amber-500/60 bg-amber-950/20' : isActive ? 'bg-amber-950/20 border-amber-500/30' : 'bg-slate-800/60 border-slate-700/50'}`}>
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
                               <p className="font-black text-sm text-slate-200 truncate">{item.name}</p>
