@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import type { TurnResult, Choice, Character } from '../../types';
 import { api, imgSrc, pulseSyncDelay } from '../../lib/api';
+import { beatTarget } from '../../lib/game';
 
 interface ActionControlsProps {
   turn: TurnResult | null;
   loading: boolean;
-  onSubmit: (label: string, stat: string, diff: string) => void;
+  onSubmit: (label: string, stat: string, diff: string, difficultyValue?: number) => void;
   customAction: string;
   setCustomAction: (action: string) => void;
   activeCharacter: Character | null;
@@ -24,6 +25,7 @@ const DIFF_COLORS: Record<string, string> = {
   normal: 'shadow-[inset_0_0_10px_rgba(245,158,11,0.3)]',
   hard: 'shadow-[inset_0_0_10px_rgba(239,68,68,0.3)]'
 };
+
 
 export const ActionControls = ({ turn, loading, onSubmit, customAction, setCustomAction, activeCharacter, sessionId }: ActionControlsProps) => {
   const [statThinking, setStatThinking] = useState(false);
@@ -63,7 +65,7 @@ export const ActionControls = ({ turn, loading, onSubmit, customAction, setCusto
         {turn?.choices.map((choice: Choice, i: number) => (
           <button
             key={i}
-            onClick={() => onSubmit(choice.label, choice.stat, choice.difficulty)}
+            onClick={() => onSubmit(choice.label, choice.stat, choice.difficulty, choice.difficultyValue)}
             disabled={loading}
             className={`relative z-0 hover:z-10 w-full min-w-0 overflow-hidden p-4 rounded-2xl border-2 text-sm font-black uppercase transition-all flex flex-col items-center justify-between min-h-[80px]
                 ${STAT_COLORS[choice.stat]} ${DIFF_COLORS[choice.difficulty]} hover:scale-105 disabled:opacity-50`}
@@ -71,7 +73,7 @@ export const ActionControls = ({ turn, loading, onSubmit, customAction, setCusto
             <span className="leading-tight text-center break-words w-full">{choice.label}</span>
             <span className={`text-[9px] font-black tracking-widest px-2 py-0.5 rounded-full opacity-80 mt-1 shrink-0
                 ${choice.stat === 'might' ? 'bg-rose-900/60' : choice.stat === 'magic' ? 'bg-blue-900/60' : 'bg-purple-900/60'}`}>
-              {choice.stat} · {choice.difficulty}
+              {choice.stat} · beat {beatTarget(choice.difficultyValue, choice.difficulty)}
             </span>
           </button>
         ))}

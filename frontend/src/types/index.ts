@@ -33,6 +33,7 @@ export interface Choice {
   label: string;
   difficulty: 'easy' | 'normal' | 'hard';
   stat: 'might' | 'magic' | 'mischief';
+  difficultyValue?: number;
 }
 
 export interface ActionAttempt {

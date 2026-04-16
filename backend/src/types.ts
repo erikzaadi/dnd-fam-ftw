@@ -58,6 +58,7 @@ export interface Choice {
   label: string;
   difficulty: 'easy' | 'normal' | 'hard';
   stat: 'might' | 'magic' | 'mischief';
+  difficultyValue?: number;
 }
 
 export type TurnType = 'normal' | 'intervention' | 'sanctuary';

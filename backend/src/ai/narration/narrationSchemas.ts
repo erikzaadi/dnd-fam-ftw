@@ -4,6 +4,7 @@ const choiceSchema = z.object({
   label: z.string().min(1),
   difficulty: z.enum(['easy', 'normal', 'hard']),
   stat: z.enum(['might', 'magic', 'mischief']),
+  difficultyValue: z.number().int().min(2).max(20).optional(),
 });
 
 const inventoryAddSchema = z.object({

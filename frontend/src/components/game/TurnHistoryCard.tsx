@@ -1,5 +1,6 @@
 import type { Choice, Character, ActionAttempt, TurnType } from '../../types';
 import { imgSrc } from '../../lib/api';
+import { beatTarget } from '../../lib/game';
 import { D20 } from './D20';
 
 interface TurnHistoryCardProps {
@@ -97,7 +98,7 @@ export const TurnHistoryCard = ({ choices, takenAction, character, turnType, nar
                 <span className="leading-tight text-center">{choice.label}</span>
                 <span className={`text-[9px] font-black tracking-widest px-2 py-0.5 rounded-full opacity-80
                   ${isChosen ? 'bg-amber-900/60' : choice.stat === 'might' ? 'bg-rose-900/60' : choice.stat === 'magic' ? 'bg-blue-900/60' : 'bg-purple-900/60'}`}>
-                  {choice.stat} · {choice.difficulty}
+                  {choice.stat} · beat {beatTarget(choice.difficultyValue, choice.difficulty)}
                 </span>
               </div>
             );

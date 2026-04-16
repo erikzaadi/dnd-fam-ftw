@@ -278,7 +278,7 @@ app.get('/api/session/:id/summary', asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
-  const { action, statUsed, difficulty, characterId, actionType, itemId, targetCharacterId } = req.body;
+  const { action, statUsed, difficulty, difficultyValue, characterId, actionType, itemId, targetCharacterId } = req.body;
   const sessionId = req.params.id as string;
   const session = await StateService.getSession(sessionId);
   if (!session) {
@@ -336,7 +336,7 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
     return;
   }
 
-  const actionAttempt = GameEngine.resolveAction(character, action, statUsed, difficulty || 'normal');
+  const actionAttempt = GameEngine.resolveAction(character, action, statUsed, difficulty || 'normal', difficultyValue);
   const aiInput = { ...session, ...actionAttempt };
 
   let turnResult;

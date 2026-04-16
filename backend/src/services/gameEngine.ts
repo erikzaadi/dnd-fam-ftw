@@ -197,7 +197,8 @@ export class GameEngine {
     character: Character,
     action: string,
     statName: 'might' | 'magic' | 'mischief' | 'none',
-    difficulty: 'easy' | 'normal' | 'hard' = 'normal'
+    difficulty: 'easy' | 'normal' | 'hard' = 'normal',
+    difficultyValue?: number
   ): ActionAttempt {
     if (statName === 'none') {
       return {
@@ -213,7 +214,7 @@ export class GameEngine {
     const statValue = character.stats[statName];
     const itemBonus = character.inventory.reduce((sum, item) => sum + (item.statBonuses?.[statName] ?? 0), 0);
     const { roll, total } = this.rollDice(statValue);
-    const success = this.checkSuccess(total + itemBonus, difficulty);
+    const success = this.checkSuccess(total + itemBonus, difficultyValue ?? difficulty);
     const isCritical = roll === 20;
 
     return {

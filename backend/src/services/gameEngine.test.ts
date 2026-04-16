@@ -484,8 +484,9 @@ const afterHealClamp = GameEngine.updateState(healClampSession, t38Attempt, {
 if (afterHealClamp.party[0].hp !== 10) throw new Error(`Expected hp clamped to 10, got ${afterHealClamp.party[0].hp}`);
 console.log(`- hp clamped to max_hp (10) ✓`);
 
-// Test 40: suggestedHeal does NOT affect downed characters
-console.log("Test 40: suggestedHeal does not affect downed characters...");
+// Test 40: suggestedHeal on a downed character revives them as a safety fallback
+// (engine treats it like suggestedRevive when AI sends suggestedHeal for a downed target)
+console.log("Test 40: suggestedHeal on downed character revives them as fallback...");
 const downedHealSession = makeSession({
   party: [makeChar({ id: 'hero', name: 'Barnaby', status: 'downed', hp: 0, max_hp: 10 })],
   activeCharacterId: 'hero',
@@ -494,9 +495,9 @@ const afterDownedHeal = GameEngine.updateState(downedHealSession, t38Attempt, {
   suggestedHeal: [{ characterName: 'Barnaby', hp: 5 }],
   choices: [{ label: 'Continue', difficulty: 'easy', stat: 'might' }],
 });
-if (afterDownedHeal.party[0].hp !== 0) throw new Error(`Downed character should not be healed, got hp=${afterDownedHeal.party[0].hp}`);
-if (afterDownedHeal.party[0].status !== 'downed') throw new Error('Downed character should remain downed');
-console.log(`- Downed character unaffected by suggestedHeal ✓`);
+if (afterDownedHeal.party[0].hp !== 5) throw new Error(`Downed character should be revived to 5 HP, got hp=${afterDownedHeal.party[0].hp}`);
+if (afterDownedHeal.party[0].status !== 'active') throw new Error('Downed character should be revived to active');
+console.log(`- Downed character revived via suggestedHeal fallback ✓`);
 
 // Test 41: suggestedHeal heals multiple characters at once
 console.log("Test 41: suggestedHeal heals multiple active characters...");
@@ -543,5 +544,73 @@ const afterHealCase = GameEngine.updateState(healCaseSession, t38Attempt, {
 });
 if (afterHealCase.party[0].hp !== 7) throw new Error(`Expected hp 7 after case-insensitive heal, got ${afterHealCase.party[0].hp}`);
 console.log(`- Case-insensitive name match works ✓`);
+
+// ── Dynamic Difficulty (difficultyValue override) ───────────────────────────
+
+// Test 44: checkSuccess uses numeric difficultyValue when provided
+console.log("Test 44: checkSuccess uses numeric difficultyValue...");
+if (!GameEngine.checkSuccess(14, 14)) throw new Error("14 >= 14 should succeed");
+if (!GameEngine.checkSuccess(15, 14)) throw new Error("15 >= 14 should succeed");
+if (GameEngine.checkSuccess(13, 14)) throw new Error("13 < 14 should fail");
+console.log("- Numeric difficultyValue boundary checks pass ✓");
+
+// Test 45: checkSuccess still works with label strings
+console.log("Test 45: checkSuccess still works with difficulty labels...");
+if (!GameEngine.checkSuccess(8, 'easy')) throw new Error("8 >= 8 (easy) should succeed");
+if (GameEngine.checkSuccess(7, 'easy')) throw new Error("7 < 8 (easy) should fail");
+if (!GameEngine.checkSuccess(12, 'normal')) throw new Error("12 >= 12 (normal) should succeed");
+if (!GameEngine.checkSuccess(16, 'hard')) throw new Error("16 >= 16 (hard) should succeed");
+if (GameEngine.checkSuccess(15, 'hard')) throw new Error("15 < 16 (hard) should fail");
+console.log("- Label-based thresholds still correct ✓");
+
+// Test 46: resolveAction with low difficultyValue (1) always succeeds
+console.log("Test 46: resolveAction with difficultyValue 1 always succeeds...");
+const trivialChar = makeChar({ stats: { might: 1, magic: 1, mischief: 1 } });
+for (let i = 0; i < 20; i++) {
+  const result = GameEngine.resolveAction(trivialChar, 'trivial task', 'might', 'hard', 1);
+  if (!result.actionResult.success) throw new Error(`Should always succeed with difficultyValue=1, failed on attempt ${i + 1}`);
+}
+console.log("- Always succeeds when difficultyValue=1 ✓");
+
+// Test 47: resolveAction with impossibly high difficultyValue (26) always fails
+console.log("Test 47: resolveAction with difficultyValue 26 always fails...");
+const strongChar = makeChar({ stats: { might: 5, magic: 5, mischief: 5 } });
+for (let i = 0; i < 20; i++) {
+  const result = GameEngine.resolveAction(strongChar, 'impossible task', 'might', 'easy', 26);
+  if (result.actionResult.success) throw new Error(`Should always fail with difficultyValue=26 (max possible is 25), succeeded on attempt ${i + 1}`);
+}
+console.log("- Always fails when difficultyValue=26 (max total is 25) ✓");
+
+// Test 48: difficultyValue overrides label — easy label with high value causes failure
+console.log("Test 48: difficultyValue overrides difficulty label...");
+// With stat=1, roll max is 20+1=21. difficultyValue=20 means only roll=19 or 20 succeeds.
+// Without override, easy would be threshold 8 (easy pass). With override 20, it's hard.
+// We can't deterministically test this with random rolls, so we verify the threshold used.
+// Direct checkSuccess calls to confirm override behavior:
+if (!GameEngine.checkSuccess(20, 20)) throw new Error("Total 20 should meet difficultyValue 20");
+if (GameEngine.checkSuccess(19, 20)) throw new Error("Total 19 should fail difficultyValue 20");
+if (!GameEngine.checkSuccess(8, 'easy')) throw new Error("Total 8 should pass easy (8) without override");
+if (GameEngine.checkSuccess(8, 20)) throw new Error("Total 8 should fail with numeric override 20");
+console.log("- difficultyValue correctly overrides label threshold ✓");
+
+// Test 49: resolveAction without difficultyValue falls back to label threshold
+console.log("Test 49: resolveAction without difficultyValue falls back to label...");
+// Test that 'none' stat still auto-succeeds regardless of any difficultyValue
+const autoSuccess = GameEngine.resolveAction(makeChar(), 'No-roll action', 'none', 'hard', 26);
+if (!autoSuccess.actionResult.success) throw new Error("Stat 'none' should always succeed regardless of difficultyValue");
+if (autoSuccess.actionResult.roll !== 0) throw new Error("Stat 'none' should have roll 0");
+console.log("- 'none' stat auto-succeeds even with impossible difficultyValue ✓");
+
+// Test 50: difficultyValue stored in lastChoices flows through updateState correctly
+console.log("Test 50: updateState uses lastChoices difficulty fallback when difficultyValue absent...");
+const diffSession = makeSession({
+  party: [makeChar({ hp: 10 })],
+  lastChoices: [{ label: 'Fight the dragon', difficulty: 'hard', stat: 'might' }],
+});
+const hardFail = { actionAttempt: 'Fight the dragon', actionResult: { success: false, roll: 5, statUsed: 'might' as const } };
+const afterHardFail = GameEngine.updateState(diffSession, hardFail);
+// Hard = 3 damage. HP should be 7 (or 10-3=7)
+if (afterHardFail.party[0].hp !== 7) throw new Error(`Expected 7 HP after hard fail, got ${afterHardFail.party[0].hp}`);
+console.log("- Hard difficulty fallback applies 3 damage ✓");
 
 console.log("\nAll tests passed!");

@@ -176,7 +176,7 @@ export const SessionPage = () => {
     // loading cleared + session refreshed via SSE turn_complete
   };
 
-  const submitAction = async (label: string, stat: string, diff: string) => {
+  const submitAction = async (label: string, stat: string, diff: string, difficultyValue?: number) => {
     if (!session) {
       return;
     }
@@ -186,7 +186,7 @@ export const SessionPage = () => {
     const res = await fetch(api(`/session/${session.id}/action`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: label, statUsed: stat, difficulty: diff, characterId: actingCharacterId })
+      body: JSON.stringify({ action: label, statUsed: stat, difficulty: diff, difficultyValue, characterId: actingCharacterId })
     });
     if (res.status === 429) {
       const data = await res.json();
