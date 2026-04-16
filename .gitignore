@@ -1,10 +1,6 @@
 .env
 backend/*.sqlite
 backend/*.sqlite.temp
-backend/public/images/*
-!backend/public/images/default_scene.png
-!backend/public/images/intervention_dragon.png
-!backend/public/images/sanctuary_light.png
-!backend/public/images/dm_thinking.png
-!backend/public/images/home_banner.png
+backend/public/generated/*
+!backend/public/generated/.gitkeep
 backend/dist

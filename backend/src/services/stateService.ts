@@ -94,6 +94,14 @@ export class StateService {
       db.prepare("ALTER TABLE turn_history ADD COLUMN actionItemBonus INTEGER").run();
       db.prepare("ALTER TABLE turn_history ADD COLUMN actionIsCritical INTEGER").run();
     }
+    if (!turnCols.includes('actionDifficultyTarget')) {
+      db.prepare("ALTER TABLE turn_history ADD COLUMN actionDifficultyTarget INTEGER").run();
+    }
+
+    const choiceCols = (db.prepare("PRAGMA table_info(turn_choices)").all() as { name: string }[]).map(r => r.name);
+    if (!choiceCols.includes('difficultyValue')) {
+      db.prepare("ALTER TABLE turn_choices ADD COLUMN difficultyValue INTEGER").run();
+    }
 
     const charCols = (db.prepare("PRAGMA table_info(characters)").all() as { name: string }[]).map(r => r.name);
     if (!charCols.includes('avatarPrompt')) {
@@ -304,12 +312,15 @@ export class StateService {
   public static async deleteSession(id: string): Promise<void> {
     const db = this.getDb();
     const imagesDir = path.join(import.meta.dirname, '../../public/images');
+    const generatedDir = path.join(import.meta.dirname, '../../public/generated');
 
     const deleteImageFile = (url: string | null) => {
       if (!url) {
         return;
       }
-      const filePath = path.join(imagesDir, path.basename(url));
+      // Resolve the correct directory based on the URL prefix
+      const dir = url.startsWith('/api/generated/') ? generatedDir : imagesDir;
+      const filePath = path.join(dir, path.basename(url));
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
@@ -407,6 +418,7 @@ export class StateService {
       actionStatBonus: number | null;
       actionItemBonus: number | null;
       actionIsCritical: number | null;
+      actionDifficultyTarget: number | null;
       turnType: string | null;
     }[];
 
@@ -415,6 +427,7 @@ export class StateService {
             label: string;
             difficulty: 'easy' | 'normal' | 'hard';
             stat: 'might' | 'magic' | 'mischief';
+            difficultyValue: number | null;
         }[];
       const lastAction = r.actionAttempt ? {
         actionAttempt: r.actionAttempt,
@@ -425,6 +438,7 @@ export class StateService {
           ...(r.actionStatBonus != null && { statBonus: r.actionStatBonus }),
           ...(r.actionItemBonus != null && r.actionItemBonus > 0 && { itemBonus: r.actionItemBonus }),
           ...(r.actionIsCritical && { isCritical: true }),
+          ...(r.actionDifficultyTarget != null && { difficultyTarget: r.actionDifficultyTarget }),
         }
       } : null;
       return {
@@ -433,7 +447,7 @@ export class StateService {
         imageSuggested: !!r.imageSuggested,
         imageUrl: r.imageUrl,
         characterId: r.characterId || undefined,
-        choices,
+        choices: choices.map(({ difficultyValue, ...c }) => ({ ...c, ...(difficultyValue != null && { difficultyValue }) })),
         lastAction,
         turnType: (r.turnType as TurnResult['turnType']) ?? 'normal',
       };
@@ -453,7 +467,7 @@ export class StateService {
   public static async addTurnResult(id: string, turn: TurnResult, characterId: string | null): Promise<void> {
     const db = this.getDb();
     const action = turn.lastAction ?? null;
-    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, narration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionIsCritical, turnType) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, narration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionIsCritical, actionDifficultyTarget, turnType) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(
         id, characterId || null, turn.narration, turn.imagePrompt, turn.imageSuggested ? 1 : 0, turn.imageUrl || null,
         action?.actionAttempt ?? null,
@@ -463,13 +477,14 @@ export class StateService {
         action?.actionResult?.statBonus ?? null,
         action?.actionResult?.itemBonus ?? null,
         action?.actionResult?.isCritical ? 1 : null,
+        action?.actionResult?.difficultyTarget ?? null,
         turn.turnType ?? 'normal'
       );
 
     const turnId = info.lastInsertRowid;
     for (const choice of (turn.choices ?? [])) {
-      db.prepare('INSERT INTO turn_choices (turnId, label, difficulty, stat) VALUES (?, ?, ?, ?)')
-        .run(turnId, choice.label, choice.difficulty, choice.stat);
+      db.prepare('INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue) VALUES (?, ?, ?, ?, ?)')
+        .run(turnId, choice.label, choice.difficulty, choice.stat, choice.difficultyValue ?? null);
     }
   }
 }

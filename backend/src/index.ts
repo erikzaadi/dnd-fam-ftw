@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 dotenv.config({ path: path.join(import.meta.dirname, '../../.env') });
 
 import express from 'express';
@@ -28,6 +29,9 @@ const eventEmitter = new EventEmitter();
 app.use(cors());
 app.use(express.json());
 app.use('/api/images', express.static(path.join(import.meta.dirname, '..', 'public', 'images')));
+const generatedDir = path.join(import.meta.dirname, '..', 'public', 'generated');
+fs.mkdirSync(generatedDir, { recursive: true });
+app.use('/api/generated', express.static(generatedDir));
 
 // SSE Event Stream
 app.get('/api/session/:id/events', (req, res) => {

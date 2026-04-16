@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DmFooter } from '../components/DmFooter';
-import { SiteHeader } from '../components/SiteHeader';
-import { api } from '../lib/api';
+import { api, imgSrc } from '../lib/api';
 
 interface AppSettings {
   imagesEnabled: boolean;
@@ -52,45 +51,59 @@ export const Settings = () => {
   };
 
   return (
-    <div className="h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex items-center justify-center p-4 md:p-8 pt-20 pb-36 overflow-hidden">
-      <SiteHeader />
-      <div className="max-w-lg w-full space-y-8 animate-in fade-in zoom-in duration-700 relative z-[10]">
-        <h1 className="text-4xl md:text-5xl font-display font-black text-amber-500 italic tracking-tighter">Settings</h1>
+    <div className="h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col overflow-hidden">
+      {/* Banner */}
+      <div className="relative mt-4 mx-4 md:mx-6 h-32 md:h-40 rounded-[24px] overflow-hidden flex-shrink-0 border border-slate-800/60 shadow-2xl">
+        <img src={imgSrc('/api/images/home_banner.png')} className="w-full h-full object-cover animate-ken-burns" alt="" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 to-transparent" />
+      </div>
 
-        {!settings ? (
-          <p className="text-slate-400 text-center py-8">Loading…</p>
-        ) : (
-          <div className="bg-slate-900 p-6 md:p-8 rounded-[32px] border-2 border-slate-800 shadow-2xl space-y-4">
-            <h2 className="text-lg font-black uppercase tracking-tighter text-slate-400">AI</h2>
-            <Toggle
-              checked={settings.defaultUseLocalAI}
-              onChange={v => update({ defaultUseLocalAI: v })}
-              label="Local AI by default"
-              description="New sessions default to local AI instead of cloud. Can still be overridden per session."
-            />
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-6 min-h-0">
+        <div className="max-w-lg mx-auto space-y-8 animate-in fade-in zoom-in duration-700 relative z-[10]">
+          <h1 className="text-4xl md:text-5xl font-display font-black text-amber-500 italic tracking-tighter">Settings</h1>
 
-            <h2 className="text-lg font-black uppercase tracking-tighter text-slate-400 pt-2">Images</h2>
-            <Toggle
-              checked={settings.imagesEnabled}
-              onChange={v => update({ imagesEnabled: v })}
-              label="Image generation"
-              description="Generate scene illustrations and character avatars. Disable for faster turns or when no image provider is configured."
-            />
-            {!settings.imagesEnabled && (
-              <p className="text-xs text-slate-500 px-2">Character avatars will use SVG initials instead.</p>
-            )}
+          {!settings ? (
+            <p className="text-slate-400 text-center py-8">Loading…</p>
+          ) : (
+            <div className="bg-slate-900 p-6 md:p-8 rounded-[32px] border-2 border-slate-800 shadow-2xl space-y-4">
+              <h2 className="text-lg font-black uppercase tracking-tighter text-slate-400">AI</h2>
+              <Toggle
+                checked={settings.defaultUseLocalAI}
+                onChange={v => update({ defaultUseLocalAI: v })}
+                label="Local AI by default"
+                description="New sessions default to local AI instead of cloud. Can still be overridden per session."
+              />
 
-            <div className="pt-4 flex items-center gap-4">
-              <button
-                onClick={save}
-                className="flex-1 py-4 bg-amber-600 hover:bg-amber-500 rounded-[20px] font-black uppercase italic tracking-tighter transition-colors shadow-[0_6px_0_rgb(146,64,14)]"
-              >
-                Save
-              </button>
-              {saved && <span className="text-emerald-400 font-black uppercase tracking-tighter text-sm">Saved ✓</span>}
+              <h2 className="text-lg font-black uppercase tracking-tighter text-slate-400 pt-2">Images</h2>
+              <Toggle
+                checked={settings.imagesEnabled}
+                onChange={v => update({ imagesEnabled: v })}
+                label="Image generation"
+                description="Generate scene illustrations and character avatars. Disable for faster turns or when no image provider is configured."
+              />
+              {!settings.imagesEnabled && (
+                <p className="text-xs text-slate-500 px-2">Character avatars will use SVG initials instead.</p>
+              )}
+
+              <div className="pt-4 flex items-center gap-4">
+                <button
+                  onClick={() => navigate('/')}
+                  className="px-6 py-4 bg-slate-800 hover:bg-slate-700 rounded-[20px] font-black uppercase italic tracking-tighter transition-colors border-2 border-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={save}
+                  className="flex-1 py-4 bg-amber-600 hover:bg-amber-500 rounded-[20px] font-black uppercase italic tracking-tighter transition-colors shadow-[0_6px_0_rgb(146,64,14)]"
+                >
+                  Save
+                </button>
+                {saved && <span className="text-emerald-400 font-black uppercase tracking-tighter text-sm">Saved ✓</span>}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
       <DmFooter />
     </div>

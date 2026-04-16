@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export class ImageService {
-  private static PUBLIC_DIR = path.join(__dirname, '..', '..', 'public', 'images');
+  private static PUBLIC_DIR = path.join(__dirname, '..', '..', 'public', 'generated');
   private static DEFAULT_IMAGE = '/api/images/default_scene.png';
 
   public static async generateAvatar(
@@ -22,7 +22,7 @@ export class ImageService {
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
     const fileName = `avatar_${sessionId}_${char.name}_${promptHash}.png`;
     const localPath = path.join(this.PUBLIC_DIR, fileName);
-    const publicUrl = `/api/images/${fileName}`;
+    const publicUrl = `/api/generated/${fileName}`;
 
     if (fs.existsSync(localPath)) {
       return { url: publicUrl, prompt };
@@ -57,7 +57,7 @@ export class ImageService {
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
     const fileName = `${sessionId}_turn${turn}_${promptHash}.png`;
     const localPath = path.join(this.PUBLIC_DIR, fileName);
-    const publicUrl = `/api/images/${fileName}`;
+    const publicUrl = `/api/generated/${fileName}`;
 
     if (fs.existsSync(localPath)) {
       return publicUrl;
@@ -129,10 +129,12 @@ export class ImageService {
     const promptHash = crypto.createHash('md5').update(sanitized).digest('hex');
     const fileName = `${sessionId}_turn${turn}_${promptHash}_safe.png`;
     const localPath = path.join(this.PUBLIC_DIR, fileName);
-    const publicUrl = `/api/images/${fileName}`;
+    const publicUrl = `/api/generated/${fileName}`;
 
     try {
+			console.log('Before image provider')
       const provider = createImageProvider(useLocalAI);
+			console.log('After image provider generating')
       const result = await provider.generateImage({
         prompt: `family-friendly, ${sanitized}`,
         negativePrompt: DEFAULT_NEGATIVE_PROMPT,
@@ -165,7 +167,7 @@ export class ImageService {
     const fileName = `avatar_initials_${sessionId}_${name.replace(/\s+/g, '_')}.svg`;
     const localPath = path.join(this.PUBLIC_DIR, fileName);
     fs.writeFileSync(localPath, svg, 'utf8');
-    return `/api/images/${fileName}`;
+    return `/api/generated/${fileName}`;
   }
 
   public static getDefaultImage(): string {
