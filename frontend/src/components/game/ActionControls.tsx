@@ -32,7 +32,9 @@ export const ActionControls = ({ turn, loading, onSubmit, customAction, setCusto
   const [statThinking, setStatThinking] = useState(false);
 
   const submitCustom = async () => {
-    if (!customAction.trim() || loading) return;
+    if (!customAction.trim() || loading) {
+      return;
+    }
     setStatThinking(true);
     let stat = 'mischief';
     try {
@@ -41,7 +43,9 @@ export const ActionControls = ({ turn, loading, onSubmit, customAction, setCusto
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: customAction, characterClass: activeCharacter?.class, characterQuirk: activeCharacter?.quirk }),
       });
-      if (res.ok) ({ stat } = await res.json());
+      if (res.ok) {
+        ({ stat } = await res.json());
+      }
     } catch { /* fallback */ }
     setStatThinking(false);
     onSubmit(customAction, stat, 'normal');
@@ -99,7 +103,11 @@ export const ActionControls = ({ turn, loading, onSubmit, customAction, setCusto
         <input
           value={customAction}
           onChange={(e) => setCustomAction(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') submitCustom(); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              submitCustom();
+            } 
+          }}
           className="flex-1 min-w-0 p-4 bg-slate-800 rounded-xl"
           placeholder="What do you do?"
           disabled={loading || statThinking}

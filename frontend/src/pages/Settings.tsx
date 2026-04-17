@@ -41,7 +41,9 @@ export const Settings = () => {
   };
 
   const save = async () => {
-    if (!settings) return;
+    if (!settings) {
+      return;
+    }
     await fetch(api('/settings'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

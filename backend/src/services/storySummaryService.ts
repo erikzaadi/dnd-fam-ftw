@@ -9,16 +9,22 @@ export class StorySummaryService {
   }
 
   static async maybeUpdate(sessionId: string, turn: number, useLocalAI: boolean): Promise<void> {
-    if (!this.shouldUpdate(turn)) return;
+    if (!this.shouldUpdate(turn)) {
+      return;
+    }
     try {
       const [session, history] = await Promise.all([
         StateService.getSession(sessionId),
         StateService.getTurnHistory(sessionId),
       ]);
-      if (!session) return;
+      if (!session) {
+        return;
+      }
 
       const recentNarrations = history.slice(-SUMMARY_INTERVAL).map(h => h.narration);
-      if (recentNarrations.length === 0) return;
+      if (recentNarrations.length === 0) {
+        return;
+      }
 
       const previousSummary = session.storySummary
         ? `Story so far: ${session.storySummary}\n\n`
@@ -38,7 +44,9 @@ export class StorySummaryService {
   static async updateAfterIntervention(sessionId: string, interventionNarration: string, useLocalAI: boolean): Promise<void> {
     try {
       const session = await StateService.getSession(sessionId);
-      if (!session) return;
+      if (!session) {
+        return;
+      }
 
       const previous = session.storySummary ? `Story so far: ${session.storySummary}\n\n` : '';
       const prompt = `${previous}A miraculous intervention just occurred: "${interventionNarration}"\n\nUpdate the story summary (2-4 sentences) to include this rescue as established canon.`;

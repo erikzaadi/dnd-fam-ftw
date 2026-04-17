@@ -49,6 +49,14 @@ export interface ActionAttempt {
   };
 }
 
+export interface SessionPreview {
+  id: string;
+  displayName: string;
+  worldDescription?: string;
+  storySummary?: string;
+  party: { id: string; name: string; class: string; species: string; avatarUrl?: string; hp: number; max_hp: number }[];
+}
+
 export interface Session {
   id: string;
   scene: string;

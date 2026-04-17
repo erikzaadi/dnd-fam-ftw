@@ -359,10 +359,19 @@ export class StateService {
     }
   }
 
-  public static async listSessions(): Promise<{ id: string, displayName: string }[]> {
+  public static async listSessions(): Promise<{ id: string; displayName: string; worldDescription?: string; storySummary?: string; party: { id: string; name: string; class: string; species: string; avatarUrl?: string; hp: number; max_hp: number }[] }[]> {
     const db = this.getDb();
-    const rows = db.prepare('SELECT id, displayName FROM sessions ORDER BY createdAt DESC').all() as { id: string, displayName: string }[];
-    return rows;
+    const rows = db.prepare('SELECT id, displayName, worldDescription, storySummary FROM sessions ORDER BY createdAt DESC').all() as { id: string; displayName: string; worldDescription: string | null; storySummary: string | null }[];
+    return rows.map(row => {
+      const chars = db.prepare('SELECT id, name, class, species, avatarUrl, hp, max_hp FROM characters WHERE sessionId = ?').all(row.id) as { id: string; name: string; class: string; species: string; avatarUrl: string | null; hp: number; max_hp: number }[];
+      return {
+        id: row.id,
+        displayName: row.displayName,
+        worldDescription: row.worldDescription || undefined,
+        storySummary: row.storySummary || undefined,
+        party: chars.map(c => ({ ...c, avatarUrl: c.avatarUrl || undefined })),
+      };
+    });
   }
 
   public static async getSessionIdForCharacter(charId: string): Promise<string | null> {

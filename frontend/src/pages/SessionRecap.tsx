@@ -141,7 +141,9 @@ export const SessionRecap = () => {
   const enter = useCallback(() => navigate(`/session/${id}`), [id, navigate]);
 
   const toggleSavingsMode = async () => {
-    if (!session) return;
+    if (!session) {
+      return;
+    }
     const enabled = !session.savingsMode;
     await fetch(api(`/session/${session.id}/savings-mode`), {
       method: 'POST',

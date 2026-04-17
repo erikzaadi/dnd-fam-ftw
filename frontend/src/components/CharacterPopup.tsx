@@ -17,7 +17,9 @@ const STAT_META = [
 export const CharacterPopup = ({ character, onClose, onAvatarClick }: CharacterPopupProps) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        onClose();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);

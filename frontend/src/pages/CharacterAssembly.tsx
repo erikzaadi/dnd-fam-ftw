@@ -25,6 +25,19 @@ export const CharacterAssembly = () => {
   const [editingChar, setEditingChar] = useState<Character | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const toggleSavingsMode = async () => {
+    if (!session) {
+      return;
+    }
+    const enabled = !session.savingsMode;
+    await fetch(api(`/session/${session.id}/savings-mode`), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    setSession({ ...session, savingsMode: enabled });
+  };
+
   const loadSession = useCallback(async () => {
     const res = await fetch(api(`/session/${id}`));
     const data = await res.json();
@@ -43,7 +56,9 @@ export const CharacterAssembly = () => {
   }, [loadSession, loadAllCharacters]);
 
   const importCharacter = async (char: Character) => {
-    if (!session) return;
+    if (!session) {
+      return;
+    }
     setLoading(true);
     const { id: _id, avatarUrl: _avatarUrl, sessionName: _sessionName, status: _status, hp: _hp, ...rest } = char as Character & { sessionName?: string };
 
@@ -54,7 +69,9 @@ export const CharacterAssembly = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: rest.name, class: rest.class, species: rest.species, quirk: rest.quirk, useLocalAI: session.useLocalAI })
       });
-      if (statsRes.ok) stats = await statsRes.json();
+      if (statsRes.ok) {
+        stats = await statsRes.json();
+      }
     } catch { /* keep original stats */ }
 
     const characterData = { ...rest, stats, hp: rest.max_hp, status: 'active' };
@@ -108,7 +125,9 @@ export const CharacterAssembly = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, class: charClass, species, quirk, useLocalAI: session.useLocalAI })
       });
-      if (statsRes.ok) stats = await statsRes.json();
+      if (statsRes.ok) {
+        stats = await statsRes.json();
+      }
     } catch {
       // fallback to defaults
     }
@@ -175,59 +194,70 @@ export const CharacterAssembly = () => {
       }} onCancel={() => setConfirmDialog(null)} />}
 
       <div className="flex-1 overflow-y-auto px-4 md:px-6 py-6 min-h-0">
-      <div className="max-w-4xl mx-auto space-y-8 md:space-y-12 relative z-[10]">
-        <h1 className="text-3xl md:text-6xl font-display font-black text-amber-500 italic tracking-tighter text-center drop-shadow-[0_6px_6px_rgba(0,0,0,0.5)]">Assemble Your Party</h1>
-
-        {session && session.party.length > 0 && (
-          <div className="bg-slate-900 rounded-[48px] border border-slate-800 p-8 space-y-4">
-            <h2 className="text-xs font-black uppercase tracking-widest text-amber-500/70 mb-6">Current Heroes</h2>
-            <div className="flex flex-wrap gap-4">
-              {session.party.map(c => (
-                <div key={c.id} className="flex items-center gap-4 p-4 bg-slate-800/60 rounded-2xl border border-slate-700/50">
-                  <img
-                    src={imgSrc(c.avatarUrl)}
-                    className="w-12 h-12 rounded-xl object-cover border border-slate-600 cursor-pointer"
-                    onClick={() => setViewingChar(c)}
-                    alt={c.name}
-                  />
-                  <div className="min-w-0">
-                    <div className="font-black text-sm text-slate-100 cursor-pointer hover:text-amber-400 transition-colors" onClick={() => setViewingChar(c)}>{c.name}</div>
-                    <div className="text-[10px] text-slate-500 uppercase tracking-wide">{c.class} · {c.species}</div>
-                  </div>
-                  <div className="flex gap-1 ml-2">
-                    <button onClick={() => {
-                      setEditingChar(c); setIsCreating(true); 
-                    }} className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-700 text-amber-500 hover:bg-amber-500/20 text-xs transition-colors">✎</button>
-                    <button onClick={() => removeCharacter(c.id)} className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-700 text-rose-500 hover:bg-rose-500/20 text-xs transition-colors">✕</button>
-                  </div>
-                </div>
-              ))}
-            </div>
+        <div className="max-w-4xl mx-auto space-y-8 md:space-y-12 relative z-[10]">
+          <div className="flex items-center justify-between gap-4">
+            <h1 className="text-3xl md:text-6xl font-display font-black text-amber-500 italic tracking-tighter drop-shadow-[0_6px_6px_rgba(0,0,0,0.5)]">Assemble Your Party</h1>
+            {session && (
+              <button
+                onClick={toggleSavingsMode}
+                title={session.savingsMode ? 'Images off - click to enable' : 'Images on - click to disable'}
+                className={`px-3 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all cursor-pointer flex-shrink-0 ${session.savingsMode ? 'border-amber-500 text-amber-400 bg-amber-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
+              >
+                {session.savingsMode ? '🪙 Saving' : '🖼 Images'}
+              </button>
+            )}
           </div>
-        )}
 
-        <div className="flex gap-4">
-          <button onClick={() => {
-            setEditingChar(null); setIsCreating(true); 
-          }} className="flex-1 py-6 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm transition-all">+ Create New Hero</button>
-          {importableCharacters.length > 0 && (
-            <button onClick={() => setShowImportModal(true)} className="flex-1 py-6 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm transition-all">+ Import Hero</button>
+          {session && session.party.length > 0 && (
+            <div className="bg-slate-900 rounded-[48px] border border-slate-800 p-8 space-y-4">
+              <h2 className="text-xs font-black uppercase tracking-widest text-amber-500/70 mb-6">Current Heroes</h2>
+              <div className="flex flex-wrap gap-4">
+                {session.party.map(c => (
+                  <div key={c.id} className="flex items-center gap-4 p-4 bg-slate-800/60 rounded-2xl border border-slate-700/50">
+                    <img
+                      src={imgSrc(c.avatarUrl)}
+                      className="w-12 h-12 rounded-xl object-cover border border-slate-600 cursor-pointer"
+                      onClick={() => setViewingChar(c)}
+                      alt={c.name}
+                    />
+                    <div className="min-w-0">
+                      <div className="font-black text-sm text-slate-100 cursor-pointer hover:text-amber-400 transition-colors" onClick={() => setViewingChar(c)}>{c.name}</div>
+                      <div className="text-[10px] text-slate-500 uppercase tracking-wide">{c.class} · {c.species}</div>
+                    </div>
+                    <div className="flex gap-1 ml-2">
+                      <button onClick={() => {
+                        setEditingChar(c); setIsCreating(true); 
+                      }} className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-700 text-amber-500 hover:bg-amber-500/20 text-xs transition-colors">✎</button>
+                      <button onClick={() => removeCharacter(c.id)} className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-700 text-rose-500 hover:bg-rose-500/20 text-xs transition-colors">✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-4">
+            <button onClick={() => {
+              setEditingChar(null); setIsCreating(true); 
+            }} className="flex-1 py-6 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm transition-all">+ Create New Hero</button>
+            {importableCharacters.length > 0 && (
+              <button onClick={() => setShowImportModal(true)} className="flex-1 py-6 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm transition-all">+ Import Hero</button>
+            )}
+          </div>
+
+          {error && (
+            <div className="flex items-center justify-between gap-4 px-6 py-3 bg-rose-950/60 border border-rose-700 rounded-2xl text-rose-300 text-sm">
+              <span>{error}</span>
+              <button onClick={() => setError(null)} className="text-rose-500 hover:text-rose-200 font-black">✕</button>
+            </div>
+          )}
+
+          {session && session.party.length > 0 && (
+            <button onClick={startJourney} disabled={isStarting || loading} className="w-full py-6 md:py-8 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-2xl md:text-4xl font-black shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter disabled:opacity-50 disabled:shadow-none">
+              {isStarting ? 'SUMMONING THE DM...' : 'BEGIN ADVENTURE'}
+            </button>
           )}
         </div>
-
-        {error && (
-          <div className="flex items-center justify-between gap-4 px-6 py-3 bg-rose-950/60 border border-rose-700 rounded-2xl text-rose-300 text-sm">
-            <span>{error}</span>
-            <button onClick={() => setError(null)} className="text-rose-500 hover:text-rose-200 font-black">✕</button>
-          </div>
-        )}
-
-        {session && session.party.length > 0 && (
-          <button onClick={startJourney} disabled={isStarting || loading} className="w-full py-6 md:py-8 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-2xl md:text-4xl font-black shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter disabled:opacity-50 disabled:shadow-none">
-            {isStarting ? 'SUMMONING THE DM...' : 'BEGIN ADVENTURE'}
-          </button>
-        )}
-      </div>
       </div>
       <DmFooter />
     </div>

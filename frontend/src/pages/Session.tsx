@@ -34,7 +34,9 @@ export const SessionPage = () => {
   // Full reload - only used on initial mount and for party_update
   const joinSession = useCallback(async (sessionId: string) => {
     const res = await fetch(api(`/session/${sessionId}`));
-    if (!res.ok) { navigate('/'); return; }
+    if (!res.ok) {
+      navigate('/'); return; 
+    }
     const data = await res.json();
     setSession(data);
     const hRes = await fetch(api(`/session/${data.id}/history`));
@@ -55,8 +57,14 @@ export const SessionPage = () => {
   }, [id, joinSession]);
 
   useEffect(() => {
-    if (!lastRoll) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') { setLastRoll(null); setDieExiting(false); } };
+    if (!lastRoll) {
+      return;
+    }
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setLastRoll(null); setDieExiting(false); 
+      } 
+    };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [lastRoll]);
@@ -78,47 +86,72 @@ export const SessionPage = () => {
         } else if (data.type === 'turn_complete') {
           setLoading(false);
           setCustomAction('');
-          if (data.session) setSession(data.session);
+          if (data.session) {
+            setSession(data.session);
+          }
           if (data.turnResult) {
             setHistory(prev => {
               const updated = [...prev, data.turnResult];
               setViewedTurnIdx(updated.length - 1);
               return updated;
             });
-            if (!data.session?.savingsMode) setImageLoading(true);
+            if (!data.session?.savingsMode) {
+              setImageLoading(true);
+            }
           }
           const roll = data.turnResult?.lastAction?.actionResult;
           if (roll && roll.statUsed !== 'none') {
             setLastRoll({ roll: roll.roll, success: roll.success, stat: roll.statUsed, statBonus: roll.statBonus, itemBonus: roll.itemBonus, isCritical: roll.isCritical, difficultyTarget: roll.difficultyTarget });
             setDieExiting(false);
             setTimeout(() => setDieExiting(true), 3000);
-            setTimeout(() => { setLastRoll(null); setDieExiting(false); }, 3500);
+            setTimeout(() => {
+              setLastRoll(null); setDieExiting(false); 
+            }, 3500);
           }
         } else if (data.type === 'image_ready') {
           setImageLoading(false);
           setHistory(prev => {
-            if (prev.length === 0) return prev;
+            if (prev.length === 0) {
+              return prev;
+            }
             const last = prev[prev.length - 1];
             // Don't overwrite static images on intervention/sanctuary turns
-            if (last.turnType === 'intervention' || last.turnType === 'sanctuary') return prev;
+            if (last.turnType === 'intervention' || last.turnType === 'sanctuary') {
+              return prev;
+            }
             const updated = [...prev];
             updated[updated.length - 1] = { ...last, imageUrl: data.imageUrl };
             return updated;
           });
         } else if (data.type === 'intervention') {
           setInterventionBanner(data.turnResult?.narration ?? 'A mysterious force saved the party!');
-          if (data.session) setSession(data.session);
-          if (data.turnResult) setHistory(prev => { const u = [...prev, data.turnResult]; setViewedTurnIdx(u.length - 1); return u; });
+          if (data.session) {
+            setSession(data.session);
+          }
+          if (data.turnResult) {
+            setHistory(prev => {
+              const u = [...prev, data.turnResult]; setViewedTurnIdx(u.length - 1); return u; 
+            });
+          }
           setTimeout(() => setInterventionBanner(null), 8000);
         } else if (data.type === 'sanctuary_recovery') {
           setSanctuaryBanner(data.turnResult?.narration ?? 'The party found sanctuary...');
-          if (data.session) setSession(data.session);
-          if (data.turnResult) setHistory(prev => { const u = [...prev, data.turnResult]; setViewedTurnIdx(u.length - 1); return u; });
+          if (data.session) {
+            setSession(data.session);
+          }
+          if (data.turnResult) {
+            setHistory(prev => {
+              const u = [...prev, data.turnResult]; setViewedTurnIdx(u.length - 1); return u; 
+            });
+          }
           setTimeout(() => setSanctuaryBanner(null), 10000);
         } else if (data.type === 'party_update') {
           // party_update doesn't carry full history - only refresh session
-          if (data.session) setSession(data.session);
-          else joinSession(id);
+          if (data.session) {
+            setSession(data.session);
+          } else {
+            joinSession(id);
+          }
         }
       };
 
@@ -161,7 +194,9 @@ export const SessionPage = () => {
   };
 
   const submitItemAction = async (actionType: 'use_item' | 'give_item', ownerCharId: string, itemId: string, targetCharId: string) => {
-    if (!session) return;
+    if (!session) {
+      return;
+    }
     setLoading(true);
     setActionError(null);
     const res = await fetch(api(`/session/${session.id}/action`), {
@@ -354,7 +389,9 @@ export const SessionPage = () => {
       {lastRoll && (
         <div
           className={`fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/40 animate-in fade-in duration-400 transition-opacity duration-500 cursor-pointer ${dieExiting ? 'opacity-0' : 'opacity-100'}`}
-          onClick={() => { setLastRoll(null); setDieExiting(false); }}
+          onClick={() => {
+            setLastRoll(null); setDieExiting(false); 
+          }}
         >
           <div className={`flex flex-col items-center gap-4 p-10 rounded-3xl border-2 shadow-2xl animate-in zoom-in-75 duration-500 ease-out ${lastRoll.isCritical ? 'bg-amber-950/95 border-amber-400 shadow-amber-500/30' : lastRoll.success ? 'bg-emerald-950/90 border-emerald-500' : 'bg-rose-950/90 border-rose-500'}`}>
             {lastRoll.isCritical && <div className="text-4xl animate-bounce">🎉</div>}

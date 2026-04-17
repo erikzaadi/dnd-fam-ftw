@@ -18,7 +18,9 @@ export const SiteHeader = () => {
       >
         {!isHome && (
           <button
-            onClick={e => { e.stopPropagation(); navigate('/'); }}
+            onClick={e => {
+              e.stopPropagation(); navigate('/'); 
+            }}
             className="absolute top-3 left-3 z-10 text-slate-300 hover:text-white bg-slate-950/60 backdrop-blur-sm rounded-full w-9 h-9 flex items-center justify-center transition-colors"
             aria-label="Back to home"
           >

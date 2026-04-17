@@ -59,8 +59,8 @@ export class LocalAINarrationProvider implements NarrationProvider {
     const extra = strict ? '\nCRITICAL: Return ONLY valid JSON matching the exact schema. No markdown, no explanation, no code fences.' : '';
     console.log(`[LocalAINarration] Sending request to ${this.client.baseURL} model=${this.model} strict=${strict}`);
     // console.log(`[LocalAINarration] Input : ${JSON.stringify(input)}`);
-		const systemContent = NARRATION_SYSTEM_PROMPT + extra;
-		const userContent = buildNarrationUserContent(input);
+    const systemContent = NARRATION_SYSTEM_PROMPT + extra;
+    const userContent = buildNarrationUserContent(input);
     // console.log(`[LocalAINarration] Content: ${JSON.stringify({userContent, systemContent })}`);
     const start = Date.now();
     const response = await this.client.chat.completions.create({

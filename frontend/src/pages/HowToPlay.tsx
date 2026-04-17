@@ -40,11 +40,11 @@ export const HowToPlay = () => {
 
             <Section title="🎲 Die Hard: Rolling the Dice">
               <p className="text-slate-300 text-sm leading-relaxed mb-2">
-                Every action is resolved by rolling a d20 and adding your relevant stat. Beat the difficulty to succeed. Fail and take damage.
+                Every action is resolved by rolling a d20 and adding your relevant stat. Beat the target to succeed. Fail and take damage. The exact target for each action is shown on the die - it's tuned to the situation, not just the difficulty label.
               </p>
-              <Row label="Easy" value="Beat 8" color="text-emerald-400" />
-              <Row label="Normal" value="Beat 12" color="text-amber-400" />
-              <Row label="Hard" value="Beat 16" color="text-rose-400" />
+              <Row label="Easy" value="Beat ~8" color="text-emerald-400" />
+              <Row label="Normal" value="Beat ~12" color="text-amber-400" />
+              <Row label="Hard" value="Beat ~16" color="text-rose-400" />
               <p className="text-slate-500 text-xs mt-2 italic">
                 Roll a natural 1? You <em>die</em>... <em>harder</em>. +1 extra damage on top of the difficulty penalty. The dice are merciless.
               </p>
@@ -77,6 +77,12 @@ export const HowToPlay = () => {
               <Row label="Use" value="Apply a healing item to yourself or a teammate (even a downed one)" />
               <Row label="Give" value="Hand a transferable item to another party member" />
               <p className="text-slate-500 text-xs mt-2">Using and giving items doesn't cost a roll. They always succeed.</p>
+            </Section>
+
+            <Section title="🪙 Trading">
+              <p className="text-slate-300 text-sm leading-relaxed">
+                When a merchant, vendor, or trader appears in the story, the AI may offer a trade action. Accepting a trade can swap one of your items for something new - choose wisely, trades are final.
+              </p>
             </Section>
 
             <Section title="🐉 Party Wipes">

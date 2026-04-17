@@ -56,7 +56,9 @@ async function generate(asset: { filename: string; prompt: string; size?: '1024x
   });
 
   const b64 = response.data?.[0]?.b64_json;
-  if (!b64) throw new Error(`No b64_json returned for ${asset.filename}`);
+  if (!b64) {
+    throw new Error(`No b64_json returned for ${asset.filename}`);
+  }
 
   fs.writeFileSync(outPath, Buffer.from(b64, 'base64'));
   console.log(`[done] ${asset.filename}`);

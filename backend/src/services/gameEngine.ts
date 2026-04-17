@@ -35,27 +35,37 @@ export class GameEngine {
 
   // Fuzzy character lookup: exact → normalized contains → class match → closest edit distance
   public static findCharacter(party: Character[], targetName: string): Character | undefined {
-    if (!targetName) return undefined;
+    if (!targetName) {
+      return undefined;
+    }
     const t = this.normalize(targetName);
 
     const exact = party.find(c => c.name.toLowerCase() === targetName.toLowerCase());
-    if (exact) return exact;
+    if (exact) {
+      return exact;
+    }
 
     const normalized = party.find(c => {
       const n = this.normalize(c.name);
       return n === t || n.includes(t) || t.includes(n);
     });
-    if (normalized) return normalized;
+    if (normalized) {
+      return normalized;
+    }
 
     const byClass = party.find(c => t.includes(this.normalize(c.class)));
-    if (byClass) return byClass;
+    if (byClass) {
+      return byClass;
+    }
 
     // Closest edit distance within threshold of 3
     let best: Character | undefined;
     let bestDist = 4;
     for (const c of party) {
       const dist = this.editDistance(t, this.normalize(c.name));
-      if (dist < bestDist) { bestDist = dist; best = c; }
+      if (dist < bestDist) {
+        bestDist = dist; best = c; 
+      }
     }
     return best;
   }
@@ -296,7 +306,9 @@ export class GameEngine {
       if (Array.isArray(heals)) {
         for (const heal of heals) {
           const target = GameEngine.findCharacter(newState.party, heal.characterName);
-          if (!target) continue;
+          if (!target) {
+            continue;
+          }
           if (target.status === 'downed') {
             // AI should have used suggestedRevive but didn't — revive anyway
             target.hp = Math.min(target.max_hp, Math.max(1, Math.round(heal.hp)));
@@ -316,7 +328,9 @@ export class GameEngine {
             i.name.toLowerCase().includes(remove.itemName.toLowerCase()) ||
             remove.itemName.toLowerCase().includes(i.name.toLowerCase())
           );
-          if (idx !== -1) owner.inventory.splice(idx, 1);
+          if (idx !== -1) {
+            owner.inventory.splice(idx, 1);
+          }
         }
       }
 

@@ -126,7 +126,9 @@ app.get('/api/session/:id', asyncHandler(async (req, res) => {
 app.post('/api/session/:id/suggest-stat', asyncHandler(async (req, res) => {
   const { action, characterClass, characterQuirk } = req.body as { action: string; characterClass?: string; characterQuirk?: string };
   const session = await StateService.getSession(req.params.id as string);
-  if (!session) { res.status(404).json({ stat: 'mischief' }); return; }
+  if (!session) {
+    res.status(404).json({ stat: 'mischief' }); return; 
+  }
 
   const { client, model } = createChatClient(session.useLocalAI);
   try {
@@ -182,7 +184,7 @@ app.post('/api/character/create', asyncHandler(async (req, res) => {
     return;
   }
 
-  const { url: avatarUrl, prompt: avatarPrompt } = SettingsService.get().imagesEnabled
+  const { url: avatarUrl, prompt: avatarPrompt } = !session.savingsMode
     ? await ImageService.generateAvatar(characterData, sessionId, session.useLocalAI)
     : { url: ImageService.generateInitialsSvg(characterData.name, sessionId), prompt: '' };
 
@@ -224,8 +226,8 @@ app.put('/api/character/:charId', asyncHandler(async (req, res) => {
     return;
   }
 
-  // Generate new avatar
-  const { url: avatarUrl, prompt: avatarPrompt } = SettingsService.get().imagesEnabled
+  // Generate new avatar only if session has images enabled
+  const { url: avatarUrl, prompt: avatarPrompt } = !session.savingsMode
     ? await ImageService.generateAvatar(characterData, sessionId, session.useLocalAI)
     : { url: ImageService.generateInitialsSvg(characterData.name, sessionId), prompt: '' };
   const updatedChar = { ...session.party[charIndex], ...characterData, avatarUrl, avatarPrompt };
@@ -429,7 +431,7 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
   }
 
   console.log(`[Action] imageSuggested=${turnResult.imageSuggested} imagePrompt=${turnResult.imagePrompt ?? 'null'} savingsMode=${session.savingsMode}`);
-  if (!session.savingsMode && SettingsService.get().imagesEnabled && turnResult.imageSuggested && turnResult.imagePrompt) {
+  if (!session.savingsMode && turnResult.imageSuggested && turnResult.imagePrompt) {
     void ImageService.generateImage(turnResult.imagePrompt, session.id, newState.turn, session.useLocalAI).then(async imageUrl => {
       if (imageUrl) {
         await StateService.updateLatestTurnImageUrl(sessionId, imageUrl);
@@ -474,7 +476,7 @@ app.post('/api/session/:id/start', asyncHandler(async (req, res) => {
   broadcastUpdate(sessionId, 'turn_complete', { session, turnResult: initialTurn });
   res.json({ success: true });
 
-  if (!session.savingsMode && SettingsService.get().imagesEnabled) {
+  if (!session.savingsMode) {
     void ImageService.generateImage(initialTurn.imagePrompt || 'A fantasy world map', sessionId, session.turn, session.useLocalAI).then(async imageUrl => {
       if (imageUrl) {
         await StateService.updateLatestTurnImageUrl(sessionId, imageUrl);

@@ -132,9 +132,9 @@ export class ImageService {
     const publicUrl = `/api/generated/${fileName}`;
 
     try {
-			console.log('Before image provider')
+      console.log('Before image provider')
       const provider = createImageProvider(useLocalAI);
-			console.log('After image provider generating')
+      console.log('After image provider generating')
       const result = await provider.generateImage({
         prompt: `family-friendly, ${sanitized}`,
         negativePrompt: DEFAULT_NEGATIVE_PROMPT,

@@ -21,9 +21,14 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
   const interactive = !!(onUseItem || onGiveItem) && !disabled;
 
   const confirm = (targetCharId: string) => {
-    if (!pending) return;
-    if (pending.action === 'use') onUseItem?.(pending.ownerCharId, pending.itemId, targetCharId);
-    else onGiveItem?.(pending.ownerCharId, pending.itemId, targetCharId);
+    if (!pending) {
+      return;
+    }
+    if (pending.action === 'use') {
+      onUseItem?.(pending.ownerCharId, pending.itemId, targetCharId);
+    } else {
+      onGiveItem?.(pending.ownerCharId, pending.itemId, targetCharId);
+    }
     setPending(null);
   };
 
