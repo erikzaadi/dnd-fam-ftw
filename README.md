@@ -25,8 +25,11 @@ No prep required. No DM experience required. Just vibes and a d20.
 - **AI Dungeon Master** : GPT-4o narrates your story in real-time
 - **DALL-E 3 scene images** : every major moment gets illustrated, with a slow Ken Burns pan across the scene
 - **Three stats** : Might, Magic, and Mischief (it's a family game)
-- **d20 rolls** : classic dice mechanics, displayed with a satisfying SVG die
+- **d20 rolls** : classic dice mechanics, displayed with a satisfying SVG die; the exact target needed is shown per action
+- **Dynamic difficulty (DRAMA LLAMA)** : the AI tunes the specific roll target per action based on the current situation, within the spirit of the chosen difficulty
 - **Inventory with stat bonuses** : find a magic sword, actually get +1 Might
+- **Trading** : merchants and vendors can appear in the story and offer trade actions; the party swaps an item they own for something new
+- **Per-session image toggle** : the 🖼/🪙 toggle in-session overrides the global images setting; session preference wins
 - **Real-time multi-device sync** : everyone at the table can follow along via SSE
 
 ![Session header with party avatars](docs/session-header-party.png)
@@ -62,8 +65,9 @@ Every hero gets a generated portrait and carries their quirk into the story:
 - **Movie mode** : animated slideshow of every scene, with Ken Burns effect and pause/play controls. Click any image for fullscreen.
 
 ### Quality of Life
-- **Savings mode** : toggle off image generation to save on API costs during dev/testing
+- **Savings mode** : toggle off image generation per-session (or globally in Settings); session toggle always wins
 - **Session persistence** : SQLite, so your adventure survives a server restart
+- **World details on home screen** : tap ℹ on any active world to see the party roster, world description, and the last story summary before jumping in
 - **Mobile & tablet friendly** : playable on the couch
 
 ---
@@ -249,17 +253,21 @@ All connected clients receive the same events via Server-Sent Events:
 ## How a Turn Works
 
 ```
-Player picks action
+Player picks action (each choice carries a suggested difficulty target from the AI)
        ↓
-Backend rolls d20 + stat vs. difficulty (easy=8 / normal=12 / hard=16)
+Backend resolves target: per-action difficultyValue if set, else base threshold (8/12/16)
        ↓
-Result sent to AI (GPT-4o or local model) with full session context
+Backend rolls d20 + effective stat vs. resolved target
        ↓
-AI narrates outcome + suggests 3 new choices + optionally grants an item
+Result sent to AI with full session context (outcome already resolved)
+       ↓
+AI narrates outcome + suggests 3 new choices (each with a tuned difficultyValue)
+     + optionally grants an item (suggestedInventoryAdd)
+     + optionally removes an item for a trade (suggestedInventoryRemove)
        ↓
 SSE broadcasts turn_complete → all connected clients update immediately
        ↓
-Image generation runs in background (DALL-E 3 or LocalAI SD)
+Image generation runs in background if session savingsMode is off (DALL-E 3 or LocalAI SD)
        ↓
 SSE broadcasts image_ready → scene image appears on all clients
 ```

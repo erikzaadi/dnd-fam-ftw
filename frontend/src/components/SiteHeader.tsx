@@ -10,7 +10,7 @@ export const SiteHeader = () => {
   const [fullscreen, setFullscreen] = useState(false);
 
   return (
-    <div className="flex-shrink-0 flex flex-col">
+    <div className="flex-shrink-0">
       {fullscreen && <FullscreenImage url={imgSrc('/api/images/home_banner.png')} onClose={() => setFullscreen(false)} />}
       <div
         className={`relative mt-4 mx-4 md:mx-6 ${isHome ? 'h-40 md:h-52' : 'h-32 md:h-40'} rounded-[24px] overflow-hidden border border-slate-800/60 shadow-2xl cursor-zoom-in`}
@@ -19,7 +19,7 @@ export const SiteHeader = () => {
         {!isHome && (
           <button
             onClick={e => {
-              e.stopPropagation(); navigate('/'); 
+              e.stopPropagation(); navigate('/');
             }}
             className="absolute top-3 left-3 z-10 text-slate-300 hover:text-white bg-slate-950/60 backdrop-blur-sm rounded-full w-9 h-9 flex items-center justify-center transition-colors"
             aria-label="Back to home"
@@ -28,10 +28,14 @@ export const SiteHeader = () => {
           </button>
         )}
         <img src={imgSrc('/api/images/home_banner.png')} className="w-full h-full object-cover animate-ken-burns" alt="" />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 to-transparent" />
-      </div>
-      <div className="px-4 md:px-6 pt-4">
-        <div className="font-display font-black text-amber-500 italic tracking-tighter text-4xl md:text-5xl text-center">🐉 AI DM</div>
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
+        {isHome && (
+          <div className="absolute bottom-0 left-0 right-0 flex items-end justify-center pb-4 pointer-events-none">
+            <div className="font-display font-black text-amber-400 italic tracking-tighter text-5xl md:text-7xl drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]">
+              🐉 AI DM
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

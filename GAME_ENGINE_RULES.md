@@ -29,14 +29,24 @@ effective stat = base stat + sum of all inventory statBonuses for that stat
 When a `perform` action is taken, the backend rolls:
 
 ```
-roll (d20) + effective stat  ≥  difficulty threshold  →  success
+roll (d20) + effective stat  ≥  difficulty target  →  success
 ```
 
-| Difficulty | Threshold |
-|------------|-----------|
+### Base thresholds
+
+| Difficulty | Base target |
+|------------|-------------|
 | easy | 8 |
 | normal | 12 |
 | hard | 16 |
+
+### Dynamic difficulty targets (per-action)
+
+Each choice can carry a `difficultyValue` : a specific numerical target the AI considers appropriate for that exact action in the current situation. This is sometimes called **DRAMA LLAMA** internally. If present, `difficultyValue` overrides the base threshold for that roll.
+
+This allows the AI to say "picking this lock in the dark is a 14, not a standard 12" without changing the difficulty label. The acting character's exact target is shown in the die result popup as `>= N`.
+
+The resolved `actionDifficultyTarget` is stored in turn history so it can be displayed in the history panel.
 
 A natural 1 on the d20 is a **Critical Failure** (see damage below). There is no critical success mechanic : rolling high just means you succeed by more, which the AI may flavor but has no mechanical bonus.
 
@@ -90,11 +100,13 @@ A narrative action chosen from the AI's three suggestions, or typed in by the pl
 
 Flow:
 1. Player submits action text + chosen stat + difficulty label.
-2. Backend rolls `d20 + effective stat` vs. difficulty threshold.
-3. Outcome (success/fail, roll, damage) is sent to AI as structured input.
-4. AI narrates what happened and provides three new choices.
-5. If failed, acting character takes damage; if 0 HP, marked as downed.
-6. AI may suggest a new inventory item to grant; backend assigns it a random ID and adds it to the acting character's inventory.
+2. Backend resolves the effective target: `difficultyValue` (per-choice AI override) if present, otherwise the base difficulty threshold.
+3. Backend rolls `d20 + effective stat` vs. the resolved target.
+4. Outcome (success/fail, roll, damage, resolved target) is sent to AI as structured input.
+5. AI narrates what happened and provides three new choices, each with a suggested `difficultyValue`.
+6. If failed, acting character takes damage; if 0 HP, marked as downed.
+7. AI may suggest a new inventory item to grant via `suggestedInventoryAdd`; backend assigns it a random ID and adds it to the acting character's inventory.
+8. AI may suggest removing an item via `suggestedInventoryRemove` (used for trades - see Trading below).
 
 ### `use_item`
 
@@ -119,6 +131,15 @@ Rules:
 - The item is moved from the giver's inventory to the receiver's inventory.
 - The item retains all its properties (`statBonuses`, `healValue`, etc.).
 - AI narrates the transfer.
+
+### Trading
+
+When a merchant, vendor, or trader appears in the story, the AI may include a trade action among the choices.
+
+On a successful trade action:
+- The AI returns both `suggestedInventoryAdd` (the new item received) and `suggestedInventoryRemove` (the item name traded away).
+- Backend removes the named item from the acting character's inventory, then grants the new item.
+- The AI must not suggest acquiring items the party already carries, including the item being granted in the same turn.
 
 ---
 
@@ -199,7 +220,22 @@ AI-suggested inventory items are granted only if the narrative earns it (found i
 
 ## Difficulty Settings
 
-Difficulty is set at world creation and affects enemy behavior via AI tone : it does not change the roll thresholds. The thresholds (8 / 12 / 16) are fixed. Difficulty label is passed to the AI as context so it can set appropriately hard or forgiving choices.
+Difficulty is set at world creation and affects AI tone and the default `difficultyValue` suggestions the AI proposes per choice. The base thresholds (8 / 12 / 16) are fixed, but the AI can tune each action's specific target within the spirit of the chosen difficulty.
+
+---
+
+## Image Generation
+
+Scene images and character avatars are generated asynchronously and are optional.
+
+### Global vs. per-session toggle
+
+- **Global setting** (`imagesEnabled` in app settings): the default. New sessions inherit this as their initial `savingsMode` state (`savingsMode = !imagesEnabled`).
+- **Per-session toggle** (`savingsMode` on the session): set via the 🖼/🪙 toggle in the recap screen or the assemble heroes screen. When explicitly set, it overrides the global setting for that session.
+
+This means: turning images on in a session works even if the global setting has images disabled, and vice versa.
+
+When `savingsMode` is `true`, no scene images or new character avatars are generated; existing cached images remain visible.
 
 ---
 

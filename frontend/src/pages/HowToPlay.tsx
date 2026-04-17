@@ -40,11 +40,14 @@ export const HowToPlay = () => {
 
             <Section title="🎲 Die Hard: Rolling the Dice">
               <p className="text-slate-300 text-sm leading-relaxed mb-2">
-                Every action is resolved by rolling a d20 and adding your relevant stat. Beat the target to succeed. Fail and take damage. The exact target for each action is shown on the die - it's tuned to the situation, not just the difficulty label.
+                Every action is resolved by rolling a d20 and adding your relevant stat. Beat the target to succeed. Fail and take damage.
               </p>
-              <Row label="Easy" value="Beat ~8" color="text-emerald-400" />
-              <Row label="Normal" value="Beat ~12" color="text-amber-400" />
-              <Row label="Hard" value="Beat ~16" color="text-rose-400" />
+              <Row label="Easy" value="Around 8" color="text-emerald-400" />
+              <Row label="Normal" value="Around 12" color="text-amber-400" />
+              <Row label="Hard" value="Around 16" color="text-rose-400" />
+              <p className="text-slate-400 text-xs mt-3 leading-relaxed">
+                These are baselines, not rules. The AI adjusts the exact target per action based on context - picking a lock in complete darkness is harder than in daylight, even if both are labeled <em>normal</em>. The precise number is shown on the die before you roll.
+              </p>
               <p className="text-slate-500 text-xs mt-2 italic">
                 Roll a natural 1? You <em>die</em>... <em>harder</em>. +1 extra damage on top of the difficulty penalty. The dice are merciless.
               </p>
