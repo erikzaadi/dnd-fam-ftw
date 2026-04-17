@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { FullscreenImage } from '../components/FullscreenImage';
 import { DmFooter } from '../components/DmFooter';
-import { api, imgSrc } from '../lib/api';
+import { SiteHeader } from '../components/SiteHeader';
+import { api } from '../lib/api';
 
 export const Home = () => {
   const [activeSessions, setActiveSessions] = useState<{ id: string; displayName: string }[]>([]);
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
-  const [bannerFullscreen, setBannerFullscreen] = useState(false);
   const navigate = useNavigate();
 
   const loadSessions = () => {
@@ -40,20 +39,10 @@ export const Home = () => {
         />
       )}
 
-      {/* Banner */}
-      <div className="relative mt-4 mx-4 md:mx-6 h-40 md:h-52 rounded-[24px] overflow-hidden flex-shrink-0 border border-slate-800/60 shadow-2xl z-[10] cursor-zoom-in" onClick={() => setBannerFullscreen(true)}>
-        <img
-          src={imgSrc('/api/images/home_banner.png')}
-          className="w-full h-full object-cover animate-ken-burns"
-          alt="AI DM"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 to-transparent" />
-      </div>
-      {bannerFullscreen && <FullscreenImage url={imgSrc('/api/images/home_banner.png')} onClose={() => setBannerFullscreen(false)} />}
+      <SiteHeader />
 
       {/* Content section - flex column, buttons pinned top and bottom */}
-      <div className="flex-1 flex flex-col gap-6 px-4 md:px-6 pt-4 pb-6 relative z-[10] min-h-0 max-w-3xl w-full mx-auto">
-        <h1 className="font-display font-black text-amber-500 italic tracking-tighter text-6xl md:text-6xl text-center flex-shrink-0">🐉 AI DM</h1>
+      <div className="flex-1 flex flex-col gap-4 px-4 md:px-6 pt-4 pb-6 relative z-[10] min-h-0 max-w-3xl w-full mx-auto">
         <button
           onClick={() => navigate('/create-session')}
           className="px-8 py-5 md:px-16 md:py-6 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-2xl md:text-4xl font-black shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter w-full flex-shrink-0"

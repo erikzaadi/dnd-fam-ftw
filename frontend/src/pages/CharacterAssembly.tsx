@@ -160,21 +160,22 @@ export const CharacterAssembly = () => {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex items-center justify-center p-4 md:p-8 pt-20 pb-36">
+    <div className="h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col overflow-hidden">
       <SiteHeader />
       {fullscreenImage && <FullscreenImage url={fullscreenImage} onClose={() => setFullscreenImage(null)} />}
       {isCreating && <CharacterForm onSave={saveCharacter} onCancel={() => {
-        setIsCreating(false); setEditingChar(null); 
+        setIsCreating(false); setEditingChar(null);
       }} isLoading={loading} initialValues={editingChar} />}
       {showImportModal && <CharacterImportModal characters={importableCharacters} onImport={importCharacter} onClose={() => setShowImportModal(false)} loading={loading} />}
       {viewingChar && <CharacterPopup character={viewingChar} onClose={() => setViewingChar(null)} onAvatarClick={(url) => {
-        setViewingChar(null); setFullscreenImage(url); 
+        setViewingChar(null); setFullscreenImage(url);
       }} />}
       {confirmDialog && <ConfirmDialog message={confirmDialog.message} onConfirm={() => {
-        confirmDialog.onConfirm(); setConfirmDialog(null); 
+        confirmDialog.onConfirm(); setConfirmDialog(null);
       }} onCancel={() => setConfirmDialog(null)} />}
 
-      <div className="max-w-4xl w-full space-y-8 md:space-y-12 relative z-[10]">
+      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-6 min-h-0">
+      <div className="max-w-4xl mx-auto space-y-8 md:space-y-12 relative z-[10]">
         <h1 className="text-3xl md:text-6xl font-display font-black text-amber-500 italic tracking-tighter text-center drop-shadow-[0_6px_6px_rgba(0,0,0,0.5)]">Assemble Your Party</h1>
 
         {session && session.party.length > 0 && (
@@ -226,6 +227,7 @@ export const CharacterAssembly = () => {
             {isStarting ? 'SUMMONING THE DM...' : 'BEGIN ADVENTURE'}
           </button>
         )}
+      </div>
       </div>
       <DmFooter />
     </div>

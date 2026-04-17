@@ -1,7 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { SiteHeader } from '../components/SiteHeader';
 import { DmFooter } from '../components/DmFooter';
-import { imgSrc } from '../lib/api';
 
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
   <div className="space-y-2">
@@ -22,15 +21,10 @@ export const HowToPlay = () => {
 
   return (
     <div className="h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col overflow-hidden">
-      {/* Banner */}
-      <div className="relative mt-4 mx-4 md:mx-6 h-32 md:h-40 rounded-[24px] overflow-hidden flex-shrink-0 border border-slate-800/60 shadow-2xl">
-        <img src={imgSrc('/api/images/home_banner.png')} className="w-full h-full object-cover animate-ken-burns" alt="" />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 to-transparent" />
-      </div>
-
+      <SiteHeader />
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto px-4 md:px-6 pt-20 min-h-0 relative z-[10]">
+      <div className="flex-1 overflow-y-auto px-4 md:px-6 pt-4 min-h-0 relative z-[10]">
         <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in zoom-in duration-500 pb-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-display font-black text-amber-500 italic tracking-tighter">How to Play</h1>
