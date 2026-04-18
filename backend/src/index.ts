@@ -10,15 +10,13 @@ import { StateService } from './services/stateService.js';
 import { GameEngine } from './services/gameEngine.js';
 import { AiDmService } from './services/aiDmService.js';
 import { ImageService } from './services/imageService.js';
-import { createChatClient } from './ai/AiProviderFactory.js';
+import { createChatClient } from './providers/ai/AiProviderFactory.js';
 import { SettingsService } from './services/settingsService.js';
 import { StorySummaryService } from './services/storySummaryService.js';
 import { parseSuggestedStats, STAT_FALLBACK } from './services/statSuggestionService.js';
 import { Character } from './types.js';
-
-import Database from 'better-sqlite3';
-
-const db = new Database('./database.sqlite');
+import { getConfig } from './config/env.js';
+import { getImageStorageProvider } from './providers/storage/storageProviderFactory.js';
 
 import asyncHandler from 'express-async-handler';
 
@@ -29,9 +27,15 @@ const eventEmitter = new EventEmitter();
 app.use(cors());
 app.use(express.json());
 app.use('/api/images', express.static(path.join(import.meta.dirname, '..', 'public', 'images')));
-const generatedDir = path.join(import.meta.dirname, '..', 'public', 'generated');
+
+const config = getConfig();
+const generatedDir = path.resolve(config.LOCAL_IMAGE_STORAGE_PATH);
 fs.mkdirSync(generatedDir, { recursive: true });
-app.use('/api/generated', express.static(generatedDir));
+app.use(config.LOCAL_IMAGE_PUBLIC_BASE_URL, express.static(generatedDir));
+
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok' });
+});
 
 // SSE Event Stream
 app.get('/api/session/:id/events', (req, res) => {
@@ -54,14 +58,13 @@ app.get('/api/session/:id/events', (req, res) => {
   });
 });
 
-app.get('/api/sessions', asyncHandler(async (req, res) => {
+app.get('/api/sessions', asyncHandler(async (_req, res) => {
   const sessions = await StateService.listSessions();
   res.json(sessions);
 }));
 
-app.get('/api/characters/all', asyncHandler(async (req, res) => {
+app.get('/api/characters/all', asyncHandler(async (_req, res) => {
   const characters = await StateService.listAllCharacters();
-  // Fetch session names for all characters
   const sessions = await StateService.listSessions();
   const sessionMap = new Map(sessions.map(s => [s.id, s.displayName]));
 
@@ -108,12 +111,6 @@ app.post('/api/session/create', asyncHandler(async (req, res) => {
   }
 }));
 
-app.delete('/api/session/:id', asyncHandler(async (req, res) => {
-  await StateService.deleteSession(req.params.id as string);
-  res.json({ success: true });
-  return;
-}));
-
 app.get('/api/session/:id', asyncHandler(async (req, res) => {
   const session = await StateService.getSession(req.params.id as string);
   if (!session) {
@@ -127,7 +124,7 @@ app.post('/api/session/:id/suggest-stat', asyncHandler(async (req, res) => {
   const { action, characterClass, characterQuirk } = req.body as { action: string; characterClass?: string; characterQuirk?: string };
   const session = await StateService.getSession(req.params.id as string);
   if (!session) {
-    res.status(404).json({ stat: 'mischief' }); return; 
+    res.status(404).json({ stat: 'mischief' }); return;
   }
 
   const { client, model } = createChatClient(session.useLocalAI);
@@ -184,9 +181,9 @@ app.post('/api/character/create', asyncHandler(async (req, res) => {
     return;
   }
 
-  const { url: avatarUrl, prompt: avatarPrompt } = !session.savingsMode
+  const avatarResult = !session.savingsMode
     ? await ImageService.generateAvatar(characterData, sessionId, session.useLocalAI)
-    : { url: ImageService.generateInitialsSvg(characterData.name, sessionId), prompt: '' };
+    : { url: ImageService.generateInitialsSvg(characterData.name, sessionId), prompt: '', storageKey: '', storageProvider: 'local' };
 
   const character: Character = {
     id: Math.random().toString(36).substring(7),
@@ -194,13 +191,12 @@ app.post('/api/character/create', asyncHandler(async (req, res) => {
     max_hp: 10,
     status: 'active',
     inventory: [],
-    avatarUrl,
-    avatarPrompt,
+    avatarUrl: avatarResult.url,
+    avatarPrompt: avatarResult.prompt,
+    avatarStorageKey: avatarResult.storageKey,
+    avatarStorageProvider: avatarResult.storageProvider,
     ...characterData
   };
-
-  db.prepare('INSERT INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(character.id, sessionId, character.name, character.class, character.species, character.quirk, character.hp, character.max_hp, characterData.stats.might, characterData.stats.magic, characterData.stats.mischief, character.avatarUrl, character.avatarPrompt);
 
   session.party.push(character);
   if (!session.activeCharacterId) {
@@ -226,11 +222,18 @@ app.put('/api/character/:charId', asyncHandler(async (req, res) => {
     return;
   }
 
-  // Generate new avatar only if session has images enabled
-  const { url: avatarUrl, prompt: avatarPrompt } = !session.savingsMode
+  const avatarResult = !session.savingsMode
     ? await ImageService.generateAvatar(characterData, sessionId, session.useLocalAI)
-    : { url: ImageService.generateInitialsSvg(characterData.name, sessionId), prompt: '' };
-  const updatedChar = { ...session.party[charIndex], ...characterData, avatarUrl, avatarPrompt };
+    : { url: ImageService.generateInitialsSvg(characterData.name, sessionId), prompt: '', storageKey: '', storageProvider: 'local' };
+
+  const updatedChar = {
+    ...session.party[charIndex],
+    ...characterData,
+    avatarUrl: avatarResult.url,
+    avatarPrompt: avatarResult.prompt,
+    avatarStorageKey: avatarResult.storageKey,
+    avatarStorageProvider: avatarResult.storageProvider,
+  };
 
   session.party[charIndex] = updatedChar;
   await StateService.updateSession(sessionId, session);
@@ -246,9 +249,7 @@ app.delete('/api/session/:sessionId/character/:charId', asyncHandler(async (req,
     return;
   }
 
-  // Delete from DB
-  db.prepare('DELETE FROM characters WHERE id = ?').run(charId);
-  db.prepare('DELETE FROM inventory WHERE characterId = ?').run(charId);
+  StateService.deleteCharacter(charId as string);
 
   broadcastUpdate(sessionId as string, 'party_update', { session });
   res.json({ success: true });
@@ -301,7 +302,6 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
 
   broadcastUpdate(sessionId, 'dm_narrating', {});
 
-  // Deterministic item actions — apply effect first, then narrate
   if (actionType === 'use_item' || actionType === 'give_item') {
     const targetId = targetCharacterId || actingCharId;
     const { newState: itemState, actionAttempt: itemAttempt, error } = actionType === 'use_item'
@@ -336,7 +336,6 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
     return;
   }
 
-  // Normal stat-roll action — downed characters cannot act
   if (character.status === 'downed') {
     res.status(400).json({ error: 'downed', message: `${character.name} is downed and cannot act.` });
     return;
@@ -367,10 +366,8 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
   broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
   res.json({ actionAttempt, turnResult, session: newState });
 
-  // Async story summary compression (every 5 turns) - deferred so SSE flush happens first
   setImmediate(() => void StorySummaryService.maybeUpdate(sessionId, newState.turn, session.useLocalAI));
 
-  // Party wipe intervention (once per session safety valve)
   if (GameEngine.isPartyWiped(newState) && !newState.interventionState?.used) {
     void (async () => {
       try {
@@ -400,7 +397,6 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
     })();
   }
 
-  // Sanctuary recovery — second wipe after intervention already used
   if (GameEngine.isPartyWiped(newState) && newState.interventionState?.used) {
     void (async () => {
       try {
@@ -432,10 +428,10 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
 
   console.log(`[Action] imageSuggested=${turnResult.imageSuggested} imagePrompt=${turnResult.imagePrompt ?? 'null'} savingsMode=${session.savingsMode}`);
   if (!session.savingsMode && turnResult.imageSuggested && turnResult.imagePrompt) {
-    void ImageService.generateImage(turnResult.imagePrompt, session.id, newState.turn, session.useLocalAI).then(async imageUrl => {
-      if (imageUrl) {
-        await StateService.updateLatestTurnImageUrl(sessionId, imageUrl);
-        broadcastUpdate(sessionId, 'image_ready', { imageUrl });
+    void ImageService.generateImage(turnResult.imagePrompt, session.id, newState.turn, session.useLocalAI).then(async result => {
+      if (result) {
+        await StateService.updateLatestTurnImage(sessionId, result.url, result.storageKey, result.storageProvider);
+        broadcastUpdate(sessionId, 'image_ready', { imageUrl: result.url });
       }
     }).catch(err => console.error('[Action] Background image generation failed:', err));
   }
@@ -445,6 +441,7 @@ app.get('/api/session/:id/history', asyncHandler(async (req, res) => {
   const history = await StateService.getTurnHistory(req.params.id as string);
   res.json(history);
 }));
+
 app.post('/api/session/:id/start', asyncHandler(async (req, res) => {
   const sessionId = req.params.id as string;
   const session = await StateService.getSession(sessionId);
@@ -453,14 +450,12 @@ app.post('/api/session/:id/start', asyncHandler(async (req, res) => {
     return;
   }
 
-  // Check if history already exists
   const history = await StateService.getTurnHistory(sessionId);
   if (history.length > 0) {
     res.json({ success: true, message: 'Already started' });
     return;
   }
 
-  // Initial turn: "Adventure begins!"
   let initialTurn;
   try {
     initialTurn = await AiDmService.generateTurnResult({ ...session, actionAttempt: "Adventure begins!", actionResult: { success: true, roll: 20, statUsed: 'none' } }, session.useLocalAI);
@@ -477,10 +472,10 @@ app.post('/api/session/:id/start', asyncHandler(async (req, res) => {
   res.json({ success: true });
 
   if (!session.savingsMode) {
-    void ImageService.generateImage(initialTurn.imagePrompt || 'A fantasy world map', sessionId, session.turn, session.useLocalAI).then(async imageUrl => {
-      if (imageUrl) {
-        await StateService.updateLatestTurnImageUrl(sessionId, imageUrl);
-        broadcastUpdate(sessionId, 'image_ready', { imageUrl });
+    void ImageService.generateImage(initialTurn.imagePrompt || 'A fantasy world map', sessionId, session.turn, session.useLocalAI).then(async result => {
+      if (result) {
+        await StateService.updateLatestTurnImage(sessionId, result.url, result.storageKey, result.storageProvider);
+        broadcastUpdate(sessionId, 'image_ready', { imageUrl: result.url });
       }
     }).catch(err => console.error('[Start] Background image generation failed:', err));
   }
@@ -498,6 +493,23 @@ app.post('/api/session/:id/use-local-ai', asyncHandler(async (req, res) => {
   res.json({ useLocalAI: enabled });
 }));
 
-app.listen(PORT, () => {
-  console.log(`Backend listening on port ${PORT}`);
+async function startup() {
+  console.log(`[Config] Persistence: sqlite @ ${config.SQLITE_DB_PATH}`);
+  console.log(`[Config] Image storage: ${config.IMAGE_STORAGE_PROVIDER}`);
+
+  if (config.IMAGE_STORAGE_PROVIDER === 's3') {
+    const provider = getImageStorageProvider();
+    if (provider.validateSetup) {
+      await provider.validateSetup();
+    }
+  }
+
+  app.listen(PORT, () => {
+    console.log(`Backend listening on port ${PORT}`);
+  });
+}
+
+startup().catch(err => {
+  console.error('[Startup] Fatal error:', err);
+  process.exit(1);
 });

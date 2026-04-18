@@ -1,4 +1,4 @@
-import { createChatClient } from '../ai/AiProviderFactory.js';
+import { createChatClient } from '../providers/ai/AiProviderFactory.js';
 import { StateService } from './stateService.js';
 
 const SUMMARY_INTERVAL = 5;

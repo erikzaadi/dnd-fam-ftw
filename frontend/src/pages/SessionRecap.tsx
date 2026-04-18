@@ -174,43 +174,45 @@ export const SessionRecap = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col items-center justify-center p-4 md:p-8 pt-20 pb-36 gap-8 md:gap-10">
+    <div className="h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col overflow-hidden">
       <SiteHeader />
-      <div className="flex items-center justify-between w-full max-w-3xl relative z-[10]">
-        <h1 className="text-xl md:text-3xl font-display font-black text-amber-500 italic tracking-tight">{session.displayName}</h1>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={toggleSavingsMode}
-            title={session.savingsMode ? 'Images off - click to enable' : 'Images on - click to disable'}
-            className={`px-3 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all cursor-pointer ${session.savingsMode ? 'border-amber-500 text-amber-400 bg-amber-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
-          >
-            {session.savingsMode ? '🪙 Saving' : '🖼 Images'}
-          </button>
-          <Link to="/" className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 uppercase font-black text-xs tracking-widest transition-all">Exit World</Link>
-        </div>
-      </div>
-
-      {mode === 'choose' && (
-        <div className="flex flex-col items-center gap-6 animate-in fade-in zoom-in duration-500 relative z-[10]">
-          <p className="text-slate-400 font-black uppercase tracking-widest text-sm">How would you like to catch up?</p>
-          <div className="flex gap-4 md:gap-6">
-            <button onClick={() => setMode('tldr')} className="flex flex-col items-center gap-3 p-6 md:p-8 bg-slate-900 hover:bg-slate-800 rounded-[32px] border border-slate-700 hover:border-amber-500/50 transition-all w-36 md:w-44">
-              <span className="text-4xl">📜</span>
-              <span className="font-black uppercase tracking-widest text-sm">TLDR</span>
-              <span className="text-xs text-slate-500 text-center">AI summary of the adventure</span>
+      <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center px-4 md:px-8 py-6 gap-8 md:gap-10 min-h-0">
+        <div className="flex items-center justify-between w-full max-w-3xl relative z-[10]">
+          <h1 className="text-xl md:text-3xl font-display font-black text-amber-500 italic tracking-tight">{session.displayName}</h1>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleSavingsMode}
+              title={session.savingsMode ? 'Images off - click to enable' : 'Images on - click to disable'}
+              className={`px-3 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all cursor-pointer ${session.savingsMode ? 'border-amber-500 text-amber-400 bg-amber-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
+            >
+              {session.savingsMode ? '🪙 Saving' : '🖼 Images'}
             </button>
-            <button onClick={() => setMode('movie')} className="flex flex-col items-center gap-3 p-6 md:p-8 bg-slate-900 hover:bg-slate-800 rounded-[32px] border border-slate-700 hover:border-amber-500/50 transition-all w-36 md:w-44">
-              <span className="text-4xl">🎬</span>
-              <span className="font-black uppercase tracking-widest text-sm">Movie</span>
-              <span className="text-xs text-slate-500 text-center">Relive each turn with scenes</span>
-            </button>
+            <Link to="/" className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 uppercase font-black text-xs tracking-widest transition-all">Exit World</Link>
           </div>
-          <button onClick={enter} className="text-slate-500 hover:text-slate-300 font-black uppercase text-xs tracking-widest transition-colors">Skip → Jump straight in</button>
         </div>
-      )}
 
-      {mode === 'tldr' && <TldrView sessionId={id!} onEnter={enter} />}
-      {mode === 'movie' && history.length > 0 && <MovieView history={history} party={session.party} onEnter={enter} />}
+        {mode === 'choose' && (
+          <div className="flex flex-col items-center gap-6 animate-in fade-in zoom-in duration-500 relative z-[10]">
+            <p className="text-slate-400 font-black uppercase tracking-widest text-sm">How would you like to catch up?</p>
+            <div className="flex gap-4 md:gap-6">
+              <button onClick={() => setMode('tldr')} className="flex flex-col items-center gap-3 p-6 md:p-8 bg-slate-900 hover:bg-slate-800 rounded-[32px] border border-slate-700 hover:border-amber-500/50 transition-all w-36 md:w-44">
+                <span className="text-4xl">📜</span>
+                <span className="font-black uppercase tracking-widest text-sm">TLDR</span>
+                <span className="text-xs text-slate-500 text-center">AI summary of the adventure</span>
+              </button>
+              <button onClick={() => setMode('movie')} className="flex flex-col items-center gap-3 p-6 md:p-8 bg-slate-900 hover:bg-slate-800 rounded-[32px] border border-slate-700 hover:border-amber-500/50 transition-all w-36 md:w-44">
+                <span className="text-4xl">🎬</span>
+                <span className="font-black uppercase tracking-widest text-sm">Movie</span>
+                <span className="text-xs text-slate-500 text-center">Relive each turn with scenes</span>
+              </button>
+            </div>
+            <button onClick={enter} className="text-slate-500 hover:text-slate-300 font-black uppercase text-xs tracking-widest transition-colors">Skip → Jump straight in</button>
+          </div>
+        )}
+
+        {mode === 'tldr' && <TldrView sessionId={id!} onEnter={enter} />}
+        {mode === 'movie' && history.length > 0 && <MovieView history={history} party={session.party} onEnter={enter} />}
+      </div>
       <DmFooter />
     </div>
   );

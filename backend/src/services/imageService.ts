@@ -2,37 +2,36 @@ import crypto from 'crypto';
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-import { createImageProvider } from '../ai/AiProviderFactory.js';
-import { DEFAULT_NEGATIVE_PROMPT } from '../ai/images/ImageProvider.js';
+import { createImageProvider } from '../providers/ai/AiProviderFactory.js';
+import { DEFAULT_NEGATIVE_PROMPT } from '../providers/ai/images/ImageProvider.js';
+import { getImageStorageProvider } from '../providers/storage/storageProviderFactory.js';
+import { getConfig } from '../config/env.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+export type ImageResult = { url: string; storageKey: string; storageProvider: string };
 
 export class ImageService {
-  private static PUBLIC_DIR = path.join(__dirname, '..', '..', 'public', 'generated');
   private static DEFAULT_IMAGE = '/api/images/default_scene.png';
 
   public static async generateAvatar(
     char: { name: string; class: string; species: string; quirk: string },
     sessionId: string,
     useLocalAI?: boolean,
-  ): Promise<{ url: string; prompt: string }> {
+  ): Promise<{ url: string; prompt: string; storageKey: string; storageProvider: string }> {
     const prompt = `fantasy character portrait, ${char.species} ${char.class}, detailed face, plain dark background, vibrant colors, cinematic lighting, digital illustration`;
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
     const fileName = `avatar_${sessionId}_${char.name}_${promptHash}.png`;
-    const localPath = path.join(this.PUBLIC_DIR, fileName);
-    const publicUrl = `/api/generated/${fileName}`;
+    const storage = getImageStorageProvider();
+    const config = getConfig();
 
-    if (fs.existsSync(localPath)) {
-      return { url: publicUrl, prompt };
+    if (await storage.exists(fileName)) {
+      return { url: storage.getPublicUrl(fileName), prompt, storageKey: fileName, storageProvider: config.IMAGE_STORAGE_PROVIDER };
     }
 
     try {
       console.log(`[ImageService] Generating avatar for ${char.name}`);
       const avatarStart = Date.now();
-      const provider = createImageProvider(useLocalAI);
-      const result = await provider.generateImage({
+      const imageProvider = createImageProvider(useLocalAI);
+      const result = await imageProvider.generateImage({
         prompt,
         negativePrompt: DEFAULT_NEGATIVE_PROMPT,
         width: 1024,
@@ -40,11 +39,13 @@ export class ImageService {
       });
       console.log(`[ImageService] Avatar for ${char.name} received in ${Date.now() - avatarStart}ms`);
 
-      await this.downloadAndSave(result.url, localPath);
-      return { url: publicUrl, prompt };
+      const buffer = await this.fetchImageBuffer(result.url);
+      const stored = await storage.putImage({ key: fileName, contentType: 'image/png', body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
+      return { url: stored.publicUrl, prompt, storageKey: stored.key, storageProvider: config.IMAGE_STORAGE_PROVIDER };
     } catch (error) {
       console.error('[ImageService] Avatar generation failed, using initials SVG:', error);
-      return { url: this.generateInitialsSvg(char.name, sessionId), prompt };
+      const svgUrl = this.generateInitialsSvg(char.name, sessionId);
+      return { url: svgUrl, prompt, storageKey: '', storageProvider: 'local' };
     }
   }
 
@@ -53,55 +54,47 @@ export class ImageService {
     sessionId: string,
     turn: number,
     useLocalAI?: boolean,
-  ): Promise<string | null> {
+  ): Promise<ImageResult | null> {
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
     const fileName = `${sessionId}_turn${turn}_${promptHash}.png`;
-    const localPath = path.join(this.PUBLIC_DIR, fileName);
-    const publicUrl = `/api/generated/${fileName}`;
+    const storage = getImageStorageProvider();
+    const config = getConfig();
 
-    if (fs.existsSync(localPath)) {
-      return publicUrl;
+    if (await storage.exists(fileName)) {
+      return { url: storage.getPublicUrl(fileName), storageKey: fileName, storageProvider: config.IMAGE_STORAGE_PROVIDER };
     }
 
     try {
       console.log(`[ImageService] Generating image for session ${sessionId}: ${prompt}`);
-      const provider = createImageProvider(useLocalAI);
-      const result = await provider.generateImage({
+      const imageProvider = createImageProvider(useLocalAI);
+      const result = await imageProvider.generateImage({
         prompt,
         negativePrompt: DEFAULT_NEGATIVE_PROMPT,
         width: 1024,
         height: 1024,
       });
 
-      await this.downloadAndSave(result.url, localPath);
-      return publicUrl;
+      const buffer = await this.fetchImageBuffer(result.url);
+      const stored = await storage.putImage({ key: fileName, contentType: 'image/png', body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
+      return { url: stored.publicUrl, storageKey: stored.key, storageProvider: config.IMAGE_STORAGE_PROVIDER };
     } catch (error: unknown) {
       const code = (error as { code?: string })?.code;
       if (code === 'content_policy_violation') {
-        console.warn(`[ImageService] Content policy hit, retrying with sanitized prompt`);
+        console.warn('[ImageService] Content policy hit, retrying with sanitized prompt');
         return this.generateSanitizedImage(prompt, sessionId, turn, useLocalAI);
       }
       console.error('[ImageService] Error generating image:', error);
-      return this.DEFAULT_IMAGE;
+      return null;
     }
   }
 
-  private static async downloadAndSave(imageUrl: string, localPath: string): Promise<void> {
-    // base64 data URL from LocalAI
+  private static async fetchImageBuffer(imageUrl: string): Promise<Buffer> {
     if (imageUrl.startsWith('data:')) {
       const base64 = imageUrl.split(',')[1];
-      fs.writeFileSync(localPath, Buffer.from(base64, 'base64'));
-      return;
+      return Buffer.from(base64, 'base64');
     }
-
-    return new Promise((resolve, reject) => {
-      axios.get(imageUrl, { responseType: 'stream' }).then(res => {
-        const writer = fs.createWriteStream(localPath);
-        res.data.pipe(writer);
-        writer.on('finish', resolve);
-        writer.on('error', reject);
-      }).catch(reject);
-    });
+    const res = await axios.get<ArrayBuffer>(imageUrl, { responseType: 'arraybuffer' });
+    return Buffer.from(res.data);
   }
 
   private static sanitizePrompt(prompt: string): string {
@@ -124,31 +117,34 @@ export class ImageService {
     sessionId: string,
     turn: number,
     useLocalAI?: boolean,
-  ): Promise<string> {
+  ): Promise<ImageResult | null> {
     const sanitized = this.sanitizePrompt(originalPrompt);
     const promptHash = crypto.createHash('md5').update(sanitized).digest('hex');
     const fileName = `${sessionId}_turn${turn}_${promptHash}_safe.png`;
-    const localPath = path.join(this.PUBLIC_DIR, fileName);
-    const publicUrl = `/api/generated/${fileName}`;
+    const storage = getImageStorageProvider();
+    const config = getConfig();
 
     try {
-      console.log('Before image provider')
-      const provider = createImageProvider(useLocalAI);
-      console.log('After image provider generating')
-      const result = await provider.generateImage({
+      console.log('Before image provider');
+      const imageProvider = createImageProvider(useLocalAI);
+      console.log('After image provider generating');
+      const result = await imageProvider.generateImage({
         prompt: `family-friendly, ${sanitized}`,
         negativePrompt: DEFAULT_NEGATIVE_PROMPT,
         width: 1024,
         height: 1024,
       });
-      await this.downloadAndSave(result.url, localPath);
-      return publicUrl;
+      const buffer = await this.fetchImageBuffer(result.url);
+      const stored = await storage.putImage({ key: fileName, contentType: 'image/png', body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
+      return { url: stored.publicUrl, storageKey: stored.key, storageProvider: config.IMAGE_STORAGE_PROVIDER };
     } catch {
       console.warn('[ImageService] Sanitized image also failed, using default.');
-      return this.DEFAULT_IMAGE;
+      return null;
     }
   }
 
+  // Initials SVG avatars are always written locally and served by the backend,
+  // regardless of the image storage provider. They are tiny and act as a fallback.
   public static generateInitialsSvg(name: string, sessionId: string): string {
     const words = name.trim().split(/\s+/);
     const initials = words.length >= 2
@@ -164,10 +160,12 @@ export class ImageService {
   <text x="50" y="50" text-anchor="middle" dominant-baseline="central" font-size="32" font-weight="900" fill="${color}" font-family="sans-serif">${initials}</text>
 </svg>`;
 
+    const config = getConfig();
+    const storageDir = path.resolve(config.LOCAL_IMAGE_STORAGE_PATH);
+    fs.mkdirSync(storageDir, { recursive: true });
     const fileName = `avatar_initials_${sessionId}_${name.replace(/\s+/g, '_')}.svg`;
-    const localPath = path.join(this.PUBLIC_DIR, fileName);
-    fs.writeFileSync(localPath, svg, 'utf8');
-    return `/api/generated/${fileName}`;
+    fs.writeFileSync(path.join(storageDir, fileName), svg, 'utf8');
+    return `${config.LOCAL_IMAGE_PUBLIC_BASE_URL}/${fileName}`;
   }
 
   public static getDefaultImage(): string {

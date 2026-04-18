@@ -4,3 +4,4 @@ backend/*.sqlite.temp
 backend/public/generated/*
 !backend/public/generated/.gitkeep
 backend/dist
+backend/data

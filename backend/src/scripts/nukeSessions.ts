@@ -3,12 +3,20 @@
  * Run from backend/: npx tsx src/scripts/nukeSessions.ts
  */
 
-import Database from 'better-sqlite3';
+import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import Database from 'better-sqlite3';
+import { getConfig } from '../config/env.js';
+import { StateService } from '../services/stateService.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const db = new Database(path.join(__dirname, '..', '..', 'database.sqlite'));
+dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '.env') });
+
+// Ensure DB exists and migrations have run
+StateService.initialize();
+
+const dbPath = path.resolve(getConfig().SQLITE_DB_PATH);
+const db = new Database(dbPath);
 
 const tables = ['turn_choices', 'turn_history', 'inventory', 'characters', 'history', 'sessions'];
 
@@ -19,6 +27,6 @@ const nuke = db.transaction(() => {
   }
 });
 
-console.log('Nuking all sessions...');
+console.log(`Nuking all sessions in ${dbPath}...`);
 nuke();
 console.log('Done.');

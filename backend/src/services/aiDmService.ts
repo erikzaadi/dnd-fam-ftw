@@ -1,7 +1,7 @@
 import { AIInput, TurnResult } from '../types.js';
-import { createNarrationProvider } from '../ai/AiProviderFactory.js';
-import type { NarrationInput } from '../ai/narration/NarrationProvider.js';
-import { NARRATION_FALLBACK } from '../ai/narration/narrationSchemas.js';
+import { createNarrationProvider } from '../providers/ai/AiProviderFactory.js';
+import type { NarrationInput } from '../providers/ai/narration/NarrationProvider.js';
+import { NARRATION_FALLBACK } from '../providers/ai/narration/narrationSchemas.js';
 
 export function toNarrationInput(input: AIInput): NarrationInput {
   const activeChar = input.party.find(c => c.id === input.activeCharacterId);

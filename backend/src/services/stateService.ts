@@ -1,6 +1,8 @@
 import Database, { Database as DB } from 'better-sqlite3';
 import { SessionState, Character, TurnResult, InventoryItem } from '../types.js';
-import { createChatClient } from '../ai/AiProviderFactory.js';
+import { createChatClient } from '../providers/ai/AiProviderFactory.js';
+import { getConfig } from '../config/env.js';
+import { getImageStorageProvider } from '../providers/storage/storageProviderFactory.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -9,7 +11,11 @@ export class StateService {
 
   private static getDb() {
     if (!this.db) {
-      this.db = new Database('./database.sqlite');
+      const config = getConfig();
+      const dbPath = path.resolve(config.SQLITE_DB_PATH);
+      fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+      console.log(`[DB] Opening SQLite at ${dbPath}`);
+      this.db = new Database(dbPath);
       this.migrate(this.db);
     }
     return this.db;
@@ -97,6 +103,10 @@ export class StateService {
     if (!turnCols.includes('actionDifficultyTarget')) {
       db.prepare("ALTER TABLE turn_history ADD COLUMN actionDifficultyTarget INTEGER").run();
     }
+    if (!turnCols.includes('image_storage_key')) {
+      db.prepare("ALTER TABLE turn_history ADD COLUMN image_storage_key TEXT").run();
+      db.prepare("ALTER TABLE turn_history ADD COLUMN image_storage_provider TEXT").run();
+    }
 
     const choiceCols = (db.prepare("PRAGMA table_info(turn_choices)").all() as { name: string }[]).map(r => r.name);
     if (!choiceCols.includes('difficultyValue')) {
@@ -106,6 +116,13 @@ export class StateService {
     const charCols = (db.prepare("PRAGMA table_info(characters)").all() as { name: string }[]).map(r => r.name);
     if (!charCols.includes('avatarPrompt')) {
       db.prepare("ALTER TABLE characters ADD COLUMN avatarPrompt TEXT").run();
+    }
+    if (!charCols.includes('status')) {
+      db.prepare("ALTER TABLE characters ADD COLUMN status TEXT NOT NULL DEFAULT 'active'").run();
+    }
+    if (!charCols.includes('avatar_storage_key')) {
+      db.prepare("ALTER TABLE characters ADD COLUMN avatar_storage_key TEXT").run();
+      db.prepare("ALTER TABLE characters ADD COLUMN avatar_storage_provider TEXT").run();
     }
 
     const invCols = (db.prepare("PRAGMA table_info(inventory)").all() as { name: string }[]).map(r => r.name);
@@ -125,11 +142,6 @@ export class StateService {
       db.prepare("ALTER TABLE inventory ADD COLUMN consumable INTEGER").run();
     }
 
-    const charCols2 = (db.prepare("PRAGMA table_info(characters)").all() as { name: string }[]).map(r => r.name);
-    if (!charCols2.includes('status')) {
-      db.prepare("ALTER TABLE characters ADD COLUMN status TEXT NOT NULL DEFAULT 'active'").run();
-    }
-
     const sessionCols = (db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[]).map(r => r.name);
     if (!sessionCols.includes('savingsMode')) {
       db.prepare("ALTER TABLE sessions ADD COLUMN savingsMode INTEGER NOT NULL DEFAULT 0").run();
@@ -145,11 +157,15 @@ export class StateService {
     }
   }
 
+  // Ensures the DB is open and migrations have run. Safe to call multiple times.
+  public static initialize(): void {
+    this.getDb();
+  }
+
   public static async createSession(worldDescription?: string, difficulty: string = 'normal', useLocalAI: boolean = false, savingsMode: boolean = false): Promise<SessionState> {
     const db = this.getDb();
     const id = Math.random().toString(36).substring(7);
 
-    // Generate Display Name
     const { client, model } = createChatClient(useLocalAI);
     const isLocal = process.env.AI_NARRATION_PROVIDER === 'localai';
     console.log(`[Session] Generating display name via ${isLocal ? 'LocalAI' : 'OpenAI'} model=${model}`);
@@ -202,7 +218,9 @@ export class StateService {
       interventionState: { used: false },
       storySummary: '',
     };
-  }  public static async getSession(id: string): Promise<SessionState | undefined> {
+  }
+
+  public static async getSession(id: string): Promise<SessionState | undefined> {
     const db = this.getDb();
     const row = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as {
       id: string;
@@ -236,6 +254,8 @@ export class StateService {
       mischief: number;
       avatarUrl: string | null;
       avatarPrompt: string | null;
+      avatar_storage_key: string | null;
+      avatar_storage_provider: string | null;
       status: string | null;
     }[];
     for (const char of characters) {
@@ -278,6 +298,8 @@ export class StateService {
         status: c.hp === 0 ? 'downed' : ((c.status as 'active' | 'downed') ?? 'active'),
         avatarUrl: c.avatarUrl || undefined,
         avatarPrompt: c.avatarPrompt || undefined,
+        avatarStorageKey: c.avatar_storage_key || undefined,
+        avatarStorageProvider: c.avatar_storage_provider || undefined,
         stats: (c as unknown as { stats: { might: number, magic: number, mischief: number } }).stats,
         inventory: (c as unknown as { inventory: InventoryItem[] }).inventory
       })),
@@ -311,31 +333,46 @@ export class StateService {
 
   public static async deleteSession(id: string): Promise<void> {
     const db = this.getDb();
-    const imagesDir = path.join(import.meta.dirname, '../../public/images');
-    const generatedDir = path.join(import.meta.dirname, '../../public/generated');
+    const config = getConfig();
+    const storage = getImageStorageProvider();
 
-    const deleteImageFile = (url: string | null) => {
-      if (!url) {
-        return;
-      }
-      // Resolve the correct directory based on the URL prefix
-      const dir = url.startsWith('/api/generated/') ? generatedDir : imagesDir;
-      const filePath = path.join(dir, path.basename(url));
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+    const deleteImage = async (imageUrl: string | null, storageKey: string | null, storageProvider: string | null) => {
+      if (!imageUrl) return;
+      // Skip static bundled assets served from /api/images/
+      if (imageUrl.startsWith('/api/images/')) return;
+
+      if (storageKey && storageProvider) {
+        try {
+          await storage.deleteImage(storageKey);
+        } catch (err) {
+          console.warn(`[StateService] Failed to delete image key "${storageKey}" from ${storageProvider}:`, err);
+        }
+      } else {
+        // Fallback for records created before storage key tracking: delete from local path
+        const fileName = path.basename(imageUrl);
+        const localPath = path.join(path.resolve(config.LOCAL_IMAGE_STORAGE_PATH), fileName);
+        if (fs.existsSync(localPath)) {
+          fs.unlinkSync(localPath);
+        }
       }
     };
 
-    // Delete scene images
-    const history = db.prepare('SELECT imageUrl FROM turn_history WHERE sessionId = ?').all(id) as { imageUrl: string | null }[];
+    const history = db.prepare('SELECT imageUrl, image_storage_key, image_storage_provider FROM turn_history WHERE sessionId = ?').all(id) as {
+      imageUrl: string | null;
+      image_storage_key: string | null;
+      image_storage_provider: string | null;
+    }[];
     for (const row of history) {
-      deleteImageFile(row.imageUrl);
+      await deleteImage(row.imageUrl, row.image_storage_key, row.image_storage_provider);
     }
 
-    // Delete avatar images
-    const characters = db.prepare('SELECT avatarUrl FROM characters WHERE sessionId = ?').all(id) as { avatarUrl: string | null }[];
+    const characters = db.prepare('SELECT avatarUrl, avatar_storage_key, avatar_storage_provider FROM characters WHERE sessionId = ?').all(id) as {
+      avatarUrl: string | null;
+      avatar_storage_key: string | null;
+      avatar_storage_provider: string | null;
+    }[];
     for (const char of characters) {
-      deleteImageFile(char.avatarUrl);
+      await deleteImage(char.avatarUrl, char.avatar_storage_key, char.avatar_storage_provider);
     }
 
     db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
@@ -348,8 +385,8 @@ export class StateService {
       .run(state.scene, state.sceneId, state.turn, state.activeCharacterId, state.tone, state.interventionState?.used ? 1 : 0, state.storySummary ?? '', id);
 
     for (const char of state.party) {
-      db.prepare('INSERT OR REPLACE INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(char.id, id, char.name, char.class, char.species, char.quirk, char.hp, char.max_hp, char.stats.might, char.stats.magic, char.stats.mischief, char.avatarUrl || null, char.avatarPrompt || null, char.status ?? 'active');
+      db.prepare('INSERT OR REPLACE INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt, status, avatar_storage_key, avatar_storage_provider) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(char.id, id, char.name, char.class, char.species, char.quirk, char.hp, char.max_hp, char.stats.might, char.stats.magic, char.stats.mischief, char.avatarUrl || null, char.avatarPrompt || null, char.status ?? 'active', char.avatarStorageKey || null, char.avatarStorageProvider || null);
 
       db.prepare('DELETE FROM inventory WHERE characterId = ?').run(char.id);
       for (const item of (char.inventory ?? [])) {
@@ -462,15 +499,16 @@ export class StateService {
       };
     });
   }
+
   public static async updateStorySummary(sessionId: string, summary: string): Promise<void> {
     const db = this.getDb();
     db.prepare('UPDATE sessions SET storySummary = ? WHERE id = ?').run(summary, sessionId);
   }
 
-  public static async updateLatestTurnImageUrl(sessionId: string, imageUrl: string): Promise<void> {
+  public static async updateLatestTurnImage(sessionId: string, imageUrl: string, storageKey: string, storageProvider: string): Promise<void> {
     const db = this.getDb();
-    db.prepare('UPDATE turn_history SET imageUrl = ? WHERE id = (SELECT MAX(id) FROM turn_history WHERE sessionId = ?)')
-      .run(imageUrl, sessionId);
+    db.prepare('UPDATE turn_history SET imageUrl = ?, image_storage_key = ?, image_storage_provider = ? WHERE id = (SELECT MAX(id) FROM turn_history WHERE sessionId = ?)')
+      .run(imageUrl, storageKey || null, storageProvider || null, sessionId);
   }
 
   public static async addTurnResult(id: string, turn: TurnResult, characterId: string | null): Promise<void> {
@@ -495,5 +533,11 @@ export class StateService {
       db.prepare('INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue) VALUES (?, ?, ?, ?, ?)')
         .run(turnId, choice.label, choice.difficulty, choice.stat, choice.difficultyValue ?? null);
     }
+  }
+
+  public static deleteCharacter(charId: string): void {
+    const db = this.getDb();
+    db.prepare('DELETE FROM inventory WHERE characterId = ?').run(charId);
+    db.prepare('DELETE FROM characters WHERE id = ?').run(charId);
   }
 }

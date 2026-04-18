@@ -21,6 +21,8 @@ export interface Character {
   status: CharacterStatus;
   avatarUrl?: string;
   avatarPrompt?: string;
+  avatarStorageKey?: string;
+  avatarStorageProvider?: string;
   stats: {
     might: number;
     magic: number;

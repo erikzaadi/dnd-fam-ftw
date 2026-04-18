@@ -3,12 +3,16 @@
  * Run from backend/: npx tsx src/scripts/listSessions.ts
  */
 
-import Database from 'better-sqlite3';
+import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import Database from 'better-sqlite3';
+import { getConfig } from '../config/env.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const db = new Database(path.join(__dirname, '..', '..', 'database.sqlite'), { readonly: true });
+dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '.env') });
+
+const dbPath = path.resolve(getConfig().SQLITE_DB_PATH);
+const db = new Database(dbPath, { readonly: true });
 
 const jsonMode = process.argv.includes('--json');
 
@@ -20,6 +24,7 @@ const history = db.prepare('SELECT * FROM turn_history').all();
 if (jsonMode) {
   console.log(JSON.stringify({ sessions, characters, inventory, history }, null, 2));
 } else {
+  console.log(`=== DB: ${dbPath} ===\n`);
   console.log('=== SESSIONS ===');
   console.table(sessions);
 
