@@ -5,6 +5,7 @@ dotenv.config({ path: path.join(import.meta.dirname, '../../.env') });
 
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { EventEmitter } from 'events';
 import { StateService } from './services/stateService.js';
 import { GameEngine } from './services/gameEngine.js';
@@ -15,8 +16,10 @@ import { SettingsService } from './services/settingsService.js';
 import { StorySummaryService } from './services/storySummaryService.js';
 import { parseSuggestedStats, STAT_FALLBACK } from './services/statSuggestionService.js';
 import { Character } from './types.js';
-import { getConfig } from './config/env.js';
+import { getConfig, isAuthEnabled } from './config/env.js';
 import { getImageStorageProvider } from './providers/storage/storageProviderFactory.js';
+import { getAuthPublicConfig, buildGoogleAuthUrl, exchangeCodeForEmail, signJwt } from './services/authService.js';
+import { authMiddleware } from './middleware/auth.js';
 
 import asyncHandler from 'express-async-handler';
 
@@ -24,21 +27,106 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const eventEmitter = new EventEmitter();
 
-app.use(cors());
+app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
-app.use('/api/images', express.static(path.join(import.meta.dirname, '..', 'public', 'images')));
+app.use(cookieParser());
+app.use('/images', express.static(path.join(import.meta.dirname, '..', 'public', 'images')));
 
 const config = getConfig();
 const generatedDir = path.resolve(config.LOCAL_IMAGE_STORAGE_PATH);
 fs.mkdirSync(generatedDir, { recursive: true });
 app.use(config.LOCAL_IMAGE_PUBLIC_BASE_URL, express.static(generatedDir));
 
+// Bootstrap admin user if ADMIN_EMAIL is set and auth is enabled
+StateService.initialize();
+if (isAuthEnabled()) {
+  console.log(`[Auth] Enabled - Google OAuth active, callback: ${config.GOOGLE_CALLBACK_URL}`);
+  if (config.ADMIN_EMAIL) {
+    StateService.ensureAdminUser(config.ADMIN_EMAIL);
+  }
+} else {
+  console.log('[Auth] Disabled - no GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/JWT_SECRET in env, all requests use local namespace');
+}
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
+// --- Auth routes (public - no auth middleware) ---
+
+app.get('/auth/config', (_req, res) => {
+  res.json(getAuthPublicConfig());
+});
+
+app.get('/auth/me', (req, res, next) => authMiddleware(req, res, next), (req, res) => {
+  if (!isAuthEnabled()) {
+    res.json({ enabled: false, email: null, namespaceId: 'local' });
+    return;
+  }
+  res.json({ enabled: true, email: req.userEmail, namespaceId: req.namespaceId });
+});
+
+app.get('/auth/google', (_req, res) => {
+  if (!isAuthEnabled()) {
+    res.status(404).json({ error: 'Auth not configured' });
+    return;
+  }
+  const state = Math.random().toString(36).substring(7);
+  res.redirect(buildGoogleAuthUrl(state));
+});
+
+app.get('/auth/google/callback', asyncHandler(async (req, res) => {
+  if (!isAuthEnabled()) {
+    res.status(404).json({ error: 'Auth not configured' });
+    return;
+  }
+
+  const code = req.query.code as string;
+  if (!code) {
+    res.status(400).json({ error: 'Missing code' });
+    return;
+  }
+
+  const email = await exchangeCodeForEmail(code);
+  const user = StateService.getUserByEmail(email);
+  if (!user) {
+    console.warn(`[Auth] Login denied for unregistered email: ${email}`);
+    const basePath = config.APP_BASE_PATH;
+    res.redirect(`${config.FRONTEND_URL ?? ''}${basePath}login?error=unauthorized`);
+    return;
+  }
+
+  const token = signJwt({ email: user.email, namespaceId: user.namespace_id });
+  const isProduction = process.env.NODE_ENV === 'production';
+  res.cookie('jwt', token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: isProduction,
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    path: '/',
+  });
+
+  const frontendUrl = config.FRONTEND_URL ?? '';
+  const basePath = config.APP_BASE_PATH;
+  res.redirect(`${frontendUrl}${basePath}`);
+}));
+
+app.post('/auth/logout', (_req, res) => {
+  res.clearCookie('jwt', { path: '/' });
+  res.json({ ok: true });
+});
+
+// Apply auth middleware to all routes except /auth/* /images/* and /health
+app.use((req, res, next) => {
+  if (req.path.startsWith('/auth/') || req.path.startsWith('/images/') || req.path === '/health') {
+    next();
+    return;
+  }
+  authMiddleware(req, res, next);
+});
+
 // SSE Event Stream
-app.get('/api/session/:id/events', (req, res) => {
+app.get('/session/:id/events', (req, res) => {
   const sessionId = req.params.id;
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -58,12 +146,12 @@ app.get('/api/session/:id/events', (req, res) => {
   });
 });
 
-app.get('/api/sessions', asyncHandler(async (_req, res) => {
-  const sessions = await StateService.listSessions();
+app.get('/sessions', asyncHandler(async (req, res) => {
+  const sessions = await StateService.listSessions(req.namespaceId);
   res.json(sessions);
 }));
 
-app.get('/api/characters/all', asyncHandler(async (_req, res) => {
+app.get('/characters/all', asyncHandler(async (_req, res) => {
   const characters = await StateService.listAllCharacters();
   const sessions = await StateService.listSessions();
   const sessionMap = new Map(sessions.map(s => [s.id, s.displayName]));
@@ -75,16 +163,16 @@ app.get('/api/characters/all', asyncHandler(async (_req, res) => {
   res.json(enhancedCharacters);
 }));
 
-app.delete('/api/session/:id', asyncHandler(async (req, res) => {
+app.delete('/session/:id', asyncHandler(async (req, res) => {
   await StateService.deleteSession(req.params.id as string);
   res.json({ success: true });
 }));
 
-app.get('/api/settings', (_req, res) => {
+app.get('/settings', (_req, res) => {
   res.json(SettingsService.get());
 });
 
-app.post('/api/settings', asyncHandler(async (req, res) => {
+app.post('/settings', asyncHandler(async (req, res) => {
   const settings = SettingsService.save(req.body);
   res.json(settings);
 }));
@@ -95,11 +183,11 @@ const broadcastUpdate = (sessionId: string, type: string, payload: Record<string
 };
 
 // API Endpoints
-app.post('/api/session/create', asyncHandler(async (req, res) => {
+app.post('/session/create', asyncHandler(async (req, res) => {
   const { worldDescription, difficulty, useLocalAI } = req.body;
   try {
     const savingsMode = !SettingsService.get().imagesEnabled;
-    const session = await StateService.createSession(worldDescription, difficulty, !!useLocalAI, savingsMode);
+    const session = await StateService.createSession(worldDescription, difficulty, !!useLocalAI, savingsMode, req.namespaceId);
     res.json(session);
   } catch (error: unknown) {
     const status = (error as { status?: number })?.status;
@@ -111,7 +199,7 @@ app.post('/api/session/create', asyncHandler(async (req, res) => {
   }
 }));
 
-app.get('/api/session/:id', asyncHandler(async (req, res) => {
+app.get('/session/:id', asyncHandler(async (req, res) => {
   const session = await StateService.getSession(req.params.id as string);
   if (!session) {
     res.status(404).json({ error: 'Session not found' });
@@ -120,7 +208,7 @@ app.get('/api/session/:id', asyncHandler(async (req, res) => {
   res.json(session);
 }));
 
-app.post('/api/session/:id/suggest-stat', asyncHandler(async (req, res) => {
+app.post('/session/:id/suggest-stat', asyncHandler(async (req, res) => {
   const { action, characterClass, characterQuirk } = req.body as { action: string; characterClass?: string; characterQuirk?: string };
   const session = await StateService.getSession(req.params.id as string);
   if (!session) {
@@ -145,7 +233,7 @@ app.post('/api/session/:id/suggest-stat', asyncHandler(async (req, res) => {
   }
 }));
 
-app.post('/api/character/suggest-stats', asyncHandler(async (req, res) => {
+app.post('/character/suggest-stats', asyncHandler(async (req, res) => {
   const { name, class: charClass, species, quirk, useLocalAI } = req.body;
   const { client, model } = createChatClient(!!useLocalAI);
   try {
@@ -173,7 +261,7 @@ Reply with ONLY valid JSON: {"might": N, "magic": N, "mischief": N}`
   }
 }));
 
-app.post('/api/character/create', asyncHandler(async (req, res) => {
+app.post('/character/create', asyncHandler(async (req, res) => {
   const { sessionId, characterData } = req.body;
   const session = await StateService.getSession(sessionId);
   if (!session) {
@@ -207,7 +295,7 @@ app.post('/api/character/create', asyncHandler(async (req, res) => {
   res.json(character);
 }));
 
-app.put('/api/character/:charId', asyncHandler(async (req, res) => {
+app.put('/character/:charId', asyncHandler(async (req, res) => {
   const { sessionId, characterData } = req.body;
   const charId = req.params.charId;
   const session = await StateService.getSession(sessionId);
@@ -241,7 +329,7 @@ app.put('/api/character/:charId', asyncHandler(async (req, res) => {
   res.json(updatedChar);
 }));
 
-app.delete('/api/session/:sessionId/character/:charId', asyncHandler(async (req, res) => {
+app.delete('/session/:sessionId/character/:charId', asyncHandler(async (req, res) => {
   const { sessionId, charId } = req.params;
   const session = await StateService.getSession(sessionId as string);
   if (!session) {
@@ -255,7 +343,7 @@ app.delete('/api/session/:sessionId/character/:charId', asyncHandler(async (req,
   res.json({ success: true });
 }));
 
-app.get('/api/session/:id/summary', asyncHandler(async (req, res) => {
+app.get('/session/:id/summary', asyncHandler(async (req, res) => {
   const session = await StateService.getSession(req.params.id as string);
   if (!session) {
     res.status(404).json({ error: 'Session not found' });
@@ -284,7 +372,7 @@ app.get('/api/session/:id/summary', asyncHandler(async (req, res) => {
   }
 }));
 
-app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
+app.post('/session/:id/action', asyncHandler(async (req, res) => {
   const { action, statUsed, difficulty, difficultyValue, characterId, actionType, itemId, targetCharacterId } = req.body;
   const sessionId = req.params.id as string;
   const session = await StateService.getSession(sessionId);
@@ -383,7 +471,7 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
         };
         const interventionTurn = await AiDmService.generateTurnResult(interventionInput, session.useLocalAI);
         interventionTurn.turnType = 'intervention';
-        interventionTurn.imageUrl = '/api/images/intervention_dragon.png';
+        interventionTurn.imageUrl = '/images/intervention_dragon.png';
 
         const postState = GameEngine.updateState(rescuedState, interventionInput, interventionTurn as unknown as Record<string, unknown>);
         await StateService.updateSession(sessionId, postState);
@@ -412,7 +500,7 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
         };
         const sanctuaryTurn = await AiDmService.generateTurnResult(sanctuaryInput, session.useLocalAI);
         sanctuaryTurn.turnType = 'sanctuary';
-        sanctuaryTurn.imageUrl = '/api/images/sanctuary_light.png';
+        sanctuaryTurn.imageUrl = '/images/sanctuary_light.png';
 
         const postState = GameEngine.updateState(sanctuaryState, sanctuaryInput, sanctuaryTurn as unknown as Record<string, unknown>);
         await StateService.updateSession(sessionId, postState);
@@ -437,12 +525,12 @@ app.post('/api/session/:id/action', asyncHandler(async (req, res) => {
   }
 }));
 
-app.get('/api/session/:id/history', asyncHandler(async (req, res) => {
+app.get('/session/:id/history', asyncHandler(async (req, res) => {
   const history = await StateService.getTurnHistory(req.params.id as string);
   res.json(history);
 }));
 
-app.post('/api/session/:id/start', asyncHandler(async (req, res) => {
+app.post('/session/:id/start', asyncHandler(async (req, res) => {
   const sessionId = req.params.id as string;
   const session = await StateService.getSession(sessionId);
   if (!session) {
@@ -481,13 +569,13 @@ app.post('/api/session/:id/start', asyncHandler(async (req, res) => {
   }
 }));
 
-app.post('/api/session/:id/savings-mode', asyncHandler(async (req, res) => {
+app.post('/session/:id/savings-mode', asyncHandler(async (req, res) => {
   const { enabled } = req.body as { enabled: boolean };
   await StateService.setSavingsMode(req.params.id as string, enabled);
   res.json({ savingsMode: enabled });
 }));
 
-app.post('/api/session/:id/use-local-ai', asyncHandler(async (req, res) => {
+app.post('/session/:id/use-local-ai', asyncHandler(async (req, res) => {
   const { enabled } = req.body as { enabled: boolean };
   await StateService.setUseLocalAI(req.params.id as string, enabled);
   res.json({ useLocalAI: enabled });

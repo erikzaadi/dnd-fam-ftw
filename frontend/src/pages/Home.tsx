@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DmFooter } from '../components/DmFooter';
 import { SiteHeader } from '../components/SiteHeader';
-import { api, imgSrc } from '../lib/api';
+import { apiFetch, imgSrc } from '../lib/api';
 import type { SessionPreview } from '../types';
 
 const WorldCard = ({
@@ -80,7 +80,7 @@ export const Home = () => {
   const navigate = useNavigate();
 
   const loadSessions = () => {
-    fetch(api('/sessions'))
+    apiFetch('/sessions')
       .then(res => res.json())
       .then(data => setActiveSessions(data));
   };
@@ -91,7 +91,7 @@ export const Home = () => {
     setConfirmDialog({
       message: `Permanently destroy "${displayName}"?`,
       onConfirm: async () => {
-        await fetch(api(`/session/${id}`), { method: 'DELETE' });
+        await apiFetch(`/session/${id}`, { method: 'DELETE' });
         loadSessions();
         setConfirmDialog(null);
       }

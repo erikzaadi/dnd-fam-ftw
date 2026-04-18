@@ -155,6 +155,28 @@ export class StateService {
     if (!sessionCols.includes('storySummary')) {
       db.prepare("ALTER TABLE sessions ADD COLUMN storySummary TEXT NOT NULL DEFAULT ''").run();
     }
+    if (!sessionCols.includes('namespace_id')) {
+      db.prepare("ALTER TABLE sessions ADD COLUMN namespace_id TEXT NOT NULL DEFAULT 'local'").run();
+    }
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS namespaces (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL UNIQUE,
+        namespace_id TEXT NOT NULL REFERENCES namespaces(id),
+        role TEXT NOT NULL DEFAULT 'member',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Always ensure the local (no-auth) namespace exists
+    db.prepare("INSERT OR IGNORE INTO namespaces (id, name) VALUES ('local', 'Local')").run();
   }
 
   // Ensures the DB is open and migrations have run. Safe to call multiple times.
@@ -162,7 +184,7 @@ export class StateService {
     this.getDb();
   }
 
-  public static async createSession(worldDescription?: string, difficulty: string = 'normal', useLocalAI: boolean = false, savingsMode: boolean = false): Promise<SessionState> {
+  public static async createSession(worldDescription?: string, difficulty: string = 'normal', useLocalAI: boolean = false, savingsMode: boolean = false, namespaceId: string = 'local'): Promise<SessionState> {
     const db = this.getDb();
     const id = Math.random().toString(36).substring(7);
 
@@ -195,8 +217,8 @@ export class StateService {
       console.warn(`[Session] Display name generation failed or timed out (${Date.now() - nameStart}ms), using fallback:`, err);
     }
 
-    db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, turn, tone, displayName, difficulty, useLocalAI, savingsMode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, "A New World", "start-1", worldDescription || null, 1, "thrilling adventure", displayName, difficulty, useLocalAI ? 1 : 0, savingsMode ? 1 : 0);
+    db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, turn, tone, displayName, difficulty, useLocalAI, savingsMode, namespace_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, "A New World", "start-1", worldDescription || null, 1, "thrilling adventure", displayName, difficulty, useLocalAI ? 1 : 0, savingsMode ? 1 : 0, namespaceId);
 
     return {
       id,
@@ -337,9 +359,13 @@ export class StateService {
     const storage = getImageStorageProvider();
 
     const deleteImage = async (imageUrl: string | null, storageKey: string | null, storageProvider: string | null) => {
-      if (!imageUrl) return;
+      if (!imageUrl) {
+        return;
+      }
       // Skip static bundled assets served from /api/images/
-      if (imageUrl.startsWith('/api/images/')) return;
+      if (imageUrl.startsWith('/api/images/')) {
+        return;
+      }
 
       if (storageKey && storageProvider) {
         try {
@@ -396,9 +422,9 @@ export class StateService {
     }
   }
 
-  public static async listSessions(): Promise<{ id: string; displayName: string; worldDescription?: string; storySummary?: string; party: { id: string; name: string; class: string; species: string; avatarUrl?: string; hp: number; max_hp: number }[] }[]> {
+  public static async listSessions(namespaceId: string = 'local'): Promise<{ id: string; displayName: string; worldDescription?: string; storySummary?: string; party: { id: string; name: string; class: string; species: string; avatarUrl?: string; hp: number; max_hp: number }[] }[]> {
     const db = this.getDb();
-    const rows = db.prepare('SELECT id, displayName, worldDescription, storySummary FROM sessions ORDER BY createdAt DESC').all() as { id: string; displayName: string; worldDescription: string | null; storySummary: string | null }[];
+    const rows = db.prepare('SELECT id, displayName, worldDescription, storySummary FROM sessions WHERE namespace_id = ? ORDER BY createdAt DESC').all(namespaceId) as { id: string; displayName: string; worldDescription: string | null; storySummary: string | null }[];
     return rows.map(row => {
       const chars = db.prepare('SELECT id, name, class, species, avatarUrl, hp, max_hp FROM characters WHERE sessionId = ?').all(row.id) as { id: string; name: string; class: string; species: string; avatarUrl: string | null; hp: number; max_hp: number }[];
       return {
@@ -539,5 +565,119 @@ export class StateService {
     const db = this.getDb();
     db.prepare('DELETE FROM inventory WHERE characterId = ?').run(charId);
     db.prepare('DELETE FROM characters WHERE id = ?').run(charId);
+  }
+
+  // --- Namespace / User management ---
+
+  public static getUserByEmail(email: string): { id: string; email: string; namespace_id: string; role: string } | null {
+    const db = this.getDb();
+    return (db.prepare('SELECT id, email, namespace_id, role FROM users WHERE email = ?').get(email) as { id: string; email: string; namespace_id: string; role: string }) ?? null;
+  }
+
+  public static createUser(email: string, namespaceName?: string, role: string = 'member'): { userId: string; namespaceId: string } {
+    const db = this.getDb();
+    const namespaceId = Math.random().toString(36).substring(7);
+    const userId = Math.random().toString(36).substring(7);
+    const nsName = namespaceName ?? email.split('@')[0];
+    db.prepare('INSERT INTO namespaces (id, name) VALUES (?, ?)').run(namespaceId, nsName);
+    db.prepare('INSERT INTO users (id, email, namespace_id, role) VALUES (?, ?, ?, ?)').run(userId, email, namespaceId, role);
+    return { userId, namespaceId };
+  }
+
+  public static ensureAdminUser(email: string): void {
+    const existing = this.getUserByEmail(email);
+    if (existing) {
+      console.log(`[Auth] Admin user already exists: ${email} (namespace: ${existing.namespace_id})`);
+      return;
+    }
+    const { userId, namespaceId } = this.createUser(email, 'Admin', 'admin');
+    console.log(`[Auth] Created admin user: ${email} userId=${userId} namespaceId=${namespaceId}`);
+  }
+
+  public static listUsers(): { id: string; email: string; namespace_id: string; namespace_name: string; role: string; created_at: string }[] {
+    const db = this.getDb();
+    return db.prepare(`
+      SELECT u.id, u.email, u.namespace_id, n.name as namespace_name, u.role, u.created_at
+      FROM users u JOIN namespaces n ON u.namespace_id = n.id
+      ORDER BY u.created_at
+    `).all() as { id: string; email: string; namespace_id: string; namespace_name: string; role: string; created_at: string }[];
+  }
+
+  public static deleteUser(email: string): boolean {
+    const db = this.getDb();
+    const user = this.getUserByEmail(email);
+    if (!user) {
+      return false;
+    }
+    db.prepare('DELETE FROM users WHERE email = ?').run(email);
+    // Remove namespace if no other users reference it (and it's not 'local')
+    if (user.namespace_id !== 'local') {
+      const otherUsers = db.prepare('SELECT COUNT(*) as count FROM users WHERE namespace_id = ?').get(user.namespace_id) as { count: number };
+      if (otherUsers.count === 0) {
+        db.prepare('DELETE FROM namespaces WHERE id = ?').run(user.namespace_id);
+      }
+    }
+    return true;
+  }
+
+  public static listNamespaces(): { id: string; name: string; user_count: number; session_count: number; created_at: string }[] {
+    const db = this.getDb();
+    return db.prepare(`
+      SELECT
+        n.id, n.name, n.created_at,
+        COUNT(DISTINCT u.id) as user_count,
+        COUNT(DISTINCT s.id) as session_count
+      FROM namespaces n
+      LEFT JOIN users u ON u.namespace_id = n.id
+      LEFT JOIN sessions s ON s.namespace_id = n.id
+      GROUP BY n.id
+      ORDER BY n.created_at
+    `).all() as { id: string; name: string; user_count: number; session_count: number; created_at: string }[];
+  }
+
+  public static getNamespaceById(id: string): { id: string; name: string } | null {
+    const db = this.getDb();
+    return (db.prepare('SELECT id, name FROM namespaces WHERE id = ?').get(id) as { id: string; name: string }) ?? null;
+  }
+
+  public static createNamespace(name: string): { namespaceId: string } {
+    const db = this.getDb();
+    const namespaceId = Math.random().toString(36).substring(7);
+    db.prepare('INSERT INTO namespaces (id, name) VALUES (?, ?)').run(namespaceId, name);
+    return { namespaceId };
+  }
+
+  public static renameNamespace(id: string, newName: string): boolean {
+    const db = this.getDb();
+    const result = db.prepare('UPDATE namespaces SET name = ? WHERE id = ?').run(newName, id);
+    return result.changes > 0;
+  }
+
+  public static deleteNamespace(id: string): { ok: boolean; reason?: string } {
+    const db = this.getDb();
+    if (id === 'local') {
+      return { ok: false, reason: 'Cannot delete the local namespace' };
+    }
+    const users = db.prepare('SELECT COUNT(*) as count FROM users WHERE namespace_id = ?').get(id) as { count: number };
+    if (users.count > 0) {
+      return { ok: false, reason: `Namespace has ${users.count} user(s) - remove them first` };
+    }
+    const sessions = db.prepare('SELECT COUNT(*) as count FROM sessions WHERE namespace_id = ?').get(id) as { count: number };
+    if (sessions.count > 0) {
+      return { ok: false, reason: `Namespace has ${sessions.count} session(s) - delete them first` };
+    }
+    db.prepare('DELETE FROM namespaces WHERE id = ?').run(id);
+    return { ok: true };
+  }
+
+  public static assignSessionToNamespace(sessionId: string, namespaceId: string): boolean {
+    const db = this.getDb();
+    const result = db.prepare('UPDATE sessions SET namespace_id = ? WHERE id = ?').run(namespaceId, sessionId);
+    return result.changes > 0;
+  }
+
+  public static listSessionsInNamespace(namespaceId: string): { id: string; displayName: string; turn: number; createdAt: string }[] {
+    const db = this.getDb();
+    return db.prepare('SELECT id, displayName, turn, createdAt FROM sessions WHERE namespace_id = ? ORDER BY createdAt DESC').all(namespaceId) as { id: string; displayName: string; turn: number; createdAt: string }[];
   }
 }

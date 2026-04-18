@@ -105,7 +105,7 @@ Every hero gets a generated portrait and carries their quirk into the story:
 
 ### 1. Set up environment
 
-Create a `backend/.env` file.
+Create a `.env` file.
 
 **OpenAI:**
 ```

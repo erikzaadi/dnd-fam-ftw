@@ -16,18 +16,21 @@ export class S3ImageStorageProvider implements ImageStorageProvider {
   private publicBaseUrl: string;
 
   constructor(config: AppConfig) {
-    if (!config.S3_IMAGE_BUCKET) throw new Error('[Config] S3_IMAGE_BUCKET is required for S3 image storage');
-    if (!config.AWS_REGION) throw new Error('[Config] AWS_REGION is required for S3 image storage');
+    if (!config.S3_IMAGE_BUCKET) {
+      throw new Error('[Config] S3_IMAGE_BUCKET is required for S3 image storage');
+    }
+    if (!config.AWS_REGION) {
+      throw new Error('[Config] AWS_REGION is required for S3 image storage');
+    }
 
     this.client = new S3Client({ region: config.AWS_REGION });
     this.bucket = config.S3_IMAGE_BUCKET;
     this.prefix = config.S3_IMAGE_PREFIX;
 
-    if (config.S3_IMAGE_PUBLIC_BASE_URL) {
-      this.publicBaseUrl = config.S3_IMAGE_PUBLIC_BASE_URL.replace(/\/$/, '');
-    } else {
-      this.publicBaseUrl = `https://${this.bucket}.s3.${config.AWS_REGION}.amazonaws.com/${this.prefix}`.replace(/\/$/, '');
-    }
+    const bucketBaseUrl = config.S3_IMAGE_PUBLIC_BASE_URL
+      ?? `https://${this.bucket}.s3.${config.AWS_REGION}.amazonaws.com`;
+    const prefixPath = this.prefix ? `/${this.prefix.replace(/\/$/, '')}` : '';
+    this.publicBaseUrl = `${bucketBaseUrl.replace(/\/$/, '')}${prefixPath}`;
   }
 
   async validateSetup(): Promise<void> {
@@ -35,7 +38,7 @@ export class S3ImageStorageProvider implements ImageStorageProvider {
       await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
       console.log(`[S3Storage] Bucket access confirmed: ${this.bucket}`);
     } catch (err) {
-      throw new Error(`[Config] Cannot access S3 bucket "${this.bucket}": ${String(err)}`);
+      throw new Error(`[Config] Cannot access S3 bucket "${this.bucket}": ${String(err)}`, { cause: err });
     }
   }
 
@@ -59,7 +62,9 @@ export class S3ImageStorageProvider implements ImageStorageProvider {
       await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: `${this.prefix}${key}` }));
       return true;
     } catch (err) {
-      if (err instanceof S3ServiceException && err.$metadata.httpStatusCode === 404) return false;
+      if (err instanceof S3ServiceException && err.$metadata.httpStatusCode === 404) {
+        return false;
+      }
       throw err;
     }
   }

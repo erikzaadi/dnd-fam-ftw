@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Character, Session } from '../types';
-import { api, imgSrc } from '../lib/api';
+import { apiFetch, imgSrc } from '../lib/api';
 import { CharacterPopup } from '../components/CharacterPopup';
 import { CharacterForm } from '../components/CharacterForm';
 import { CharacterImportModal } from '../components/CharacterImportModal';
@@ -30,7 +30,7 @@ export const CharacterAssembly = () => {
       return;
     }
     const enabled = !session.savingsMode;
-    await fetch(api(`/session/${session.id}/savings-mode`), {
+    await apiFetch(`/session/${session.id}/savings-mode`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled }),
@@ -39,13 +39,13 @@ export const CharacterAssembly = () => {
   };
 
   const loadSession = useCallback(async () => {
-    const res = await fetch(api(`/session/${id}`));
+    const res = await apiFetch(`/session/${id}`);
     const data = await res.json();
     setSession(data);
   }, [id]);
 
   const loadAllCharacters = useCallback(async () => {
-    const res = await fetch(api('/characters/all'));
+    const res = await apiFetch('/characters/all');
     const data = await res.json();
     setAvailableCharacters(data);
   }, []);
@@ -64,7 +64,7 @@ export const CharacterAssembly = () => {
 
     let stats = rest.stats;
     try {
-      const statsRes = await fetch(api('/character/suggest-stats'), {
+      const statsRes = await apiFetch('/character/suggest-stats', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: rest.name, class: rest.class, species: rest.species, quirk: rest.quirk, useLocalAI: session.useLocalAI })
@@ -75,7 +75,7 @@ export const CharacterAssembly = () => {
     } catch { /* keep original stats */ }
 
     const characterData = { ...rest, stats, hp: rest.max_hp, status: 'active' };
-    await fetch(api('/character/create'), {
+    await apiFetch('/character/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId: session.id, characterData })
@@ -94,7 +94,7 @@ export const CharacterAssembly = () => {
         }
         setLoading(true);
         try {
-          await fetch(api(`/session/${session.id}/character/${charId}`), { method: 'DELETE' });
+          await apiFetch(`/session/${session.id}/character/${charId}`, { method: 'DELETE' });
           await Promise.all([loadSession(), loadAllCharacters()]);
         } catch (err) {
           console.error("Failed to delete character:", err);
@@ -120,7 +120,7 @@ export const CharacterAssembly = () => {
 
     let stats = { might: 2, magic: 2, mischief: 3 };
     try {
-      const statsRes = await fetch(api('/character/suggest-stats'), {
+      const statsRes = await apiFetch('/character/suggest-stats', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, class: charClass, species, quirk, useLocalAI: session.useLocalAI })
@@ -141,13 +141,13 @@ export const CharacterAssembly = () => {
     };
 
     if (editingChar) {
-      await fetch(api(`/character/${editingChar.id}`), {
+      await apiFetch(`/character/${editingChar.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId: session.id, characterData: charData })
       });
     } else {
-      await fetch(api('/character/create'), {
+      await apiFetch('/character/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId: session.id, characterData: charData })
@@ -162,7 +162,7 @@ export const CharacterAssembly = () => {
   const startJourney = async () => {
     setIsStarting(true);
     setError(null);
-    const res = await fetch(api(`/session/${id}/start`), { method: 'POST' });
+    const res = await apiFetch(`/session/${id}/start`, { method: 'POST' });
     setIsStarting(false);
     if (res.status === 429) {
       const data = await res.json();

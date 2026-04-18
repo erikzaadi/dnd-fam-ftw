@@ -5,3 +5,10 @@ backend/public/generated/*
 !backend/public/generated/.gitkeep
 backend/dist
 backend/data
+
+# Terraform - sensitive values and state never go in git
+terraform/terraform.tfvars
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/crash.log

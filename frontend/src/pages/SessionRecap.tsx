@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { TurnResult, Session, Character } from '../types';
-import { api, imgSrc } from '../lib/api';
+import { apiFetch, imgSrc } from '../lib/api';
 import { FullscreenImage } from '../components/FullscreenImage';
 import { DmFooter } from '../components/DmFooter';
 import { SiteHeader } from '../components/SiteHeader';
@@ -16,7 +16,7 @@ const TldrView = ({ sessionId, onEnter }: { sessionId: string; onEnter: () => vo
   const [summary, setSummary] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(api(`/session/${sessionId}/summary`))
+    apiFetch(`/session/${sessionId}/summary`)
       .then(r => r.json())
       .then(d => setSummary(d.summary));
   }, [sessionId]);
@@ -85,7 +85,7 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
           </div>
         ) : (
           <div className="w-full h-48 md:h-72 rounded-[40px] border border-slate-800 overflow-hidden relative">
-            <img src={imgSrc('/api/images/dm_thinking.png')} className="w-full h-full object-cover object-center opacity-20" />
+            <img src={imgSrc('/images/dm_thinking.png')} className="w-full h-full object-cover object-center opacity-20" />
             <div className="absolute inset-0 bg-slate-900/60" />
           </div>
         )}
@@ -145,7 +145,7 @@ export const SessionRecap = () => {
       return;
     }
     const enabled = !session.savingsMode;
-    await fetch(api(`/session/${session.id}/savings-mode`), {
+    await apiFetch(`/session/${session.id}/savings-mode`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled }),
@@ -158,8 +158,8 @@ export const SessionRecap = () => {
       return;
     }
     Promise.all([
-      fetch(api(`/session/${id}`)).then(r => r.json()),
-      fetch(api(`/session/${id}/history`)).then(r => r.json()),
+      apiFetch(`/session/${id}`).then(r => r.json()),
+      apiFetch(`/session/${id}/history`).then(r => r.json()),
     ]).then(([s, h]) => {
       setSession(s);
       setHistory(h);

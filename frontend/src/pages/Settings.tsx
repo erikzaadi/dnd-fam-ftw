@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DmFooter } from '../components/DmFooter';
 import { SiteHeader } from '../components/SiteHeader';
-import { api } from '../lib/api';
+import { apiFetch } from '../lib/api';
 
 interface AppSettings {
   imagesEnabled: boolean;
@@ -30,7 +30,7 @@ export const Settings = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch(api('/settings'))
+    apiFetch('/settings')
       .then(r => r.json())
       .then(setSettings);
   }, []);
@@ -44,7 +44,7 @@ export const Settings = () => {
     if (!settings) {
       return;
     }
-    await fetch(api('/settings'), {
+    await apiFetch('/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settings),

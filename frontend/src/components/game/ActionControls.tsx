@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { TurnResult, Choice, Character } from '../../types';
-import { api, imgSrc, pulseSyncDelay } from '../../lib/api';
+import { apiFetch, imgSrc, pulseSyncDelay } from '../../lib/api';
 import { beatTarget } from '../../lib/game';
 import { StatIcon } from './StatIcon';
 
@@ -38,7 +38,7 @@ export const ActionControls = ({ turn, loading, onSubmit, customAction, setCusto
     setStatThinking(true);
     let stat = 'mischief';
     try {
-      const res = await fetch(api(`/session/${sessionId}/suggest-stat`), {
+      const res = await apiFetch(`/session/${sessionId}/suggest-stat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: customAction, characterClass: activeCharacter?.class, characterQuirk: activeCharacter?.quirk }),

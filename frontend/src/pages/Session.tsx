@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { Session, Character, TurnResult } from '../types';
-import { api, imgSrc } from '../lib/api';
+import { apiFetch, apiUrl, imgSrc } from '../lib/api';
 import { PartyBox } from '../components/PartyBox';
 import { CharacterPopup } from '../components/CharacterPopup';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -33,13 +33,13 @@ export const SessionPage = () => {
 
   // Full reload - only used on initial mount and for party_update
   const joinSession = useCallback(async (sessionId: string) => {
-    const res = await fetch(api(`/session/${sessionId}`));
+    const res = await apiFetch(`/session/${sessionId}`);
     if (!res.ok) {
-      navigate('/'); return; 
+      navigate('/'); return;
     }
     const data = await res.json();
     setSession(data);
-    const hRes = await fetch(api(`/session/${data.id}/history`));
+    const hRes = await apiFetch(`/session/${data.id}/history`);
     const hData = await hRes.json();
     setHistory(hData);
     setViewedTurnIdx(hData.length - 1);
@@ -77,7 +77,7 @@ export const SessionPage = () => {
     let reconnectTimer: ReturnType<typeof setTimeout>;
 
     const connect = () => {
-      es = new EventSource(api(`/session/${id}/events`));
+      es = new EventSource(apiUrl(`/session/${id}/events`), { withCredentials: true });
 
       es.onmessage = (e: MessageEvent) => {
         const data = JSON.parse(e.data);
@@ -172,7 +172,7 @@ export const SessionPage = () => {
       return;
     }
     const enabled = !session.savingsMode;
-    await fetch(api(`/session/${session.id}/savings-mode`), {
+    await apiFetch(`/session/${session.id}/savings-mode`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled })
@@ -185,7 +185,7 @@ export const SessionPage = () => {
       return;
     }
     const enabled = !session.useLocalAI;
-    await fetch(api(`/session/${session.id}/use-local-ai`), {
+    await apiFetch(`/session/${session.id}/use-local-ai`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled })
@@ -199,7 +199,7 @@ export const SessionPage = () => {
     }
     setLoading(true);
     setActionError(null);
-    const res = await fetch(api(`/session/${session.id}/action`), {
+    const res = await apiFetch(`/session/${session.id}/action`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ actionType, characterId: ownerCharId, itemId, targetCharacterId: targetCharId })
@@ -219,7 +219,7 @@ export const SessionPage = () => {
     const actingCharacterId = session.activeCharacterId;
     setLoading(true);
     setActionError(null);
-    const res = await fetch(api(`/session/${session.id}/action`), {
+    const res = await apiFetch(`/session/${session.id}/action`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: label, statUsed: stat, difficulty: diff, difficultyValue, characterId: actingCharacterId })
@@ -249,7 +249,7 @@ export const SessionPage = () => {
   if (history.length === 0) {
     const startAdventure = async () => {
       setLoading(true);
-      await fetch(api(`/session/${id}/start`), { method: 'POST' });
+      await apiFetch(`/session/${id}/start`, { method: 'POST' });
       await joinSession(id!);
       setLoading(false);
     };
@@ -312,7 +312,7 @@ export const SessionPage = () => {
                 <div className="w-10 h-10 border-4 border-slate-700 border-t-amber-500 rounded-full animate-spin" />
                 <span className="text-sm font-medium tracking-wide">Painting the scene...</span>
               </div>
-            ) : <img src={imgSrc('/api/images/default_scene.png')} className="w-full h-full object-cover opacity-40" />}
+            ) : <img src={imgSrc('/images/default_scene.png')} className="w-full h-full object-cover opacity-40" />}
           </div>
         )}
       </div>
@@ -329,7 +329,7 @@ export const SessionPage = () => {
           ? loading
             ? (
               <div className="relative h-[120px] rounded-[40px] border border-slate-800 overflow-hidden">
-                <img src={imgSrc('/api/images/dm_thinking.png')} className="absolute inset-0 w-full h-full object-cover opacity-30" />
+                <img src={imgSrc('/images/dm_thinking.png')} className="absolute inset-0 w-full h-full object-cover opacity-30" />
                 <div className="absolute inset-0 flex items-center justify-center gap-3">
                   <div className="w-5 h-5 border-2 border-slate-600 border-t-amber-500 rounded-full animate-spin" />
                   <span className="text-sm font-black uppercase tracking-widest text-amber-500/80 animate-pulse">The DM is weaving fate...</span>

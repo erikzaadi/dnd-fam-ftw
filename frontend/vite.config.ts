@@ -17,10 +17,9 @@ export default defineConfig({
       [`${BASE}api`]: {
         target: 'http://localhost:3001',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/dnd-fam-ftw/, ''),
+        rewrite: (path) => path.replace(/^\/dnd-fam-ftw\/api/, ''),
       },
-      // Also proxy /api/generated for local image storage
-      [`${BASE}generated-images`]: {
+      [`${BASE}images`]: {
         target: 'http://localhost:3001',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/dnd-fam-ftw/, ''),
