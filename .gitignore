@@ -1,4 +1,8 @@
 .env
+frontend/public/version.json
+scripts/deploy/.env.deploy
+github-secrets.md
+.venv-lint/
 backend/*.sqlite
 backend/*.sqlite.temp
 backend/public/generated/*
@@ -12,3 +16,4 @@ terraform/.terraform/
 terraform/*.tfstate
 terraform/*.tfstate.backup
 terraform/crash.log
+terraform/.terraform.lock.hcl

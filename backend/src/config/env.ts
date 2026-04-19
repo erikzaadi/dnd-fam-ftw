@@ -15,6 +15,7 @@ export type AppConfig = {
   ADMIN_EMAIL?: string;
   FRONTEND_URL?: string;
   APP_BASE_PATH: string;
+  APP_VERSION: string;
 };
 
 let _config: AppConfig | null = null;
@@ -52,5 +53,6 @@ function parse(): AppConfig {
     ADMIN_EMAIL: process.env.ADMIN_EMAIL,
     FRONTEND_URL: process.env.FRONTEND_URL ?? '',
     APP_BASE_PATH: process.env.APP_BASE_PATH ?? '/dnd-fam-ftw/',
+    APP_VERSION: process.env.APP_VERSION ?? 'dev',
   };
 }

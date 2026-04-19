@@ -1,0 +1,24 @@
+aws_region = "eu-west-1"
+
+# Your Route 53 hosted zone root domain
+hosted_zone_name = "yourdomain.com"
+
+# Subdomains for the app (must exist under hosted_zone_name)
+frontend_domain = "app.yourdomain.com"
+api_domain      = "api.app.yourdomain.com"
+
+# S3 bucket names - must be globally unique across all AWS accounts
+frontend_bucket_name = "your-app-frontend"
+image_bucket_name    = "your-app-images"
+
+# Lightsail instance size: nano_3_0 (512MB) or micro_3_0 (1GB)
+lightsail_bundle_id    = "nano_3_0"
+lightsail_blueprint_id = "ubuntu_22_04"
+db_disk_size_gb        = 8
+
+# SSH access (port 22) is NOT statically managed - it is opened/closed dynamically
+# per deploy/renew run using aws lightsail open/close-instance-public-ports.
+
+ssm_parameter_prefix = "/dnd-fam-ftw/prod"
+# Copy this file to terraform.tfvars and fill in your values.
+# terraform.tfvars is gitignored - never commit it.

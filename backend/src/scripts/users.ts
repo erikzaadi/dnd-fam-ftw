@@ -16,18 +16,21 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(__dirname, '../../../.env') });
+dotenv.config({ path: path.join(__dirname, '../../../.env'), quiet: true });
 
 import { StateService } from '../services/stateService.js';
 
 const [, , command, ...args] = process.argv;
+const jsonMode = process.argv.includes('--json');
 
 StateService.initialize();
 
 switch (command) {
 case 'list': {
   const users = StateService.listUsers();
-  if (users.length === 0) {
+  if (jsonMode) {
+    console.log(JSON.stringify(users, null, 2));
+  } else if (users.length === 0) {
     console.log('No users found.');
   } else {
     console.log(`\n${'Email'.padEnd(35)} ${'Namespace'.padEnd(20)} ${'Role'.padEnd(8)} Created`);
@@ -77,7 +80,9 @@ case 'remove': {
 
 case 'namespaces': {
   const namespaces = StateService.listNamespaces();
-  if (namespaces.length === 0) {
+  if (jsonMode) {
+    console.log(JSON.stringify(namespaces, null, 2));
+  } else if (namespaces.length === 0) {
     console.log('No namespaces found.');
   } else {
     console.log(`\n${'ID'.padEnd(12)} ${'Name'.padEnd(20)} Created`);

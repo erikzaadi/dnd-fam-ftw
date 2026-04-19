@@ -1,0 +1,83 @@
+# Certificate renewal workflow.
+# Runs certbot renew on the Lightsail instance via SSH.
+# Certbot uses the Route 53 credentials already stored on the instance
+# at /root/.aws/certbot (written once by scripts/provision-cert.sh).
+#
+# Scheduled monthly - Let's Encrypt certs expire after 90 days,
+# so monthly gives plenty of margin. The instance also has a daily
+# cron as a backstop (installed by provision-cert.sh).
+# See github-secrets.md (not committed) for required secrets.
+
+name: Renew Certificate
+
+on:
+  schedule:
+    - cron: '0 3 1 * *'
+  workflow_dispatch:
+
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-1
+
+      - name: Open SSH for this runner
+        id: ssh_access
+        run: |
+          RUNNER_IP=$(curl -s https://checkip.amazonaws.com)
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws lightsail open-instance-public-ports \
+            --no-cli-pager \
+            --instance-name "${{ secrets.LIGHTSAIL_INSTANCE_NAME }}" \
+            --port-info fromPort=22,toPort=22,protocol=TCP,cidrs="[\"$RUNNER_IP/32\"]"
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.LIGHTSAIL_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Renew certificate
+        run: |
+          ssh ubuntu@${{ secrets.LIGHTSAIL_HOST }} bash << 'ENDSSH'
+          set -euo pipefail
+
+          echo "[cert] Running certbot renew..."
+          sudo AWS_SHARED_CREDENTIALS_FILE=/root/.aws/certbot AWS_PROFILE=certbot \
+            certbot renew --quiet \
+            --deploy-hook 'chgrp www-data /etc/letsencrypt/archive/*/privkey*.pem && systemctl reload nginx'
+
+          echo "[cert] Verifying certificate expiry..."
+          DOMAIN=$(sudo certbot certificates 2>/dev/null | grep "Domains:" | head -1 | awk '{print $2}')
+          EXPIRY=$(sudo certbot certificates 2>/dev/null \
+            | grep "Expiry Date:" | head -1 \
+            | sed 's/.*Expiry Date: //' | sed 's/ (VALID.*//')
+          echo "[cert] Domain:  $DOMAIN"
+          echo "[cert] Expires: $EXPIRY"
+          ENDSSH
+
+      - name: Close SSH for this runner
+        if: always()
+        run: |
+          aws lightsail close-instance-public-ports \
+            --no-cli-pager \
+            --instance-name "${{ secrets.LIGHTSAIL_INSTANCE_NAME }}" \
+            --port-info fromPort=22,toPort=22,protocol=TCP,cidrs="[\"${{ steps.ssh_access.outputs.runner_ip }}/32\"]"
+
+      - name: Verify HTTPS
+        run: |
+          STATUS=$(curl -o /dev/null -s -w "%{http_code}" --max-time 15 "https://${{ secrets.API_DOMAIN }}/health")
+          if [[ "$STATUS" == "200" ]]; then
+            echo "PASS - HTTPS health check returned $STATUS"
+          else
+            echo "FAIL - expected 200, got $STATUS"
+            exit 1
+          fi

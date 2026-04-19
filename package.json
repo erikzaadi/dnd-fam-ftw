@@ -8,18 +8,8 @@
         "dev": "npm run dev:backend & npm run dev:frontend",
         "build": "npm run build --prefix frontend",
         "build:backend": "npm run build --prefix backend",
-        "install:all": "npm install --prefix backend && npm install --prefix frontend"
-    },
-    "devDependencies": {
-        "@eslint/js": "^10.0.1",
-        "@typescript-eslint/eslint-plugin": "^8.58.0",
-        "@typescript-eslint/parser": "^8.58.0",
-        "eslint": "^10.2.0",
-        "eslint-plugin-react": "^7.37.5",
-        "eslint-plugin-react-hooks": "^7.0.1",
-        "eslint-plugin-react-refresh": "^0.5.2",
-        "globals": "^17.4.0",
-        "typescript": "^6.0.2",
-        "typescript-eslint": "^8.58.0"
+        "install:all": "npm install --prefix backend && npm install --prefix frontend",
+        "setup:lint": "python3 -m venv .venv-lint && .venv-lint/bin/pip install --quiet yamllint",
+        "lint:workflows": "actionlint && .venv-lint/bin/yamllint .github/workflows/ && shellcheck -x --severity=warning scripts/**/*.sh scripts/deploy/*.sh"
     }
 }

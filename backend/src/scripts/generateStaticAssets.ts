@@ -14,7 +14,7 @@ import fs from 'fs';
 import OpenAI from 'openai';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(__dirname, '..', '..', '..', '.env') });
+dotenv.config({ path: path.join(__dirname, '..', '..', '..', '.env'), quiet: true });
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const OUT_DIR = path.join(__dirname, '..', '..', 'public', 'images');

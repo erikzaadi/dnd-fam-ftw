@@ -13,14 +13,14 @@ echo "🚀 Starting installation for Mission Maker Kid..."
 # 1. Update and install Node.js (if missing)
 if ! command -v node &> /dev/null; then
     echo "Installing Node.js..."
-    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+    curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
     sudo apt-get install -y nodejs
 fi
 
 # 2. Project Directory Setup
 echo "Setting up project directory..."
 sudo mkdir -p "$PROJECT_DIR"
-sudo chown -R $USER:$USER "$PROJECT_DIR"
+sudo chown -R "$USER":"$USER" "$PROJECT_DIR"
 # Copy from root
 cp -r "$ROOT_DIR"/* "$PROJECT_DIR/"
 

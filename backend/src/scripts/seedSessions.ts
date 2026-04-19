@@ -12,7 +12,7 @@ import { getConfig } from '../config/env.js';
 import { StateService } from '../services/stateService.js';
 import { ImageService } from '../services/imageService.js';
 
-dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '.env') });
+dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '.env'), quiet: true });
 
 // Ensure DB exists and migrations have run before seeding
 StateService.initialize();

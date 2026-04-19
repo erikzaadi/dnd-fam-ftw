@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
 import { getConfig } from '../config/env.js';
 
-dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '.env') });
+dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '.env'), quiet: true });
 
 const dbPath = path.resolve(getConfig().SQLITE_DB_PATH);
 const db = new Database(dbPath, { readonly: true });

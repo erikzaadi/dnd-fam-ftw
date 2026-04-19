@@ -1,0 +1,78 @@
+# Lint GitHub Actions workflows, YAML files, shell scripts, and TypeScript/TSX.
+# actionlint validates workflow syntax, expressions, and shell scripts in run: blocks.
+# yamllint checks general YAML formatting.
+# ESLint + tsc check backend and frontend TypeScript (each workspace uses its own ESLint version).
+
+name: Lint
+
+on:
+  push:
+    paths:
+      - '.github/workflows/**'
+      - '*.yml'
+      - '*.yaml'
+      - 'backend/**'
+      - 'frontend/**'
+      - 'scripts/**'
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - '*.yml'
+      - '*.yaml'
+      - 'backend/**'
+      - 'frontend/**'
+      - 'scripts/**'
+  workflow_dispatch:
+
+jobs:
+  lint-workflows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: shellcheck (scripts)
+        run: shellcheck -x --severity=warning scripts/**/*.sh scripts/deploy/*.sh
+
+      - name: actionlint
+        uses: rhysd/actionlint@v1.7.12
+
+      - name: yamllint
+        run: |
+          pip install --quiet yamllint
+          yamllint .github/workflows/
+
+  lint-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Install deps
+        run: cd backend && npm ci
+
+      - name: ESLint
+        run: cd backend && npm run lint
+
+      - name: typecheck
+        run: cd backend && npx tsc --noEmit
+
+  lint-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install deps
+        run: cd frontend && npm ci
+
+      - name: ESLint
+        run: cd frontend && npm run lint
+
+      - name: typecheck
+        run: cd frontend && npx tsc -b

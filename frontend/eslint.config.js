@@ -5,14 +5,10 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["frontend/dist", "node_modules", "database.sqlite*"] },
-  // Common JS/TS config
+  { ignores: ["dist"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
-
-  // Frontend Configuration
   {
-    files: ["frontend/src/**/*.{ts,tsx}"],
     languageOptions: {
       ecmaVersion: 2020,
       globals: {
@@ -34,24 +30,4 @@ export default tseslint.config(
       "indent": ["error", 2],
     },
   },
-
-  // Server/Backend Configuration
-  {
-    files: ["backend/src/**/*.ts"],
-    languageOptions: {
-      ecmaVersion: 2020,
-      globals: {
-        ...globals.node,
-      },
-    },
-    rules: {
-      "@typescript-eslint/no-unused-vars": "warn",
-      "@typescript-eslint/no-explicit-any": "warn",
-      "curly": ["error", "all"],
-      "brace-style": ["error", "1tbs"],
-      "indent": ["error", 2],
-      "no-console": "off", // Usually OK for backends
-    },
-  }
 );
-

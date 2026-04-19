@@ -14,7 +14,6 @@ export class StateService {
       const config = getConfig();
       const dbPath = path.resolve(config.SQLITE_DB_PATH);
       fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-      console.log(`[DB] Opening SQLite at ${dbPath}`);
       this.db = new Database(dbPath);
       this.migrate(this.db);
     }
@@ -482,6 +481,8 @@ export class StateService {
       imagePrompt: string | null;
       imageSuggested: number;
       imageUrl: string | null;
+      image_storage_key: string | null;
+      image_storage_provider: string | null;
       characterId: string | null;
       actionAttempt: string | null;
       actionStat: string | null;
@@ -513,11 +514,18 @@ export class StateService {
           ...(r.actionDifficultyTarget != null && { difficultyTarget: r.actionDifficultyTarget }),
         }
       } : null;
+      // Recompute image URL from storage key so URLs always reflect current config.
+      // Heals rows that were written before S3_IMAGE_PUBLIC_BASE_URL was set.
+      let imageUrl = r.imageUrl;
+      if (r.image_storage_key && r.image_storage_provider === 's3') {
+        const storage = getImageStorageProvider();
+        imageUrl = storage.getPublicUrl(r.image_storage_key);
+      }
       return {
         narration: r.narration,
         imagePrompt: r.imagePrompt,
         imageSuggested: !!r.imageSuggested,
-        imageUrl: r.imageUrl,
+        imageUrl,
         characterId: r.characterId || undefined,
         choices: choices.map(({ difficultyValue, ...c }) => ({ ...c, ...(difficultyValue != null && { difficultyValue }) })),
         lastAction,

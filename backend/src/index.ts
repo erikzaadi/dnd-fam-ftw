@@ -33,6 +33,10 @@ app.use(cookieParser());
 app.use('/images', express.static(path.join(import.meta.dirname, '..', 'public', 'images')));
 
 const config = getConfig();
+app.use((_req, res, next) => {
+  res.setHeader('X-App-Version', config.APP_VERSION);
+  next();
+});
 const generatedDir = path.resolve(config.LOCAL_IMAGE_STORAGE_PATH);
 fs.mkdirSync(generatedDir, { recursive: true });
 app.use(config.LOCAL_IMAGE_PUBLIC_BASE_URL, express.static(generatedDir));
@@ -49,7 +53,7 @@ if (isAuthEnabled()) {
 }
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok' });
+  res.json({ status: 'ok', version: config.APP_VERSION });
 });
 
 // --- Auth routes (public - no auth middleware) ---

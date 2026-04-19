@@ -2,7 +2,7 @@
  * Namespace management CLI for dnd-fam-ftw.
  *
  * Usage (from repo root):
- *   npm run namespaces -- <command> [args]
+ *   npm run namespaces <command> [args]
  *
  * Commands:
  *   list                              List all namespaces with user and session counts
@@ -18,18 +18,21 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(__dirname, '../../../.env') });
+dotenv.config({ path: path.join(__dirname, '../../../.env'), quiet: true });
 
 import { StateService } from '../services/stateService.js';
 
 const [, , command, ...args] = process.argv;
+const jsonMode = process.argv.includes('--json');
 
 StateService.initialize();
 
 switch (command) {
 case 'list': {
   const ns = StateService.listNamespaces();
-  if (ns.length === 0) {
+  if (jsonMode) {
+    console.log(JSON.stringify(ns, null, 2));
+  } else if (ns.length === 0) {
     console.log('No namespaces found.');
   } else {
     console.log(`\n${'ID'.padEnd(12)} ${'Name'.padEnd(24)} ${'Users'.padEnd(7)} ${'Sessions'.padEnd(10)} Created`);
@@ -87,7 +90,7 @@ case 'delete': {
 }
 
 case 'sessions': {
-  const id = args[0];
+  const id = args.find(a => !a.startsWith('--'));
   if (!id) {
     console.error('Usage: namespaces.ts sessions <namespace-id>');
     process.exit(1);
@@ -98,7 +101,9 @@ case 'sessions': {
     process.exit(1);
   }
   const sessions = StateService.listSessionsInNamespace(id);
-  if (sessions.length === 0) {
+  if (jsonMode) {
+    console.log(JSON.stringify(sessions, null, 2));
+  } else if (sessions.length === 0) {
     console.log(`No sessions in namespace "${ns.name}" (${id})`);
   } else {
     console.log(`\nSessions in "${ns.name}" (${id}):`);
@@ -146,12 +151,12 @@ Commands:
   assign-session <sessionId> <nsId>    Move a session to a namespace
 
 Examples:
-  npm run namespaces -- list
-  npm run namespaces -- create "Monitoring"
-  npm run namespaces -- rename abc123 "Family Night"
-  npm run namespaces -- sessions abc123
-  npm run namespaces -- assign-session xyz789 abc123
-  npm run namespaces -- delete abc123
+  npm run namespaces list
+  npm run namespaces create "Monitoring"
+  npm run namespaces rename abc123 "Family Night"
+  npm run namespaces sessions abc123
+  npm run namespaces assign-session xyz789 abc123
+  npm run namespaces delete abc123
 `);
   break;
 }
