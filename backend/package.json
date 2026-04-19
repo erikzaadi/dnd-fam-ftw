@@ -14,7 +14,9 @@
     "seed-sessions": "tsx src/scripts/seedSessions.ts",
     "list-sessions": "tsx src/scripts/listSessions.ts",
     "users": "tsx src/scripts/users.ts",
-    "namespaces": "tsx src/scripts/namespaces.ts"
+    "namespaces": "tsx src/scripts/namespaces.ts",
+    "usage-metrics": "tsx src/scripts/usageMetrics.ts",
+    "invite-requests": "tsx src/scripts/inviteRequests.ts"
   },
   "keywords": [],
   "author": "",

@@ -172,10 +172,37 @@ export class StateService {
         role TEXT NOT NULL DEFAULT 'member',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS user_namespaces (
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        namespace_id TEXT NOT NULL REFERENCES namespaces(id) ON DELETE CASCADE,
+        PRIMARY KEY (user_id, namespace_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS invite_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL UNIQUE,
+        message TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
     `);
 
     // Always ensure the local (no-auth) namespace exists
     db.prepare("INSERT OR IGNORE INTO namespaces (id, name) VALUES ('local', 'Local')").run();
+
+    // Backfill user_namespaces from existing users.namespace_id
+    db.prepare("INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) SELECT id, namespace_id FROM users").run();
+
+    const namespaceCols = (db.prepare("PRAGMA table_info(namespaces)").all() as { name: string }[]).map(r => r.name);
+    if (!namespaceCols.includes('max_sessions')) {
+      db.prepare("ALTER TABLE namespaces ADD COLUMN max_sessions INTEGER").run();
+      db.prepare("ALTER TABLE namespaces ADD COLUMN max_turns INTEGER").run();
+    }
+
+    const charColsFull = (db.prepare("PRAGMA table_info(characters)").all() as { name: string }[]).map(r => r.name);
+    if (!charColsFull.includes('history')) {
+      db.prepare("ALTER TABLE characters ADD COLUMN history TEXT").run();
+    }
   }
 
   // Ensures the DB is open and migrations have run. Safe to call multiple times.
@@ -278,6 +305,7 @@ export class StateService {
       avatar_storage_key: string | null;
       avatar_storage_provider: string | null;
       status: string | null;
+      history: string | null;
     }[];
     for (const char of characters) {
       const rawInv = db.prepare('SELECT * FROM inventory WHERE characterId = ?').all(char.id) as {
@@ -321,6 +349,7 @@ export class StateService {
         avatarPrompt: c.avatarPrompt || undefined,
         avatarStorageKey: c.avatar_storage_key || undefined,
         avatarStorageProvider: c.avatar_storage_provider || undefined,
+        history: c.history || undefined,
         stats: (c as unknown as { stats: { might: number, magic: number, mischief: number } }).stats,
         inventory: (c as unknown as { inventory: InventoryItem[] }).inventory
       })),
@@ -410,8 +439,8 @@ export class StateService {
       .run(state.scene, state.sceneId, state.turn, state.activeCharacterId, state.tone, state.interventionState?.used ? 1 : 0, state.storySummary ?? '', id);
 
     for (const char of state.party) {
-      db.prepare('INSERT OR REPLACE INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt, status, avatar_storage_key, avatar_storage_provider) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(char.id, id, char.name, char.class, char.species, char.quirk, char.hp, char.max_hp, char.stats.might, char.stats.magic, char.stats.mischief, char.avatarUrl || null, char.avatarPrompt || null, char.status ?? 'active', char.avatarStorageKey || null, char.avatarStorageProvider || null);
+      db.prepare('INSERT OR REPLACE INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt, status, avatar_storage_key, avatar_storage_provider, history) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(char.id, id, char.name, char.class, char.species, char.quirk, char.hp, char.max_hp, char.stats.might, char.stats.magic, char.stats.mischief, char.avatarUrl || null, char.avatarPrompt || null, char.status ?? 'active', char.avatarStorageKey || null, char.avatarStorageProvider || null, char.history || null);
 
       db.prepare('DELETE FROM inventory WHERE characterId = ?').run(char.id);
       for (const item of (char.inventory ?? [])) {
@@ -457,6 +486,7 @@ export class StateService {
         mischief: number;
         avatarUrl: string | null;
         status: string | null;
+        history: string | null;
     }[];
     return rows.map(char => ({
       id: char.id,
@@ -468,6 +498,7 @@ export class StateService {
       max_hp: char.max_hp,
       status: (char.status as 'active' | 'downed') ?? 'active',
       avatarUrl: char.avatarUrl || undefined,
+      history: char.history || undefined,
       stats: { might: char.might, magic: char.magic, mischief: char.mischief },
       inventory: []
     }));
@@ -589,6 +620,7 @@ export class StateService {
     const nsName = namespaceName ?? email.split('@')[0];
     db.prepare('INSERT INTO namespaces (id, name) VALUES (?, ?)').run(namespaceId, nsName);
     db.prepare('INSERT INTO users (id, email, namespace_id, role) VALUES (?, ?, ?, ?)').run(userId, email, namespaceId, role);
+    db.prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(userId, namespaceId);
     return { userId, namespaceId };
   }
 
@@ -687,5 +719,84 @@ export class StateService {
   public static listSessionsInNamespace(namespaceId: string): { id: string; displayName: string; turn: number; createdAt: string }[] {
     const db = this.getDb();
     return db.prepare('SELECT id, displayName, turn, createdAt FROM sessions WHERE namespace_id = ? ORDER BY createdAt DESC').all(namespaceId) as { id: string; displayName: string; turn: number; createdAt: string }[];
+  }
+
+  // --- Multi-namespace user access ---
+
+  public static getUserNamespaces(email: string): { id: string; name: string }[] {
+    const db = this.getDb();
+    return db.prepare(`
+      SELECT n.id, n.name
+      FROM namespaces n
+      JOIN user_namespaces un ON un.namespace_id = n.id
+      JOIN users u ON u.id = un.user_id
+      WHERE u.email = ?
+      ORDER BY n.created_at
+    `).all(email) as { id: string; name: string }[];
+  }
+
+  public static addUserToNamespace(email: string, namespaceId: string): { ok: boolean; reason?: string } {
+    const db = this.getDb();
+    const user = this.getUserByEmail(email);
+    if (!user) {
+      return { ok: false, reason: `User not found: ${email}` };
+    }
+    const ns = this.getNamespaceById(namespaceId);
+    if (!ns) {
+      return { ok: false, reason: `Namespace not found: ${namespaceId}` };
+    }
+    db.prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(user.id, namespaceId);
+    return { ok: true };
+  }
+
+  // --- Namespace limits ---
+
+  public static getNamespaceLimits(namespaceId: string): { maxSessions: number | null; maxTurns: number | null } {
+    const db = this.getDb();
+    const row = db.prepare('SELECT max_sessions, max_turns FROM namespaces WHERE id = ?').get(namespaceId) as { max_sessions: number | null; max_turns: number | null } | undefined;
+    return { maxSessions: row?.max_sessions ?? null, maxTurns: row?.max_turns ?? null };
+  }
+
+  public static setNamespaceLimits(namespaceId: string, maxSessions: number | null, maxTurns: number | null): boolean {
+    const db = this.getDb();
+    const result = db.prepare('UPDATE namespaces SET max_sessions = ?, max_turns = ? WHERE id = ?').run(maxSessions, maxTurns, namespaceId);
+    return result.changes > 0;
+  }
+
+  public static countSessionsInNamespace(namespaceId: string): number {
+    const db = this.getDb();
+    const row = db.prepare('SELECT COUNT(*) as count FROM sessions WHERE namespace_id = ?').get(namespaceId) as { count: number };
+    return row.count;
+  }
+
+  // --- Character history ---
+
+  public static getCharacterTurnHistory(charId: string): { narration: string; actionAttempt: string | null }[] {
+    const db = this.getDb();
+    return db.prepare('SELECT narration, actionAttempt FROM turn_history WHERE characterId = ? ORDER BY id').all(charId) as { narration: string; actionAttempt: string | null }[];
+  }
+
+  // --- Invite requests ---
+
+  public static hasInviteRequest(email: string): boolean {
+    const db = this.getDb();
+    const row = db.prepare('SELECT id FROM invite_requests WHERE email = ?').get(email) as { id: number } | undefined;
+    return !!row;
+  }
+
+  public static addInviteRequest(email: string, message?: string): void {
+    const db = this.getDb();
+    db.prepare('INSERT OR IGNORE INTO invite_requests (email, message) VALUES (?, ?)').run(email, message ?? null);
+  }
+
+  public static listInviteRequests(): { id: number; email: string; message: string | null; created_at: string }[] {
+    const db = this.getDb();
+    return db.prepare('SELECT id, email, message, created_at FROM invite_requests ORDER BY created_at DESC').all() as { id: number; email: string; message: string | null; created_at: string }[];
+  }
+
+  public static clearInviteRequests(): number {
+    const db = this.getDb();
+    const result = db.prepare('DELETE FROM invite_requests').run();
+    return result.changes;
   }
 }

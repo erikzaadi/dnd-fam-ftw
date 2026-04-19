@@ -45,6 +45,10 @@ export const CreateSession = () => {
       setError(data.message ?? 'The AI is busy, please try again.');
       return;
     }
+    if (res.status === 403 && data.error === 'session_limit') {
+      setError(data.message ?? 'Session limit reached for this group.');
+      return;
+    }
     navigate(`/session/${data.id}/assembly`);
   };
 

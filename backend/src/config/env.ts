@@ -52,7 +52,7 @@ function parse(): AppConfig {
     JWT_SECRET: process.env.JWT_SECRET,
     ADMIN_EMAIL: process.env.ADMIN_EMAIL,
     FRONTEND_URL: process.env.FRONTEND_URL ?? '',
-    APP_BASE_PATH: process.env.APP_BASE_PATH ?? '/dnd-fam-ftw/',
+    APP_BASE_PATH: process.env.APP_BASE_PATH ?? '/',
     APP_VERSION: process.env.APP_VERSION ?? 'dev',
   };
 }

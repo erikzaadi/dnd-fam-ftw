@@ -60,7 +60,7 @@ export const CharacterAssembly = () => {
       return;
     }
     setLoading(true);
-    const { id: _id, avatarUrl: _avatarUrl, sessionName: _sessionName, status: _status, hp: _hp, ...rest } = char as Character & { sessionName?: string };
+    const { id: originalCharId, avatarUrl: _avatarUrl, sessionName: _sessionName, status: _status, hp: _hp, ...rest } = char as Character & { sessionName?: string };
 
     let stats = rest.stats;
     try {
@@ -74,7 +74,17 @@ export const CharacterAssembly = () => {
       }
     } catch { /* keep original stats */ }
 
-    const characterData = { ...rest, stats, hp: rest.max_hp, status: 'active' };
+    // Fetch history summary for the original character before importing
+    let history: string | undefined;
+    try {
+      const histRes = await apiFetch(`/character/${originalCharId}/history-summary`);
+      if (histRes.ok) {
+        const histData = await histRes.json() as { summary: string | null };
+        history = histData.summary ?? undefined;
+      }
+    } catch { /* no history */ }
+
+    const characterData = { ...rest, stats, hp: rest.max_hp, status: 'active', history };
     await apiFetch('/character/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

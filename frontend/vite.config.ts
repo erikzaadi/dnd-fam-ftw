@@ -3,8 +3,8 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
-// VITE_BASE_PATH: '/' for AWS (root domain), '/dnd-fam-ftw/' for local/legacy deployment
-const BASE = process.env.VITE_BASE_PATH ?? '/dnd-fam-ftw/';
+// VITE_BASE_PATH: '/' for dev and AWS (default), '/dnd-fam-ftw/' for local laptop builds (scripts/re-deploy.sh)
+const BASE = process.env.VITE_BASE_PATH ?? '/';
 
 export default defineConfig({
   base: BASE,
@@ -17,12 +17,12 @@ export default defineConfig({
       [`${BASE}api`]: {
         target: 'http://localhost:3001',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/dnd-fam-ftw\/api/, ''),
+        rewrite: (path) => path.slice(`${BASE}api`.length),
       },
       [`${BASE}images`]: {
         target: 'http://localhost:3001',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/dnd-fam-ftw/, ''),
+        rewrite: (path) => path.slice(BASE.length - 1),
       },
     },
   },

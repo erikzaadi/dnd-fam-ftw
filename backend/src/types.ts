@@ -23,6 +23,7 @@ export interface Character {
   avatarPrompt?: string;
   avatarStorageKey?: string;
   avatarStorageProvider?: string;
+  history?: string;
   stats: {
     might: number;
     magic: number;

@@ -6,36 +6,33 @@ This is an AI-powered family D&D game. Players pick heroes, describe a world, an
 
 ```bash
 npm run install:all   # install both workspaces
-npm run dev           # starts backend :3001 + frontend :5173
+npm run dev           # starts backend :3001 + frontend :5173 (concurrently, Ctrl+C kills both)
 ```
+
+The dev server runs with base path `/` (no prefix). All env vars live in the root `.env`.
 
 ## Linting
 
-### Backend and frontend TypeScript
-Each workspace has its own `eslint.config.js` and ESLint version:
+Run everything from root:
 ```bash
-cd backend && npm run lint && npx tsc --noEmit   # ESLint + type check
-cd frontend && npm run lint && npx tsc -b        # ESLint + type check
+npm run lint           # runs all: backend + frontend + workflows + bash scripts
+npm run lint:backend   # ESLint on backend/src/**/*.ts
+npm run lint:frontend  # ESLint on frontend/src/**/*.tsx
+npm run lint:workflows # actionlint + yamllint + shellcheck on workflows
+npm run lint:bash      # shellcheck on all scripts/
 ```
 
-### Workflow and shell linting
-One-time setup (binaries + Python venv for yamllint):
+Per-workspace type checks:
+```bash
+cd backend && npx tsc --noEmit
+cd frontend && npx tsc -b
+```
+
+One-time setup for workflow/yaml linting:
 ```bash
 brew install actionlint shellcheck
 npm run setup:lint
 ```
-
-Then before touching any workflow or shell script:
-```bash
-npm run lint:workflows
-```
-
-This runs:
-- `actionlint` - validates workflow YAML, GHA expressions, and shellchecks every `run:` block
-- `yamllint` - general YAML formatting (via `.venv-lint/`)
-- `shellcheck` - lints all scripts in `scripts/`
-
-The Vite dev server proxies `/dnd-fam-ftw/api/*` to the backend. All env vars live in the root `.env` (not `backend/.env` - the README is wrong about that).
 
 ## Project layout
 
@@ -45,7 +42,7 @@ backend/src/
   config/env.ts                    # All env var parsing - add new vars here
   services/
     stateService.ts                # SQLite via better-sqlite3 - all DB access
-    authService.ts                 # Google OAuth + JWT
+    authService.ts                 # Google OAuth + JWT (full, pending-namespace, pending-invite, invite-requested types)
     aiDmService.ts                 # GPT-4o narration
     imageService.ts                # DALL-E / LocalAI image generation
     gameEngine.ts                  # Dice, damage, turn mechanics
@@ -55,60 +52,79 @@ backend/src/
     ai/                            # Narration + image provider abstraction
     storage/                       # LocalImageStorageProvider + S3ImageStorageProvider
   scripts/
-    users.ts                       # npm run users -- <list|add|remove>
-    namespaces.ts                  # npm run namespaces -- <list|create|rename|delete|sessions|assign-session>
+    users.ts                       # npm run users <list|add|remove>
+    namespaces.ts                  # npm run namespaces <list|create|rename|delete|sessions|assign-session|add-user|set-limits>
+    usageMetrics.ts                # npm run usage-metrics [--json]
+    inviteRequests.ts              # npm run invite-requests <list|clear>
     listSessions.ts / nukeSessions.ts / seedSessions.ts
 
 frontend/src/
   App.tsx                          # Routes + AuthProvider + AuthGuard
   contexts/AuthContext.tsx         # Auth state, enabled/user/logout
-  pages/                           # Home, Session, CreateSession, CharacterAssembly, etc.
+  pages/                           # Home, Session, CreateSession, CharacterAssembly, NamespacePicker, RequestInvite, etc.
   components/SiteHeader.tsx        # Banner + back button + logout button
-  lib/api.ts                       # api() and imgSrc() URL helpers - use these everywhere
+  lib/api.ts                       # apiFetch() and imgSrc() URL helpers - use these everywhere
 
-terraform/                         # AWS infrastructure (see below)
+terraform/                         # AWS infrastructure (see Terraform section below)
 ```
 
 ## Coding conventions
 
 - **No em dashes** in code, comments, UI strings, or docs. Use a hyphen or colon instead.
 - **All `if` statements must have braces** on a new line. ESLint enforces this (`curly` rule).
-- Run `npm run lint` from the relevant workspace (`backend/` or `frontend/`) after changes. Run `npm run lint:fix` from `backend/` for auto-fix.
-- TypeScript strict mode is on in both workspaces. Run `npx tsc --noEmit` to verify.
+- Run `npm run lint` from root after changes.
+- TypeScript strict mode is on in both workspaces.
 
 ## Auth
 
 Auth is **optional** - if `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `JWT_SECRET` are absent from `.env`, auth is fully disabled and everything uses the `local` namespace. No login page is shown.
 
 When auth is enabled:
-- Google OAuth callback URL: set `GOOGLE_CALLBACK_URL` (for local dev: `http://localhost:5173/dnd-fam-ftw/api/auth/google/callback`)
+- Google OAuth callback URL: set `GOOGLE_CALLBACK_URL` (for local dev: `http://localhost:5173/api/auth/google/callback`)
 - Only emails pre-registered via `npm run users add <email>` can log in
 - `ADMIN_EMAIL` in `.env` auto-creates that user on startup
 
-JWT is stored as an HttpOnly cookie. `req.namespaceId` and `req.userEmail` are attached by `authMiddleware` to every `/api/*` request (except `/api/auth/*`).
+JWT types in the `type` field:
+- `full` - normal authenticated session (default)
+- `pending-namespace` - user has multiple namespaces, must pick one (stored in `jwt_pending` cookie)
+- `pending-invite` - unregistered Google user, can submit an invite request
+- `invite-requested` - unregistered user who already submitted an invite request
+
+JWT is stored as an HttpOnly cookie. `req.namespaceId` and `req.userEmail` are attached by `authMiddleware`.
 
 ## Namespace isolation
 
-Every session belongs to a namespace. Users have a 1:1 relationship with their namespace. All session queries are scoped to `req.namespaceId`. The `local` namespace is the default when auth is disabled.
+Every session belongs to a namespace. Users have a primary namespace (1:1) but can be granted access to additional namespaces via `namespaces add-user`. All session queries are scoped to `req.namespaceId`. The `local` namespace is the default when auth is disabled.
 
-Manage via scripts:
+S3 asset deletion: `StateService.deleteSession()` deletes all turn images and character avatars from S3 (or local disk) before deleting the DB rows.
+
+### Namespace limits
+
+Per-namespace session and turn limits. NULL means unlimited (default).
+
 ```bash
-npm run users list
-npm run users add someone@gmail.com "Their Name"
-npm run namespaces list
-npm run namespaces sessions <namespace-id>
+npm run namespaces set-limits <id> --max-sessions 5 --max-turns 100
+npm run namespaces set-limits <id>          # show current limits
+npm run namespaces set-limits <id> --max-sessions null   # remove limit
 ```
 
 ## Backend scripts
 
-All run from `backend/`:
+All run from `backend/` or via `./scripts/deploy/run-script.sh <script>` on production:
+
 | Script | What it does |
 |---|---|
-| `npm run users -- <cmd>` | list / add / remove users |
-| `npm run namespaces -- <cmd>` | list / create / rename / delete / sessions / assign-session |
+| `npm run users <cmd>` | list / add / remove users |
+| `npm run namespaces <cmd>` | list / create / rename / delete / sessions / assign-session / add-user / set-limits |
+| `npm run usage-metrics` | per-namespace OpenAI usage stats (sessions, turns, images, avatars) |
+| `npm run invite-requests <cmd>` | list / clear invite requests |
 | `npm run list-sessions` | print all sessions |
 | `npm run nuke-sessions` | delete all sessions (dev only) |
 | `npm run seed-sessions` | seed test data |
+
+## Character history
+
+Characters have a `history` field. When importing a character from a previous session (CharacterAssembly), an AI-generated one-sentence summary of their past adventures is stored in `history`. This is passed to the AI DM as context for each turn.
 
 ## DB migrations
 
@@ -117,6 +133,12 @@ All run from `backend/`:
 ## Image storage
 
 Controlled by `IMAGE_STORAGE_PROVIDER` env var (`local` or `s3`). The `imageService.ts` talks to the provider interface - never call `fs` directly for images. Session `savingsMode = true` skips image generation entirely.
+
+## Base path
+
+- **Dev**: base path is `/` (default). Vite proxy rewrites `/api/*` and `/images/*` to the backend.
+- **AWS production**: base path is `/` (set via `VITE_BASE_PATH=/` in deploy.yml).
+- **Local laptop build** (scripts/re-deploy.sh): uses `/dnd-fam-ftw/` prefix. Set `APP_BASE_PATH=/dnd-fam-ftw/` in the environment config.
 
 ## Terraform
 

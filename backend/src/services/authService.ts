@@ -1,9 +1,12 @@
 import jwt from 'jsonwebtoken';
 import { getConfig, isAuthEnabled } from '../config/env.js';
 
+export type JwtType = 'full' | 'pending-namespace' | 'pending-invite' | 'invite-requested';
+
 export interface JwtPayload {
   email: string;
   namespaceId: string;
+  type?: JwtType;
 }
 
 export function getAuthPublicConfig(): { enabled: boolean; googleClientId?: string } {
@@ -67,9 +70,9 @@ export async function exchangeCodeForEmail(code: string): Promise<string> {
   return userData.email;
 }
 
-export function signJwt(payload: JwtPayload): string {
+export function signJwt(payload: JwtPayload, shortLived: boolean = false): string {
   const config = getConfig();
-  return jwt.sign(payload, config.JWT_SECRET!, { expiresIn: '30d' });
+  return jwt.sign(payload, config.JWT_SECRET!, { expiresIn: shortLived ? '10m' : '30d' });
 }
 
 export function verifyJwt(token: string): JwtPayload | null {

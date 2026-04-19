@@ -239,4 +239,16 @@ When `savingsMode` is `true`, no scene images or new character avatars are gener
 
 ---
 
+## Character History
+
+Characters have an optional `history` field: a one-sentence AI-generated summary of their past adventures.
+
+It is populated automatically when a character is **imported** from a previous session in the Character Assembly screen. The summary is generated from the character's turn history in that session (what they did, what happened to them).
+
+The `history` field is passed to the AI DM as context alongside the character's `quirk`. This lets the DM acknowledge a returning hero's past deeds: *"Thorin, who once accidentally set a tavern on fire trying to impress a bard..."*
+
+Characters created fresh (not imported) have no `history`.
+
+---
+
 *For feature requests or bug reports: [github.com/erikzaadi/dnd-fam-ftw](https://github.com/erikzaadi/dnd-fam-ftw/issues)*

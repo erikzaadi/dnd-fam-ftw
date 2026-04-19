@@ -11,6 +11,8 @@
  *   delete <id>                       Delete an empty namespace
  *   sessions <id>                     List sessions belonging to a namespace
  *   assign-session <sessionId> <nsId> Move a session to a different namespace
+ *   add-user <nsId> <email>           Grant a user access to an additional namespace
+ *   set-limits <id> [--max-sessions N] [--max-turns N]  Set session/turn limits
  */
 
 import path from 'path';
@@ -138,6 +140,66 @@ case 'assign-session': {
   break;
 }
 
+case 'add-user': {
+  const [nsId, email] = args.filter(a => !a.startsWith('--'));
+  if (!nsId || !email) {
+    console.error('Usage: namespaces.ts add-user <namespaceId> <email>');
+    process.exit(1);
+  }
+  const result = StateService.addUserToNamespace(email, nsId);
+  if (result.ok) {
+    console.log(`Granted ${email} access to namespace ${nsId}`);
+  } else {
+    console.error(`Error: ${result.reason}`);
+    process.exit(1);
+  }
+  break;
+}
+
+case 'set-limits': {
+  const id = args.find(a => !a.startsWith('--'));
+  if (!id) {
+    console.error('Usage: namespaces.ts set-limits <id> [--max-sessions N] [--max-turns N]');
+    process.exit(1);
+  }
+  const ns = StateService.getNamespaceById(id);
+  if (!ns) {
+    console.error(`Namespace not found: ${id}`);
+    process.exit(1);
+  }
+  const maxSessionsArg = args.find(a => a.startsWith('--max-sessions'));
+  const maxTurnsArg = args.find(a => a.startsWith('--max-turns'));
+  const parseLimit = (arg: string | undefined): number | null | undefined => {
+    if (!arg) {
+      return undefined;
+    }
+    const val = arg.split('=')[1] ?? args[args.indexOf(arg) + 1];
+    if (val === 'null' || val === 'unlimited') {
+      return null;
+    }
+    const n = parseInt(val, 10);
+    return isNaN(n) ? undefined : n;
+  };
+  const maxSessions = parseLimit(maxSessionsArg);
+  const maxTurns = parseLimit(maxTurnsArg);
+  if (maxSessions === undefined && maxTurns === undefined) {
+    // Show current limits
+    const limits = StateService.getNamespaceLimits(id);
+    console.log(`Namespace "${ns.name}" (${id}) limits:`);
+    console.log(`  max-sessions: ${limits.maxSessions ?? 'unlimited'}`);
+    console.log(`  max-turns:    ${limits.maxTurns ?? 'unlimited'}`);
+    break;
+  }
+  const current = StateService.getNamespaceLimits(id);
+  const newMaxSessions = maxSessions !== undefined ? maxSessions : current.maxSessions;
+  const newMaxTurns = maxTurns !== undefined ? maxTurns : current.maxTurns;
+  StateService.setNamespaceLimits(id, newMaxSessions, newMaxTurns);
+  console.log(`Updated limits for "${ns.name}" (${id}):`);
+  console.log(`  max-sessions: ${newMaxSessions ?? 'unlimited'}`);
+  console.log(`  max-turns:    ${newMaxTurns ?? 'unlimited'}`);
+  break;
+}
+
 default:
   console.log(`
 dnd-fam-ftw namespace management
@@ -149,6 +211,8 @@ Commands:
   delete <id>                          Delete an empty namespace
   sessions <id>                        List sessions in a namespace
   assign-session <sessionId> <nsId>    Move a session to a namespace
+  add-user <nsId> <email>              Grant user access to a namespace
+  set-limits <id> [--max-sessions N] [--max-turns N]  Set or view limits
 
 Examples:
   npm run namespaces list
@@ -157,6 +221,9 @@ Examples:
   npm run namespaces sessions abc123
   npm run namespaces assign-session xyz789 abc123
   npm run namespaces delete abc123
+  npm run namespaces add-user abc123 someone@gmail.com
+  npm run namespaces set-limits abc123 --max-sessions 5 --max-turns 50
+  npm run namespaces set-limits abc123 --max-sessions null
 `);
   break;
 }

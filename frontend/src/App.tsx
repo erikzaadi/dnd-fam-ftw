@@ -7,6 +7,8 @@ import { SessionRecap } from './pages/SessionRecap';
 import { Settings } from './pages/Settings';
 import { HowToPlay } from './pages/HowToPlay';
 import { Login } from './pages/Login';
+import { NamespacePicker } from './pages/NamespacePicker';
+import { RequestInvite } from './pages/RequestInvite';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -48,6 +50,8 @@ function App() {
     <AuthProvider>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/namespace-picker" element={<NamespacePicker />} />
+        <Route path="/request-invite" element={<RequestInvite />} />
         <Route path="/*" element={<AppRoutes />} />
       </Routes>
     </AuthProvider>

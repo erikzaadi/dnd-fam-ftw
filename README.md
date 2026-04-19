@@ -162,9 +162,9 @@ npm run dev
 
 This starts:
 - Backend on `http://localhost:3001`
-- Frontend on `http://localhost:5173/dnd-fam-ftw/`
+- Frontend on `http://localhost:5173/` (base path `/` for dev)
 
-The Vite dev server proxies `/dnd-fam-ftw/api/*` → backend automatically.
+The Vite dev server proxies `/api/*` → backend automatically.
 
 ---
 
@@ -176,26 +176,36 @@ dnd-fam-ftw/
 │   └── src/
 │       ├── index.ts              # Express API + SSE
 │       ├── types.ts              # Shared types
-│       └── services/
-│           ├── gameEngine.ts     # Dice, damage, state
-│           ├── aiDmService.ts    # GPT-4o narration
-│           ├── imageService.ts   # DALL-E 3 + caching
-│           └── stateService.ts   # SQLite persistence
+│       ├── services/
+│       │   ├── gameEngine.ts     # Dice, damage, state
+│       │   ├── aiDmService.ts    # GPT-4o narration
+│       │   ├── imageService.ts   # DALL-E 3 + caching
+│       │   ├── authService.ts    # Google OAuth + JWT
+│       │   └── stateService.ts   # SQLite persistence
+│       └── scripts/
+│           ├── users.ts          # User management
+│           ├── namespaces.ts     # Namespace management (limits, multi-user access)
+│           ├── usageMetrics.ts   # OpenAI usage stats per namespace
+│           └── inviteRequests.ts # Invite request management
 │
 ├── frontend/
 │   └── src/
 │       ├── pages/
-│       │   ├── Home.tsx          # World list
-│       │   ├── CreateSession.tsx # New world form
-│       │   ├── CharacterAssembly.tsx
-│       │   ├── Session.tsx       # Active gameplay
-│       │   └── SessionRecap.tsx  # TLDR + Movie modes
+│       │   ├── Home.tsx              # World list
+│       │   ├── CreateSession.tsx     # New world form
+│       │   ├── CharacterAssembly.tsx # Party management + character import
+│       │   ├── Session.tsx           # Active gameplay
+│       │   ├── SessionRecap.tsx      # TLDR + Movie modes
+│       │   ├── NamespacePicker.tsx   # Multi-namespace picker after login
+│       │   └── RequestInvite.tsx     # Invite request form for unregistered users
 │       └── components/
-│           └── game/             # Narration, ActionControls, Inventory…
+│           └── game/                 # Narration, ActionControls, Inventory...
 │
-├── deploy/                       # Nginx config + systemd service
-├── docs/                         # Screenshots
+├── terraform/                    # AWS infrastructure (Lightsail, S3, CloudFront, Route53)
 ├── scripts/                      # Deploy + install scripts
+│   └── deploy/                   # SSH-wrapped management scripts (run-script.sh)
+├── .github/workflows/            # CI/CD (deploy.yml, lint.yml, test.yml, renew-cert.yml)
+├── docs/                         # Screenshots
 └── .env                          # OPENAI_API_KEY goes here
 ```
 
@@ -203,34 +213,70 @@ dnd-fam-ftw/
 
 ## Deployment
 
-The app is designed to run at a subpath (`/dnd-fam-ftw/`) behind Nginx on a Linux server.
+### AWS (production)
+
+The app deploys to AWS via GitHub Actions (`.github/workflows/deploy.yml`). Infrastructure is provisioned with Terraform (`terraform/`):
+
+| Resource | Purpose |
+|---|---|
+| AWS Lightsail | Ubuntu VPS running the Node backend |
+| S3 | Frontend static files + generated images |
+| CloudFront | CDN for frontend and images |
+| Route53 | DNS for API and frontend domains |
+| SSM Parameter Store | Secrets (Google OAuth, JWT, etc.) |
+
+**First-time setup:**
+1. Copy `terraform/terraform.tfvars.example` to `terraform/terraform.tfvars` and fill in your values
+2. Run `terraform apply` in `terraform/`
+3. Fill in SSM parameters: `./scripts/fill-ssm-params.sh`
+4. Provision TLS cert: `./scripts/provision-cert.sh`
+5. Push a `v*` tag to trigger a full deploy
+
+**CI/CD secrets** required in the GitHub `production` environment: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `LIGHTSAIL_INSTANCE_NAME`, `LIGHTSAIL_HOST`, `SSH_PRIVATE_KEY`, `API_DOMAIN`, `FRONTEND_DOMAIN`, `FRONTEND_BUCKET_NAME`, `IMAGE_BUCKET_NAME`, `CF_DIST_ID`.
+
+**Change detection:** The deploy workflow only rebuilds what changed (backend or frontend) since the last deploy. Tag pushes always deploy everything.
+
+### Local laptop (legacy)
+
+The app can also run at a subpath (`/dnd-fam-ftw/`) behind Nginx on a local Linux server:
 
 ```bash
 # First time setup on the server
 ./scripts/install-ubuntu.sh
 
-# Push local changes to server
-./scripts/sync-to-server.sh
-
-# On the server: rebuild and restart
+# Push local changes to server and restart
 ./scripts/re-deploy.sh
 ```
 
-The backend runs as a systemd service (`node --env-file=.env dist/index.js`). See `deploy/` for the Nginx config and service file.
+The backend runs as a systemd service. `re-deploy.sh` sets `VITE_BASE_PATH=/dnd-fam-ftw/` automatically for the frontend build.
+
+### Production management scripts
+
+Run via SSH wrapper (opens/closes port 22 dynamically):
+```bash
+./scripts/deploy/run-script.sh users list
+./scripts/deploy/run-script.sh namespaces list
+./scripts/deploy/run-script.sh usage-metrics
+./scripts/deploy/run-script.sh invite-requests list
+./scripts/deploy/node-version.sh   # check Node version on the instance
+```
 
 ---
 
 ## AI Usage
 
-There are five distinct AI calls in the app, each with a different purpose and cost profile:
+There are six distinct AI calls in the app, each with a different purpose and cost profile:
 
 | Call | Where | Cloud model | Local alternative | When |
 |---|---|---|---|---|
 | **Turn narration** | `aiDmService.ts` | gpt-4o | LocalAI (Qwen3 etc.) | Every action : the core DM loop |
 | **Scene image** | `imageService.ts` | dall-e-3 | LocalAI (SD 3.5 Large) | Every turn, async via SSE, cached by prompt hash |
 | **Avatar generation** | `imageService.ts` | dall-e-3 | LocalAI (SD 3.5 Large) | Once per character creation, cached permanently |
-| **TLDR summary** | `index.ts` (route) | gpt-4o-mini | : | On demand in recap screen |
+| **TLDR summary** | `index.ts` (route) | gpt-4o-mini | - | On demand in recap screen |
 | **Session naming** | `stateService.ts` | gpt-4o-mini | LocalAI | Once at world creation |
+| **Character history** | `index.ts` (route) | gpt-4o-mini | - | When importing a character from a previous session |
+
+Use `./scripts/deploy/run-script.sh usage-metrics` to see per-namespace counts for sessions, turns, images, and avatars generated.
 
 Turn narration is the only call that blocks the player response. Scene images are generated asynchronously after the turn : the story text appears immediately, and the image arrives via SSE a few seconds later.
 
@@ -273,6 +319,34 @@ SSE broadcasts image_ready → scene image appears on all clients
 ```
 
 The AI **cannot mutate game state directly** : it only returns structured JSON. The backend owns all mechanics.
+
+---
+
+## Auth and Multi-User Setup
+
+Auth is optional. Without Google OAuth credentials everything runs under a single `local` namespace.
+
+When auth is enabled, each user gets their own namespace (isolated sessions). Users can be granted access to additional namespaces by an admin.
+
+**User management:**
+```bash
+./scripts/deploy/run-script.sh users list
+./scripts/deploy/run-script.sh users add someone@gmail.com "Their Name"
+```
+
+**Namespace management:**
+```bash
+./scripts/deploy/run-script.sh namespaces list
+./scripts/deploy/run-script.sh namespaces add-user <namespaceId> someone@gmail.com
+./scripts/deploy/run-script.sh namespaces set-limits <namespaceId> --max-sessions 5 --max-turns 100
+```
+
+Users with multiple namespace access will see a picker screen after login.
+
+**Invite requests:** Unregistered users who try to log in with Google are directed to a request-invite page. View requests:
+```bash
+./scripts/deploy/run-script.sh invite-requests list
+```
 
 For the complete ruleset : dice math, downed state, party wipes, item mechanics, story compression, SSE events : see **[GAME_ENGINE_RULES.md](GAME_ENGINE_RULES.md)**.
 

@@ -76,16 +76,31 @@ const WorldCard = ({
 
 export const Home = () => {
   const [activeSessions, setActiveSessions] = useState<SessionPreview[]>([]);
+  const [sessionLimit, setSessionLimit] = useState<{ max: number; current: number } | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
   const navigate = useNavigate();
 
   const loadSessions = () => {
     apiFetch('/sessions')
       .then(res => res.json())
-      .then(data => setActiveSessions(data));
+      .then(data => setActiveSessions(data as SessionPreview[]));
   };
 
-  useEffect(loadSessions, []);
+  const loadLimits = () => {
+    apiFetch('/namespace/limits')
+      .then(res => res.json())
+      .then((data: { maxSessions: number | null; sessionCount: number }) => {
+        if (data.maxSessions !== null) {
+          setSessionLimit({ max: data.maxSessions, current: data.sessionCount });
+        }
+      })
+      .catch(() => { /* limits unavailable, proceed without */ });
+  };
+
+  useEffect(() => {
+    loadSessions();
+    loadLimits();
+  }, []);
 
   const deleteSession = (id: string, displayName: string) => {
     setConfirmDialog({
@@ -93,6 +108,7 @@ export const Home = () => {
       onConfirm: async () => {
         await apiFetch(`/session/${id}`, { method: 'DELETE' });
         loadSessions();
+        loadLimits();
         setConfirmDialog(null);
       }
     });
@@ -111,12 +127,19 @@ export const Home = () => {
       <SiteHeader />
 
       <div className="flex-1 flex flex-col gap-6 px-4 md:px-6 pt-4 pb-6 relative z-[10] min-h-0 max-w-3xl w-full mx-auto">
-        <button
-          onClick={() => navigate('/create-session')}
-          className="px-8 py-5 md:px-16 md:py-6 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-2xl md:text-4xl font-black shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter w-full flex-shrink-0"
-        >
-          START A NEW WORLD
-        </button>
+        {sessionLimit && sessionLimit.current >= sessionLimit.max ? (
+          <div className="px-8 py-5 md:px-16 md:py-6 bg-slate-800 border-2 border-slate-700 rounded-[32px] text-center flex-shrink-0">
+            <p className="text-slate-400 font-black uppercase italic tracking-tighter text-xl md:text-2xl">SESSION LIMIT REACHED</p>
+            <p className="text-slate-500 text-sm mt-1">{sessionLimit.current} / {sessionLimit.max} worlds - delete one to start another</p>
+          </div>
+        ) : (
+          <button
+            onClick={() => navigate('/create-session')}
+            className="px-8 py-5 md:px-16 md:py-6 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-2xl md:text-4xl font-black shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter w-full flex-shrink-0"
+          >
+            START A NEW WORLD{sessionLimit ? ` (${sessionLimit.current}/${sessionLimit.max})` : ''}
+          </button>
+        )}
 
         {activeSessions.length > 0 ? (
           <div className="flex-1 bg-slate-900 p-4 rounded-[32px] border-2 border-slate-800 shadow-2xl flex flex-col gap-3 min-h-0">

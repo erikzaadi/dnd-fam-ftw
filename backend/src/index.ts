@@ -18,7 +18,7 @@ import { parseSuggestedStats, STAT_FALLBACK } from './services/statSuggestionSer
 import { Character } from './types.js';
 import { getConfig, isAuthEnabled } from './config/env.js';
 import { getImageStorageProvider } from './providers/storage/storageProviderFactory.js';
-import { getAuthPublicConfig, buildGoogleAuthUrl, exchangeCodeForEmail, signJwt } from './services/authService.js';
+import { getAuthPublicConfig, buildGoogleAuthUrl, exchangeCodeForEmail, signJwt, verifyJwt } from './services/authService.js';
 import { authMiddleware } from './middleware/auth.js';
 
 import asyncHandler from 'express-async-handler';
@@ -93,15 +93,44 @@ app.get('/auth/google/callback', asyncHandler(async (req, res) => {
 
   const email = await exchangeCodeForEmail(code);
   const user = StateService.getUserByEmail(email);
+  const isProduction = process.env.NODE_ENV === 'production';
+  const frontendUrl = config.FRONTEND_URL ?? '';
+  const basePath = config.APP_BASE_PATH;
+
   if (!user) {
+    // User is a real Google account but not registered - issue pending-invite or invite-requested JWT
     console.warn(`[Auth] Login denied for unregistered email: ${email}`);
-    const basePath = config.APP_BASE_PATH;
-    res.redirect(`${config.FRONTEND_URL ?? ''}${basePath}login?error=unauthorized`);
+    const alreadyRequested = StateService.hasInviteRequest(email);
+    const jwtType = alreadyRequested ? 'invite-requested' : 'pending-invite';
+    const pendingToken = signJwt({ email, namespaceId: '', type: jwtType }, true);
+    res.cookie('jwt_pending_invite', pendingToken, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: isProduction,
+      maxAge: 10 * 60 * 1000, // 10 minutes
+      path: '/',
+    });
+    res.redirect(`${frontendUrl}${basePath}request-invite`);
     return;
   }
 
-  const token = signJwt({ email: user.email, namespaceId: user.namespace_id });
-  const isProduction = process.env.NODE_ENV === 'production';
+  const namespaces = StateService.getUserNamespaces(email);
+  if (namespaces.length > 1) {
+    // User has multiple namespaces - issue pending-namespace JWT and show picker
+    const pendingToken = signJwt({ email, namespaceId: '', type: 'pending-namespace' }, true);
+    res.cookie('jwt_pending', pendingToken, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: isProduction,
+      maxAge: 10 * 60 * 1000, // 10 minutes
+      path: '/',
+    });
+    res.redirect(`${frontendUrl}${basePath}namespace-picker`);
+    return;
+  }
+
+  const namespaceId = namespaces[0]?.id ?? user.namespace_id;
+  const token = signJwt({ email: user.email, namespaceId, type: 'full' });
   res.cookie('jwt', token, {
     httpOnly: true,
     sameSite: 'lax',
@@ -110,8 +139,6 @@ app.get('/auth/google/callback', asyncHandler(async (req, res) => {
     path: '/',
   });
 
-  const frontendUrl = config.FRONTEND_URL ?? '';
-  const basePath = config.APP_BASE_PATH;
   res.redirect(`${frontendUrl}${basePath}`);
 }));
 
@@ -120,6 +147,103 @@ app.post('/auth/logout', (_req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/auth/namespaces', (req, res) => {
+  if (!isAuthEnabled()) {
+    res.status(404).json({ error: 'Auth not configured' });
+    return;
+  }
+  const token = (req.cookies as Record<string, string>)?.jwt_pending;
+  if (!token) {
+    res.status(401).json({ error: 'Missing pending token' });
+    return;
+  }
+  const payload = verifyJwt(token);
+  if (!payload || payload.type !== 'pending-namespace') {
+    res.status(401).json({ error: 'Invalid or expired pending token' });
+    return;
+  }
+  const namespaces = StateService.getUserNamespaces(payload.email);
+  res.json({ namespaces });
+});
+
+app.post('/auth/select-namespace', asyncHandler(async (req, res) => {
+  if (!isAuthEnabled()) {
+    res.status(404).json({ error: 'Auth not configured' });
+    return;
+  }
+  const token = (req.cookies as Record<string, string>)?.jwt_pending;
+  if (!token) {
+    res.status(401).json({ error: 'Missing pending token' });
+    return;
+  }
+  const payload = verifyJwt(token);
+  if (!payload || payload.type !== 'pending-namespace') {
+    res.status(401).json({ error: 'Invalid or expired pending token' });
+    return;
+  }
+  const { namespaceId } = req.body as { namespaceId: string };
+  if (!namespaceId) {
+    res.status(400).json({ error: 'Missing namespaceId' });
+    return;
+  }
+  const namespaces = StateService.getUserNamespaces(payload.email);
+  const valid = namespaces.some(n => n.id === namespaceId);
+  if (!valid) {
+    res.status(403).json({ error: 'Namespace access denied' });
+    return;
+  }
+  const isProduction = process.env.NODE_ENV === 'production';
+  const fullToken = signJwt({ email: payload.email, namespaceId, type: 'full' });
+  res.clearCookie('jwt_pending', { path: '/' });
+  res.cookie('jwt', fullToken, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: isProduction,
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+    path: '/',
+  });
+  res.json({ ok: true });
+}));
+
+app.get('/auth/invite-info', (req, res) => {
+  if (!isAuthEnabled()) {
+    res.status(404).json({ error: 'Auth not configured' });
+    return;
+  }
+  const token = (req.cookies as Record<string, string>)?.jwt_pending_invite;
+  if (!token) {
+    res.status(401).json({ error: 'Missing invite token' });
+    return;
+  }
+  const payload = verifyJwt(token);
+  if (!payload || (payload.type !== 'pending-invite' && payload.type !== 'invite-requested')) {
+    res.status(401).json({ error: 'Invalid or expired invite token' });
+    return;
+  }
+  res.json({ email: payload.email, alreadyRequested: payload.type === 'invite-requested' });
+});
+
+app.post('/auth/request-invite', asyncHandler(async (req, res) => {
+  if (!isAuthEnabled()) {
+    res.status(404).json({ error: 'Auth not configured' });
+    return;
+  }
+  const token = (req.cookies as Record<string, string>)?.jwt_pending_invite;
+  if (!token) {
+    res.status(401).json({ error: 'Missing invite token' });
+    return;
+  }
+  const payload = verifyJwt(token);
+  if (!payload || payload.type !== 'pending-invite') {
+    res.status(403).json({ error: 'Invalid token or invite already submitted' });
+    return;
+  }
+  const { message } = req.body as { message?: string };
+  StateService.addInviteRequest(payload.email, message);
+  res.clearCookie('jwt_pending_invite', { path: '/' });
+  res.json({ ok: true });
+}));
+
 // Apply auth middleware to all routes except /auth/* /images/* and /health
 app.use((req, res, next) => {
   if (req.path.startsWith('/auth/') || req.path.startsWith('/images/') || req.path === '/health') {
@@ -127,6 +251,16 @@ app.use((req, res, next) => {
     return;
   }
   authMiddleware(req, res, next);
+});
+
+app.get('/namespace/limits', (req, res) => {
+  const limits = StateService.getNamespaceLimits(req.namespaceId);
+  const sessionCount = StateService.countSessionsInNamespace(req.namespaceId);
+  res.json({
+    maxSessions: limits.maxSessions,
+    maxTurns: limits.maxTurns,
+    sessionCount,
+  });
 });
 
 // SSE Event Stream
@@ -190,6 +324,14 @@ const broadcastUpdate = (sessionId: string, type: string, payload: Record<string
 app.post('/session/create', asyncHandler(async (req, res) => {
   const { worldDescription, difficulty, useLocalAI } = req.body;
   try {
+    const limits = StateService.getNamespaceLimits(req.namespaceId);
+    if (limits.maxSessions !== null) {
+      const count = StateService.countSessionsInNamespace(req.namespaceId);
+      if (count >= limits.maxSessions) {
+        res.status(403).json({ error: 'session_limit', message: `This adventure group has reached its limit of ${limits.maxSessions} session(s). Ask the DM to remove old sessions.` });
+        return;
+      }
+    }
     const savingsMode = !SettingsService.get().imagesEnabled;
     const session = await StateService.createSession(worldDescription, difficulty, !!useLocalAI, savingsMode, req.namespaceId);
     res.json(session);
@@ -333,6 +475,32 @@ app.put('/character/:charId', asyncHandler(async (req, res) => {
   res.json(updatedChar);
 }));
 
+app.get('/character/:charId/history-summary', asyncHandler(async (req, res) => {
+  const charId = req.params.charId as string;
+  const turns = StateService.getCharacterTurnHistory(charId);
+  if (turns.length === 0) {
+    res.json({ summary: null });
+    return;
+  }
+  const session = await StateService.listSessions(req.namespaceId);
+  const useLocalAI = false; // history summary uses default AI
+  const sessionWithChar = session.find(s => s.party.some(p => p.id === charId));
+  // Build context from narration snippets
+  const narrationContext = turns.slice(-10).map(t => t.narration).join(' ');
+  const { client, model } = createChatClient(useLocalAI);
+  try {
+    const response = await client.chat.completions.create({
+      model,
+      messages: [{ role: 'user', content: `/no_think Summarize in one sentence how this adventurer performed in their past adventure${sessionWithChar ? ` in "${sessionWithChar.displayName}"` : ''}: ${narrationContext}. Focus on their notable actions. Reply with just the sentence, no preamble.` }],
+      max_tokens: 80,
+    }, { signal: AbortSignal.timeout(15_000) });
+    const summary = (response.choices[0].message.content ?? '').trim();
+    res.json({ summary });
+  } catch {
+    res.json({ summary: null });
+  }
+}));
+
 app.delete('/session/:sessionId/character/:charId', asyncHandler(async (req, res) => {
   const { sessionId, charId } = req.params;
   const session = await StateService.getSession(sessionId as string);
@@ -430,6 +598,12 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
 
   if (character.status === 'downed') {
     res.status(400).json({ error: 'downed', message: `${character.name} is downed and cannot act.` });
+    return;
+  }
+
+  const limits = StateService.getNamespaceLimits(req.namespaceId);
+  if (limits.maxTurns !== null && session.turn > limits.maxTurns) {
+    res.status(403).json({ error: 'turn_limit', message: `This session has reached its limit of ${limits.maxTurns} turn(s). The adventure must end here.` });
     return;
   }
 

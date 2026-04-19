@@ -5,11 +5,13 @@
 #   ./scripts/deploy/run-script.sh <script> [args...]
 #
 # Available scripts:
-#   users        list | add <email> [name] | remove <email>
-#   namespaces   list | create <name> | rename <id> <name> | delete <id> | sessions <id> | assign-session <sessionId> <namespaceId>
+#   users           list | add <email> [name] | remove <email>
+#   namespaces      list | create <name> | rename <id> <name> | delete <id> | sessions <id> | assign-session <sessionId> <namespaceId> | add-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
 #   list-sessions
 #   nuke-sessions
 #   seed-sessions
+#   usage-metrics   [--json]
+#   invite-requests list | clear [--json]
 #
 # Examples:
 #   ./scripts/deploy/run-script.sh users list
@@ -45,6 +47,8 @@ case "$SCRIPT_NAME" in
   list-sessions)   JS_PATH="dist/scripts/listSessions.js" ;;
   nuke-sessions)   JS_PATH="dist/scripts/nukeSessions.js" ;;
   seed-sessions)   JS_PATH="dist/scripts/seedSessions.js" ;;
+  usage-metrics)   JS_PATH="dist/scripts/usageMetrics.js" ;;
+  invite-requests) JS_PATH="dist/scripts/inviteRequests.js" ;;
   *)
     echo "Unknown script: $SCRIPT_NAME"
     echo "Available: users, namespaces, list-sessions, nuke-sessions, seed-sessions"

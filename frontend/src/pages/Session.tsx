@@ -25,6 +25,7 @@ export const SessionPage = () => {
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [maxTurns, setMaxTurns] = useState<number | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
   const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; isCritical?: boolean; difficultyTarget?: number } | null>(null);
   const [dieExiting, setDieExiting] = useState(false);
@@ -43,6 +44,10 @@ export const SessionPage = () => {
     const hData = await hRes.json();
     setHistory(hData);
     setViewedTurnIdx(hData.length - 1);
+    apiFetch('/namespace/limits')
+      .then(r => r.json())
+      .then((limits: { maxTurns: number | null }) => setMaxTurns(limits.maxTurns))
+      .catch(() => { /* limits unavailable */ });
     const latestTurn = hData[hData.length - 1];
     if (latestTurn && !latestTurn.imageUrl && !data.savingsMode) {
       setImageLoading(true);
@@ -224,10 +229,10 @@ export const SessionPage = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: label, statUsed: stat, difficulty: diff, difficultyValue, characterId: actingCharacterId })
     });
-    if (res.status === 429) {
-      const data = await res.json();
+    if (res.status === 429 || res.status === 403) {
+      const data = await res.json() as { message?: string; error?: string };
       setLoading(false);
-      setActionError(data.message ?? 'The AI is busy, please try again.');
+      setActionError(data.message ?? (res.status === 403 ? 'This session has reached its turn limit. The adventure ends here.' : 'The AI is busy, please try again.'));
       return;
     }
     // loading cleared + session refreshed via SSE turn_complete
@@ -325,43 +330,52 @@ export const SessionPage = () => {
             <button onClick={() => setActionError(null)} className="text-rose-500 hover:text-rose-200 font-black">✕</button>
           </div>
         )}
-        {isCurrentTurn
-          ? loading
-            ? (
-              <div className="relative h-[120px] rounded-[40px] border border-slate-800 overflow-hidden">
-                <img src={imgSrc('/images/dm_thinking.png')} className="absolute inset-0 w-full h-full object-cover opacity-30" />
-                <div className="absolute inset-0 flex items-center justify-center gap-3">
-                  <div className="w-5 h-5 border-2 border-slate-600 border-t-amber-500 rounded-full animate-spin" />
-                  <span className="text-sm font-black uppercase tracking-widest text-amber-500/80 animate-pulse">The DM is weaving fate...</span>
+        {maxTurns !== null && session.turn > maxTurns
+          ? (
+            <div className="flex flex-col items-center gap-3 p-6 bg-slate-900/50 rounded-[40px] border border-slate-800 text-center">
+              <div className="text-2xl">📜</div>
+              <div className="font-black text-sm uppercase tracking-widest text-slate-400">Adventure Complete</div>
+              <p className="text-slate-500 text-sm">This session has reached its {maxTurns}-turn limit. The story ends here.</p>
+            </div>
+          )
+          : isCurrentTurn
+            ? loading
+              ? (
+                <div className="relative h-[120px] rounded-[40px] border border-slate-800 overflow-hidden">
+                  <img src={imgSrc('/images/dm_thinking.png')} className="absolute inset-0 w-full h-full object-cover opacity-30" />
+                  <div className="absolute inset-0 flex items-center justify-center gap-3">
+                    <div className="w-5 h-5 border-2 border-slate-600 border-t-amber-500 rounded-full animate-spin" />
+                    <span className="text-sm font-black uppercase tracking-widest text-amber-500/80 animate-pulse">The DM is weaving fate...</span>
+                  </div>
                 </div>
-              </div>
-            )
-            : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {activeChar?.status === 'downed'
-                  ? (
-                    <div className="flex flex-col items-center gap-3 p-6 bg-slate-900/50 rounded-[40px] border border-slate-800 text-center">
-                      <div className="flex items-center gap-3">
-                        <img src={imgSrc(activeChar.avatarUrl)} className="w-12 h-12 rounded-full object-cover grayscale opacity-50 border-2 border-slate-700" />
-                        <div>
-                          <div className="font-black text-sm uppercase tracking-widest text-slate-400">{activeChar.name} is downed</div>
-                          <div className="text-[10px] text-slate-600 uppercase tracking-widest">0/{activeChar.max_hp} HP</div>
+              )
+              : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {activeChar?.status === 'downed'
+                    ? (
+                      <div className="flex flex-col items-center gap-3 p-6 bg-slate-900/50 rounded-[40px] border border-slate-800 text-center">
+                        <div className="flex items-center gap-3">
+                          <img src={imgSrc(activeChar.avatarUrl)} className="w-12 h-12 rounded-full object-cover grayscale opacity-50 border-2 border-slate-700" />
+                          <div>
+                            <div className="font-black text-sm uppercase tracking-widest text-slate-400">{activeChar.name} is downed</div>
+                            <div className="text-[10px] text-slate-600 uppercase tracking-widest">0/{activeChar.max_hp} HP</div>
+                          </div>
                         </div>
+                        <p className="text-slate-500 text-sm">
+                          {session.party.every(c => c.status === 'downed')
+                            ? 'The whole party is down... the adventure hangs by a thread.'
+                            : 'Another party member needs to use a healing item to revive them.'}
+                        </p>
                       </div>
-                      <p className="text-slate-500 text-sm">
-                        {session.party.every(c => c.status === 'downed')
-                          ? 'The whole party is down... the adventure hangs by a thread.'
-                          : 'Another party member needs to use a healing item to revive them.'}
-                      </p>
-                    </div>
-                  )
-                  : <ActionControls turn={displayTurn} loading={loading} onSubmit={submitAction} customAction={customAction} setCustomAction={setCustomAction} activeCharacter={activeChar} sessionId={id!} />
-                }
-                <Inventory party={session.party} activeCharacterId={session.activeCharacterId} onUseItem={(o,i,t) => submitItemAction('use_item',o,i,t)} onGiveItem={(o,i,t) => submitItemAction('give_item',o,i,t)} disabled={loading} />
-              </div>
-            )
-          : <TurnHistoryCard choices={displayTurn?.choices ?? []} takenAction={takenAction} character={takenChar} turnType={displayTurn?.turnType} narration={displayTurn?.narration} />
+                    )
+                    : <ActionControls turn={displayTurn} loading={loading} onSubmit={submitAction} customAction={customAction} setCustomAction={setCustomAction} activeCharacter={activeChar} sessionId={id!} />
+                  }
+                  <Inventory party={session.party} activeCharacterId={session.activeCharacterId} onUseItem={(o,i,t) => submitItemAction('use_item',o,i,t)} onGiveItem={(o,i,t) => submitItemAction('give_item',o,i,t)} disabled={loading} />
+                </div>
+              )
+            : <TurnHistoryCard choices={displayTurn?.choices ?? []} takenAction={takenAction} character={takenChar} turnType={displayTurn?.turnType} narration={displayTurn?.narration} />
         }
+
       </div>
 
       {sanctuaryBanner && (
