@@ -634,13 +634,21 @@ export class StateService {
     console.log(`[Auth] Created admin user: ${email} userId=${userId} namespaceId=${namespaceId}`);
   }
 
-  public static listUsers(): { id: string; email: string; namespace_id: string; namespace_name: string; role: string; created_at: string }[] {
+  public static listUsers(): { id: string; email: string; namespace_id: string; namespace_name: string; namespaces: { id: string; name: string }[]; role: string; created_at: string }[] {
     const db = this.getDb();
-    return db.prepare(`
+    const users = db.prepare(`
       SELECT u.id, u.email, u.namespace_id, n.name as namespace_name, u.role, u.created_at
       FROM users u JOIN namespaces n ON u.namespace_id = n.id
       ORDER BY u.created_at
     `).all() as { id: string; email: string; namespace_id: string; namespace_name: string; role: string; created_at: string }[];
+    const userNamespaces = db.prepare(`
+      SELECT un.user_id, n.id, n.name
+      FROM user_namespaces un JOIN namespaces n ON n.id = un.namespace_id
+    `).all() as { user_id: string; id: string; name: string }[];
+    return users.map(u => ({
+      ...u,
+      namespaces: userNamespaces.filter(un => un.user_id === u.id).map(un => ({ id: un.id, name: un.name })),
+    }));
   }
 
   public static deleteUser(email: string): boolean {
@@ -660,19 +668,19 @@ export class StateService {
     return true;
   }
 
-  public static listNamespaces(): { id: string; name: string; user_count: number; session_count: number; created_at: string }[] {
+  public static listNamespaces(): { id: string; name: string; user_count: number; session_count: number; max_sessions: number | null; max_turns: number | null; created_at: string }[] {
     const db = this.getDb();
     return db.prepare(`
       SELECT
-        n.id, n.name, n.created_at,
-        COUNT(DISTINCT u.id) as user_count,
+        n.id, n.name, n.created_at, n.max_sessions, n.max_turns,
+        COUNT(DISTINCT un.user_id) as user_count,
         COUNT(DISTINCT s.id) as session_count
       FROM namespaces n
-      LEFT JOIN users u ON u.namespace_id = n.id
+      LEFT JOIN user_namespaces un ON un.namespace_id = n.id
       LEFT JOIN sessions s ON s.namespace_id = n.id
       GROUP BY n.id
       ORDER BY n.created_at
-    `).all() as { id: string; name: string; user_count: number; session_count: number; created_at: string }[];
+    `).all() as { id: string; name: string; user_count: number; session_count: number; max_sessions: number | null; max_turns: number | null; created_at: string }[];
   }
 
   public static getNamespaceById(id: string): { id: string; name: string } | null {

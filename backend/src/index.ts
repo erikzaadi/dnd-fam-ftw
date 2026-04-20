@@ -18,8 +18,8 @@ import { parseSuggestedStats, STAT_FALLBACK } from './services/statSuggestionSer
 import { Character } from './types.js';
 import { getConfig, isAuthEnabled } from './config/env.js';
 import { getImageStorageProvider } from './providers/storage/storageProviderFactory.js';
-import { getAuthPublicConfig, buildGoogleAuthUrl, exchangeCodeForEmail, signJwt, verifyJwt } from './services/authService.js';
-import { authMiddleware } from './middleware/auth.js';
+import { getAuthPublicConfig, buildGoogleAuthUrl, exchangeCodeForEmail, signJwt } from './services/authService.js';
+import { authMiddleware, requirePendingNamespaceToken, requirePendingInviteToken } from './middleware/auth.js';
 
 import asyncHandler from 'express-async-handler';
 
@@ -33,6 +33,7 @@ app.use(cookieParser());
 app.use('/images', express.static(path.join(import.meta.dirname, '..', 'public', 'images')));
 
 const config = getConfig();
+const isProduction = process.env.NODE_ENV === 'production';
 app.use((_req, res, next) => {
   res.setHeader('X-App-Version', config.APP_VERSION);
   next();
@@ -76,16 +77,25 @@ app.get('/auth/google', (_req, res) => {
     return;
   }
   const state = Math.random().toString(36).substring(7);
-  res.redirect(buildGoogleAuthUrl(state));
+  const url = buildGoogleAuthUrl(state);
+  console.log(`[Auth] Redirecting to Google OAuth`);
+  res.redirect(url);
 });
 
 app.get('/auth/google/callback', asyncHandler(async (req, res) => {
+  console.log(`[Auth] Callback hit - query keys: ${Object.keys(req.query).join(', ')}`);
   if (!isAuthEnabled()) {
     res.status(404).json({ error: 'Auth not configured' });
     return;
   }
 
   const code = req.query.code as string;
+  const error = req.query.error as string | undefined;
+  if (error) {
+    console.log(`[Auth] Google returned error: ${error}`);
+    res.redirect(`${config.FRONTEND_URL ?? ''}${config.APP_BASE_PATH}login?error=oauth`);
+    return;
+  }
   if (!code) {
     res.status(400).json({ error: 'Missing code' });
     return;
@@ -93,7 +103,6 @@ app.get('/auth/google/callback', asyncHandler(async (req, res) => {
 
   const email = await exchangeCodeForEmail(code);
   const user = StateService.getUserByEmail(email);
-  const isProduction = process.env.NODE_ENV === 'production';
   const frontendUrl = config.FRONTEND_URL ?? '';
   const basePath = config.APP_BASE_PATH;
 
@@ -115,6 +124,7 @@ app.get('/auth/google/callback', asyncHandler(async (req, res) => {
   }
 
   const namespaces = StateService.getUserNamespaces(email);
+  console.log(`[Auth] Login for ${email}: found ${namespaces.length} namespace(s): ${namespaces.map(n => n.name).join(', ')}`);
   if (namespaces.length > 1) {
     // User has multiple namespaces - issue pending-namespace JWT and show picker
     const pendingToken = signJwt({ email, namespaceId: '', type: 'pending-namespace' }, true);
@@ -147,53 +157,23 @@ app.post('/auth/logout', (_req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/auth/namespaces', (req, res) => {
-  if (!isAuthEnabled()) {
-    res.status(404).json({ error: 'Auth not configured' });
-    return;
-  }
-  const token = (req.cookies as Record<string, string>)?.jwt_pending;
-  if (!token) {
-    res.status(401).json({ error: 'Missing pending token' });
-    return;
-  }
-  const payload = verifyJwt(token);
-  if (!payload || payload.type !== 'pending-namespace') {
-    res.status(401).json({ error: 'Invalid or expired pending token' });
-    return;
-  }
-  const namespaces = StateService.getUserNamespaces(payload.email);
+app.get('/auth/namespaces', requirePendingNamespaceToken, (req, res) => {
+  const namespaces = StateService.getUserNamespaces(req.pendingPayload!.email);
   res.json({ namespaces });
 });
 
-app.post('/auth/select-namespace', asyncHandler(async (req, res) => {
-  if (!isAuthEnabled()) {
-    res.status(404).json({ error: 'Auth not configured' });
-    return;
-  }
-  const token = (req.cookies as Record<string, string>)?.jwt_pending;
-  if (!token) {
-    res.status(401).json({ error: 'Missing pending token' });
-    return;
-  }
-  const payload = verifyJwt(token);
-  if (!payload || payload.type !== 'pending-namespace') {
-    res.status(401).json({ error: 'Invalid or expired pending token' });
-    return;
-  }
+app.post('/auth/select-namespace', requirePendingNamespaceToken, asyncHandler(async (req, res) => {
   const { namespaceId } = req.body as { namespaceId: string };
   if (!namespaceId) {
     res.status(400).json({ error: 'Missing namespaceId' });
     return;
   }
-  const namespaces = StateService.getUserNamespaces(payload.email);
-  const valid = namespaces.some(n => n.id === namespaceId);
-  if (!valid) {
+  const namespaces = StateService.getUserNamespaces(req.pendingPayload!.email);
+  if (!namespaces.some(n => n.id === namespaceId)) {
     res.status(403).json({ error: 'Namespace access denied' });
     return;
   }
-  const isProduction = process.env.NODE_ENV === 'production';
-  const fullToken = signJwt({ email: payload.email, namespaceId, type: 'full' });
+  const fullToken = signJwt({ email: req.pendingPayload!.email, namespaceId, type: 'full' });
   res.clearCookie('jwt_pending', { path: '/' });
   res.cookie('jwt', fullToken, {
     httpOnly: true,
@@ -205,41 +185,17 @@ app.post('/auth/select-namespace', asyncHandler(async (req, res) => {
   res.json({ ok: true });
 }));
 
-app.get('/auth/invite-info', (req, res) => {
-  if (!isAuthEnabled()) {
-    res.status(404).json({ error: 'Auth not configured' });
-    return;
-  }
-  const token = (req.cookies as Record<string, string>)?.jwt_pending_invite;
-  if (!token) {
-    res.status(401).json({ error: 'Missing invite token' });
-    return;
-  }
-  const payload = verifyJwt(token);
-  if (!payload || (payload.type !== 'pending-invite' && payload.type !== 'invite-requested')) {
-    res.status(401).json({ error: 'Invalid or expired invite token' });
-    return;
-  }
-  res.json({ email: payload.email, alreadyRequested: payload.type === 'invite-requested' });
+app.get('/auth/invite-info', requirePendingInviteToken, (req, res) => {
+  res.json({ email: req.pendingPayload!.email, alreadyRequested: req.pendingPayload!.type === 'invite-requested' });
 });
 
-app.post('/auth/request-invite', asyncHandler(async (req, res) => {
-  if (!isAuthEnabled()) {
-    res.status(404).json({ error: 'Auth not configured' });
-    return;
-  }
-  const token = (req.cookies as Record<string, string>)?.jwt_pending_invite;
-  if (!token) {
-    res.status(401).json({ error: 'Missing invite token' });
-    return;
-  }
-  const payload = verifyJwt(token);
-  if (!payload || payload.type !== 'pending-invite') {
+app.post('/auth/request-invite', requirePendingInviteToken, asyncHandler(async (req, res) => {
+  if (req.pendingPayload!.type !== 'pending-invite') {
     res.status(403).json({ error: 'Invalid token or invite already submitted' });
     return;
   }
   const { message } = req.body as { message?: string };
-  StateService.addInviteRequest(payload.email, message);
+  StateService.addInviteRequest(req.pendingPayload!.email, message);
   res.clearCookie('jwt_pending_invite', { path: '/' });
   res.json({ ok: true });
 }));

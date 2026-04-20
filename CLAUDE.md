@@ -52,11 +52,8 @@ backend/src/
     ai/                            # Narration + image provider abstraction
     storage/                       # LocalImageStorageProvider + S3ImageStorageProvider
   scripts/
-    users.ts                       # npm run users <list|add|remove>
-    namespaces.ts                  # npm run namespaces <list|create|rename|delete|sessions|assign-session|add-user|set-limits>
-    usageMetrics.ts                # npm run usage-metrics [--json]
-    inviteRequests.ts              # npm run invite-requests <list|clear>
-    listSessions.ts / nukeSessions.ts / seedSessions.ts
+    cli.ts                         # Unified management CLI: npm run cli -- <resource> <sub-command>
+    seedSessions.ts                # Seed data (invoked by cli sessions seed)
 
 frontend/src/
   App.tsx                          # Routes + AuthProvider + AuthGuard
@@ -103,24 +100,20 @@ S3 asset deletion: `StateService.deleteSession()` deletes all turn images and ch
 Per-namespace session and turn limits. NULL means unlimited (default).
 
 ```bash
-npm run namespaces set-limits <id> --max-sessions 5 --max-turns 100
-npm run namespaces set-limits <id>          # show current limits
-npm run namespaces set-limits <id> --max-sessions null   # remove limit
+npm run cli -- namespaces set-limits <id> --max-sessions 5 --max-turns 100
+npm run cli -- namespaces set-limits <id>                   # show current limits
+npm run cli -- namespaces set-limits <id> --max-sessions null   # remove limit
 ```
 
-## Backend scripts
+## Management CLI
 
-All run from `backend/` or via `./scripts/deploy/run-script.sh <script>` on production:
+All management commands go through one entry point. Run from the repo root:
 
-| Script | What it does |
-|---|---|
-| `npm run users <cmd>` | list / add / remove users |
-| `npm run namespaces <cmd>` | list / create / rename / delete / sessions / assign-session / add-user / set-limits |
-| `npm run usage-metrics` | per-namespace OpenAI usage stats (sessions, turns, images, avatars) |
-| `npm run invite-requests <cmd>` | list / clear invite requests |
-| `npm run list-sessions` | print all sessions |
-| `npm run nuke-sessions` | delete all sessions (dev only) |
-| `npm run seed-sessions` | seed test data |
+```bash
+npm run cli -- <resource> [sub-command] [args...] [--json]
+```
+
+Resources: `users`, `namespaces`, `sessions`, `metrics`, `invite-requests`. See **[MANAGE.md](MANAGE.md)** for the full reference including production deploy scripts.
 
 ## Character history
 

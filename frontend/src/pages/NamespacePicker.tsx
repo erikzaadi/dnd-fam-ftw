@@ -41,7 +41,7 @@ export const NamespacePicker = () => {
         setSelecting(null);
         return;
       }
-      refetch();
+      await refetch();
       navigate('/');
     } catch {
       setError('Failed to select namespace. Please try again.');

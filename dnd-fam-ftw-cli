@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Local management CLI wrapper. Full reference: MANAGE.md
+#
+# Usage: ./dnd-fam-ftw-cli <resource> [sub-command] [args...]
+#
+# Examples:
+#   ./dnd-fam-ftw-cli users list
+#   ./dnd-fam-ftw-cli namespaces list
+#   ./dnd-fam-ftw-cli namespaces add-user <nsId> someone@gmail.com
+#   ./dnd-fam-ftw-cli sessions list --json
+#   ./dnd-fam-ftw-cli metrics
+
+set -euo pipefail
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec npm --prefix "$REPO_ROOT" run -s cli  -- "$@"

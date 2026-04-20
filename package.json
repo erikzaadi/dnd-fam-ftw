@@ -14,7 +14,8 @@
         "lint:frontend": "npm run lint --prefix frontend",
         "lint:bash": "shellcheck -x --severity=warning scripts/**/*.sh scripts/*.sh scripts/deploy/*.sh",
         "lint:workflows": "actionlint && .venv-lint/bin/yamllint .github/workflows/ && shellcheck -x --severity=warning scripts/**/*.sh scripts/deploy/*.sh",
-        "lint": "npm run lint:backend && npm run lint:frontend && npm run lint:workflows && npm run lint:bash"
+        "lint": "npm run lint:backend && npm run lint:frontend && npm run lint:workflows && npm run lint:bash",
+        "cli": "npm run cli --prefix backend --"
     },
     "devDependencies": {
         "concurrently": "^9.2.1"

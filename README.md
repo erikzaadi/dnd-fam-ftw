@@ -183,10 +183,7 @@ dnd-fam-ftw/
 │       │   ├── authService.ts    # Google OAuth + JWT
 │       │   └── stateService.ts   # SQLite persistence
 │       └── scripts/
-│           ├── users.ts          # User management
-│           ├── namespaces.ts     # Namespace management (limits, multi-user access)
-│           ├── usageMetrics.ts   # OpenAI usage stats per namespace
-│           └── inviteRequests.ts # Invite request management
+│           └── cli.ts            # Unified management CLI (users, namespaces, sessions, metrics, invite-requests)
 │
 ├── frontend/
 │   └── src/
@@ -252,14 +249,16 @@ The backend runs as a systemd service. `re-deploy.sh` sets `VITE_BASE_PATH=/dnd-
 
 ### Production management scripts
 
-Run via SSH wrapper (opens/closes port 22 dynamically):
+Run via SSH wrapper using the same `<resource> <sub-command>` interface as the local CLI:
+
 ```bash
 ./scripts/deploy/run-script.sh users list
 ./scripts/deploy/run-script.sh namespaces list
-./scripts/deploy/run-script.sh usage-metrics
+./scripts/deploy/run-script.sh metrics
 ./scripts/deploy/run-script.sh invite-requests list
-./scripts/deploy/node-version.sh   # check Node version on the instance
 ```
+
+See **[MANAGE.md](MANAGE.md)** for the full command reference.
 
 ---
 
@@ -276,7 +275,7 @@ There are six distinct AI calls in the app, each with a different purpose and co
 | **Session naming** | `stateService.ts` | gpt-4o-mini | LocalAI | Once at world creation |
 | **Character history** | `index.ts` (route) | gpt-4o-mini | - | When importing a character from a previous session |
 
-Use `./scripts/deploy/run-script.sh usage-metrics` to see per-namespace counts for sessions, turns, images, and avatars generated.
+Use `npm run cli -- metrics` (or `./scripts/deploy/run-script.sh metrics` on production) to see per-namespace counts for sessions, turns, images, and avatars generated.
 
 Turn narration is the only call that blocks the player response. Scene images are generated asynchronously after the turn : the story text appears immediately, and the image arrives via SSE a few seconds later.
 
@@ -328,25 +327,16 @@ Auth is optional. Without Google OAuth credentials everything runs under a singl
 
 When auth is enabled, each user gets their own namespace (isolated sessions). Users can be granted access to additional namespaces by an admin.
 
-**User management:**
 ```bash
 ./scripts/deploy/run-script.sh users list
 ./scripts/deploy/run-script.sh users add someone@gmail.com "Their Name"
-```
-
-**Namespace management:**
-```bash
 ./scripts/deploy/run-script.sh namespaces list
 ./scripts/deploy/run-script.sh namespaces add-user <namespaceId> someone@gmail.com
 ./scripts/deploy/run-script.sh namespaces set-limits <namespaceId> --max-sessions 5 --max-turns 100
-```
-
-Users with multiple namespace access will see a picker screen after login.
-
-**Invite requests:** Unregistered users who try to log in with Google are directed to a request-invite page. View requests:
-```bash
 ./scripts/deploy/run-script.sh invite-requests list
 ```
+
+Users with multiple namespace access will see a picker screen after login. For the full command reference see **[MANAGE.md](MANAGE.md)**.
 
 For the complete ruleset : dice math, downed state, party wipes, item mechanics, story compression, SSE events : see **[GAME_ENGINE_RULES.md](GAME_ENGINE_RULES.md)**.
 

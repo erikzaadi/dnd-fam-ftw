@@ -16,7 +16,7 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   logout: () => Promise<void>;
-  refetch: () => void;
+  refetch: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -44,8 +44,9 @@ async function loadAuthState(): Promise<AuthState> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ enabled: false, user: null, loading: true });
 
-  const refetch = () => {
-    loadAuthState().then(setState).catch(() => {
+  const refetch = (): Promise<void> => {
+    setState(s => ({ ...s, loading: true }));
+    return loadAuthState().then(setState).catch(() => {
       setState({ enabled: false, user: null, loading: false });
     });
   };
