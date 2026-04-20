@@ -752,7 +752,7 @@ export class StateService {
     if (!ns) {
       return { ok: false, reason: `Namespace not found: ${namespaceId}` };
     }
-    db.prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(user.id, namespaceId);
+    this.getDb().prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(user.id, namespaceId);
     return { ok: true };
   }
 
@@ -764,7 +764,7 @@ export class StateService {
     if (user.namespace_id === namespaceId) {
       return { ok: false, reason: `Cannot remove user from their primary namespace: ${namespaceId}` };
     }
-    const result = db.prepare('DELETE FROM user_namespaces WHERE user_id = ? AND namespace_id = ?').run(user.id, namespaceId);
+    const result = this.getDb().prepare('DELETE FROM user_namespaces WHERE user_id = ? AND namespace_id = ?').run(user.id, namespaceId);
     if (result.changes > 0) {
       return { ok: true };
     } else {
