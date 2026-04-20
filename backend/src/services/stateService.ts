@@ -668,6 +668,26 @@ export class StateService {
     return true;
   }
 
+  public static setPrimaryNamespace(email: string, namespaceId: string): { ok: boolean; reason?: string } {
+    const db = this.getDb();
+    const user = this.getUserByEmail(email);
+    if (!user) {
+      return { ok: false, reason: `User not found: ${email}` };
+    }
+    const ns = this.getNamespaceById(namespaceId);
+    if (!ns) {
+      return { ok: false, reason: `Namespace not found: ${namespaceId}` };
+    }
+    
+    // Update users table
+    db.prepare('UPDATE users SET namespace_id = ? WHERE id = ?').run(namespaceId, user.id);
+    
+    // Ensure they also have access to it in user_namespaces (it might already be there, OR IGNORE)
+    db.prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(user.id, namespaceId);
+    
+    return { ok: true };
+  }
+
   public static listNamespaces(): { id: string; name: string; user_count: number; session_count: number; max_sessions: number | null; max_turns: number | null; created_at: string }[] {
     const db = this.getDb();
     return db.prepare(`

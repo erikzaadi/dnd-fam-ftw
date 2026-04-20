@@ -8,6 +8,7 @@
  *   list                     List all users
  *   add <email> [namespace]  Create a new user (and their namespace)
  *   remove <email>           Delete a user (and their namespace if empty)
+ *   set-primary <e> <ns>     Change a user's primary namespace
  *   namespaces               List all namespaces
  */
 
@@ -78,6 +79,21 @@ case 'remove': {
   break;
 }
 
+case 'set-primary': {
+  const [email, namespaceId] = args;
+  if (!email || !namespaceId) {
+    console.error('Usage: users.ts set-primary <email> <namespaceId>');
+    process.exit(1);
+  }
+  const result = StateService.setPrimaryNamespace(email, namespaceId);
+  if (result.ok) {
+    console.log(`Updated primary namespace for ${email} to ${namespaceId}`);
+  } else {
+    console.error(`Error: ${result.reason}`);
+    process.exit(1);
+  }
+  break;
+}
 case 'namespaces': {
   const namespaces = StateService.listNamespaces();
   if (jsonMode) {
@@ -103,12 +119,14 @@ Commands:
   list                     List all users
   add <email> [namespace]  Create a new user (and their namespace)
   remove <email>           Delete a user (and their namespace if empty)
+  set-primary <e> <ns>     Change a user's primary namespace
   namespaces               List all namespaces
 
 Examples:
   npx tsx backend/src/scripts/users.ts list
   npx tsx backend/src/scripts/users.ts add family@gmail.com "Erikzaadi Family"
   npx tsx backend/src/scripts/users.ts remove old@gmail.com
+  npx tsx backend/src/scripts/users.ts set-primary family@gmail.com ns123
   npx tsx backend/src/scripts/users.ts namespaces
 `);
   break;

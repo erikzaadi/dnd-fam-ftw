@@ -9,7 +9,7 @@
 
 _dnd_subcommands() {
   case "$1" in
-    users)           echo "list add remove" ;;
+    users)           echo "list add remove set-primary" ;;
     namespaces)      echo "list create rename delete sessions assign-session add-user remove-user set-limits" ;;
     sessions)        echo "list nuke seed" ;;
     metrics)         echo "" ;;

@@ -5,7 +5,7 @@
  *   npm run cli -- <resource> [sub-command] [args...] [--json]
  *
  * Resources:
- *   users           list | add <email> [name] | remove <email>
+ *   users           list | add <email> [name] | remove <email> | set-primary <e> <ns>
  *   namespaces      list | create <name> | rename <id> <name> | delete <id>
  *                   sessions <id> | assign-session <sessionId> <nsId>
  *                   add-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
@@ -91,12 +91,27 @@ case 'users': {
     }
     break;
   }
+  case 'set-primary': {
+    const [email, namespaceId] = positional;
+    if (!email || !namespaceId) {
+      fail('Usage: cli users set-primary <email> <namespaceId>'); 
+    }
+    const result = StateService.setPrimaryNamespace(email, namespaceId);
+    if (result.ok) {
+      console.log(`Updated primary namespace for ${email} to ${namespaceId}`);
+    } else {
+      console.error(`Error: ${result.reason}`);
+      process.exit(1);
+    }
+    break;
+  }
   default:
     console.log(`
 users <sub-command>
   list                    List all users with primary and all accessible namespaces
   add <email> [name]      Create a new user (and their namespace)
   remove <email>          Delete a user (and their namespace if empty)
+  set-primary <e> <ns>    Change a user's primary namespace
 
 Options:
   --json   Output as JSON (list only)
@@ -493,7 +508,7 @@ dnd-fam-ftw management CLI
 Usage: npm run cli -- <resource> [sub-command] [args...] [--json]
 
 Resources:
-  users           list | add <email> [name] | remove <email>
+  users           list | add <email> [name] | remove <email> | set-primary <e> <ns>
   namespaces      list | create <name> | rename <id> <name> | delete <id>
                   sessions <id> | assign-session <sessionId> <nsId>
                   add-user <nsId> <email> | remove-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
