@@ -10,7 +10,7 @@ import { getConfig } from '../config/env.js';
 export type ImageResult = { url: string; storageKey: string; storageProvider: string };
 
 export class ImageService {
-  private static DEFAULT_IMAGE = '/api/images/default_scene.png';
+  private static DEFAULT_IMAGE = '/images/default_scene.png';
 
   public static async generateAvatar(
     char: { name: string; class: string; species: string; quirk: string },

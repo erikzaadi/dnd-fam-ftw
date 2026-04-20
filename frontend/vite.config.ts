@@ -19,11 +19,6 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.slice(`${BASE}api`.length),
       },
-      [`${BASE}images`]: {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        rewrite: (path) => path.slice(BASE.length - 1),
-      },
     },
   },
 })

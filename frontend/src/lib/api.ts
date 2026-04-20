@@ -17,14 +17,18 @@ export const apiUrl = (path: string) => API_BASE
 export const apiFetch = (path: string, init?: RequestInit) =>
   fetch(apiUrl(path), { credentials: 'include', ...init });
 
-/** Resolve a backend image URL.
+/** Resolve an image URL.
  *  - Absolute URLs (S3, CDN): returned as-is.
- *  - Relative backend paths: resolved via apiUrl.
+ *  - /images/* paths: served from the frontend CDN (frontend/public/images/).
+ *  - Other relative paths: resolved via apiUrl (backend API).
  *  - null/undefined: falls back to default scene image. */
 export const imgSrc = (url: string | null | undefined) => {
   const src = url || '/images/default_scene.png';
   if (/^https?:\/\//.test(src)) {
     return src;
+  }
+  if (src.startsWith('/images/')) {
+    return `${BASE}${src.slice(1)}`;
   }
   return apiUrl(src);
 };

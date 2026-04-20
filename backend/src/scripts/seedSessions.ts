@@ -123,7 +123,7 @@ seedTurn(S2, null, 'From the storm clouds above, an ancient dragon with scales l
   { label: 'Thank the dragon and ask for guidance', difficulty: 'easy', stat: 'mischief', difficultyValue: 7 },
   { label: 'Rally to fight the high priest', difficulty: 'hard', stat: 'might', difficultyValue: 16 },
   { label: 'Use the chaos to slip past', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
-], null, null, null, null, null, 'intervention', '/api/images/intervention_dragon.png');
+], null, null, null, null, null, 'intervention', '/images/intervention_dragon.png');
 
 seedTurn(S2, 'seed-s2-c1', 'Vex uses the dragon distraction to slip behind the high priest and drive a blade into the gap in his armor. The priest staggers - but calls for his elite guard.', CHOICES_COMBAT, 'Dodge and find an opening', 'mischief', 1, 16, 5, 'normal', null, 15);
 seedTurn(S2, 'seed-s2-c2', 'Solara battles the elite guard heroically but takes a vicious hit. With a final desperate swing she shatters the guard captain\'s shield. Both sides are exhausted and the party is overwhelmed again.', CHOICES_COMBAT, 'Strike with your weapon', 'might', 0, 5, 4, 'normal', null, 12);
@@ -133,7 +133,7 @@ seedTurn(S2, null, 'The party wakes in a warm stone alcove carved into the mount
   { label: 'Search the shelter for supplies', difficulty: 'easy', stat: 'mischief', difficultyValue: 7 },
   { label: 'Plan the next assault', difficulty: 'easy', stat: 'magic', difficultyValue: 6 },
   { label: 'Head back up immediately', difficulty: 'hard', stat: 'might', difficultyValue: 16 },
-], null, null, null, null, null, 'sanctuary', '/api/images/sanctuary_light.png');
+], null, null, null, null, null, 'sanctuary', '/images/sanctuary_light.png');
 
 // ── Session 3: The Merchant's Mystery ────────────────────────────────────────
 

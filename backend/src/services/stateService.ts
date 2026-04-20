@@ -390,11 +390,6 @@ export class StateService {
       if (!imageUrl) {
         return;
       }
-      // Skip static bundled assets served from /api/images/
-      if (imageUrl.startsWith('/api/images/')) {
-        return;
-      }
-
       if (storageKey && storageProvider) {
         try {
           await storage.deleteImage(storageKey);

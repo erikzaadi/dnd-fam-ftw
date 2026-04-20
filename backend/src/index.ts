@@ -30,7 +30,6 @@ const eventEmitter = new EventEmitter();
 app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
 app.use(cookieParser());
-app.use('/images', express.static(path.join(import.meta.dirname, '..', 'public', 'images')));
 
 const config = getConfig();
 const isProduction = process.env.NODE_ENV === 'production';
@@ -200,9 +199,9 @@ app.post('/auth/request-invite', requirePendingInviteToken, asyncHandler(async (
   res.json({ ok: true });
 }));
 
-// Apply auth middleware to all routes except /auth/* /images/* and /health
+// Apply auth middleware to all routes except /auth/* and /health
 app.use((req, res, next) => {
-  if (req.path.startsWith('/auth/') || req.path.startsWith('/images/') || req.path === '/health') {
+  if (req.path.startsWith('/auth/') || req.path === '/health') {
     next();
     return;
   }

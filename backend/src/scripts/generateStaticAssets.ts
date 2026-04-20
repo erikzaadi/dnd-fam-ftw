@@ -2,9 +2,11 @@
  * One-time script to generate static avatar images for special game events.
  * Run from backend/: npx tsx src/scripts/generateStaticAssets.ts
  *
- * Generates:
- *   public/images/intervention_dragon.png  - dramatic dragon rescue
- *   public/images/sanctuary_light.png      - divine sanctuary light
+ * Generates into frontend/public/images/:
+ *   intervention_dragon.png  - dramatic dragon rescue
+ *   sanctuary_light.png      - divine sanctuary light
+ *   dm_thinking.png          - DM thinking placeholder
+ *   home_banner.png          - home page banner
  */
 
 import dotenv from 'dotenv';
@@ -17,7 +19,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '..', '..', '..', '.env'), quiet: true });
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const OUT_DIR = path.join(__dirname, '..', '..', 'public', 'images');
+const OUT_DIR = path.join(__dirname, '..', '..', '..', 'frontend', 'public', 'images');
 
 const ASSETS: Array<{ filename: string; prompt: string; size?: '1024x1024' | '1792x1024' | '1024x1792' }> = [
   {
