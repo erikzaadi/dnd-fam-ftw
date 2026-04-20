@@ -92,23 +92,19 @@ jobs:
           CURRENT="$GITHUB_SHA"
           BACKEND_SHA="${{ steps.last_deploy.outputs.backend_sha }}"
           FRONTEND_SHA="${{ steps.last_deploy.outputs.frontend_sha }}"
-          IS_TAG="${{ startsWith(github.ref, 'refs/tags/') }}"
 
           DEPLOY_BACKEND=false
           DEPLOY_FRONTEND=false
 
-          # Tag pushes always deploy everything
-          if [[ "$IS_TAG" == "true" ]] || \
-             [[ "${{ inputs.force_backend }}" == "true" ]] || \
-             [[ -z "$BACKEND_SHA" ]] || \
-             git diff --name-only "$BACKEND_SHA" "$CURRENT" | grep -q "^backend/"; then
+          if [[ "${{ inputs.force_backend }}" == "true" ]] || [[ -z "$BACKEND_SHA" ]]; then
+            DEPLOY_BACKEND=true
+          elif git diff --name-only "$BACKEND_SHA" "$CURRENT" | grep -q "^backend/"; then
             DEPLOY_BACKEND=true
           fi
 
-          if [[ "$IS_TAG" == "true" ]] || \
-             [[ "${{ inputs.force_frontend }}" == "true" ]] || \
-             [[ -z "$FRONTEND_SHA" ]] || \
-             git diff --name-only "$FRONTEND_SHA" "$CURRENT" | grep -q "^frontend/"; then
+          if [[ "${{ inputs.force_frontend }}" == "true" ]] || [[ -z "$FRONTEND_SHA" ]]; then
+            DEPLOY_FRONTEND=true
+          elif git diff --name-only "$FRONTEND_SHA" "$CURRENT" | grep -q "^frontend/"; then
             DEPLOY_FRONTEND=true
           fi
 
