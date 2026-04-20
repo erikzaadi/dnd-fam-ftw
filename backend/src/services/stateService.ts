@@ -1,4 +1,4 @@
-import Database, { Database as DB } from 'better-sqlite3';
+import Database, { Database as DB } from 'libsql';
 import { SessionState, Character, TurnResult, InventoryItem } from '../types.js';
 import { createChatClient } from '../providers/ai/AiProviderFactory.js';
 import { getConfig } from '../config/env.js';

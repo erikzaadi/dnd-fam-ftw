@@ -7,7 +7,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import Database from 'better-sqlite3';
+import Database from 'libsql';
 import { getConfig } from '../config/env.js';
 import { StateService } from '../services/stateService.js';
 import { ImageService } from '../services/imageService.js';

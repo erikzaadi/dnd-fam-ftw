@@ -78,7 +78,7 @@ Every hero gets a generated portrait and carries their quirk into the story:
 |---|---|
 | Frontend | React 19 + Vite + TailwindCSS 4 + TypeScript |
 | Backend | Node.js + Express 5 + TypeScript |
-| Database | SQLite via `better-sqlite3` (auto-migrated) |
+| Database | SQLite via `libsql` (auto-migrated) |
 | AI Narration | OpenAI GPT-4o **or** LocalAI (OpenAI-compatible, e.g. Qwen3) |
 | AI Images | DALL-E 3 **or** LocalAI (Stable Diffusion via `stablediffusion-ggml`) |
 | Real-time | Server-Sent Events |

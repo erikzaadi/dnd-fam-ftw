@@ -41,7 +41,7 @@ backend/src/
   index.ts                         # Express routes + SSE
   config/env.ts                    # All env var parsing - add new vars here
   services/
-    stateService.ts                # SQLite via better-sqlite3 - all DB access
+    stateService.ts                # SQLite via libsql - all DB access
     authService.ts                 # Google OAuth + JWT (full, pending-namespace, pending-invite, invite-requested types)
     aiDmService.ts                 # GPT-4o narration
     imageService.ts                # DALL-E / LocalAI image generation

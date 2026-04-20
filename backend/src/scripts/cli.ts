@@ -21,7 +21,7 @@ import dotenv from 'dotenv';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../../../.env'), quiet: true });
 
-import Database from 'better-sqlite3';
+import Database from 'libsql';
 import { StateService } from '../services/stateService.js';
 import { getConfig } from '../config/env.js';
 
