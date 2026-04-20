@@ -227,6 +227,20 @@ case 'namespaces': {
     }
     break;
   }
+  case 'remove-user': {
+    const [nsId, email] = positional;
+    if (!nsId || !email) {
+      fail('Usage: cli namespaces remove-user <namespaceId> <email>'); 
+    }
+    const result = StateService.removeUserFromNamespace(email, nsId);
+    if (result.ok) {
+      console.log(`Removed ${email} access to namespace ${nsId}`);
+    } else {
+      console.error(`Error: ${result.reason}`);
+      process.exit(1);
+    }
+    break;
+  }
   case 'set-limits': {
     const [id] = positional;
     if (!id) {
@@ -278,6 +292,7 @@ namespaces <sub-command> [args]
   sessions <id>                       List sessions in a namespace
   assign-session <sessionId> <nsId>   Move a session to a namespace
   add-user <nsId> <email>             Grant user access to a namespace
+  remove-user <nsId> <email>          Remove user access from a namespace
   set-limits <id> [--max-sessions N] [--max-turns N]  Set or view limits
 
 Options:
@@ -287,6 +302,7 @@ Examples:
   cli namespaces list
   cli namespaces create "Family Night"
   cli namespaces add-user abc123 someone@gmail.com
+  cli namespaces remove-user abc123 someone@gmail.com
   cli namespaces set-limits abc123 --max-sessions 5 --max-turns 50
   cli namespaces set-limits abc123 --max-sessions null
 `);
@@ -345,6 +361,8 @@ case 'sessions': {
   }
   case 'seed': {
     // seed is a large standalone script - invoke it directly
+    // Shift arguments so the script sees its own "cli" as arg[1]
+    process.argv = [process.argv[0], process.argv[1], ...rest];
     await import('./seedSessions.js');
     break;
   }
@@ -478,7 +496,7 @@ Resources:
   users           list | add <email> [name] | remove <email>
   namespaces      list | create <name> | rename <id> <name> | delete <id>
                   sessions <id> | assign-session <sessionId> <nsId>
-                  add-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
+                  add-user <nsId> <email> | remove-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
   sessions        list [--json] | nuke | seed
   metrics         [--json]
   invite-requests list [--json] | clear

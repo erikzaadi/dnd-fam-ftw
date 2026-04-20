@@ -24,7 +24,7 @@ For JSON output piped to `jq`:
 
 `--json` and `-j` are equivalent throughout.
 
-Tab completion is available for `./dnd-fam-ftw-cli` and `run-script.sh`. Source it from your shell profile:
+Tab completion is available for `./dnd-fam-ftw-cli` and `./dnd-fam-ftw-prod-cli`. Source it from your shell profile:
 
 ```bash
 # zsh:
@@ -113,19 +113,19 @@ Production commands run via SSH wrapper scripts under `scripts/deploy/`. These s
 
 Copy `scripts/deploy/.env.deploy.example` to `scripts/deploy/.env.deploy` and fill in your values (host, SSH key path, etc.). Alternatively, export the required vars before running.
 
-### run-script.sh - remote CLI
+### dnd-fam-ftw-prod-cli - remote CLI
 
 Runs management commands on the production instance. Same `<resource> <sub-command>` interface as the local CLI:
 
 ```bash
-./scripts/deploy/run-script.sh users list
-./scripts/deploy/run-script.sh users add someone@gmail.com "Their Name"
-./scripts/deploy/run-script.sh namespaces list
-./scripts/deploy/run-script.sh namespaces add-user <nsId> someone@gmail.com
-./scripts/deploy/run-script.sh namespaces set-limits <nsId> --max-sessions 5 --max-turns 100
-./scripts/deploy/run-script.sh sessions list --json
-./scripts/deploy/run-script.sh metrics
-./scripts/deploy/run-script.sh invite-requests list
+./dnd-fam-ftw-prod-cli users list
+./dnd-fam-ftw-prod-cli users add someone@gmail.com "Their Name"
+./dnd-fam-ftw-prod-cli namespaces list
+./dnd-fam-ftw-prod-cli namespaces add-user <nsId> someone@gmail.com
+./dnd-fam-ftw-prod-cli namespaces set-limits <nsId> --max-sessions 5 --max-turns 100
+./dnd-fam-ftw-prod-cli sessions list --json
+./dnd-fam-ftw-prod-cli metrics
+./dnd-fam-ftw-prod-cli invite-requests list
 ```
 
 ### run-ssh.sh - interactive SSH session

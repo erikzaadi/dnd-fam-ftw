@@ -744,7 +744,6 @@ export class StateService {
   }
 
   public static addUserToNamespace(email: string, namespaceId: string): { ok: boolean; reason?: string } {
-    const db = this.getDb();
     const user = this.getUserByEmail(email);
     if (!user) {
       return { ok: false, reason: `User not found: ${email}` };
@@ -755,6 +754,22 @@ export class StateService {
     }
     db.prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(user.id, namespaceId);
     return { ok: true };
+  }
+
+  public static removeUserFromNamespace(email: string, namespaceId: string): { ok: boolean; reason?: string } {
+    const user = this.getUserByEmail(email);
+    if (!user) {
+      return { ok: false, reason: `User not found: ${email}` };
+    }
+    if (user.namespace_id === namespaceId) {
+      return { ok: false, reason: `Cannot remove user from their primary namespace: ${namespaceId}` };
+    }
+    const result = db.prepare('DELETE FROM user_namespaces WHERE user_id = ? AND namespace_id = ?').run(user.id, namespaceId);
+    if (result.changes > 0) {
+      return { ok: true };
+    } else {
+      return { ok: false, reason: `User ${email} did not have access to namespace ${namespaceId}` };
+    }
   }
 
   // --- Namespace limits ---

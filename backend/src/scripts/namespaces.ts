@@ -156,6 +156,21 @@ case 'add-user': {
   break;
 }
 
+case 'remove-user': {
+  const [nsId, email] = args.filter(a => !a.startsWith('--'));
+  if (!nsId || !email) {
+    console.error('Usage: namespaces.ts remove-user <namespaceId> <email>');
+    process.exit(1);
+  }
+  const result = StateService.removeUserFromNamespace(email, nsId);
+  if (result.ok) {
+    console.log(`Removed ${email} access to namespace ${nsId}`);
+  } else {
+    console.error(`Error: ${result.reason}`);
+    process.exit(1);
+  }
+  break;
+}
 case 'set-limits': {
   const id = args.find(a => !a.startsWith('--'));
   if (!id) {
@@ -212,6 +227,7 @@ Commands:
   sessions <id>                        List sessions in a namespace
   assign-session <sessionId> <nsId>    Move a session to a namespace
   add-user <nsId> <email>              Grant user access to a namespace
+  remove-user <nsId> <email>           Remove user access from a namespace
   set-limits <id> [--max-sessions N] [--max-turns N]  Set or view limits
 
 Examples:
@@ -222,6 +238,7 @@ Examples:
   npm run namespaces assign-session xyz789 abc123
   npm run namespaces delete abc123
   npm run namespaces add-user abc123 someone@gmail.com
+  npm run namespaces remove-user abc123 someone@gmail.com
   npm run namespaces set-limits abc123 --max-sessions 5 --max-turns 50
   npm run namespaces set-limits abc123 --max-sessions null
 `);

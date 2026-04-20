@@ -200,7 +200,7 @@ dnd-fam-ftw/
 │
 ├── terraform/                    # AWS infrastructure (Lightsail, S3, CloudFront, Route53)
 ├── scripts/                      # Deploy + install scripts
-│   └── deploy/                   # SSH-wrapped management scripts (run-script.sh)
+│   └── deploy/                   # SSH-wrapped management scripts (dnd-fam-ftw-prod-cli)
 ├── .github/workflows/            # CI/CD (deploy.yml, lint.yml, test.yml, renew-cert.yml)
 ├── docs/                         # Screenshots
 └── .env                          # OPENAI_API_KEY goes here
@@ -252,10 +252,10 @@ The backend runs as a systemd service. `re-deploy.sh` sets `VITE_BASE_PATH=/dnd-
 Run via SSH wrapper using the same `<resource> <sub-command>` interface as the local CLI:
 
 ```bash
-./scripts/deploy/run-script.sh users list
-./scripts/deploy/run-script.sh namespaces list
-./scripts/deploy/run-script.sh metrics
-./scripts/deploy/run-script.sh invite-requests list
+./dnd-fam-ftw-prod-cli users list
+./dnd-fam-ftw-prod-cli namespaces list
+./dnd-fam-ftw-prod-cli metrics
+./dnd-fam-ftw-prod-cli invite-requests list
 ```
 
 See **[MANAGE.md](MANAGE.md)** for the full command reference.
@@ -275,7 +275,7 @@ There are six distinct AI calls in the app, each with a different purpose and co
 | **Session naming** | `stateService.ts` | gpt-4o-mini | LocalAI | Once at world creation |
 | **Character history** | `index.ts` (route) | gpt-4o-mini | - | When importing a character from a previous session |
 
-Use `npm run cli -- metrics` (or `./scripts/deploy/run-script.sh metrics` on production) to see per-namespace counts for sessions, turns, images, and avatars generated.
+Use `npm run cli -- metrics` (or `./dnd-fam-ftw-prod-cli metrics` on production) to see per-namespace counts for sessions, turns, images, and avatars generated.
 
 Turn narration is the only call that blocks the player response. Scene images are generated asynchronously after the turn : the story text appears immediately, and the image arrives via SSE a few seconds later.
 
@@ -328,12 +328,12 @@ Auth is optional. Without Google OAuth credentials everything runs under a singl
 When auth is enabled, each user gets their own namespace (isolated sessions). Users can be granted access to additional namespaces by an admin.
 
 ```bash
-./scripts/deploy/run-script.sh users list
-./scripts/deploy/run-script.sh users add someone@gmail.com "Their Name"
-./scripts/deploy/run-script.sh namespaces list
-./scripts/deploy/run-script.sh namespaces add-user <namespaceId> someone@gmail.com
-./scripts/deploy/run-script.sh namespaces set-limits <namespaceId> --max-sessions 5 --max-turns 100
-./scripts/deploy/run-script.sh invite-requests list
+./dnd-fam-ftw-prod-cli users list
+./dnd-fam-ftw-prod-cli users add someone@gmail.com "Their Name"
+./dnd-fam-ftw-prod-cli namespaces list
+./dnd-fam-ftw-prod-cli namespaces add-user <namespaceId> someone@gmail.com
+./dnd-fam-ftw-prod-cli namespaces set-limits <namespaceId> --max-sessions 5 --max-turns 100
+./dnd-fam-ftw-prod-cli invite-requests list
 ```
 
 Users with multiple namespace access will see a picker screen after login. For the full command reference see **[MANAGE.md](MANAGE.md)**.

@@ -5,9 +5,9 @@
  *   npm run invite-requests list
  *   npm run invite-requests clear
  *
- * Or on production via run-script.sh:
- *   ./scripts/deploy/run-script.sh invite-requests list
- *   ./scripts/deploy/run-script.sh invite-requests clear
+ * Or on production via dnd-fam-ftw-prod-cli:
+ *   ./dnd-fam-ftw-prod-cli invite-requests list
+ *   ./dnd-fam-ftw-prod-cli invite-requests clear
  */
 
 import path from 'path';

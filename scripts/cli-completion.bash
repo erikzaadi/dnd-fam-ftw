@@ -10,7 +10,7 @@
 _dnd_subcommands() {
   case "$1" in
     users)           echo "list add remove" ;;
-    namespaces)      echo "list create rename delete sessions assign-session add-user set-limits" ;;
+    namespaces)      echo "list create rename delete sessions assign-session add-user remove-user set-limits" ;;
     sessions)        echo "list nuke seed" ;;
     metrics)         echo "" ;;
     invite-requests) echo "list clear" ;;
@@ -56,4 +56,4 @@ _dnd_complete() {
 }
 
 complete -F _dnd_complete dnd-fam-ftw-cli
-complete -F _dnd_complete run-script.sh
+complete -F _dnd_complete dnd-fam-ftw-prod-cli

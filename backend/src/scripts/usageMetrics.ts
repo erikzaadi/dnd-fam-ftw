@@ -5,9 +5,9 @@
  *   npm run usage-metrics
  *   npm run usage-metrics -- --json
  *
- * Or on production via run-script.sh:
- *   ./scripts/deploy/run-script.sh usage-metrics
- *   ./scripts/deploy/run-script.sh usage-metrics --json
+ * Or on production via dnd-fam-ftw-prod-cli:
+ *   ./dnd-fam-ftw-prod-cli usage-metrics
+ *   ./dnd-fam-ftw-prod-cli usage-metrics --json
  */
 
 import path from 'path';
