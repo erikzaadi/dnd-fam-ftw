@@ -274,8 +274,12 @@ jobs:
           check "API health"    "https://$API_DOMAIN/health"
           check "API redirect"  "http://$API_DOMAIN" "301"
           check "Frontend root" "https://$FRONTEND_DOMAIN/"
-          if [[ "$DEPLOY_BACKEND"  == "true" ]]; then check_version "backend"  "https://$API_DOMAIN/health"; fi
-          if [[ "$DEPLOY_FRONTEND" == "true" ]]; then check_version "frontend" "https://$FRONTEND_DOMAIN/version.json"; fi
+          if [[ "$DEPLOY_BACKEND"  == "true" ]]; then
+            check_version "backend"  "https://$API_DOMAIN/health";
+          fi
+          if [[ "$DEPLOY_FRONTEND" == "true" ]]; then
+            check_version "frontend" "https://$FRONTEND_DOMAIN/version.json";
+          fi
 
       # ── Cleanup ──────────────────────────────────────────────────────────────
 
