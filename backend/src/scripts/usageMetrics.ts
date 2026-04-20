@@ -49,7 +49,7 @@ const rows = db.prepare(`
     COALESCE((
       SELECT COUNT(*) FROM turn_history th
       JOIN sessions ts ON ts.id = th.sessionId
-      WHERE ts.namespace_id = n.id AND th.imageSuggested = 1
+      WHERE ts.namespace_id = n.id AND th.image_storage_key IS NOT NULL
     ), 0) AS images_generated,
     COALESCE((
       SELECT COUNT(*) FROM characters c
