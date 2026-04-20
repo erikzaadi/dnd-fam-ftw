@@ -39,6 +39,7 @@ load_terraform_outputs() {
   AWS_REGION="${AWS_REGION:-eu-west-1}"
   SSM_PREFIX="${SSM_PREFIX:-/dnd-fam-ftw/prod}"
   AWS_PROFILE="${AWS_PROFILE:-dnd-fam-ftw-terraform}"
+  export AWS_PROFILE
 }
 
 # Open port 22 on the Lightsail instance for this machine's IP only.
@@ -48,12 +49,29 @@ open_ssh() {
   local my_ip out
   my_ip=$(curl -s https://checkip.amazonaws.com)
   _SSH_OPENED_IP="$my_ip"
+  echo "[ssh] Opening port 22 for $my_ip..." >&2
   out=$(aws lightsail open-instance-public-ports \
     --no-cli-pager \
     --instance-name "$LIGHTSAIL_INSTANCE_NAME" \
     --port-info fromPort=22,toPort=22,protocol=TCP,cidrs="[\"$my_ip/32\"]" 2>&1) || {
     echo "[ssh] ERROR opening port 22: $out" >&2; return 1
   }
+  
+  # Lightsail firewall rules can take time to propagate. Poll until port 22 is open.
+  echo "[ssh] Waiting for port 22 to become reachable..." >&2
+  local max_attempts=30
+  local attempt=1
+  while ! nc -z -w 3 "$LIGHTSAIL_HOST" 22 > /dev/null 2>&1; do
+    if [[ $attempt -ge $max_attempts ]]; then
+      echo "[ssh] ERROR: Port 22 never became reachable after $max_attempts attempts." >&2
+      echo "[ssh] Check if your IP ($my_ip) matches the CIDR in Lightsail and that no other firewall is blocking." >&2
+      return 1
+    fi
+    echo "[ssh] Port 22 not yet reachable, waiting... ($attempt/$max_attempts)" >&2
+    sleep 2
+    attempt=$((attempt + 1))
+  done
+  echo "[ssh] Port 22 is reachable." >&2
 }
 
 close_ssh() {
