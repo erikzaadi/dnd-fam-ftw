@@ -27,7 +27,7 @@ export const SessionPage = () => {
   const [actionError, setActionError] = useState<string | null>(null);
   const [maxTurns, setMaxTurns] = useState<number | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
-  const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; isCritical?: boolean; difficultyTarget?: number } | null>(null);
+  const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; isCritical?: boolean; difficultyTarget?: number; rollNarration?: string } | null>(null);
   const [dieExiting, setDieExiting] = useState(false);
   const [interventionBanner, setInterventionBanner] = useState<string | null>(null);
   const [sanctuaryBanner, setSanctuaryBanner] = useState<string | null>(null);
@@ -70,8 +70,9 @@ export const SessionPage = () => {
     }
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setLastRoll(null); setDieExiting(false); 
-      } 
+        setLastRoll(null);
+        setDieExiting(false);
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -109,12 +110,22 @@ export const SessionPage = () => {
           }
           const roll = data.turnResult?.lastAction?.actionResult;
           if (roll && roll.statUsed !== 'none') {
-            setLastRoll({ roll: roll.roll, success: roll.success, stat: roll.statUsed, statBonus: roll.statBonus, itemBonus: roll.itemBonus, isCritical: roll.isCritical, difficultyTarget: roll.difficultyTarget });
+            setLastRoll({
+              roll: roll.roll,
+              success: roll.success,
+              stat: roll.statUsed,
+              statBonus: roll.statBonus,
+              itemBonus: roll.itemBonus,
+              isCritical: roll.isCritical,
+              difficultyTarget: roll.difficultyTarget,
+              rollNarration: data.turnResult?.rollNarration
+            });
             setDieExiting(false);
-            setTimeout(() => setDieExiting(true), 3000);
+            setTimeout(() => setDieExiting(true), 4000);
             setTimeout(() => {
-              setLastRoll(null); setDieExiting(false); 
-            }, 3500);
+              setLastRoll(null);
+              setDieExiting(false);
+            }, 4500);
           }
         } else if (data.type === 'image_ready') {
           setImageLoading(false);
@@ -138,7 +149,9 @@ export const SessionPage = () => {
           }
           if (data.turnResult) {
             setHistory(prev => {
-              const u = [...prev, data.turnResult]; setViewedTurnIdx(u.length - 1); return u; 
+              const u = [...prev, data.turnResult];
+              setViewedTurnIdx(u.length - 1);
+              return u;
             });
           }
           setTimeout(() => setInterventionBanner(null), 8000);
@@ -149,7 +162,9 @@ export const SessionPage = () => {
           }
           if (data.turnResult) {
             setHistory(prev => {
-              const u = [...prev, data.turnResult]; setViewedTurnIdx(u.length - 1); return u; 
+              const u = [...prev, data.turnResult];
+              setViewedTurnIdx(u.length - 1);
+              return u;
             });
           }
           setTimeout(() => setSanctuaryBanner(null), 10000);
@@ -171,7 +186,8 @@ export const SessionPage = () => {
 
     connect();
     return () => {
-      es?.close(); clearTimeout(reconnectTimer); 
+      es?.close();
+      clearTimeout(reconnectTimer);
     };
   }, [id, joinSession]);
 
@@ -430,8 +446,14 @@ export const SessionPage = () => {
             <Inventory
               party={session.party}
               activeCharacterId={session.activeCharacterId}
-              onUseItem={(o,i,t) => { submitItemAction('use_item',o,i,t); setShowFullInventory(false); }}
-              onGiveItem={(o,i,t) => { submitItemAction('give_item',o,i,t); setShowFullInventory(false); }}
+              onUseItem={(o, i, t) => {
+                submitItemAction('use_item', o, i, t);
+                setShowFullInventory(false);
+              }}
+              onGiveItem={(o, i, t) => {
+                submitItemAction('give_item', o, i, t);
+                setShowFullInventory(false);
+              }}
               disabled={loading}
             />
           </div>
@@ -464,7 +486,7 @@ export const SessionPage = () => {
         <div
           className={`fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/40 animate-in fade-in duration-400 transition-opacity duration-500 cursor-pointer ${dieExiting ? 'opacity-0' : 'opacity-100'}`}
           onClick={() => {
-            setLastRoll(null); setDieExiting(false); 
+            setLastRoll(null); setDieExiting(false);
           }}
         >
           <div className={`flex flex-col items-center gap-4 p-10 rounded-3xl border-2 shadow-2xl animate-in zoom-in-75 duration-500 ease-out ${lastRoll.isCritical ? 'bg-amber-950/95 border-amber-400 shadow-amber-500/30' : lastRoll.success ? 'bg-emerald-950/90 border-emerald-500' : 'bg-rose-950/90 border-rose-500'}`}>
@@ -484,17 +506,24 @@ export const SessionPage = () => {
                 difficultyTarget={lastRoll.difficultyTarget}
                 className="text-sm"
               />
-              <span className="text-[10px] uppercase tracking-widest text-slate-600">tap to dismiss</span>
+              {lastRoll.rollNarration && (
+                <p className="text-amber-100/90 text-xl text-center font-medium italic mt-2 max-w-xs leading-tight animate-in slide-in-from-bottom-2 duration-700">
+                  {lastRoll.rollNarration}
+                </p>
+              )}
+              <span className="text-[10px] uppercase tracking-widest text-slate-600 mt-2">tap to dismiss</span>
             </div>
           </div>
         </div>
       )}
       {fullscreenImage && <FullscreenImage url={fullscreenImage} onClose={() => setFullscreenImage(null)} />}
       {confirmDialog && <ConfirmDialog message={confirmDialog.message} onConfirm={() => {
-        confirmDialog.onConfirm(); setConfirmDialog(null); 
+        confirmDialog.onConfirm();
+        setConfirmDialog(null);
       }} onCancel={() => setConfirmDialog(null)} />}
       {selectedCharacter && <CharacterPopup character={selectedCharacter} onClose={() => setSelectedCharacter(null)} onAvatarClick={(url) => {
-        setSelectedCharacter(null); setFullscreenImage(url); 
+        setSelectedCharacter(null);
+        setFullscreenImage(url);
       }} />}
     </div>
   );

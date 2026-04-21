@@ -4,13 +4,14 @@ import type { NarrationInput } from '../providers/ai/narration/NarrationProvider
 import { NARRATION_FALLBACK } from '../providers/ai/narration/narrationSchemas.js';
 
 export function toNarrationInput(input: AIInput): NarrationInput {
-  const activeChar = input.party.find(c => c.id === input.activeCharacterId);
-  const activeCharName = activeChar?.name;
+  const actingChar = input.party.find(c => c.id === input.characterId);
+  const nextChar = input.party.find(c => c.id === input.activeCharacterId);
 
   return {
     scene: input.scene,
     storySummary: input.storySummary || undefined,
-    activeCharacterName: activeCharName,
+    actingCharacterName: actingChar?.name,
+    nextCharacterName: nextChar?.name,
     party: input.party.map(c => ({
       name: c.name,
       class: c.class,
@@ -37,11 +38,12 @@ export function toNarrationInput(input: AIInput): NarrationInput {
       success: input.actionResult.success,
       roll: input.actionResult.roll,
       statUsed: input.actionResult.statUsed === 'none' ? undefined : input.actionResult.statUsed,
-      difficulty: activeChar ? input.difficulty : undefined,
+      difficulty: actingChar ? input.difficulty : undefined,
       summary: input.actionResult.success ? 'The action succeeded.' : 'The action failed.',
     },
     recentHistory: input.recentHistory ?? [],
     tone: input.tone,
+    gameMode: input.gameMode,
     isFirstTurn: input.turn === 1,
     interventionRescue: input.interventionRescue,
     sanctuaryRecovery: input.sanctuaryRecovery,
@@ -58,8 +60,10 @@ export class AiDmService {
       return {
         narration: output.narration,
         choices: output.choices,
+        rollNarration: output.rollNarration,
         imagePrompt: output.imagePrompt,
         imageSuggested: output.imageSuggested,
+        currentTensionLevel: output.currentTensionLevel,
         suggestedInventoryAdd: output.suggestedInventoryAdd ?? null,
         suggestedInventoryRemove: output.suggestedInventoryRemove ?? null,
         suggestedRevive: output.suggestedRevive ?? null,

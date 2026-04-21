@@ -48,8 +48,10 @@ export class StorySummaryService {
         return;
       }
 
-      const previous = session.storySummary ? `Story so far: ${session.storySummary}\n\n` : '';
-      const prompt = `${previous}A miraculous intervention just occurred: "${interventionNarration}"\n\nUpdate the story summary (2-4 sentences) to include this rescue as established canon.`;
+      const previous = session.storySummary ? `Previous Summary: ${session.storySummary}\n\n` : '';
+      const prompt = `${previous}A major turning point occurred: "${interventionNarration}"\n\nWrite a NEW, concise story summary (2-4 sentences). 
+CRITICAL: The party has just been rescued or moved to a new location. Explicitly state that they have LEFT the previous scene behind. 
+Focus only on the current situation and the essential journey, ignoring defeated or bypassed enemies from the past.`;
 
       const summary = await this.callSummarize(prompt, useLocalAI);
       if (summary) {

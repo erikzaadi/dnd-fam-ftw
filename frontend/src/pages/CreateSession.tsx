@@ -7,6 +7,7 @@ import { apiFetch } from '../lib/api';
 export const CreateSession = () => {
   const [worldDescription, setWorldDescription] = useState("");
   const [difficulty, setDifficulty] = useState("normal");
+  const [gameMode, setGameMode] = useState<'cinematic' | 'balanced' | 'fast'>("balanced");
   const [useLocalAI, setUseLocalAI] = useState(() => {
     const stored = localStorage.getItem('useLocalAI');
     if (stored !== null) {
@@ -37,7 +38,7 @@ export const CreateSession = () => {
     const res = await apiFetch('/session/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ worldDescription, difficulty, useLocalAI })
+      body: JSON.stringify({ worldDescription, difficulty, useLocalAI, gameMode })
     });
     const data = await res.json();
     setIsLoading(false);
@@ -62,6 +63,25 @@ export const CreateSession = () => {
             {['easy', 'normal', 'hard'].map(d => (
               <button key={d} onClick={() => setDifficulty(d)} className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${difficulty === d ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-500'}`}>{d}</button>
             ))}
+          </div>
+          <div className="flex flex-col gap-2 items-center">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-1">Game Pacing</span>
+            <div className="flex gap-2 justify-center">
+              {[
+                { id: 'cinematic', icon: '🎬', label: 'Cinematic' },
+                { id: 'balanced', icon: '⚖️', label: 'Balanced' },
+                { id: 'fast', icon: '⚡', label: 'Fast' }
+              ].map(m => (
+                <button 
+                  key={m.id} 
+                  onClick={() => setGameMode(m.id as 'cinematic' | 'balanced' | 'fast')} 
+                  className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${gameMode === m.id ? 'bg-amber-600/10 border-amber-600 text-amber-500' : 'bg-slate-800/50 border-slate-700 text-slate-500'}`}
+                  title={m.id === 'fast' ? 'Under 3 sentences, high action' : m.id === 'cinematic' ? 'Rich descriptions, slower' : 'Moderate pacing'}
+                >
+                  <span className="mr-1">{m.icon}</span> {m.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="flex justify-center">
             <button

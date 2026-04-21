@@ -67,6 +67,7 @@ export interface Session {
   displayName: string;
   savingsMode: boolean;
   useLocalAI: boolean;
+  gameMode?: 'cinematic' | 'balanced' | 'fast';
   interventionState: { used: boolean };
 }
 
@@ -75,6 +76,7 @@ export type TurnType = 'normal' | 'intervention' | 'sanctuary';
 export interface TurnResult {
   narration: string;
   choices: Choice[];
+  rollNarration?: string;
   imagePrompt: string | null;
   imageSuggested: boolean;
   imageUrl?: string | null;
@@ -82,4 +84,5 @@ export interface TurnResult {
   lastAction?: ActionAttempt | null;
   characterId?: string;
   turnType?: TurnType;
+  currentTensionLevel?: 'low' | 'medium' | 'high';
 }

@@ -289,7 +289,7 @@ const broadcastUpdate = (sessionId: string, type: string, payload: Record<string
 
 // API Endpoints
 app.post('/session/create', asyncHandler(async (req, res) => {
-  const { worldDescription, difficulty, useLocalAI } = req.body;
+  const { worldDescription, difficulty, useLocalAI, gameMode } = req.body;
   try {
     const limits = StateService.getNamespaceLimits(req.namespaceId);
     if (limits.maxSessions !== null) {
@@ -300,7 +300,7 @@ app.post('/session/create', asyncHandler(async (req, res) => {
       }
     }
     const savingsMode = !SettingsService.get().imagesEnabled;
-    const session = await StateService.createSession(worldDescription, difficulty, !!useLocalAI, savingsMode, req.namespaceId);
+    const session = await StateService.createSession(worldDescription, difficulty, !!useLocalAI, savingsMode, req.namespaceId, gameMode);
     res.json(session);
   } catch (error: unknown) {
     const status = (error as { status?: number })?.status;
@@ -541,7 +541,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
     }
 
     const nextCharIdForItem = GameEngine.getNextActiveCharacter(itemState.party, actingCharId);
-    const aiInput = { ...itemState, ...itemAttempt, activeCharacterId: nextCharIdForItem };
+    const aiInput: import('./types.js').AIInput = { ...itemState, ...itemAttempt, activeCharacterId: nextCharIdForItem, characterId: actingCharId };
     let turnResult;
     try {
       turnResult = await AiDmService.generateTurnResult(aiInput, session.useLocalAI);
@@ -577,7 +577,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
 
   const actionAttempt = GameEngine.resolveAction(character, action, statUsed, difficulty || 'normal', difficultyValue);
   const nextCharId = GameEngine.getNextActiveCharacter(session.party, actingCharId);
-  const aiInput = { ...session, ...actionAttempt, activeCharacterId: nextCharId };
+  const aiInput: import('./types.js').AIInput = { ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId };
 
   let turnResult;
   try {
@@ -612,6 +612,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
 
         const interventionInput: import('./types.js').AIInput = {
           ...rescuedState,
+          characterId: '',
           actionAttempt: 'A mysterious force saved the party from doom',
           actionResult: { success: true, roll: 0, statUsed: 'none' },
           interventionRescue: true,
@@ -641,6 +642,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
 
         const sanctuaryInput: import('./types.js').AIInput = {
           ...sanctuaryState,
+          characterId: '',
           actionAttempt: 'The party woke up somewhere safe, battered but alive',
           actionResult: { success: true, roll: 0, statUsed: 'none' },
           sanctuaryRecovery: true,

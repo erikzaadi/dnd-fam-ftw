@@ -19,9 +19,22 @@ const makeAIInput = (overrides: Partial<AIInput> = {}): AIInput => ({
       status: 'active',
       stats: { might: 1, magic: 2, mischief: 4 },
       inventory: [],
+    },
+    {
+      id: 'hero-2',
+      name: 'Zara',
+      class: 'Wizard',
+      species: 'Elf',
+      quirk: 'Talks to books',
+      hp: 10,
+      max_hp: 10,
+      status: 'active',
+      stats: { might: 1, magic: 5, mischief: 2 },
+      inventory: [],
     }
   ],
-  activeCharacterId: 'hero-1',
+  activeCharacterId: 'hero-2',
+  characterId: 'hero-1',
   npcs: [],
   quests: [],
   lastChoices: [],
@@ -29,6 +42,7 @@ const makeAIInput = (overrides: Partial<AIInput> = {}): AIInput => ({
   recentHistory: ['The goblin chef threw a ladle at Pip.'],
   displayName: 'Test World',
   difficulty: 'normal',
+  gameMode: 'balanced',
   savingsMode: false,
   useLocalAI: false,
   interventionState: { used: false },
@@ -39,6 +53,25 @@ const makeAIInput = (overrides: Partial<AIInput> = {}): AIInput => ({
 });
 
 console.log('Testing toNarrationInput mapping...');
+
+// Test acting/next character separation
+console.log('Test: actingCharacterName and nextCharacterName are separated...');
+const outActing = toNarrationInput(makeAIInput());
+if (outActing.actingCharacterName !== 'Pip') {
+  throw new Error(`Expected 'Pip', got '${outActing.actingCharacterName}'`);
+}
+if (outActing.nextCharacterName !== 'Zara') {
+  throw new Error(`Expected 'Zara', got '${outActing.nextCharacterName}'`);
+}
+console.log('- acting: Pip, next: Zara ✓');
+
+// Test 0: gameMode is passed through
+console.log('Test 0: gameMode is passed through...');
+const out0 = toNarrationInput(makeAIInput({ gameMode: 'fast' }));
+if (out0.gameMode !== 'fast') {
+  throw new Error(`Expected 'fast', got '${out0.gameMode}'`);
+}
+console.log('- gameMode: fast ✓');
 
 // Test 1: party status is mapped correctly
 console.log('Test 1: party status is passed through...');

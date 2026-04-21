@@ -32,6 +32,7 @@ export class StateService {
         tone TEXT NOT NULL DEFAULT 'thrilling adventure',
         displayName TEXT NOT NULL DEFAULT '',
         difficulty TEXT NOT NULL DEFAULT 'normal',
+        gameMode TEXT NOT NULL DEFAULT 'balanced',
         savingsMode INTEGER NOT NULL DEFAULT 0,
         useLocalAI INTEGER NOT NULL DEFAULT 0,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -66,6 +67,7 @@ export class StateService {
         sessionId TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
         characterId TEXT REFERENCES characters(id),
         narration TEXT NOT NULL,
+        rollNarration TEXT,
         imagePrompt TEXT,
         imageSuggested INTEGER NOT NULL DEFAULT 0,
         imageUrl TEXT,
@@ -105,6 +107,9 @@ export class StateService {
     if (!turnCols.includes('image_storage_key')) {
       db.prepare("ALTER TABLE turn_history ADD COLUMN image_storage_key TEXT").run();
       db.prepare("ALTER TABLE turn_history ADD COLUMN image_storage_provider TEXT").run();
+    }
+    if (!turnCols.includes('rollNarration')) {
+      db.prepare("ALTER TABLE turn_history ADD COLUMN rollNarration TEXT").run();
     }
 
     const choiceCols = (db.prepare("PRAGMA table_info(turn_choices)").all() as { name: string }[]).map(r => r.name);
@@ -160,6 +165,9 @@ export class StateService {
     if (!sessionCols.includes('namespace_id')) {
       db.prepare("ALTER TABLE sessions ADD COLUMN namespace_id TEXT NOT NULL DEFAULT 'local'").run();
     }
+    if (!sessionCols.includes('gameMode')) {
+      db.prepare("ALTER TABLE sessions ADD COLUMN gameMode TEXT NOT NULL DEFAULT 'balanced'").run();
+    }
 
     db.exec(`
       CREATE TABLE IF NOT EXISTS namespaces (
@@ -213,7 +221,7 @@ export class StateService {
     this.getDb();
   }
 
-  public static async createSession(worldDescription?: string, difficulty: string = 'normal', useLocalAI: boolean = false, savingsMode: boolean = false, namespaceId: string = 'local'): Promise<SessionState> {
+  public static async createSession(worldDescription?: string, difficulty: string = 'normal', useLocalAI: boolean = false, savingsMode: boolean = false, namespaceId: string = 'local', gameMode: 'cinematic' | 'balanced' | 'fast' = 'balanced'): Promise<SessionState> {
     const db = this.getDb();
     const id = Math.random().toString(36).substring(7);
 
@@ -246,8 +254,8 @@ export class StateService {
       console.warn(`[Session] Display name generation failed or timed out (${Date.now() - nameStart}ms), using fallback:`, err);
     }
 
-    db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, turn, tone, displayName, difficulty, useLocalAI, savingsMode, namespace_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, "A New World", "start-1", worldDescription || null, 1, "thrilling adventure", displayName, difficulty, useLocalAI ? 1 : 0, savingsMode ? 1 : 0, namespaceId);
+    db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, turn, tone, displayName, difficulty, gameMode, useLocalAI, savingsMode, namespace_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, "A New World", "start-1", worldDescription || null, 1, "thrilling adventure", displayName, difficulty, gameMode, useLocalAI ? 1 : 0, savingsMode ? 1 : 0, namespaceId);
 
     return {
       id,
@@ -261,6 +269,7 @@ export class StateService {
       quests: [],
       lastChoices: [],
       tone: "thrilling adventure",
+      gameMode,
       recentHistory: ["Adventure begins!"],
       displayName,
       difficulty,
@@ -283,6 +292,7 @@ export class StateService {
       tone: string;
       displayName: string;
       difficulty: string;
+      gameMode: string;
       savingsMode: number;
       useLocalAI: number;
       interventionUsed: number;
@@ -369,6 +379,7 @@ export class StateService {
       })(),
       displayName: row.displayName,
       difficulty: row.difficulty,
+      gameMode: (row.gameMode as 'cinematic' | 'balanced' | 'fast') || 'balanced',
       savingsMode: !!row.savingsMode,
       useLocalAI: !!row.useLocalAI,
       interventionState: { used: !!row.interventionUsed },
@@ -556,6 +567,7 @@ export class StateService {
       }
       return {
         narration: r.narration,
+        rollNarration: r.rollNarration || undefined,
         imagePrompt: r.imagePrompt,
         imageSuggested: !!r.imageSuggested,
         imageUrl,
@@ -581,9 +593,9 @@ export class StateService {
   public static async addTurnResult(id: string, turn: TurnResult, characterId: string | null): Promise<void> {
     const db = this.getDb();
     const action = turn.lastAction ?? null;
-    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, narration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionIsCritical, actionDifficultyTarget, turnType) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionIsCritical, actionDifficultyTarget, turnType) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(
-        id, characterId || null, turn.narration, turn.imagePrompt, turn.imageSuggested ? 1 : 0, turn.imageUrl || null,
+        id, characterId || null, turn.narration, turn.rollNarration || null, turn.imagePrompt, turn.imageSuggested ? 1 : 0, turn.imageUrl || null,
         action?.actionAttempt ?? null,
         action?.actionResult?.statUsed ?? null,
         action?.actionResult?.success ? 1 : 0,

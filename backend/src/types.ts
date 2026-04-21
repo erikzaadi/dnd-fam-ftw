@@ -49,6 +49,7 @@ export interface SessionState {
   quests: string[];
   lastChoices: Choice[];
   tone: string;
+  gameMode?: 'cinematic' | 'balanced' | 'fast';
   recentHistory: string[];
   displayName: string;
   difficulty: string;
@@ -70,6 +71,7 @@ export type TurnType = 'normal' | 'intervention' | 'sanctuary';
 export interface TurnResult {
   narration: string;
   choices: Choice[];
+  rollNarration?: string;
   imagePrompt: string | null;
   imageSuggested: boolean;
   imageUrl?: string | null;
@@ -81,6 +83,7 @@ export interface TurnResult {
   lastAction?: ActionAttempt | null;
   characterId?: string;
   turnType?: TurnType;
+  currentTensionLevel?: 'low' | 'medium' | 'high';
 }
 
 export interface ActionAttempt {
@@ -97,6 +100,7 @@ export interface ActionAttempt {
 }
 
 export interface AIInput extends SessionState, ActionAttempt {
+  characterId: string;
   interventionRescue?: boolean;
   sanctuaryRecovery?: boolean;
 }

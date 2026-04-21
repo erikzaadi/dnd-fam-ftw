@@ -34,8 +34,10 @@ const reviveSchema = z.object({
 export const narrationOutputSchema = z.object({
   narration: z.string().min(1),
   choices: z.array(choiceSchema).length(3),
+  rollNarration: z.string().optional(),
   imagePrompt: z.string().nullable(),
   imageSuggested: z.boolean(),
+  currentTensionLevel: z.enum(['low', 'medium', 'high']).default('medium'),
   suggestedInventoryAdd: inventoryAddSchema.nullable(),
   suggestedInventoryRemove: inventoryRemoveSchema.nullable().default(null),
   suggestedRevive: reviveSchema.nullable().default(null),
@@ -54,6 +56,7 @@ export const NARRATION_FALLBACK: ValidNarrationOutput = {
   ],
   imagePrompt: null,
   imageSuggested: false,
+  currentTensionLevel: 'medium',
   suggestedInventoryAdd: null,
   suggestedInventoryRemove: null,
   suggestedRevive: null,

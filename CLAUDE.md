@@ -121,7 +121,7 @@ Characters have a `history` field. When importing a character from a previous se
 
 ## DB migrations
 
-`stateService.ts` runs migrations on every startup via `migrate()`. Add new columns as `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` checks at the bottom of `migrate()`. Never drop columns. Never change existing column types.
+`stateService.ts` runs migrations on every startup via `migrate()`. Add new columns as `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` checks at the bottom of `migrate()`. Never drop columns. Never change existing column types. When adding new migrations, be sure to update the seed script (./backend/src/scripts/seedSessions.ts)
 
 ## Image storage
 

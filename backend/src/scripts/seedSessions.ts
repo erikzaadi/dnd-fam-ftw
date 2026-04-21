@@ -37,10 +37,10 @@ function seedItem(characterId: string, name: string, description: string, healVa
     .run(characterId, Math.random().toString(36).slice(2), name, description, healValue, statBonuses, consumable, transferable);
 }
 
-function seedTurn(sessionId: string, characterId: string | null, narration: string, choices: { label: string; difficulty: string; stat: string; difficultyValue?: number }[], actionAttempt: string | null, actionStat: string | null, actionSuccess: number | null, actionRoll: number | null, actionStatBonus: number | null, turnType: string = 'normal', imageUrl: string | null = null, actionDifficultyTarget: number | null = null) {
-  const info = db.prepare(`INSERT INTO turn_history (sessionId, characterId, narration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionDifficultyTarget, turnType)
-    VALUES (?, ?, ?, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(sessionId, characterId, narration, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionDifficultyTarget, turnType);
+function seedTurn(sessionId: string, characterId: string | null, narration: string, choices: { label: string; difficulty: string; stat: string; difficultyValue?: number }[], actionAttempt: string | null, actionStat: string | null, actionSuccess: number | null, actionRoll: number | null, actionStatBonus: number | null, turnType: string = 'normal', imageUrl: string | null = null, actionDifficultyTarget: number | null = null, rollNarration: string | null = null) {
+  const info = db.prepare(`INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionDifficultyTarget, turnType)
+    VALUES (?, ?, ?, ?, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(sessionId, characterId, narration, rollNarration, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionDifficultyTarget, turnType);
   const turnId = info.lastInsertRowid;
   for (const c of choices) {
     db.prepare(`INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue) VALUES (?, ?, ?, ?, ?)`)
@@ -76,8 +76,8 @@ const CHOICES_SOCIAL = [
 
 const S1 = 'seed-session-1';
 deleteSession(S1);
-db.prepare(`INSERT INTO sessions (id, scene, sceneId, displayName, turn, activeCharacterId, tone, difficulty, savingsMode, useLocalAI, interventionUsed, storySummary)
-  VALUES (?, 'The Goblin King Caverns', 'cave-1', 'The Goblin King Lair', 8, 'seed-s1-c2', 'thrilling adventure', 'normal', 0, 0, 0, ?)`)
+db.prepare(`INSERT INTO sessions (id, scene, sceneId, displayName, turn, activeCharacterId, tone, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, storySummary)
+  VALUES (?, 'The Goblin King Caverns', 'cave-1', 'The Goblin King Lair', 8, 'seed-s1-c2', 'thrilling adventure', 'normal', 'fast', 0, 0, 0, ?)`)
   .run(S1, 'The party delved into the goblin caves seeking a stolen artifact. They fought through waves of goblin sentries, discovered a map to the throne room, and now stand before the Goblin King himself.');
 
 seedChar(S1, 'seed-s1-c1', 'Barnabas Strongarm', 'Fighter', 'Dwarf', 'Talks to his axe like it is a person', 5, 1, 1, 7, 10);
@@ -95,14 +95,14 @@ seedTurn(S1, 'seed-s1-c2', 'Zara darts between the goblins with supernatural spe
 seedTurn(S1, 'seed-s1-c3', 'Eldwin conjures a blinding flash that staggers the remaining guards. "Why did the mage cross the cave?" he mutters. "Because it was lit!" The path ahead is clear.', CHOICES_EXPLORE, 'Cast a spell', 'magic', 1, 16, 5, 'normal', null, 11);
 seedTurn(S1, 'seed-s1-c4', 'Mira touches the ancient door and it swings open with a holy glow. Beyond lies a treasure room and a map showing the throne room - right above you.', CHOICES_SOCIAL, 'Examine with magic', 'magic', 1, 13, 4, 'normal', null, 11);
 seedTurn(S1, 'seed-s1-c1', 'The Goblin King roars from his throne of stolen loot. "Intrudersss! KILL THEM!" He hurls a jagged crown like a disc weapon. Barnabas barely ducks in time.', CHOICES_COMBAT, 'Search the area carefully', 'mischief', 0, 4, 1, 'normal', null, 8);
-seedTurn(S1, 'seed-s1-c2', 'Zara spots a hidden lever behind the throne - if she can reach it, the cage trap above the king might spring. The king is distracted by Barnabas.', CHOICES_COMBAT, 'Search the area carefully', 'mischief', 1, 19, 4, 'normal', null, 8);
+seedTurn(S1, 'seed-s1-c2', 'Zara spots a hidden lever behind the throne - if she can reach it, the cage trap above the king might spring. The king is distracted by Barnabas.', CHOICES_COMBAT, 'Search the area carefully', 'mischief', 1, 19, 4, 'normal', null, 8, '🎲 A focused eye! You spot the mechanism.');
 
 // ── Session 2: The Dragon's Peak (includes intervention + sanctuary) ──────────
 
 const S2 = 'seed-session-2';
 deleteSession(S2);
-db.prepare(`INSERT INTO sessions (id, scene, sceneId, displayName, turn, activeCharacterId, tone, difficulty, savingsMode, useLocalAI, interventionUsed, storySummary)
-  VALUES (?, 'The Dragon Peak Summit', 'peak-3', 'Dragon Peak', 10, 'seed-s2-c1', 'epic and dangerous', 'hard', 0, 0, 1, ?)`)
+db.prepare(`INSERT INTO sessions (id, scene, sceneId, displayName, turn, activeCharacterId, tone, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, storySummary)
+  VALUES (?, 'The Dragon Peak Summit', 'peak-3', 'Dragon Peak', 10, 'seed-s2-c1', 'epic and dangerous', 'hard', 'balanced', 0, 0, 1, ?)`)
   .run(S2, 'The party climbed the treacherous Dragon Peak to retrieve a stolen dragon egg. They survived an ambush by cultists, fell off a cliff only to be saved by a mysterious dragon, woke in a mountain shelter, and now face the final cultist stronghold.');
 
 seedChar(S2, 'seed-s2-c1', 'Vex the Wanderer', 'Rogue', 'Tiefling', 'Leaves a coin wherever they go as a calling card', 2, 2, 5, 5, 10);
@@ -126,7 +126,7 @@ seedTurn(S2, null, 'From the storm clouds above, an ancient dragon with scales l
 ], null, null, null, null, null, 'intervention', '/images/intervention_dragon.png');
 
 seedTurn(S2, 'seed-s2-c1', 'Vex uses the dragon distraction to slip behind the high priest and drive a blade into the gap in his armor. The priest staggers - but calls for his elite guard.', CHOICES_COMBAT, 'Dodge and find an opening', 'mischief', 1, 16, 5, 'normal', null, 15);
-seedTurn(S2, 'seed-s2-c2', 'Solara battles the elite guard heroically but takes a vicious hit. With a final desperate swing she shatters the guard captain\'s shield. Both sides are exhausted and the party is overwhelmed again.', CHOICES_COMBAT, 'Strike with your weapon', 'might', 0, 5, 4, 'normal', null, 12);
+seedTurn(S2, 'seed-s2-c2', 'Solara battles the elite guard heroically but takes a vicious hit. With a final desperate swing she shatters the guard captain\'s shield. Both sides are exhausted and the party is overwhelmed again.', CHOICES_COMBAT, 'Strike with your weapon', 'might', 0, 5, 4, 'normal', null, 12, '🎲 A heavy blow, but your defense falters.');
 
 // Sanctuary turn
 seedTurn(S2, null, 'The party wakes in a warm stone alcove carved into the mountainside - a hermit\'s shelter, long abandoned. Healing herbs hang from the ceiling and a small fire still burns. Outside, the storm howls. Someone bandaged your wounds while you slept. On the wall, scratched in common: "Courage returns with rest." Each of you feels the ache of battle but also the slow return of strength.', [
@@ -139,8 +139,8 @@ seedTurn(S2, null, 'The party wakes in a warm stone alcove carved into the mount
 
 const S3 = 'seed-session-3';
 deleteSession(S3);
-db.prepare(`INSERT INTO sessions (id, scene, sceneId, displayName, turn, activeCharacterId, tone, difficulty, savingsMode, useLocalAI, interventionUsed, storySummary)
-  VALUES (?, 'The Whispering Market', 'market-2', 'The Merchant Mystery', 6, 'seed-s3-c2', 'mysterious and intriguing', 'easy', 0, 0, 0, ?)`)
+db.prepare(`INSERT INTO sessions (id, scene, sceneId, displayName, turn, activeCharacterId, tone, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, storySummary)
+  VALUES (?, 'The Whispering Market', 'market-2', 'The Merchant Mystery', 6, 'seed-s3-c2', 'mysterious and intriguing', 'easy', 'cinematic', 0, 0, 0, ?)`)
   .run(S3, 'The party was hired to find a missing merchant\'s shipment. They discovered the cargo was actually a locked chest containing a cursed music box. The local thieves\' guild is also searching for it and may be watching.');
 
 seedChar(S3, 'seed-s3-c1', 'Pipwick', 'Bard', 'Gnome', 'Turns every conversation into a song', 1, 2, 4, 7, 10);
@@ -156,7 +156,7 @@ seedTurn(S3, 'seed-s3-c1', 'Pipwick plays a cheerful tune near the spice stall a
 seedTurn(S3, 'seed-s3-c2', 'Thalia sends Taxes (her crow) ahead to scout the warehouse. The bird returns with a torn piece of red cloth and - oddly - humming. The music box is in there.', CHOICES_EXPLORE, 'Search the area carefully', 'mischief', 1, 12, 3, 'normal', null, 8);
 seedTurn(S3, 'seed-s3-c3', 'Brother Oswin examines the cloth and senses a dark enchantment. "Sorry in advance," he murmurs to the cursed fabric before casting a ward. The curse partially lifts - the box is somewhere on the upper floor.', CHOICES_SOCIAL, 'Examine with magic', 'magic', 1, 14, 4, 'normal', null, 11);
 seedTurn(S3, 'seed-s3-c4', 'Mirela attempts to unlock the warehouse side door with a spell but a hidden glyph triggers an alarm. Sparks fly from her hair - she was NOT lying about the door being unlocked. Guards converge.', CHOICES_COMBAT, 'Cast a spell', 'magic', 0, 7, 5, 'normal', null, 11);
-seedTurn(S3, 'seed-s3-c2', 'Thalia notches an arrow and shoots out the lantern above the guards, plunging the alley into darkness. The party has seconds to decide - fight, flee, or find another way in.', CHOICES_COMBAT, 'Search the area carefully', 'mischief', 1, 16, 3, 'normal', null, 8);
+seedTurn(S3, 'seed-s3-c2', 'Thalia notches an arrow and shoots out the lantern above the guards, plunging the alley into darkness. The party has seconds to decide - fight, flee, or find another way in.', CHOICES_COMBAT, 'Search the area carefully', 'mischief', 1, 16, 3, 'normal', null, 8, '🎲 Sharp eyes in the dark. The arrow flies true.');
 
 // Update session active characters
 db.prepare('UPDATE sessions SET activeCharacterId = ? WHERE id = ?').run('seed-s1-c2', S1);

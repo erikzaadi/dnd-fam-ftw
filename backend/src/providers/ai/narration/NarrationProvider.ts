@@ -7,7 +7,8 @@ export type NarrationChoice = {
 export type NarrationInput = {
   scene: string;
   storySummary?: string;
-  activeCharacterName?: string;
+  actingCharacterName?: string;
+  nextCharacterName?: string;
   party: Array<{
     name: string;
     class: string;
@@ -37,6 +38,7 @@ export type NarrationInput = {
   };
   recentHistory: string[];
   tone: string;
+  gameMode?: 'cinematic' | 'balanced' | 'fast';
   isFirstTurn?: boolean;
   interventionRescue?: boolean;
   sanctuaryRecovery?: boolean;
@@ -45,8 +47,10 @@ export type NarrationInput = {
 export type NarrationOutput = {
   narration: string;
   choices: NarrationChoice[];
+  rollNarration?: string;
   imagePrompt: string | null;
   imageSuggested: boolean;
+  currentTensionLevel: 'low' | 'medium' | 'high';
   suggestedInventoryAdd: {
     name: string;
     description: string;
