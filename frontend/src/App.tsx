@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Home } from './pages/Home';
 import { SessionPage } from './pages/Session';
@@ -10,6 +11,7 @@ import { Login } from './pages/Login';
 import { NamespacePicker } from './pages/NamespacePicker';
 import { RequestInvite } from './pages/RequestInvite';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AudioUnlockOverlay } from './components/AudioUnlockOverlay';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { enabled, user, loading } = useAuth();
@@ -45,9 +47,48 @@ function AppRoutes() {
   );
 }
 
+import { useAudioSettings } from './audio/useAudioSettings';
+import { audioManager } from './audio/audioManager';
+
 function App() {
+  const { settings } = useAudioSettings();
+
+  useEffect(() => {
+    audioManager.updateSettings(settings);
+  }, [settings]);
+
+  useEffect(() => {
+    const isMusicRoute = 
+      location.pathname === '/' || 
+      location.pathname === '/create-session' || 
+      location.pathname.includes('/session/');
+      
+    if (!isMusicRoute) {
+      audioManager.stopMusic();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const handleInteraction = () => {
+      audioManager.unlock();
+      window.removeEventListener('click', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
+      window.removeEventListener('keydown', handleInteraction);
+    };
+    window.addEventListener('click', handleInteraction);
+    window.addEventListener('touchstart', handleInteraction);
+    window.addEventListener('keydown', handleInteraction);
+    return () => {
+      window.removeEventListener('click', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
+      window.removeEventListener('keydown', handleInteraction);
+    };
+  }, []);
+
   return (
     <AuthProvider>
+      <AudioUnlockOverlay />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/namespace-picker" element={<NamespacePicker />} />

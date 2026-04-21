@@ -24,10 +24,18 @@ const Toggle = ({ checked, onChange, label, description }: { checked: boolean; o
   </div>
 );
 
+import { useAudioSettings } from '../audio/useAudioSettings';
+
 export const Settings = () => {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [saved, setSaved] = useState(false);
   const navigate = useNavigate();
+  const { 
+    settings: audioSettings, 
+    setMusicEnabled, 
+    setMasterMuted, 
+    setMusicVolume 
+  } = useAudioSettings();
 
   useEffect(() => {
     apiFetch('/settings')
@@ -83,6 +91,39 @@ export const Settings = () => {
               />
               {!settings.imagesEnabled && (
                 <p className="text-xs text-slate-500 px-2">Character avatars will use SVG initials instead.</p>
+              )}
+
+              <h2 className="text-lg font-black uppercase tracking-tighter text-slate-400 pt-2">Audio</h2>
+              <Toggle
+                checked={audioSettings.musicEnabled}
+                onChange={setMusicEnabled}
+                label="Background Music"
+                description="Play random ambient tracks during the adventure."
+              />
+
+              <Toggle
+                checked={audioSettings.masterMuted}
+                onChange={setMasterMuted}
+                label="Mute All"
+                description="Silence all music and sound effects."
+              />
+
+              {audioSettings.musicEnabled && (
+                <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
+                  <div className="flex justify-between items-center">
+                    <span className="font-black uppercase tracking-tighter text-white">Music Volume</span>
+                    <span className="text-sm text-slate-400">{Math.round(audioSettings.musicVolume * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={audioSettings.musicVolume}
+                    onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
+                    className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-600"
+                  />
+                </div>
               )}
 
               <div className="pt-4 flex items-center gap-4">

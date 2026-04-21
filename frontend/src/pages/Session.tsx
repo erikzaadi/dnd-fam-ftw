@@ -7,13 +7,13 @@ import { CharacterPopup } from '../components/CharacterPopup';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { FullscreenImage } from '../components/FullscreenImage';
 import { Narration } from '../components/game/Narration';
-import { Inventory } from '../components/game/Inventory';
 import { ActionControls } from '../components/game/ActionControls';
-import { TurnHistoryCard } from '../components/game/TurnHistoryCard';
-import { D20 } from '../components/game/D20';
 import { RollBreakdown } from '../components/game/RollBreakdown';
+import { audioManager } from '../audio/audioManager';
+import { useAudioSettings } from '../audio/useAudioSettings';
 
 export const SessionPage = () => {
+  const { settings, setMasterMuted } = useAudioSettings();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [session, setSession] = useState<Session | null>(null);
@@ -25,17 +25,13 @@ export const SessionPage = () => {
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [maxTurns, setMaxTurns] = useState<number | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
   const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; isCritical?: boolean; difficultyTarget?: number; rollNarration?: string } | null>(null);
   const [dieExiting, setDieExiting] = useState(false);
   const [interventionBanner, setInterventionBanner] = useState<string | null>(null);
   const [sanctuaryBanner, setSanctuaryBanner] = useState<string | null>(null);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
-  const [showFullInventory, setShowFullInventory] = useState(false);
-  const [capabilities, setCapabilities] = useState<{ hasLocalAI: boolean; hasCloudAI: boolean } | null>(null);
 
-  // Full reload - only used on initial mount and for party_update
   const joinSession = useCallback(async (sessionId: string) => {
     const res = await apiFetch(`/session/${sessionId}`);
     if (!res.ok) {
@@ -49,7 +45,6 @@ export const SessionPage = () => {
     setViewedTurnIdx(hData.length - 1);
     apiFetch('/namespace/limits')
       .then(r => r.json())
-      .then((limits: { maxTurns: number | null }) => setMaxTurns(limits.maxTurns))
       .catch(() => { /* limits unavailable */ });
     const latestTurn = hData[hData.length - 1];
     if (latestTurn && !latestTurn.imageUrl && !data.savingsMode) {
@@ -59,10 +54,15 @@ export const SessionPage = () => {
 
   useEffect(() => {
     if (id) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       joinSession(id);
     }
   }, [id, joinSession]);
+
+  useEffect(() => {
+    if (session && history.length > 0) {
+      audioManager.startAmbientMusic();
+    }
+  }, [session, history.length]);
 
   useEffect(() => {
     if (!lastRoll) {
@@ -98,25 +98,15 @@ export const SessionPage = () => {
           if (data.session) {
             setSession(data.session);
           }
-          if (data.turnResult) {
-            setHistory(prev => {
-              const updated = [...prev, data.turnResult];
-              setViewedTurnIdx(updated.length - 1);
-              return updated;
-            });
-            if (!data.session?.savingsMode) {
-              setImageLoading(true);
-            }
-          }
           const roll = data.turnResult?.lastAction?.actionResult;
           if (roll && roll.statUsed !== 'none') {
-            setLastRoll({
-              roll: roll.roll,
-              success: roll.success,
-              stat: roll.statUsed,
-              statBonus: roll.statBonus,
-              itemBonus: roll.itemBonus,
-              isCritical: roll.isCritical,
+            setLastRoll({ 
+              roll: roll.roll, 
+              success: roll.success, 
+              stat: roll.statUsed, 
+              statBonus: roll.statBonus, 
+              itemBonus: roll.itemBonus, 
+              isCritical: roll.isCritical, 
               difficultyTarget: roll.difficultyTarget,
               rollNarration: data.turnResult?.rollNarration
             });
@@ -134,7 +124,6 @@ export const SessionPage = () => {
               return prev;
             }
             const last = prev[prev.length - 1];
-            // Don't overwrite static images on intervention/sanctuary turns
             if (last.turnType === 'intervention' || last.turnType === 'sanctuary') {
               return prev;
             }
@@ -151,7 +140,7 @@ export const SessionPage = () => {
             setHistory(prev => {
               const u = [...prev, data.turnResult];
               setViewedTurnIdx(u.length - 1);
-              return u;
+              return u; 
             });
           }
           setTimeout(() => setInterventionBanner(null), 8000);
@@ -164,12 +153,11 @@ export const SessionPage = () => {
             setHistory(prev => {
               const u = [...prev, data.turnResult];
               setViewedTurnIdx(u.length - 1);
-              return u;
+              return u; 
             });
           }
           setTimeout(() => setSanctuaryBanner(null), 10000);
         } else if (data.type === 'party_update') {
-          // party_update doesn't carry full history - only refresh session
           if (data.session) {
             setSession(data.session);
           } else {
@@ -187,7 +175,7 @@ export const SessionPage = () => {
     connect();
     return () => {
       es?.close();
-      clearTimeout(reconnectTimer);
+      clearTimeout(reconnectTimer); 
     };
   }, [id, joinSession]);
 
@@ -199,113 +187,43 @@ export const SessionPage = () => {
     await apiFetch(`/session/${session.id}/savings-mode`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled })
+      body: JSON.stringify({ enabled }),
     });
     setSession({ ...session, savingsMode: enabled });
   };
 
-  const toggleUseLocalAI = async () => {
-    if (!session) {
-      return;
-    }
-    const enabled = !session.useLocalAI;
-    await apiFetch(`/session/${session.id}/use-local-ai`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled })
-    });
-    setSession({ ...session, useLocalAI: enabled });
-  };
-
-  useEffect(() => {
-    apiFetch('/capabilities')
-      .then(r => r.json())
-      .then(setCapabilities)
-      .catch(() => { /* capabilities unavailable */ });
-  }, []);
-
-  const submitItemAction = async (actionType: 'use_item' | 'give_item', ownerCharId: string, itemId: string, targetCharId: string) => {
-    if (!session) {
-      return;
-    }
-    setLoading(true);
+  const submitAction = async (action: string, statUsed: string = 'none', difficulty: string = 'normal', difficultyValue: number | null = null, ownerCharId: string | null = null, itemId: string | null = null, targetCharId: string | null = null) => {
     setActionError(null);
-    const res = await apiFetch(`/session/${session.id}/action`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actionType, characterId: ownerCharId, itemId, targetCharacterId: targetCharId })
-    });
-    if (!res.ok) {
+    setLoading(true);
+    try {
+      const res = await apiFetch(`/session/${id}/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, statUsed, difficulty, difficultyValue, ownerCharId, itemId, targetCharId }),
+      });
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Action failed');
+      }
+      setSession(data.session);
+      setHistory(prev => [...prev, data.turnResult]);
+      setViewedTurnIdx(history.length);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setActionError(err.message);
+      } else {
+        setActionError('An unexpected error occurred');
+      }
       setLoading(false);
-      setActionError(data.message ?? data.error ?? 'Item action failed.');
     }
-    // loading cleared + session refreshed via SSE turn_complete
-  };
-
-  const submitAction = async (label: string, stat: string, diff: string, difficultyValue?: number) => {
-    if (!session) {
-      return;
-    }
-    const actingCharacterId = session.activeCharacterId;
-    setLoading(true);
-    setActionError(null);
-    const res = await apiFetch(`/session/${session.id}/action`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: label, statUsed: stat, difficulty: diff, difficultyValue, characterId: actingCharacterId })
-    });
-    if (res.status === 429 || res.status === 403) {
-      const data = await res.json() as { message?: string; error?: string };
-      setLoading(false);
-      setActionError(data.message ?? (res.status === 403 ? 'This session has reached its turn limit. The adventure ends here.' : 'The AI is busy, please try again.'));
-      return;
-    }
-    // loading cleared + session refreshed via SSE turn_complete
   };
 
   if (!session) {
-    return <div className="text-white">Loading...</div>;
+    return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-amber-500 animate-pulse font-black uppercase tracking-widest">Loading...</div>;
   }
-
-  if (session.party.length === 0) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 gap-8">
-        <h1 className="text-4xl font-black text-amber-500">Your party is empty</h1>
-        <button onClick={() => navigate(`/session/${id}/assembly`)} className="px-12 py-6 bg-amber-600 rounded-2xl text-2xl font-black italic">Finalize Your Party</button>
-      </div>
-    );
-  }
-
-  if (history.length === 0) {
-    const startAdventure = async () => {
-      setLoading(true);
-      await apiFetch(`/session/${id}/start`, { method: 'POST' });
-      await joinSession(id!);
-      setLoading(false);
-    };
-    return (
-      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 gap-8">
-        <h1 className="text-4xl font-black text-amber-500">Ready to start?</h1>
-        <button onClick={startAdventure} disabled={loading} className="px-12 py-6 bg-amber-600 hover:bg-amber-500 rounded-2xl text-2xl font-black italic disabled:opacity-50 transition-all">
-          {loading ? 'Summoning the DM...' : 'Begin Adventure'}
-        </button>
-        <button onClick={() => navigate(`/session/${id}/assembly`)} disabled={loading} className="px-12 py-6 bg-slate-700 rounded-2xl text-2xl font-black disabled:opacity-30">Finalize Your Party</button>
-        <Link to="/" className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 uppercase font-black text-xs tracking-widest transition-all">Exit World</Link>
-      </div>
-    );
-  }
-
-  const isCurrentTurn = viewedTurnIdx === history.length - 1;
-  const displayTurn = history[viewedTurnIdx] ?? null;
-  const nextTurn = !isCurrentTurn ? history[viewedTurnIdx + 1] ?? null : null;
-  const takenAction = nextTurn?.lastAction ?? null;
-  const takenChar = nextTurn?.characterId ? session.party.find(c => c.id === nextTurn.characterId) ?? null : null;
-  const activeChar = session.party.find(c => c.id === session.activeCharacterId) || null;
 
   return (
     <div className="min-h-screen lg:h-screen flex flex-col lg:overflow-hidden bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-slate-100">
-      {/* Floating top-right buttons when header is hidden */}
       {headerCollapsed && (
         <div className="fixed top-4 right-4 z-30 flex gap-2">
           <button
@@ -315,6 +233,7 @@ export const SessionPage = () => {
           >☰</button>
           <Link
             to="/"
+            onClick={() => audioManager.stopMusic()}
             className="w-10 h-10 flex items-center justify-center bg-slate-900/90 border border-slate-700 rounded-xl text-slate-400 hover:text-white backdrop-blur-sm text-xs font-black"
             title="Exit world"
           >✕</Link>
@@ -328,15 +247,6 @@ export const SessionPage = () => {
             <PartyBox party={session.party} activeCharacterId={session.activeCharacterId} onCharacterClick={setSelectedCharacter} />
           </div>
           <div className="flex items-center gap-2">
-            {capabilities?.hasLocalAI && capabilities?.hasCloudAI && (
-              <button
-                onClick={toggleUseLocalAI}
-                title={session.useLocalAI ? 'Using LocalAI - click to switch to cloud' : 'Using cloud AI - click to switch to LocalAI'}
-                className={`px-3 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all cursor-pointer ${session.useLocalAI ? 'border-purple-500 text-purple-400 bg-purple-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
-              >
-                {session.useLocalAI ? '🏠 Local' : '☁️ Cloud'}
-              </button>
-            )}
             <button
               onClick={toggleSavingsMode}
               title={session.savingsMode ? 'Savings mode on - no scene images' : 'Savings mode off - generating scene images'}
@@ -344,7 +254,41 @@ export const SessionPage = () => {
             >
               {session.savingsMode ? '🪙 Saving' : '🖼 Images'}
             </button>
-            <Link to="/" className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 uppercase font-black text-xs tracking-widest transition-all">Exit World</Link>
+            {settings.musicEnabled && (
+              <div className="relative group">
+                <button
+                  onClick={() => setMasterMuted(!settings.masterMuted)}
+                  className={`px-3 py-2 rounded-xl border font-black text-sm transition-all cursor-pointer ${settings.masterMuted ? 'border-amber-500 bg-amber-500/10' : 'border-slate-700 hover:border-slate-500'}`}
+                >
+                  {settings.masterMuted ? '🔇' : '🔊'}
+                </button>
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                  {settings.masterMuted ? 'Unmute' : 'Mute'}
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-700" />
+                </div>
+              </div>
+            )}
+            {settings.musicEnabled && (
+              <div className="relative group">
+                <button
+                  onClick={() => audioManager.skipTrack()}
+                  className="px-3 py-2 rounded-xl border border-slate-700 hover:border-slate-500 font-black text-sm transition-all cursor-pointer"
+                >
+                  ⏭
+                </button>
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                  Skip Track
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-700" />
+                </div>
+              </div>
+            )}
+            <Link 
+              to="/" 
+              onClick={() => {
+                audioManager.stopMusic();
+              }}
+              className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 uppercase font-black text-xs tracking-widest transition-all"
+            >Exit World</Link>
             <button onClick={() => setHeaderCollapsed(true)} className="px-2 py-1 rounded-xl border border-slate-700 text-slate-400 hover:text-white text-xs font-black" title="Hide header">▲</button>
           </div>
         </header>
@@ -357,173 +301,85 @@ export const SessionPage = () => {
         </div>
         {!session.savingsMode && (
           <div className="bg-slate-900 rounded-[50px] border border-slate-800 overflow-hidden min-h-0">
-            {displayTurn?.imageUrl ? (
-              <img src={imgSrc(displayTurn.imageUrl)} className="w-full h-full object-cover cursor-pointer animate-ken-burns" onClick={() => setFullscreenImage(imgSrc(displayTurn.imageUrl))} />
-            ) : (isCurrentTurn && imageLoading) ? (
-              <div className="flex flex-col items-center justify-center gap-3 text-slate-500 h-full">
-                <div className="w-10 h-10 border-4 border-slate-700 border-t-amber-500 rounded-full animate-spin" />
-                <span className="text-sm font-medium tracking-wide">Painting the scene...</span>
+            {history[viewedTurnIdx]?.imageUrl ? (
+              <img src={imgSrc(history[viewedTurnIdx].imageUrl!)} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-slate-900">
+                {imageLoading ? <span className="text-amber-500 animate-pulse font-black uppercase tracking-widest">Generating...</span> : <img src={imgSrc('/images/default_scene.png')} className="w-full h-full object-cover opacity-50" />}
               </div>
-            ) : <img src={imgSrc('/images/default_scene.png')} className="w-full h-full object-cover opacity-40" />}
+            )}
           </div>
         )}
       </div>
 
-      {/* Bottom: auto-height from content */}
-      <div className="flex-shrink-0 border-t border-slate-800/60 overflow-y-auto max-h-[55vh] px-4 md:px-8 py-4 space-y-3">
-        {actionError && (
-          <div className="flex items-center justify-between gap-4 px-6 py-3 bg-rose-950/60 border border-rose-700 rounded-2xl text-rose-300 text-sm">
-            <span>{actionError}</span>
-            <button onClick={() => setActionError(null)} className="text-rose-500 hover:text-rose-200 font-black">✕</button>
-          </div>
-        )}
-        {maxTurns !== null && session.turn > maxTurns
-          ? (
-            <div className="flex flex-col items-center gap-3 p-6 bg-slate-900/50 rounded-[40px] border border-slate-800 text-center">
-              <div className="text-2xl">📜</div>
-              <div className="font-black text-sm uppercase tracking-widest text-slate-400">Adventure Complete</div>
-              <p className="text-slate-500 text-sm">This session has reached its {maxTurns}-turn limit. The story ends here.</p>
-            </div>
-          )
-          : isCurrentTurn
-            ? loading
-              ? (
-                <div className="relative h-[120px] rounded-[40px] border border-slate-800 overflow-hidden">
-                  <img src={imgSrc('/images/dm_thinking.png')} className="absolute inset-0 w-full h-full object-cover opacity-30" />
-                  <div className="absolute inset-0 flex items-center justify-center gap-3">
-                    <div className="w-5 h-5 border-2 border-slate-600 border-t-amber-500 rounded-full animate-spin" />
-                    <span className="text-sm font-black uppercase tracking-widest text-amber-500/80 animate-pulse">The DM is weaving fate...</span>
-                  </div>
-                </div>
-              )
-              : activeChar?.status === 'downed'
-                ? (
-                  <div className="flex flex-col items-center gap-3 p-6 bg-slate-900/50 rounded-[40px] border border-slate-800 text-center">
-                    <div className="flex items-center gap-3">
-                      <img src={imgSrc(activeChar.avatarUrl)} className="w-12 h-12 rounded-full object-cover grayscale opacity-50 border-2 border-slate-700" />
-                      <div>
-                        <div className="font-black text-sm uppercase tracking-widest text-slate-400">{activeChar.name} is downed</div>
-                        <div className="text-[10px] text-slate-600 uppercase tracking-widest">0/{activeChar.max_hp} HP</div>
-                      </div>
-                    </div>
-                    <p className="text-slate-500 text-sm">
-                      {session.party.every(c => c.status === 'downed')
-                        ? 'The whole party is down... the adventure hangs by a thread.'
-                        : 'Another party member needs to use a healing item to revive them.'}
-                    </p>
-                  </div>
-                )
-                : (
-                  <ActionControls
-                    turn={displayTurn}
-                    loading={loading}
-                    onSubmit={submitAction}
-                    customAction={customAction}
-                    setCustomAction={setCustomAction}
-                    activeCharacter={activeChar}
-                    sessionId={id!}
-                    party={session.party}
-                    activeCharacterId={session.activeCharacterId}
-                    onUseItem={(o,i,t) => submitItemAction('use_item',o,i,t)}
-                    onGiveItem={(o,i,t) => submitItemAction('give_item',o,i,t)}
-                    inventoryDisabled={loading}
-                    onShowPartyGear={() => setShowFullInventory(true)}
-                    partyItemCount={session.party.reduce((s, c) => s + c.inventory.length, 0)}
-                  />
-                )
-            : <TurnHistoryCard choices={displayTurn?.choices ?? []} takenAction={takenAction} character={takenChar} turnType={displayTurn?.turnType} narration={displayTurn?.narration} />
-        }
+      {/* Controls */}
+      <div className="flex-shrink-0 p-4 md:px-8 md:pb-8">
+        <ActionControls 
+          turn={history[viewedTurnIdx] ?? null}
+          loading={loading}
+          activeCharacter={session.party.find(c => c.id === session.activeCharacterId)!} 
+          onSubmit={submitAction}
+          customAction={customAction}
+          setCustomAction={setCustomAction}
+          error={actionError} 
+          disabled={loading}
+          sessionId={session.id}
+        />
       </div>
 
-      {/* Full party inventory overlay */}
-      {showFullInventory && (
-        <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-end" onClick={() => setShowFullInventory(false)}>
-          <div className="w-full max-h-[70vh] overflow-y-auto bg-slate-950 border-t-2 border-slate-700 rounded-t-[40px] p-6" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-black uppercase tracking-widest text-amber-500/70">Party Gear</h3>
-              <button onClick={() => setShowFullInventory(false)} className="text-slate-500 hover:text-white font-black">✕</button>
-            </div>
-            <Inventory
-              party={session.party}
-              activeCharacterId={session.activeCharacterId}
-              onUseItem={(o, i, t) => {
-                submitItemAction('use_item', o, i, t);
-                setShowFullInventory(false);
-              }}
-              onGiveItem={(o, i, t) => {
-                submitItemAction('give_item', o, i, t);
-                setShowFullInventory(false);
-              }}
-              disabled={loading}
-            />
-          </div>
-        </div>
-      )}
-
-      {sanctuaryBanner && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/70 animate-in fade-in duration-700" onClick={() => setSanctuaryBanner(null)}>
-          <div className="flex flex-col items-center gap-6 p-10 rounded-3xl border-2 border-slate-500 bg-slate-900/95 shadow-2xl max-w-lg mx-4 animate-in zoom-in-75 duration-500">
-            <div className="text-6xl">🏕️</div>
-            <div className="text-2xl font-black uppercase tracking-tight text-slate-300 text-center">Sanctuary</div>
-            <p className="text-slate-400 text-center leading-relaxed">{sanctuaryBanner}</p>
-            <span className="text-xs text-slate-600 uppercase tracking-widest">tap to continue</span>
-          </div>
-        </div>
-      )}
-
-      {interventionBanner && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/60 animate-in fade-in duration-500" onClick={() => setInterventionBanner(null)}>
-          <div className="flex flex-col items-center gap-6 p-10 rounded-3xl border-2 border-amber-500 bg-amber-950/90 shadow-2xl max-w-lg mx-4 animate-in zoom-in-75 duration-500">
-            <div className="text-6xl">🐉</div>
-            <div className="text-2xl font-black uppercase tracking-tight text-amber-400 text-center">Miraculous Rescue!</div>
-            <p className="text-amber-100 text-center leading-relaxed">{interventionBanner}</p>
-            <span className="text-xs text-amber-600 uppercase tracking-widest">tap to continue</span>
-          </div>
-        </div>
-      )}
-
+      {/* Popups */}
       {lastRoll && (
-        <div
-          className={`fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/40 animate-in fade-in duration-400 transition-opacity duration-500 cursor-pointer ${dieExiting ? 'opacity-0' : 'opacity-100'}`}
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in" 
           onClick={() => {
-            setLastRoll(null); setDieExiting(false);
+            setLastRoll(null);
+            setDieExiting(false);
           }}
         >
-          <div className={`flex flex-col items-center gap-4 p-10 rounded-3xl border-2 shadow-2xl animate-in zoom-in-75 duration-500 ease-out ${lastRoll.isCritical ? 'bg-amber-950/95 border-amber-400 shadow-amber-500/30' : lastRoll.success ? 'bg-emerald-950/90 border-emerald-500' : 'bg-rose-950/90 border-rose-500'}`}>
-            {lastRoll.isCritical && <div className="text-4xl animate-bounce">🎉</div>}
-            <D20 roll={lastRoll.roll} success={lastRoll.success} size={180} />
-            <div className="flex flex-col items-center gap-2">
-              {lastRoll.isCritical
-                ? <span className="text-2xl font-black uppercase tracking-widest text-amber-300">NATURAL 20!</span>
-                : <span className={`text-2xl font-black uppercase tracking-widest ${lastRoll.success ? 'text-emerald-300' : 'text-rose-300'}`}>{lastRoll.success ? 'Success!' : 'Failed!'}</span>
-              }
-              <RollBreakdown
-                roll={lastRoll.roll}
-                statBonus={lastRoll.statBonus}
-                itemBonus={lastRoll.itemBonus}
-                stat={lastRoll.stat}
-                success={lastRoll.success}
-                difficultyTarget={lastRoll.difficultyTarget}
-                className="text-sm"
-              />
-              {lastRoll.rollNarration && (
-                <p className="text-amber-100/90 text-xl text-center font-medium italic mt-2 max-w-xs leading-tight animate-in slide-in-from-bottom-2 duration-700">
-                  {lastRoll.rollNarration}
-                </p>
-              )}
-              <span className="text-[10px] uppercase tracking-widest text-slate-600 mt-2">tap to dismiss</span>
-            </div>
+          <div className={`bg-slate-900 border-2 border-slate-700 p-8 rounded-[40px] shadow-2xl text-center flex flex-col items-center animate-in zoom-in-95 ${dieExiting ? 'animate-out fade-out zoom-out-95' : ''}`}>
+            <RollBreakdown
+              roll={lastRoll.roll}
+              statBonus={lastRoll.statBonus}
+              itemBonus={lastRoll.itemBonus}
+              stat={lastRoll.stat}
+              success={lastRoll.success}
+              difficultyTarget={lastRoll.difficultyTarget}
+              className="text-sm"
+            />
+            {lastRoll.rollNarration && (
+              <p className="text-amber-100/90 text-center font-medium italic mt-2 max-w-xs leading-tight animate-in slide-in-from-bottom-2 duration-700">
+                {lastRoll.rollNarration}
+              </p>
+            )}
+            <span className="text-[10px] uppercase tracking-widest text-slate-600 mt-2">tap to dismiss</span>
           </div>
         </div>
       )}
       {fullscreenImage && <FullscreenImage url={fullscreenImage} onClose={() => setFullscreenImage(null)} />}
+      {interventionBanner && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-amber-950/90 p-8 animate-in fade-in">
+          <div className="max-w-xl text-center space-y-4">
+            <div className="text-6xl">🐉</div>
+            <p className="text-amber-100 text-center text-2xl font-display font-black italic leading-snug">{interventionBanner}</p>
+          </div>
+        </div>
+      )}
+      {sanctuaryBanner && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 p-8 animate-in fade-in">
+          <div className="max-w-xl text-center space-y-4">
+            <div className="text-6xl">✨</div>
+            <p className="text-slate-200 text-center text-2xl font-display font-black italic leading-snug">{sanctuaryBanner}</p>
+            <span className="text-xs text-slate-600 uppercase tracking-widest">tap to continue</span>
+          </div>
+        </div>
+      )}
       {confirmDialog && <ConfirmDialog message={confirmDialog.message} onConfirm={() => {
         confirmDialog.onConfirm();
-        setConfirmDialog(null);
+        setConfirmDialog(null); 
       }} onCancel={() => setConfirmDialog(null)} />}
       {selectedCharacter && <CharacterPopup character={selectedCharacter} onClose={() => setSelectedCharacter(null)} onAvatarClick={(url) => {
         setSelectedCharacter(null);
-        setFullscreenImage(url);
+        setFullscreenImage(url); 
       }} />}
     </div>
   );

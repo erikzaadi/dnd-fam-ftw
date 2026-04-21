@@ -13,6 +13,8 @@ interface ActionControlsProps {
   setCustomAction: (action: string) => void;
   activeCharacter: Character | null;
   sessionId: string;
+  error: string | null;
+  disabled: boolean;
   // Inventory
   party?: Character[];
   activeCharacterId?: string;
@@ -37,7 +39,7 @@ const DIFF_COLORS: Record<string, string> = {
 };
 
 export const ActionControls = ({
-  turn, loading, onSubmit, customAction, setCustomAction, activeCharacter, sessionId,
+  turn, loading, onSubmit, customAction, setCustomAction, activeCharacter, sessionId, error, disabled,
   party, activeCharacterId, onUseItem, onGiveItem, inventoryDisabled, onShowPartyGear, partyItemCount
 }: ActionControlsProps) => {
   const [statThinking, setStatThinking] = useState(false);
@@ -68,6 +70,7 @@ export const ActionControls = ({
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6 bg-slate-900/50 rounded-[40px] border border-slate-800">
+      {error && <div className="text-red-400 text-xs font-black uppercase tracking-widest">{error}</div>}
       {/* Character row: avatar + name + stats + inventory inline */}
       <div className="flex items-start gap-3 xl:gap-5 flex-wrap">
         <img src={imgSrc(activeCharacter?.avatarUrl)} className="w-12 h-12 xl:w-20 xl:h-20 rounded-2xl xl:rounded-3xl object-cover border-2 border-amber-500 animate-border-pulse shrink-0" style={{ animationDelay: pulseSyncDelay() }} />
@@ -154,11 +157,11 @@ export const ActionControls = ({
             rows={1}
             className="flex-1 xl:flex-1 min-w-0 p-4 bg-slate-800 rounded-xl resize-none"
             placeholder="What do you do?"
-            disabled={loading || statThinking}
+            disabled={disabled || loading || statThinking}
           />
           <button
             onClick={submitCustom}
-            disabled={loading || statThinking || !customAction.trim()}
+            disabled={disabled || loading || statThinking || !(customAction || '').trim()}
             className="shrink-0 px-6 py-4 bg-amber-600 rounded-xl font-black uppercase disabled:opacity-50 min-w-[100px]"
           >
             {statThinking ? '...' : 'UNLEASH'}

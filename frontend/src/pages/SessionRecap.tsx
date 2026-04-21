@@ -131,6 +131,8 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
 
 // ── PAGE ─────────────────────────────────────────────────────────────────────
 
+import { audioManager } from '../audio/audioManager';
+
 export const SessionRecap = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -169,6 +171,12 @@ export const SessionRecap = () => {
     });
   }, [id, enter]);
 
+  useEffect(() => {
+    if (session && history.length > 0) {
+      audioManager.startAmbientMusic();
+    }
+  }, [session, history.length]);
+
   if (!session) {
     return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-amber-500 animate-pulse font-black uppercase tracking-widest">Loading...</div>;
   }
@@ -187,7 +195,11 @@ export const SessionRecap = () => {
             >
               {session.savingsMode ? '🪙 Saving' : '🖼 Images'}
             </button>
-            <Link to="/" className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 uppercase font-black text-xs tracking-widest transition-all">Exit World</Link>
+            <Link 
+              to="/" 
+              onClick={() => audioManager.stopMusic()}
+              className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 uppercase font-black text-xs tracking-widest transition-all"
+            >Exit World</Link>
           </div>
         </div>
 
