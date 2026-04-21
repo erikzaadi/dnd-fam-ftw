@@ -388,7 +388,7 @@ export const SessionPage = () => {
         {!session.savingsMode && (
           <div className="bg-slate-900 rounded-[50px] border border-slate-800 overflow-hidden min-h-0">
             {displayTurn?.imageUrl ? (
-              <img src={imgSrc(displayTurn.imageUrl!)} className="w-full h-full object-cover cursor-pointer" onClick={() => setFullscreenImage(imgSrc(displayTurn.imageUrl!))} />
+              <img src={imgSrc(displayTurn.imageUrl!)} className="w-full h-full object-cover animate-ken-burns cursor-pointer" onClick={() => setFullscreenImage(imgSrc(displayTurn.imageUrl!))} />
             ) : (isCurrentTurn && imageLoading) ? (
               <div className="flex flex-col items-center justify-center gap-3 text-slate-500 h-full">
                 <div className="w-10 h-10 border-4 border-slate-700 border-t-amber-500 rounded-full animate-spin" />
