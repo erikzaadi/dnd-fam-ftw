@@ -116,6 +116,9 @@ export class StateService {
     if (!charCols.includes('avatarPrompt')) {
       db.prepare("ALTER TABLE characters ADD COLUMN avatarPrompt TEXT").run();
     }
+    if (!charCols.includes('gender')) {
+      db.prepare("ALTER TABLE characters ADD COLUMN gender TEXT").run();
+    }
     if (!charCols.includes('status')) {
       db.prepare("ALTER TABLE characters ADD COLUMN status TEXT NOT NULL DEFAULT 'active'").run();
     }
@@ -306,6 +309,7 @@ export class StateService {
       avatar_storage_provider: string | null;
       status: string | null;
       history: string | null;
+      gender: string | null;
     }[];
     for (const char of characters) {
       const rawInv = db.prepare('SELECT * FROM inventory WHERE characterId = ?').all(char.id) as {
@@ -350,6 +354,7 @@ export class StateService {
         avatarStorageKey: c.avatar_storage_key || undefined,
         avatarStorageProvider: c.avatar_storage_provider || undefined,
         history: c.history || undefined,
+        gender: c.gender || undefined,
         stats: (c as unknown as { stats: { might: number, magic: number, mischief: number } }).stats,
         inventory: (c as unknown as { inventory: InventoryItem[] }).inventory
       })),
@@ -434,8 +439,8 @@ export class StateService {
       .run(state.scene, state.sceneId, state.turn, state.activeCharacterId, state.tone, state.interventionState?.used ? 1 : 0, state.storySummary ?? '', id);
 
     for (const char of state.party) {
-      db.prepare('INSERT OR REPLACE INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt, status, avatar_storage_key, avatar_storage_provider, history) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(char.id, id, char.name, char.class, char.species, char.quirk, char.hp, char.max_hp, char.stats.might, char.stats.magic, char.stats.mischief, char.avatarUrl || null, char.avatarPrompt || null, char.status ?? 'active', char.avatarStorageKey || null, char.avatarStorageProvider || null, char.history || null);
+      db.prepare('INSERT OR REPLACE INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt, status, avatar_storage_key, avatar_storage_provider, history, gender) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(char.id, id, char.name, char.class, char.species, char.quirk, char.hp, char.max_hp, char.stats.might, char.stats.magic, char.stats.mischief, char.avatarUrl || null, char.avatarPrompt || null, char.status ?? 'active', char.avatarStorageKey || null, char.avatarStorageProvider || null, char.history || null, char.gender || null);
 
       db.prepare('DELETE FROM inventory WHERE characterId = ?').run(char.id);
       for (const item of (char.inventory ?? [])) {
@@ -482,6 +487,7 @@ export class StateService {
         avatarUrl: string | null;
         status: string | null;
         history: string | null;
+        gender: string | null;
     }[];
     return rows.map(char => ({
       id: char.id,
@@ -494,6 +500,7 @@ export class StateService {
       status: (char.status as 'active' | 'downed') ?? 'active',
       avatarUrl: char.avatarUrl || undefined,
       history: char.history || undefined,
+      gender: char.gender || undefined,
       stats: { might: char.might, magic: char.magic, mischief: char.mischief },
       inventory: []
     }));

@@ -70,6 +70,22 @@ export class GameEngine {
     return best;
   }
 
+  // Returns the id of the next active (non-downed) character after currentId.
+  // Used to tell the AI who will act NEXT so choices are generated for the right character.
+  public static getNextActiveCharacter(party: Character[], currentId: string): string {
+    const activeIdx = party.findIndex(c => c.id === currentId);
+    if (activeIdx === -1 || party.length === 0) {
+      return currentId;
+    }
+    let nextIdx = (activeIdx + 1) % party.length;
+    let attempts = 0;
+    while (party[nextIdx].status === 'downed' && attempts < party.length) {
+      nextIdx = (nextIdx + 1) % party.length;
+      attempts++;
+    }
+    return party[nextIdx].status !== 'downed' ? party[nextIdx].id : currentId;
+  }
+
   public static rollDice(stat: number): { roll: number; total: number } {
     const roll = Math.floor(Math.random() * 20) + 1;
     return { roll, total: roll + stat };

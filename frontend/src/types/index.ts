@@ -20,6 +20,7 @@ export interface Character {
   max_hp: number;
   status: CharacterStatus;
   avatarUrl?: string;
+  gender?: string;
   sessionName?: string;
   stats: {
     might: number;

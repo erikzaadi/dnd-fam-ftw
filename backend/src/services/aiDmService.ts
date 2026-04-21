@@ -18,6 +18,7 @@ export function toNarrationInput(input: AIInput): NarrationInput {
       maxHp: c.max_hp,
       status: c.status ?? 'active',
       quirk: c.quirk,
+      ...(c.gender && { gender: c.gender }),
       ...(c.history && { history: c.history }),
     })),
     inventory: input.party.flatMap(c =>

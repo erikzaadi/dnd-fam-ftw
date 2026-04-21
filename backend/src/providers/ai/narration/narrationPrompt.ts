@@ -36,6 +36,7 @@ Story Continuity:
 
 Active Character and Choices:
 - \`activeCharacterName\` is the character whose turn it is. The 3 choices MUST be things THAT CHARACTER can do.
+- If a character has a \`gender\` field, use appropriate pronouns for them throughout narration and choices.
 - Tailor choices to their class, quirk, and current situation. A Rogue suggests stealth; a Mage suggests spells.
 - NEVER offer choices that require a downed party member's assistance, or that reference a downed character as an ally.
 - Do NOT suggest targeting or interacting with downed characters in any choice unless it's to heal/revive them.

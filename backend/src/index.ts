@@ -41,6 +41,14 @@ const generatedDir = path.resolve(config.LOCAL_IMAGE_STORAGE_PATH);
 fs.mkdirSync(generatedDir, { recursive: true });
 app.use(config.LOCAL_IMAGE_PUBLIC_BASE_URL, express.static(generatedDir));
 
+// Require at least one AI provider to be configured
+const _hasLocalAI = !!(process.env.LOCALAI_BASE_URL || process.env.AI_NARRATION_PROVIDER === 'localai');
+const _hasCloudAI = !!(process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY);
+if (!_hasLocalAI && !_hasCloudAI) {
+  console.error('FATAL: No AI provider configured. Set OPENAI_API_KEY, GEMINI_API_KEY, or LOCALAI_BASE_URL.');
+  process.exit(1);
+}
+
 // Bootstrap admin user if ADMIN_EMAIL is set and auth is enabled
 StateService.initialize();
 if (isAuthEnabled()) {
@@ -54,6 +62,10 @@ if (isAuthEnabled()) {
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', version: config.APP_VERSION });
+});
+
+app.get('/capabilities', (_req, res) => {
+  res.json({ hasLocalAI: _hasLocalAI, hasCloudAI: _hasCloudAI });
 });
 
 // --- Auth routes (public - no auth middleware) ---
@@ -528,7 +540,8 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
       return;
     }
 
-    const aiInput = { ...itemState, ...itemAttempt };
+    const nextCharIdForItem = GameEngine.getNextActiveCharacter(itemState.party, actingCharId);
+    const aiInput = { ...itemState, ...itemAttempt, activeCharacterId: nextCharIdForItem };
     let turnResult;
     try {
       turnResult = await AiDmService.generateTurnResult(aiInput, session.useLocalAI);
@@ -563,7 +576,8 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
   }
 
   const actionAttempt = GameEngine.resolveAction(character, action, statUsed, difficulty || 'normal', difficultyValue);
-  const aiInput = { ...session, ...actionAttempt };
+  const nextCharId = GameEngine.getNextActiveCharacter(session.party, actingCharId);
+  const aiInput = { ...session, ...actionAttempt, activeCharacterId: nextCharId };
 
   let turnResult;
   try {

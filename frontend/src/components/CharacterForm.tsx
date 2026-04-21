@@ -35,6 +35,7 @@ export const CharacterForm = ({ onSave, onCancel, isLoading, initialValues }: Ch
               <input name="name" defaultValue={initialValues?.name} placeholder="Sir Fluffington the Brave" required className="w-full p-4 bg-slate-800 rounded-xl" />
               <input name="class" defaultValue={initialValues?.class} placeholder="Professional Napper / Chaotic Wizard" required className="w-full p-4 bg-slate-800 rounded-xl" />
               <input name="species" defaultValue={initialValues?.species} placeholder="Intergalactic Hamster" required className="w-full p-4 bg-slate-800 rounded-xl" />
+              <input name="gender" defaultValue={initialValues?.gender} placeholder="Gender (optional - e.g. female, non-binary, he/him)" className="w-full p-4 bg-slate-800 rounded-xl" />
               <textarea name="quirk" defaultValue={initialValues?.quirk} placeholder="Must solve every problem with a dance-off" required className="w-full p-4 bg-slate-800 rounded-xl" />
             </div>
             <div className="flex gap-4 mt-8">

@@ -15,6 +15,7 @@ export type NarrationInput = {
     maxHp: number;
     status: 'active' | 'downed';
     quirk?: string;
+    gender?: string;
     history?: string;
   }>;
   inventory: Array<{

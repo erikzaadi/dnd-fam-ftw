@@ -31,6 +31,9 @@ export const SessionPage = () => {
   const [dieExiting, setDieExiting] = useState(false);
   const [interventionBanner, setInterventionBanner] = useState<string | null>(null);
   const [sanctuaryBanner, setSanctuaryBanner] = useState<string | null>(null);
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
+  const [showFullInventory, setShowFullInventory] = useState(false);
+  const [capabilities, setCapabilities] = useState<{ hasLocalAI: boolean; hasCloudAI: boolean } | null>(null);
 
   // Full reload - only used on initial mount and for party_update
   const joinSession = useCallback(async (sessionId: string) => {
@@ -198,6 +201,13 @@ export const SessionPage = () => {
     setSession({ ...session, useLocalAI: enabled });
   };
 
+  useEffect(() => {
+    apiFetch('/capabilities')
+      .then(r => r.json())
+      .then(setCapabilities)
+      .catch(() => { /* capabilities unavailable */ });
+  }, []);
+
   const submitItemAction = async (actionType: 'use_item' | 'give_item', ownerCharId: string, itemId: string, targetCharId: string) => {
     if (!session) {
       return;
@@ -279,29 +289,50 @@ export const SessionPage = () => {
 
   return (
     <div className="min-h-screen lg:h-screen flex flex-col lg:overflow-hidden bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-slate-100">
-      <header className="flex-shrink-0 flex flex-wrap justify-between items-center gap-y-3 px-4 md:px-8 pt-4 md:pt-6 pb-4 md:pb-5 border-b border-slate-800/60">
-        <div className="flex items-center gap-3 md:gap-6 flex-wrap">
-          <h1 className="text-amber-500 text-xl md:text-3xl font-display font-black italic tracking-tight">{session.displayName}</h1>
-          <PartyBox party={session.party} activeCharacterId={session.activeCharacterId} onCharacterClick={setSelectedCharacter} />
-        </div>
-        <div className="flex items-center gap-2">
+      {/* Floating top-right buttons when header is hidden */}
+      {headerCollapsed && (
+        <div className="fixed top-4 right-4 z-30 flex gap-2">
           <button
-            onClick={toggleUseLocalAI}
-            title={session.useLocalAI ? 'Using LocalAI - click to switch to OpenAI' : 'Using OpenAI - click to switch to LocalAI'}
-            className={`px-3 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all cursor-pointer ${session.useLocalAI ? 'border-purple-500 text-purple-400 bg-purple-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
-          >
-            {session.useLocalAI ? '🏠 Local' : '☁️ Cloud'}
-          </button>
-          <button
-            onClick={toggleSavingsMode}
-            title={session.savingsMode ? 'Savings mode on - no scene images' : 'Savings mode off - generating scene images'}
-            className={`px-3 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all cursor-pointer ${session.savingsMode ? 'border-amber-500 text-amber-400 bg-amber-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
-          >
-            {session.savingsMode ? '🪙 Saving' : '🖼 Images'}
-          </button>
-          <Link to="/" className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 uppercase font-black text-xs tracking-widest transition-all">Exit World</Link>
+            onClick={() => setHeaderCollapsed(false)}
+            className="w-10 h-10 flex items-center justify-center bg-slate-900/90 border border-slate-700 rounded-xl text-slate-400 hover:text-white backdrop-blur-sm text-lg"
+            title="Show header"
+          >☰</button>
+          <Link
+            to="/"
+            className="w-10 h-10 flex items-center justify-center bg-slate-900/90 border border-slate-700 rounded-xl text-slate-400 hover:text-white backdrop-blur-sm text-xs font-black"
+            title="Exit world"
+          >✕</Link>
         </div>
-      </header>
+      )}
+
+      {!headerCollapsed && (
+        <header className="flex-shrink-0 flex flex-wrap justify-between items-center gap-y-3 px-4 md:px-8 pt-4 md:pt-6 pb-4 md:pb-5 border-b border-slate-800/60">
+          <div className="flex items-center gap-3 md:gap-6 flex-wrap">
+            <h1 className="text-amber-500 text-xl md:text-3xl font-display font-black italic tracking-tight">{session.displayName}</h1>
+            <PartyBox party={session.party} activeCharacterId={session.activeCharacterId} onCharacterClick={setSelectedCharacter} />
+          </div>
+          <div className="flex items-center gap-2">
+            {capabilities?.hasLocalAI && capabilities?.hasCloudAI && (
+              <button
+                onClick={toggleUseLocalAI}
+                title={session.useLocalAI ? 'Using LocalAI - click to switch to cloud' : 'Using cloud AI - click to switch to LocalAI'}
+                className={`px-3 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all cursor-pointer ${session.useLocalAI ? 'border-purple-500 text-purple-400 bg-purple-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
+              >
+                {session.useLocalAI ? '🏠 Local' : '☁️ Cloud'}
+              </button>
+            )}
+            <button
+              onClick={toggleSavingsMode}
+              title={session.savingsMode ? 'Savings mode on - no scene images' : 'Savings mode off - generating scene images'}
+              className={`px-3 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all cursor-pointer ${session.savingsMode ? 'border-amber-500 text-amber-400 bg-amber-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
+            >
+              {session.savingsMode ? '🪙 Saving' : '🖼 Images'}
+            </button>
+            <Link to="/" className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 uppercase font-black text-xs tracking-widest transition-all">Exit World</Link>
+            <button onClick={() => setHeaderCollapsed(true)} className="px-2 py-1 rounded-xl border border-slate-700 text-slate-400 hover:text-white text-xs font-black" title="Hide header">▲</button>
+          </div>
+        </header>
+      )}
 
       {/* Middle: story + scene - fills remaining space, only story scrolls */}
       <div className={`lg:flex-1 lg:min-h-0 grid gap-4 md:gap-6 px-4 md:px-8 py-4 md:py-5 ${!session.savingsMode ? 'lg:grid-cols-2' : ''}`}>
@@ -322,8 +353,8 @@ export const SessionPage = () => {
         )}
       </div>
 
-      {/* Bottom: always visible */}
-      <div className="flex-shrink-0 px-4 md:px-8 pb-4 md:pb-6 space-y-3">
+      {/* Bottom: auto-height from content */}
+      <div className="flex-shrink-0 border-t border-slate-800/60 overflow-y-auto max-h-[55vh] px-4 md:px-8 py-4 space-y-3">
         {actionError && (
           <div className="flex items-center justify-between gap-4 px-6 py-3 bg-rose-950/60 border border-rose-700 rounded-2xl text-rose-300 text-sm">
             <span>{actionError}</span>
@@ -349,34 +380,63 @@ export const SessionPage = () => {
                   </div>
                 </div>
               )
-              : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {activeChar?.status === 'downed'
-                    ? (
-                      <div className="flex flex-col items-center gap-3 p-6 bg-slate-900/50 rounded-[40px] border border-slate-800 text-center">
-                        <div className="flex items-center gap-3">
-                          <img src={imgSrc(activeChar.avatarUrl)} className="w-12 h-12 rounded-full object-cover grayscale opacity-50 border-2 border-slate-700" />
-                          <div>
-                            <div className="font-black text-sm uppercase tracking-widest text-slate-400">{activeChar.name} is downed</div>
-                            <div className="text-[10px] text-slate-600 uppercase tracking-widest">0/{activeChar.max_hp} HP</div>
-                          </div>
-                        </div>
-                        <p className="text-slate-500 text-sm">
-                          {session.party.every(c => c.status === 'downed')
-                            ? 'The whole party is down... the adventure hangs by a thread.'
-                            : 'Another party member needs to use a healing item to revive them.'}
-                        </p>
+              : activeChar?.status === 'downed'
+                ? (
+                  <div className="flex flex-col items-center gap-3 p-6 bg-slate-900/50 rounded-[40px] border border-slate-800 text-center">
+                    <div className="flex items-center gap-3">
+                      <img src={imgSrc(activeChar.avatarUrl)} className="w-12 h-12 rounded-full object-cover grayscale opacity-50 border-2 border-slate-700" />
+                      <div>
+                        <div className="font-black text-sm uppercase tracking-widest text-slate-400">{activeChar.name} is downed</div>
+                        <div className="text-[10px] text-slate-600 uppercase tracking-widest">0/{activeChar.max_hp} HP</div>
                       </div>
-                    )
-                    : <ActionControls turn={displayTurn} loading={loading} onSubmit={submitAction} customAction={customAction} setCustomAction={setCustomAction} activeCharacter={activeChar} sessionId={id!} />
-                  }
-                  <Inventory party={session.party} activeCharacterId={session.activeCharacterId} onUseItem={(o,i,t) => submitItemAction('use_item',o,i,t)} onGiveItem={(o,i,t) => submitItemAction('give_item',o,i,t)} disabled={loading} />
-                </div>
-              )
+                    </div>
+                    <p className="text-slate-500 text-sm">
+                      {session.party.every(c => c.status === 'downed')
+                        ? 'The whole party is down... the adventure hangs by a thread.'
+                        : 'Another party member needs to use a healing item to revive them.'}
+                    </p>
+                  </div>
+                )
+                : (
+                  <ActionControls
+                    turn={displayTurn}
+                    loading={loading}
+                    onSubmit={submitAction}
+                    customAction={customAction}
+                    setCustomAction={setCustomAction}
+                    activeCharacter={activeChar}
+                    sessionId={id!}
+                    party={session.party}
+                    activeCharacterId={session.activeCharacterId}
+                    onUseItem={(o,i,t) => submitItemAction('use_item',o,i,t)}
+                    onGiveItem={(o,i,t) => submitItemAction('give_item',o,i,t)}
+                    inventoryDisabled={loading}
+                    onShowPartyGear={() => setShowFullInventory(true)}
+                    partyItemCount={session.party.reduce((s, c) => s + c.inventory.length, 0)}
+                  />
+                )
             : <TurnHistoryCard choices={displayTurn?.choices ?? []} takenAction={takenAction} character={takenChar} turnType={displayTurn?.turnType} narration={displayTurn?.narration} />
         }
-
       </div>
+
+      {/* Full party inventory overlay */}
+      {showFullInventory && (
+        <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-end" onClick={() => setShowFullInventory(false)}>
+          <div className="w-full max-h-[70vh] overflow-y-auto bg-slate-950 border-t-2 border-slate-700 rounded-t-[40px] p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-black uppercase tracking-widest text-amber-500/70">Party Gear</h3>
+              <button onClick={() => setShowFullInventory(false)} className="text-slate-500 hover:text-white font-black">✕</button>
+            </div>
+            <Inventory
+              party={session.party}
+              activeCharacterId={session.activeCharacterId}
+              onUseItem={(o,i,t) => { submitItemAction('use_item',o,i,t); setShowFullInventory(false); }}
+              onGiveItem={(o,i,t) => { submitItemAction('give_item',o,i,t); setShowFullInventory(false); }}
+              disabled={loading}
+            />
+          </div>
+        </div>
+      )}
 
       {sanctuaryBanner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/70 animate-in fade-in duration-700" onClick={() => setSanctuaryBanner(null)}>

@@ -13,11 +13,12 @@ export class ImageService {
   private static DEFAULT_IMAGE = '/images/default_scene.png';
 
   public static async generateAvatar(
-    char: { name: string; class: string; species: string; quirk: string },
+    char: { name: string; class: string; species: string; quirk: string; gender?: string },
     sessionId: string,
     useLocalAI?: boolean,
   ): Promise<{ url: string; prompt: string; storageKey: string; storageProvider: string }> {
-    const prompt = `fantasy character portrait, ${char.species} ${char.class}, detailed face, plain dark background, vibrant colors, cinematic lighting, digital illustration`;
+    const genderDesc = char.gender ? `${char.gender} ` : '';
+    const prompt = `fantasy character portrait, ${genderDesc}${char.species} ${char.class}, detailed face, plain dark background, vibrant colors, cinematic lighting, digital illustration`;
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
     const fileName = `avatar_${sessionId}_${char.name}_${promptHash}.png`;
     const storage = getImageStorageProvider();

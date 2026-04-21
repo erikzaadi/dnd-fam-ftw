@@ -126,6 +126,7 @@ export const CharacterAssembly = () => {
     const name = formData.get('name') as string;
     const charClass = formData.get('class') as string;
     const species = formData.get('species') as string;
+    const gender = (formData.get('gender') as string) || undefined;
     const quirk = formData.get('quirk') as string;
 
     let stats = { might: 2, magic: 2, mischief: 3 };
@@ -146,6 +147,7 @@ export const CharacterAssembly = () => {
       name,
       class: charClass,
       species,
+      gender,
       quirk,
       stats,
     };
