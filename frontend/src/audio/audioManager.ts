@@ -1,20 +1,25 @@
 import { musicPlayer } from './musicPlayer';
+import { SfxPlayer } from './sfxPlayer';
 import type { AudioSettings, SfxEvent } from './audioTypes';
+import { audioCatalog } from './audioCatalog';
 
 export class AudioManager {
   private settings: AudioSettings;
+  private sfxPlayer: SfxPlayer;
   private unlocked = false;
   private pendingPlayback = false;
 
   constructor() {
     const stored = localStorage.getItem('dnd-audio-settings');
     this.settings = stored ? JSON.parse(stored) : {
-      musicEnabled: false,
-      sfxEnabled: false,
+      enabled: true,
+      musicEnabled: true,
+      sfxEnabled: true,
       masterMuted: false,
       musicVolume: 0.35,
       sfxVolume: 0.6,
     };
+    this.sfxPlayer = new SfxPlayer(this.settings);
   }
 
   public get isUnlocked() {
@@ -42,6 +47,7 @@ export class AudioManager {
 
   public updateSettings(settings: AudioSettings) {
     this.settings = settings;
+    this.sfxPlayer.updateSettings(settings);
 
     musicPlayer.setVolume(settings.musicVolume);
     musicPlayer.setMuted(settings.masterMuted);
@@ -50,6 +56,22 @@ export class AudioManager {
       this.startAmbientMusic();
     } else {
       musicPlayer.stop();
+    }
+  }
+
+  private lastTension: 'low' | 'medium' | 'high' | null = null;
+
+  public setTension(level: 'low' | 'medium' | 'high') {
+    if (this.lastTension === level) {
+      return;
+    }
+    
+    this.lastTension = level;
+
+    if (level === 'high') {
+      this.startDangerMusic();
+    } else {
+      this.startAmbientMusic();
     }
   }
 
@@ -82,10 +104,15 @@ export class AudioManager {
     musicPlayer.stop();
   }
 
-  // SFX Placeholders for Phase 3
-  public playSfx(_event: SfxEvent) {
-    if (!this.settings?.sfxEnabled || this.settings.masterMuted) {
-      return;
+  public playSfx(event: SfxEvent) {
+    if (event === 'dice-roll') {
+      this.sfxPlayer.playRandom(audioCatalog.sfx.diceRoll);
+    } else if (event === 'success-roll') {
+      this.sfxPlayer.playRandom(audioCatalog.sfx.successRoll);
+    } else if (event === 'failed-roll') {
+      this.sfxPlayer.playRandom(audioCatalog.sfx.failedRoll);
+    } else if (event === 'roll-20') {
+      this.sfxPlayer.playRandom(audioCatalog.sfx.roll20);
     }
   }
 
@@ -93,9 +120,12 @@ export class AudioManager {
     if (!this.settings?.sfxEnabled || this.settings.masterMuted) {
       return;
     }
+    musicPlayer.setVolume(this.settings.musicVolume * 0.5);
+    this.sfxPlayer.playRandom(audioCatalog.sfx.narrating);
   }
 
   public stopNarrating() {
+    musicPlayer.setVolume(this.settings.musicVolume);
   }
 }
 

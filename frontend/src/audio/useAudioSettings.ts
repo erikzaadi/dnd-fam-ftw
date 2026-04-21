@@ -5,8 +5,9 @@ import { audioManager } from './audioManager';
 const STORAGE_KEY = 'dnd-audio-settings';
 
 const DEFAULT_SETTINGS: AudioSettings = {
-  musicEnabled: false,
-  sfxEnabled: false,
+  enabled: true,
+  musicEnabled: true,
+  sfxEnabled: true,
   masterMuted: false,
   musicVolume: 0.35,
   sfxVolume: 0.6,
@@ -51,8 +52,14 @@ export function useAudioSettings() {
     audioManager.updateSettings({ ...settings, musicVolume: value });
   }, [updateSetting, settings]);
 
+  const setEnabled = useCallback((value: boolean) => {
+    updateSetting('enabled', value);
+    audioManager.updateSettings({ ...settings, enabled: value });
+  }, [updateSetting, settings]);
+
   return {
     settings,
+    setEnabled,
     setMusicEnabled,
     setSfxEnabled: (v: boolean) => updateSetting('sfxEnabled', v),
     setMasterMuted,

@@ -9,6 +9,7 @@ import { FullscreenImage } from '../components/FullscreenImage';
 import { Narration } from '../components/game/Narration';
 import { ActionControls } from '../components/game/ActionControls';
 import { RollBreakdown } from '../components/game/RollBreakdown';
+import { D20 } from '../components/game/D20';
 import { audioManager } from '../audio/audioManager';
 import { useAudioSettings } from '../audio/useAudioSettings';
 
@@ -23,6 +24,7 @@ export const SessionPage = () => {
   const [customAction, setCustomAction] = useState("");
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const [fullscreenNarration, setFullscreenNarration] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
@@ -65,6 +67,14 @@ export const SessionPage = () => {
   }, [session, history.length]);
 
   useEffect(() => {
+    if (loading) {
+      audioManager.startNarrating();
+    } else {
+      audioManager.stopNarrating();
+    }
+  }, [loading]);
+
+  useEffect(() => {
     if (!lastRoll) {
       return;
     }
@@ -98,8 +108,21 @@ export const SessionPage = () => {
           if (data.session) {
             setSession(data.session);
           }
+          if (data.turnResult?.currentTensionLevel) {
+            audioManager.setTension(data.turnResult.currentTensionLevel);
+          }
           const roll = data.turnResult?.lastAction?.actionResult;
           if (roll && roll.statUsed !== 'none') {
+            audioManager.playSfx('dice-roll');
+            setTimeout(() => {
+              if (roll.roll === 20) {
+                audioManager.playSfx('roll-20');
+              } else if (roll.success) {
+                audioManager.playSfx('success-roll');
+              } else {
+                audioManager.playSfx('failed-roll');
+              }
+            }, 600);
             setLastRoll({ 
               roll: roll.roll, 
               success: roll.success, 
@@ -294,10 +317,17 @@ export const SessionPage = () => {
         </header>
       )}
 
-      {/* Middle: story + scene - fills remaining space, only story scrolls */}
       <div className={`lg:flex-1 lg:min-h-0 grid gap-4 md:gap-6 px-4 md:px-8 py-4 md:py-5 ${!session.savingsMode ? 'lg:grid-cols-2' : ''}`}>
         <div className="min-h-0">
-          <Narration history={history} party={session.party} loading={loading} onTurnClick={setViewedTurnIdx} viewedTurnIdx={viewedTurnIdx} />
+          <Narration 
+            history={history} 
+            party={session.party} 
+            loading={loading} 
+            onTurnClick={(i) => {
+              setFullscreenNarration(history[i].narration);
+            }} 
+            viewedTurnIdx={viewedTurnIdx} 
+          />
         </div>
         {!session.savingsMode && (
           <div className="bg-slate-900 rounded-[50px] border border-slate-800 overflow-hidden min-h-0">
@@ -312,7 +342,6 @@ export const SessionPage = () => {
         )}
       </div>
 
-      {/* Controls */}
       <div className="flex-shrink-0 p-4 md:px-8 md:pb-8">
         <ActionControls 
           turn={history[viewedTurnIdx] ?? null}
@@ -337,6 +366,7 @@ export const SessionPage = () => {
           }}
         >
           <div className={`bg-slate-900 border-2 border-slate-700 p-8 rounded-[40px] shadow-2xl text-center flex flex-col items-center animate-in zoom-in-95 ${dieExiting ? 'animate-out fade-out zoom-out-95' : ''}`}>
+            <D20 roll={lastRoll.roll} success={lastRoll.success} size={180} />
             <RollBreakdown
               roll={lastRoll.roll}
               statBonus={lastRoll.statBonus}
@@ -356,6 +386,19 @@ export const SessionPage = () => {
         </div>
       )}
       {fullscreenImage && <FullscreenImage url={fullscreenImage} onClose={() => setFullscreenImage(null)} />}
+      {fullscreenNarration && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950 p-8 md:p-16 animate-in fade-in"
+          onClick={() => setFullscreenNarration(null)}
+        >
+          <div className="max-w-4xl w-full text-center">
+            <p className="text-3xl md:text-5xl lg:text-6xl font-serif leading-snug text-slate-100 font-medium italic">
+              {fullscreenNarration}
+            </p>
+            <span className="text-xs uppercase tracking-widest text-slate-600 mt-12 block">tap to dismiss</span>
+          </div>
+        </div>
+      )}
       {interventionBanner && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-amber-950/90 p-8 animate-in fade-in">
           <div className="max-w-xl text-center space-y-4">

@@ -1,4 +1,5 @@
 export type AudioSettings = {
+  enabled: boolean;
   musicEnabled: boolean;
   sfxEnabled: boolean;
   masterMuted: boolean;
