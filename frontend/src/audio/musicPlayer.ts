@@ -1,4 +1,4 @@
-import { audioCatalog } from './audioCatalog';
+import { audioCatalog } from 'virtual:audio-catalog';
 import type { MusicCategory, MusicPlayer } from './audioTypes';
 
 const CROSSFADE_DURATION = 2000;

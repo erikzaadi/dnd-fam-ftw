@@ -69,6 +69,7 @@ export interface Choice {
 export type TurnType = 'normal' | 'intervention' | 'sanctuary';
 
 export interface TurnResult {
+  id?: number;
   narration: string;
   choices: Choice[];
   rollNarration?: string;

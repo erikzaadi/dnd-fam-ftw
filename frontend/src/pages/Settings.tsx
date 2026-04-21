@@ -9,6 +9,11 @@ interface AppSettings {
   defaultUseLocalAI: boolean;
 }
 
+interface Capabilities {
+  hasLocalAI: boolean;
+  hasCloudAI: boolean;
+}
+
 const Toggle = ({ checked, onChange, label, description }: { checked: boolean; onChange: (v: boolean) => void; label: string; description: string }) => (
   <div className="flex items-center justify-between gap-6 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
     <div className="flex flex-col gap-1">
@@ -25,25 +30,54 @@ const Toggle = ({ checked, onChange, label, description }: { checked: boolean; o
 );
 
 import { useAudioSettings } from '../audio/useAudioSettings';
+import { useTtsSettings } from '../tts/useTtsSettings';
+import { useAvailableVoices } from '../tts/useAvailableVoices';
+import { browserTtsService } from '../tts/browserTtsService';
+import { TEST_VOICE_SAMPLE } from '../tts/ttsVoiceCatalog';
 
 export const Settings = () => {
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
   const [saved, setSaved] = useState(false);
   const navigate = useNavigate();
-  const { 
-    settings: audioSettings, 
+  const {
+    settings: audioSettings,
     setEnabled,
-    setMusicEnabled, 
-    setMasterMuted, 
+    setMusicEnabled,
+    setMasterMuted,
     setMusicVolume,
     setSfxEnabled,
-    setSfxVolume
+    setSfxVolume,
+    setSillyMode,
   } = useAudioSettings();
+
+  const {
+    settings: ttsSettings,
+    setEnabled: setTtsEnabled,
+    setAutoSpeakNarration,
+    setVolume: setTtsVolume,
+    setRate,
+    setPitch,
+    setPreferredVoice,
+    setPreferredStyle,
+    setPreferredGenderHint,
+  } = useTtsSettings();
+
+  const availableVoices = useAvailableVoices();
+  const ttsSupported = browserTtsService.isSupported();
+
+  const savedVoiceUnavailable =
+    ttsSettings.preferredVoiceURI !== null &&
+    availableVoices.length > 0 &&
+    !availableVoices.some(v => v.voiceURI === ttsSettings.preferredVoiceURI);
 
   useEffect(() => {
     apiFetch('/settings')
       .then(r => r.json())
       .then(setSettings);
+    apiFetch('/capabilities')
+      .then(r => r.json())
+      .then(setCapabilities);
   }, []);
 
   const update = (patch: Partial<AppSettings>) => {
@@ -77,13 +111,17 @@ export const Settings = () => {
             <p className="text-slate-400 text-center py-8">Loading…</p>
           ) : (
             <div className="bg-slate-900 p-6 md:p-8 rounded-[32px] border-2 border-slate-800 shadow-2xl space-y-4">
-              <h2 className="text-lg font-black uppercase tracking-tighter text-slate-400">AI</h2>
-              <Toggle
-                checked={settings.defaultUseLocalAI}
-                onChange={v => update({ defaultUseLocalAI: v })}
-                label="Local AI by default"
-                description="New sessions default to local AI instead of cloud. Can still be overridden per session."
-              />
+              {capabilities?.hasLocalAI && (
+                <>
+                  <h2 className="text-lg font-black uppercase tracking-tighter text-slate-400">AI</h2>
+                  <Toggle
+                    checked={settings.defaultUseLocalAI}
+                    onChange={v => update({ defaultUseLocalAI: v })}
+                    label="Local AI by default"
+                    description="New sessions default to local AI instead of cloud. Can still be overridden per session."
+                  />
+                </>
+              )}
 
               <h2 className="text-lg font-black uppercase tracking-tighter text-slate-400 pt-2">Images</h2>
               <Toggle
@@ -160,6 +198,160 @@ export const Settings = () => {
                       className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-600"
                     />
                   </div>
+
+                  <Toggle
+                    checked={audioSettings.sillyMode}
+                    onChange={setSillyMode}
+                    label="Silly Mode"
+                    description="50% chance to swap some sound effects with sillier alternatives."
+                  />
+                </>
+              )}
+
+              {audioSettings.enabled && (
+                <>
+                  <h2 className="text-lg font-black uppercase tracking-tight text-amber-500 pt-2">Narration Voice</h2>
+
+                  {!ttsSupported ? (
+                    <p className="text-sm text-slate-500 px-2">Narration voice is not supported in this browser.</p>
+                  ) : (
+                    <>
+                      <Toggle
+                        checked={ttsSettings.enabled}
+                        onChange={setTtsEnabled}
+                        label="Narration Voice"
+                        description="Read turn narrations aloud using your device voice."
+                      />
+
+                      {ttsSettings.enabled && (
+                        <>
+                          <Toggle
+                            checked={ttsSettings.autoSpeakNarration}
+                            onChange={setAutoSpeakNarration}
+                            label="Auto-read narration"
+                            description="Automatically speak each new turn narration. Manual replay always available."
+                          />
+
+                          <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
+                            <span className="font-black uppercase tracking-tighter text-white">Voice</span>
+                            {savedVoiceUnavailable && (
+                              <p className="text-xs text-amber-400">Saved voice is unavailable on this device - using best match.</p>
+                            )}
+                            {availableVoices.length === 0 ? (
+                              <p className="text-sm text-slate-500">Loading available voices...</p>
+                            ) : (
+                              <select
+                                value={ttsSettings.preferredVoiceURI ?? ''}
+                                onChange={e => {
+                                  const voice = availableVoices.find(v => v.voiceURI === e.target.value) ?? null;
+                                  setPreferredVoice(voice?.voiceURI ?? null, voice?.name ?? null, voice?.lang ?? null);
+                                }}
+                                className="w-full bg-slate-800 text-white rounded-xl px-3 py-2 border border-slate-700 text-sm"
+                              >
+                                <option value="">Best available voice</option>
+                                {availableVoices.map(v => (
+                                  <option key={v.voiceURI} value={v.voiceURI}>
+                                    {v.name} ({v.lang}){v.default ? ' - default' : ''}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+
+                          <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
+                            <span className="font-black uppercase tracking-tighter text-white">Voice Style</span>
+                            <select
+                              value={ttsSettings.preferredStyle}
+                              onChange={e => setPreferredStyle(e.target.value as typeof ttsSettings.preferredStyle)}
+                              className="w-full bg-slate-800 text-white rounded-xl px-3 py-2 border border-slate-700 text-sm"
+                            >
+                              <option value="neutral">Neutral</option>
+                              <option value="heroic">Heroic - slower, deeper</option>
+                              <option value="mysterious">Mysterious - slowest, lowest</option>
+                              <option value="playful">Playful - faster, lighter</option>
+                            </select>
+                          </div>
+
+                          <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
+                            <span className="font-black uppercase tracking-tighter text-white">Voice Preference</span>
+                            <p className="text-xs text-slate-500">Gender is a preference hint - available voices depend on your browser and device.</p>
+                            <select
+                              value={ttsSettings.preferredGenderHint}
+                              onChange={e => setPreferredGenderHint(e.target.value as typeof ttsSettings.preferredGenderHint)}
+                              className="w-full bg-slate-800 text-white rounded-xl px-3 py-2 border border-slate-700 text-sm"
+                            >
+                              <option value="any">Any voice</option>
+                              <option value="female">Prefer female</option>
+                              <option value="male">Prefer male</option>
+                            </select>
+                          </div>
+
+                          <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
+                            <div className="flex justify-between items-center">
+                              <span className="font-black uppercase tracking-tighter text-white">Speech Speed</span>
+                              <span className="text-sm text-slate-400">{ttsSettings.rate.toFixed(2)}x</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0.7"
+                              max="1.4"
+                              step="0.05"
+                              value={ttsSettings.rate}
+                              onChange={e => setRate(parseFloat(e.target.value))}
+                              className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-600"
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
+                            <div className="flex justify-between items-center">
+                              <span className="font-black uppercase tracking-tighter text-white">Pitch</span>
+                              <span className="text-sm text-slate-400">{ttsSettings.pitch.toFixed(2)}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0.5"
+                              max="1.5"
+                              step="0.05"
+                              value={ttsSettings.pitch}
+                              onChange={e => setPitch(parseFloat(e.target.value))}
+                              className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-600"
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
+                            <div className="flex justify-between items-center">
+                              <span className="font-black uppercase tracking-tighter text-white">Voice Volume</span>
+                              <span className="text-sm text-slate-400">{Math.round(ttsSettings.volume * 100)}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              value={ttsSettings.volume}
+                              onChange={e => setTtsVolume(parseFloat(e.target.value))}
+                              className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-600"
+                            />
+                          </div>
+
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => browserTtsService.speakNarration(TEST_VOICE_SAMPLE, ttsSettings)}
+                              className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 rounded-[20px] font-black uppercase italic tracking-tighter transition-colors text-sm border-2 border-slate-600"
+                            >
+                          Test Voice
+                            </button>
+                            <button
+                              onClick={() => browserTtsService.stop()}
+                              className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 rounded-[20px] font-black uppercase italic tracking-tighter transition-colors text-sm border-2 border-slate-700"
+                            >
+                          Stop
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </>
+                  )}
                 </>
               )}
 

@@ -131,8 +131,8 @@ export const ActionControls = ({
               key={i}
               onClick={() => onSubmit(choice.label, choice.stat, choice.difficulty, choice.difficultyValue)}
               disabled={loading}
-              className={`relative z-0 hover:z-10 w-full min-w-0 overflow-hidden p-4 rounded-2xl border-2 text-base font-black uppercase transition-all flex flex-col items-center justify-between min-h-[80px]
-                  ${STAT_COLORS[choice.stat]} ${DIFF_COLORS[choice.difficulty]} hover:scale-105 disabled:opacity-50`}
+              className={`w-full min-w-0 overflow-hidden p-4 rounded-2xl border-2 text-base font-black uppercase transition-all flex flex-col items-center justify-between min-h-[80px]
+                  ${STAT_COLORS[choice.stat]} ${DIFF_COLORS[choice.difficulty]} hover:brightness-110 disabled:opacity-50`}
             >
               <span className="leading-tight text-center break-words w-full">{choice.label}</span>
               <span className={`text-[9px] font-black tracking-widest px-2 py-0.5 rounded-full opacity-80 mt-1 shrink-0

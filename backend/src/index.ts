@@ -558,7 +558,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
     await StateService.updateSession(sessionId, newState);
     turnResult.lastAction = itemAttempt;
     turnResult.characterId = actingCharId;
-    await StateService.addTurnResult(sessionId, turnResult, actingCharId);
+    turnResult.id = await StateService.addTurnResult(sessionId, turnResult, actingCharId);
     broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
     res.json({ actionAttempt: itemAttempt, turnResult, session: newState });
     return;
@@ -597,7 +597,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
   turnResult.lastAction = actionAttempt;
   turnResult.characterId = actingCharId;
 
-  await StateService.addTurnResult(sessionId, turnResult, actingCharId);
+  turnResult.id = await StateService.addTurnResult(sessionId, turnResult, actingCharId);
   broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
   res.json({ actionAttempt, turnResult, session: newState });
 
@@ -623,7 +623,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
 
         const postState = GameEngine.updateState(rescuedState, interventionInput, interventionTurn as unknown as Record<string, unknown>);
         await StateService.updateSession(sessionId, postState);
-        await StateService.addTurnResult(sessionId, interventionTurn, null);
+        interventionTurn.id = await StateService.addTurnResult(sessionId, interventionTurn, null);
         broadcastUpdate(sessionId, 'intervention', { session: postState, turnResult: interventionTurn });
         setImmediate(() => void StorySummaryService.updateAfterIntervention(sessionId, interventionTurn.narration, session.useLocalAI));
         console.log('[Intervention] Rescue complete');
@@ -653,7 +653,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
 
         const postState = GameEngine.updateState(sanctuaryState, sanctuaryInput, sanctuaryTurn as unknown as Record<string, unknown>);
         await StateService.updateSession(sessionId, postState);
-        await StateService.addTurnResult(sessionId, sanctuaryTurn, null);
+        sanctuaryTurn.id = await StateService.addTurnResult(sessionId, sanctuaryTurn, null);
         broadcastUpdate(sessionId, 'sanctuary_recovery', { session: postState, turnResult: sanctuaryTurn });
         setImmediate(() => void StorySummaryService.updateAfterIntervention(sessionId, sanctuaryTurn.narration, session.useLocalAI));
         console.log('[Sanctuary] Recovery complete');
@@ -695,7 +695,7 @@ app.post('/session/:id/start', asyncHandler(async (req, res) => {
 
   let initialTurn;
   try {
-    initialTurn = await AiDmService.generateTurnResult({ ...session, actionAttempt: "Adventure begins!", actionResult: { success: true, roll: 20, statUsed: 'none' } }, session.useLocalAI);
+    initialTurn = await AiDmService.generateTurnResult({ ...session, characterId: '', actionAttempt: "Adventure begins!", actionResult: { success: true, roll: 20, statUsed: 'none' } }, session.useLocalAI);
   } catch (error: unknown) {
     const status = (error as { status?: number })?.status;
     if (status === 429) {
@@ -704,7 +704,7 @@ app.post('/session/:id/start', asyncHandler(async (req, res) => {
     }
     throw error;
   }
-  await StateService.addTurnResult(sessionId, initialTurn, null);
+  initialTurn.id = await StateService.addTurnResult(sessionId, initialTurn, null);
   broadcastUpdate(sessionId, 'turn_complete', { session, turnResult: initialTurn });
   res.json({ success: true });
 

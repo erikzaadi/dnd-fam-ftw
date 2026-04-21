@@ -11,6 +11,7 @@ const DEFAULT_SETTINGS: AudioSettings = {
   masterMuted: false,
   musicVolume: 0.35,
   sfxVolume: 0.6,
+  sillyMode: false,
 };
 
 export function useAudioSettings() {
@@ -65,5 +66,6 @@ export function useAudioSettings() {
     setMasterMuted,
     setMusicVolume,
     setSfxVolume: (v: number) => updateSetting('sfxVolume', v),
+    setSillyMode: (v: boolean) => updateSetting('sillyMode', v),
   };
 }

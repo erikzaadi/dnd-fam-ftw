@@ -5,6 +5,7 @@ export type AudioSettings = {
   masterMuted: boolean;
   musicVolume: number; // 0..1
   sfxVolume: number;   // 0..1
+  sillyMode: boolean;
 };
 
 export type MusicCategory = 'ambient' | 'danger';

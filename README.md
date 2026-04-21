@@ -64,6 +64,14 @@ Every hero gets a generated portrait and carries their quirk into the story:
 - **TLDR mode** : AI summarises the whole adventure in 3 sentences for latecomers
 - **Movie mode** : animated slideshow of every scene, with Ken Burns effect and pause/play controls. Click any image for fullscreen.
 
+### Audio
+
+- **Background music** : ambient tracks play during the adventure; the music automatically switches to danger/battle tracks when the AI raises the tension level to `high`, and back when it drops
+- **Sound effects** : dice roll sounds, success fanfares, failure stings, and a narrating shimmer while the DM is writing
+- **Silly mode** : toggle in Settings to give some SFX a 50% chance of swapping to a sillier alternative (bruh sounds, cartoon fails, etc.)
+- **Narration voice (TTS)** : optional browser speech synthesis reads each turn narration aloud; configurable voice, style (neutral / heroic / mysterious / playful), speed, pitch, and volume; auto-reads new turns or manual replay
+- All audio is opt-in and individually toggleable in Settings; mute button also stops TTS
+
 ### Quality of Life
 - **Savings mode** : toggle off image generation per-session (or globally in Settings); session toggle always wins
 - **Session persistence** : SQLite, so your adventure survives a server restart
@@ -306,7 +314,10 @@ Backend rolls d20 + effective stat vs. resolved target
        ↓
 Result sent to AI with full session context (outcome already resolved)
        ↓
-AI narrates outcome + suggests 3 new choices (each with a tuned difficultyValue)
+AI narrates outcome (paced by gameMode: fast/balanced/cinematic)
+     + returns a short rollNarration flavor comment shown in the D20 popup
+     + returns currentTensionLevel (low/medium/high) - drives ambient vs danger music
+     + suggests 3 new choices (each with a tuned difficultyValue)
      + optionally grants an item (suggestedInventoryAdd)
      + optionally removes an item for a trade (suggestedInventoryRemove)
        ↓
@@ -346,7 +357,7 @@ For the complete ruleset : dice math, downed state, party wipes, item mechanics,
 
 ![New world creation form](docs/create-world.png)
 
-Pick a difficulty, describe your world (or leave it blank for a surprise), and hit **Next: Assemble Heroes**.
+Pick a difficulty, choose a **game pacing** mode (Cinematic for rich descriptions, Balanced for a mix, Fast for immediate action and frequent conflict), describe your world (or leave it blank for a surprise), and hit **Next: Assemble Heroes**.
 
 ---
 

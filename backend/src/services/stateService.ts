@@ -522,6 +522,7 @@ export class StateService {
     const rows = db.prepare('SELECT * FROM turn_history WHERE sessionId = ?').all(id) as {
       id: number;
       narration: string;
+      rollNarration: string | null;
       imagePrompt: string | null;
       imageSuggested: number;
       imageUrl: string | null;
@@ -566,6 +567,7 @@ export class StateService {
         imageUrl = storage.getPublicUrl(r.image_storage_key);
       }
       return {
+        id: r.id,
         narration: r.narration,
         rollNarration: r.rollNarration || undefined,
         imagePrompt: r.imagePrompt,
@@ -590,7 +592,7 @@ export class StateService {
       .run(imageUrl, storageKey || null, storageProvider || null, sessionId);
   }
 
-  public static async addTurnResult(id: string, turn: TurnResult, characterId: string | null): Promise<void> {
+  public static async addTurnResult(id: string, turn: TurnResult, characterId: string | null): Promise<number> {
     const db = this.getDb();
     const action = turn.lastAction ?? null;
     const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionIsCritical, actionDifficultyTarget, turnType) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
@@ -612,6 +614,7 @@ export class StateService {
       db.prepare('INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue) VALUES (?, ?, ?, ?, ?)')
         .run(turnId, choice.label, choice.difficulty, choice.stat, choice.difficultyValue ?? null);
     }
+    return Number(turnId);
   }
 
   public static deleteCharacter(charId: string): void {

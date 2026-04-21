@@ -18,9 +18,11 @@ export const CreateSession = () => {
   const [showWorldDescription, setShowWorldDescription] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasLocalAI, setHasLocalAI] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
+    apiFetch('/capabilities').then(r => r.json()).then(c => setHasLocalAI(c.hasLocalAI));
     if (localStorage.getItem('useLocalAI') === null) {
       apiFetch('/settings').then(r => r.json()).then(s => setUseLocalAI(s.defaultUseLocalAI));
     }
@@ -83,14 +85,16 @@ export const CreateSession = () => {
               ))}
             </div>
           </div>
-          <div className="flex justify-center">
-            <button
-              onClick={toggleLocalAI}
-              className={`px-4 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all ${useLocalAI ? 'border-purple-500 text-purple-400 bg-purple-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
-            >
-              {useLocalAI ? '🏠 Local AI' : '☁️ Cloud AI'}
-            </button>
-          </div>
+          {hasLocalAI && (
+            <div className="flex justify-center">
+              <button
+                onClick={toggleLocalAI}
+                className={`px-4 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all ${useLocalAI ? 'border-purple-500 text-purple-400 bg-purple-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
+              >
+                {useLocalAI ? '🏠 Local AI' : '☁️ Cloud AI'}
+              </button>
+            </div>
+          )}
           {showWorldDescription ? (
             <textarea 
               placeholder="Describe the world..." 

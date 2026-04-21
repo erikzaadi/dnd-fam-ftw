@@ -1,7 +1,7 @@
 import { musicPlayer } from './musicPlayer';
 import { SfxPlayer } from './sfxPlayer';
 import type { AudioSettings, SfxEvent } from './audioTypes';
-import { audioCatalog } from './audioCatalog';
+import { audioCatalog } from 'virtual:audio-catalog';
 
 export class AudioManager {
   private settings: AudioSettings;
@@ -18,12 +18,26 @@ export class AudioManager {
       masterMuted: false,
       musicVolume: 0.35,
       sfxVolume: 0.6,
+      sillyMode: false,
     };
     this.sfxPlayer = new SfxPlayer(this.settings);
   }
 
   public get isUnlocked() {
     return this.unlocked;
+  }
+
+  public unlockOnFirstGesture() {
+    if (this.unlocked || this.gestureListenersAdded) {
+      return;
+    }
+    this.gestureListenersAdded = true;
+    const handler = () => {
+      this.unlock();
+    };
+    document.addEventListener('click', handler, { once: true });
+    document.addEventListener('keydown', handler, { once: true });
+    document.addEventListener('touchstart', handler, { once: true });
   }
 
   public async unlock() {
@@ -60,6 +74,8 @@ export class AudioManager {
   }
 
   private lastTension: 'low' | 'medium' | 'high' | null = null;
+  private narratingAudio: HTMLAudioElement | null = null;
+  private gestureListenersAdded = false;
 
   public setTension(level: 'low' | 'medium' | 'high') {
     if (this.lastTension === level) {
@@ -90,7 +106,7 @@ export class AudioManager {
   }
 
   public async startDangerMusic() {
-    if (!this.settings?.musicEnabled) {
+    if (!this.settings?.musicEnabled || !this.unlocked) {
       return;
     }
     await musicPlayer.start('danger');
@@ -105,14 +121,16 @@ export class AudioManager {
   }
 
   public playSfx(event: SfxEvent) {
+    this.stopNarratingAudio();
+    const { diceRoll, successRoll, failedRoll, roll20 } = audioCatalog.sfx;
     if (event === 'dice-roll') {
-      this.sfxPlayer.playRandom(audioCatalog.sfx.diceRoll);
+      this.sfxPlayer.playWithSillyChance(diceRoll.normal, diceRoll.silly);
     } else if (event === 'success-roll') {
-      this.sfxPlayer.playRandom(audioCatalog.sfx.successRoll);
+      this.sfxPlayer.playWithSillyChance(successRoll.normal, successRoll.silly);
     } else if (event === 'failed-roll') {
-      this.sfxPlayer.playRandom(audioCatalog.sfx.failedRoll);
+      this.sfxPlayer.playWithSillyChance(failedRoll.normal, failedRoll.silly);
     } else if (event === 'roll-20') {
-      this.sfxPlayer.playRandom(audioCatalog.sfx.roll20);
+      this.sfxPlayer.playWithSillyChance(roll20.normal, roll20.silly);
     }
   }
 
@@ -121,10 +139,19 @@ export class AudioManager {
       return;
     }
     musicPlayer.setVolume(this.settings.musicVolume * 0.5);
-    this.sfxPlayer.playRandom(audioCatalog.sfx.narrating);
+    this.narratingAudio = this.sfxPlayer.playRandomTracked(audioCatalog.sfx.narrating.normal);
+  }
+
+  private stopNarratingAudio() {
+    if (this.narratingAudio) {
+      this.narratingAudio.pause();
+      this.narratingAudio.currentTime = 0;
+      this.narratingAudio = null;
+    }
   }
 
   public stopNarrating() {
+    this.stopNarratingAudio();
     musicPlayer.setVolume(this.settings.musicVolume);
   }
 }

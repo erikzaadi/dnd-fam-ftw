@@ -5,6 +5,8 @@ import { apiFetch, imgSrc } from '../lib/api';
 import { FullscreenImage } from '../components/FullscreenImage';
 import { DmFooter } from '../components/DmFooter';
 import { SiteHeader } from '../components/SiteHeader';
+import { useTtsSettings } from '../tts/useTtsSettings';
+import { browserTtsService } from '../tts/browserTtsService';
 
 type Mode = 'choose' | 'tldr' | 'movie';
 
@@ -14,12 +16,23 @@ const MOVIE_INTERVAL_MS = 5000;
 
 const TldrView = ({ sessionId, onEnter }: { sessionId: string; onEnter: () => void }) => {
   const [summary, setSummary] = useState<string | null>(null);
+  const { settings: ttsSettings } = useTtsSettings();
 
   useEffect(() => {
     apiFetch(`/session/${sessionId}/summary`)
       .then(r => r.json())
       .then(d => setSummary(d.summary));
   }, [sessionId]);
+
+  useEffect(() => {
+    if (!summary || !ttsSettings.enabled || !browserTtsService.isSupported()) {
+      return;
+    }
+    browserTtsService.speakNarration(summary, ttsSettings);
+    return () => {
+      browserTtsService.stop();
+    };
+  }, [summary, ttsSettings]);
 
   return (
     <div className="flex flex-col items-center gap-8 max-w-2xl w-full animate-in fade-in duration-500 relative z-[10]">
@@ -44,17 +57,44 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [fullscreenUrl, setFullscreenUrl] = useState<string | null>(null);
+  const { settings: ttsSettings } = useTtsSettings();
   const turn = history[idx];
   const isLast = idx === history.length - 1;
   const actor = turn.characterId ? party.find(c => c.id === turn.characterId) : null;
 
+  // Combined: speak narration on slide change, then advance after speech + pause gap
   useEffect(() => {
-    if (!playing || isLast) {
-      return;
-    }
-    const t = setTimeout(() => setIdx(i => i + 1), MOVIE_INTERVAL_MS);
-    return () => clearTimeout(t);
-  }, [idx, playing, isLast]);
+    let cancelled = false;
+
+    const run = async () => {
+      // Speak narration if TTS enabled (awaits completion before advancing)
+      if (ttsSettings.enabled && browserTtsService.isSupported()) {
+        await browserTtsService.speakNarration(turn.narration, ttsSettings);
+      }
+      if (cancelled || !playing || isLast) {
+        return;
+      }
+      // Brief pause between turns after narration ends
+      await new Promise<void>(resolve => {
+        const t = setTimeout(resolve, MOVIE_INTERVAL_MS);
+        // Store cleanup so cancel() can clear it
+        if (cancelled) {
+          clearTimeout(t);
+          resolve();
+        }
+      });
+      if (!cancelled) {
+        setIdx(i => i + 1);
+      }
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+      browserTtsService.stop();
+    };
+  }, [idx, playing, isLast, ttsSettings, turn.narration]);
 
   return (
     <div className="flex flex-col items-center gap-6 w-full max-w-3xl animate-in fade-in duration-500 relative z-[10]">
@@ -154,6 +194,10 @@ export const SessionRecap = () => {
     });
     setSession({ ...session, savingsMode: enabled });
   };
+
+  useEffect(() => {
+    audioManager.unlockOnFirstGesture();
+  }, []);
 
   useEffect(() => {
     if (!id) {

@@ -50,6 +50,10 @@ The resolved `actionDifficultyTarget` is stored in turn history so it can be dis
 
 A natural 1 on the d20 is a **Critical Failure** (see damage below). There is no critical success mechanic : rolling high just means you succeed by more, which the AI may flavor but has no mechanical bonus.
 
+### Roll narration
+
+After resolving the roll, the AI returns a short `rollNarration` : a one-line flavour comment tied to the die result (e.g. *"🎲 A focused eye! You spot the mechanism."*). This is displayed inside the D20 result popup and stored in turn history. It is separate from the main narration paragraph.
+
 ---
 
 ## Damage
@@ -200,12 +204,21 @@ To keep AI context lean across long sessions, the backend maintains a compressed
 
 The AI is a narrator, not an authority. It:
 
-- **Can**: narrate outcomes, suggest choices, propose new items to grant, describe scenes, generate image prompts.
+- **Can**: narrate outcomes, suggest choices, propose new items to grant, describe scenes, generate image prompts, return a roll flavour comment (`rollNarration`), and declare the current tension level (`currentTensionLevel`).
 - **Cannot**: change HP, move items, change who is downed, set difficulty, alter turn order.
 
 All of the above are backend-owned. The AI receives a snapshot of the current state (including outcomes already resolved by the backend) and returns structured JSON. The backend validates and applies only the fields it trusts.
 
 AI-suggested inventory items are granted only if the narrative earns it (found in a chest, rewarded, looted). The backend assigns the `id`; the AI should never invent IDs.
+
+### Character context
+
+The AI receives two distinct character references per turn:
+
+- `actingCharacterName` : the character who performed the action that produced this turn (the one whose roll just resolved).
+- `nextCharacterName` : the character who will act next (the current `activeCharacterId` after turn rotation).
+
+This separation ensures the AI can accurately narrate what *just happened* to the acting character while addressing the next player's upcoming choices correctly.
 
 ---
 
@@ -215,6 +228,29 @@ AI-suggested inventory items are granted only if the narrative earns it (found i
 - If the **active character** is downed (e.g. they were downed on their own turn by a critical fail), the action controls are replaced with a downed panel : no actions can be submitted until the turn advances.
 - The backend also enforces this: a `perform` action from a `downed` character returns HTTP 400.
 - Downed characters can still be selected as **targets** for `use_item` (healing/revive).
+
+---
+
+## Game Mode
+
+Game mode is set at world creation alongside difficulty. It controls the **pacing and narrative style** the AI DM uses throughout the session.
+
+| Mode | Pacing |
+|------|--------|
+| **Fast** | Narration under 3 sentences. Immediate action, frequent conflict, skip slow descriptions. Tension escalates quickly. Prioritises combat, traps, and danger. |
+| **Balanced** | Mix of exploration and action. Moderate pacing. Tension escalates at a natural rate. |
+| **Cinematic** | Rich descriptions, character moments, slower pacing. Tension builds deliberately. |
+
+Game mode is passed to the AI on every narration call. It does not change the dice math : it shapes tone and what kind of choices the AI tends to suggest.
+
+### Tension level
+
+Each turn the AI returns a `currentTensionLevel` of `low`, `medium`, or `high`. The frontend uses this to switch the background music:
+
+- `low` or `medium` : ambient music
+- `high` : danger/battle music
+
+The AI is expected to escalate tension more aggressively in **fast** mode and more gradually in **cinematic** mode. The `currentTensionLevel` is the AI's opinion about the current narrative stakes, not a mechanical modifier.
 
 ---
 
