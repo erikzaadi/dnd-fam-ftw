@@ -68,10 +68,6 @@ export const SessionPage = () => {
   }, [id, joinSession]);
 
   useEffect(() => {
-    audioManager.unlockOnFirstGesture();
-  }, []);
-
-  useEffect(() => {
     if (session && history.length > 0) {
       audioManager.startAmbientMusic();
     }

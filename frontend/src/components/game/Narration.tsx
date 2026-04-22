@@ -26,7 +26,10 @@ export const Narration = ({ history, party, loading, onTurnClick, onFullscreenNa
       return;
     }
     const interval = setInterval(() => {
-      setTtsPlaying(browserTtsService.isSpeaking());
+      setTtsPlaying(prev => {
+        const speaking = browserTtsService.isSpeaking();
+        return prev === speaking ? prev : speaking;
+      });
     }, 200);
     return () => clearInterval(interval);
   }, [ttsActive]);

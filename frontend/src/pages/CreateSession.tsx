@@ -22,10 +22,14 @@ export const CreateSession = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    apiFetch('/capabilities').then(r => r.json()).then(c => setHasLocalAI(c.hasLocalAI));
-    if (localStorage.getItem('useLocalAI') === null) {
-      apiFetch('/settings').then(r => r.json()).then(s => setUseLocalAI(s.defaultUseLocalAI));
+    const needsDefaultAI = localStorage.getItem('useLocalAI') === null;
+    const fetches: Promise<void>[] = [
+      apiFetch('/capabilities').then(r => r.json()).then(c => setHasLocalAI(c.hasLocalAI)),
+    ];
+    if (needsDefaultAI) {
+      fetches.push(apiFetch('/settings').then(r => r.json()).then(s => setUseLocalAI(s.defaultUseLocalAI)));
     }
+    Promise.all(fetches);
   }, []);
 
   const toggleLocalAI = () => {

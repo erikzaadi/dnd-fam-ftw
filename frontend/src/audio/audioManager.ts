@@ -92,10 +92,7 @@ export class AudioManager {
   }
 
   public async startAmbientMusic() {
-    const stored = localStorage.getItem('dnd-audio-settings');
-    const settings = stored ? JSON.parse(stored) : this.settings;
-    
-    if (!settings.musicEnabled) {
+    if (!this.settings.musicEnabled) {
       return;
     }
     if (!this.unlocked) {

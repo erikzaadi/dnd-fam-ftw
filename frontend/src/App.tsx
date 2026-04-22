@@ -70,20 +70,7 @@ function App() {
   }, [location.pathname]);
 
   useEffect(() => {
-    const handleInteraction = () => {
-      audioManager.unlock();
-      window.removeEventListener('click', handleInteraction);
-      window.removeEventListener('touchstart', handleInteraction);
-      window.removeEventListener('keydown', handleInteraction);
-    };
-    window.addEventListener('click', handleInteraction);
-    window.addEventListener('touchstart', handleInteraction);
-    window.addEventListener('keydown', handleInteraction);
-    return () => {
-      window.removeEventListener('click', handleInteraction);
-      window.removeEventListener('touchstart', handleInteraction);
-      window.removeEventListener('keydown', handleInteraction);
-    };
+    audioManager.unlockOnFirstGesture();
   }, []);
 
   return (

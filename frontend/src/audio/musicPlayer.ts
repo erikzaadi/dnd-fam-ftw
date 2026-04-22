@@ -53,6 +53,10 @@ export class WebMusicPlayer implements MusicPlayer {
   }
 
   public stop() {
+    if (this.fadeInterval) {
+      clearInterval(this.fadeInterval);
+      this.fadeInterval = null;
+    }
     this.currentCategory = null;
     this.currentTrack = null;
     this.channels.forEach(audio => {

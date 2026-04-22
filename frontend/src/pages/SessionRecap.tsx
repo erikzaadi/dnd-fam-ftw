@@ -65,23 +65,17 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
   // Combined: speak narration on slide change, then advance after speech + pause gap
   useEffect(() => {
     let cancelled = false;
+    let advanceTimer: ReturnType<typeof setTimeout> | null = null;
 
     const run = async () => {
-      // Speak narration if TTS enabled (awaits completion before advancing)
       if (ttsSettings.enabled && browserTtsService.isSupported()) {
         await browserTtsService.speakNarration(turn.narration, ttsSettings);
       }
       if (cancelled || !playing || isLast) {
         return;
       }
-      // Brief pause between turns after narration ends
       await new Promise<void>(resolve => {
-        const t = setTimeout(resolve, MOVIE_INTERVAL_MS);
-        // Store cleanup so cancel() can clear it
-        if (cancelled) {
-          clearTimeout(t);
-          resolve();
-        }
+        advanceTimer = setTimeout(resolve, MOVIE_INTERVAL_MS);
       });
       if (!cancelled) {
         setIdx(i => i + 1);
@@ -92,6 +86,9 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
 
     return () => {
       cancelled = true;
+      if (advanceTimer !== null) {
+        clearTimeout(advanceTimer);
+      }
       browserTtsService.stop();
     };
   }, [idx, playing, isLast, ttsSettings, turn.narration]);
@@ -194,10 +191,6 @@ export const SessionRecap = () => {
     });
     setSession({ ...session, savingsMode: enabled });
   };
-
-  useEffect(() => {
-    audioManager.unlockOnFirstGesture();
-  }, []);
 
   useEffect(() => {
     if (!id) {

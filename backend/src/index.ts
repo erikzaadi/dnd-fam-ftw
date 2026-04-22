@@ -15,7 +15,7 @@ import { createChatClient } from './providers/ai/AiProviderFactory.js';
 import { SettingsService } from './services/settingsService.js';
 import { StorySummaryService } from './services/storySummaryService.js';
 import { parseSuggestedStats, STAT_FALLBACK } from './services/statSuggestionService.js';
-import { Character } from './types.js';
+import { Character, type AIInput } from './types.js';
 import { getConfig, isAuthEnabled } from './config/env.js';
 import { getImageStorageProvider } from './providers/storage/storageProviderFactory.js';
 import { getAuthPublicConfig, buildGoogleAuthUrl, exchangeCodeForEmail, signJwt } from './services/authService.js';
@@ -541,7 +541,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
     }
 
     const nextCharIdForItem = GameEngine.getNextActiveCharacter(itemState.party, actingCharId);
-    const aiInput: import('./types.js').AIInput = { ...itemState, ...itemAttempt, activeCharacterId: nextCharIdForItem, characterId: actingCharId };
+    const aiInput: AIInput = { ...itemState, ...itemAttempt, activeCharacterId: nextCharIdForItem, characterId: actingCharId };
     let turnResult;
     try {
       turnResult = await AiDmService.generateTurnResult(aiInput, session.useLocalAI);
@@ -577,7 +577,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
 
   const actionAttempt = GameEngine.resolveAction(character, action, statUsed, difficulty || 'normal', difficultyValue);
   const nextCharId = GameEngine.getNextActiveCharacter(session.party, actingCharId);
-  const aiInput: import('./types.js').AIInput = { ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId };
+  const aiInput: AIInput = { ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId };
 
   let turnResult;
   try {
@@ -610,7 +610,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
         const rescuedState = GameEngine.applyIntervention(newState);
         await StateService.updateSession(sessionId, rescuedState);
 
-        const interventionInput: import('./types.js').AIInput = {
+        const interventionInput: AIInput = {
           ...rescuedState,
           characterId: '',
           actionAttempt: 'A mysterious force saved the party from doom',
@@ -640,7 +640,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
         const sanctuaryState = GameEngine.applySanctuaryRecovery(newState);
         await StateService.updateSession(sessionId, sanctuaryState);
 
-        const sanctuaryInput: import('./types.js').AIInput = {
+        const sanctuaryInput: AIInput = {
           ...sanctuaryState,
           characterId: '',
           actionAttempt: 'The party woke up somewhere safe, battered but alive',
