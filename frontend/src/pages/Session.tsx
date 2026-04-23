@@ -161,13 +161,13 @@ export const SessionPage = () => {
                 audioManager.playSfx('failed-roll');
               }
             }, 600);
-            setLastRoll({ 
-              roll: roll.roll, 
-              success: roll.success, 
-              stat: roll.statUsed, 
-              statBonus: roll.statBonus, 
-              itemBonus: roll.itemBonus, 
-              isCritical: roll.isCritical, 
+            setLastRoll({
+              roll: roll.roll,
+              success: roll.success,
+              stat: roll.statUsed,
+              statBonus: roll.statBonus,
+              itemBonus: roll.itemBonus,
+              isCritical: roll.isCritical,
               difficultyTarget: roll.difficultyTarget,
               rollNarration: data.turnResult?.rollNarration
             });
@@ -201,7 +201,7 @@ export const SessionPage = () => {
             setHistory(prev => {
               const u = [...prev, data.turnResult];
               setViewedTurnIdx(u.length - 1);
-              return u; 
+              return u;
             });
           }
           setTimeout(() => setInterventionBanner(null), 8000);
@@ -214,7 +214,7 @@ export const SessionPage = () => {
             setHistory(prev => {
               const u = [...prev, data.turnResult];
               setViewedTurnIdx(u.length - 1);
-              return u; 
+              return u;
             });
           }
           setTimeout(() => setSanctuaryBanner(null), 10000);
@@ -236,7 +236,7 @@ export const SessionPage = () => {
     connect();
     return () => {
       es?.close();
-      clearTimeout(reconnectTimer); 
+      clearTimeout(reconnectTimer);
     };
   }, [id, joinSession]);
 
@@ -357,8 +357,8 @@ export const SessionPage = () => {
                 </div>
               </div>
             )}
-            <Link 
-              to="/" 
+            <Link
+              to="/"
               onClick={() => {
                 audioManager.stopMusic();
               }}
@@ -405,7 +405,7 @@ export const SessionPage = () => {
                 <img src={imgSrc('/images/dm_thinking.png')} className="absolute inset-0 w-full h-full object-cover opacity-30" />
                 <div className="absolute inset-0 flex items-center justify-center gap-3">
                   <div className="w-5 h-5 border-2 border-slate-600 border-t-amber-500 rounded-full animate-spin" />
-                  <span className="text-sm font-black uppercase tracking-widest text-amber-500/80 animate-pulse">The DM is weaving fate...</span>
+                  <span className="text-3xl font-black uppercase tracking-widest text-amber-500/80 animate-pulse">The DM is weaving fate...</span>
                 </div>
               </div>
             )
@@ -466,8 +466,8 @@ export const SessionPage = () => {
 
       {/* Popups */}
       {lastRoll && (
-        <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in" 
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in"
           onClick={() => {
             setLastRoll(null);
             setDieExiting(false);
@@ -564,11 +564,11 @@ export const SessionPage = () => {
       )}
       {confirmDialog && <ConfirmDialog message={confirmDialog.message} onConfirm={() => {
         confirmDialog.onConfirm();
-        setConfirmDialog(null); 
+        setConfirmDialog(null);
       }} onCancel={() => setConfirmDialog(null)} />}
       {selectedCharacter && <CharacterPopup character={selectedCharacter} onClose={() => setSelectedCharacter(null)} onAvatarClick={(url) => {
         setSelectedCharacter(null);
-        setFullscreenImage(url); 
+        setFullscreenImage(url);
       }} />}
     </div>
   );
