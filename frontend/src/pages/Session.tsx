@@ -1,21 +1,30 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import type { Session, Character, TurnResult } from '../types';
-import { apiFetch, apiUrl, imgSrc } from '../lib/api';
-import { PartyBox } from '../components/PartyBox';
+import { apiFetch, apiUrl } from '../lib/api';
 import { CharacterPopup } from '../components/CharacterPopup';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { FullscreenImage } from '../components/FullscreenImage';
-import { Narration } from '../components/game/Narration';
-import { ActionControls } from '../components/game/ActionControls';
-import { TurnHistoryCard } from '../components/game/TurnHistoryCard';
 import { Inventory } from '../components/game/Inventory';
 import { RollBreakdown } from '../components/game/RollBreakdown';
 import { D20 } from '../components/game/D20';
+import { SessionHud } from '../components/game/SessionHud';
+import { StoryStage } from '../components/game/StoryStage';
+import { ActionDock } from '../components/game/ActionDock';
+import { DmDecisionRecapPanel } from '../components/game/DmDecisionRecapPanel';
+import { ChronicleDrawer } from '../components/game/ChronicleDrawer';
 import { audioManager } from '../audio/audioManager';
 import { useAudioSettings } from '../audio/useAudioSettings';
 import { useTtsSettings } from '../tts/useTtsSettings';
 import { browserTtsService } from '../tts/browserTtsService';
+
+interface LastSubmittedAction {
+  label: string;
+  stat: string;
+  char: Character | null;
+  difficulty: string;
+  difficultyValue?: number;
+}
 
 export const SessionPage = () => {
   const { settings, setMasterMuted } = useAudioSettings();
@@ -38,8 +47,10 @@ export const SessionPage = () => {
   const [dieExiting, setDieExiting] = useState(false);
   const [interventionBanner, setInterventionBanner] = useState<string | null>(null);
   const [sanctuaryBanner, setSanctuaryBanner] = useState<string | null>(null);
-  const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [showFullInventory, setShowFullInventory] = useState(false);
+  const [showChronicle, setShowChronicle] = useState(false);
+  const [lastSubmittedAction, setLastSubmittedAction] = useState<LastSubmittedAction | null>(null);
+  const [ttsPlaying, setTtsPlaying] = useState(false);
 
   const joinSession = useCallback(async (sessionId: string) => {
     const res = await apiFetch(`/session/${sessionId}`);
@@ -82,8 +93,6 @@ export const SessionPage = () => {
   }, [loading]);
 
   // TTS: auto-speak the latest narration once per new turn.
-  // Wait for loading to finish and the D20 popup to close so TTS doesn't
-  // overlap with dice roll SFX or the roll result animation.
   useEffect(() => {
     if (loading || lastRoll) {
       return;
@@ -111,6 +120,20 @@ export const SessionPage = () => {
       browserTtsService.stop();
     };
   }, []);
+
+  // Poll TTS playing state for fullscreen narration Stop button
+  useEffect(() => {
+    if (!ttsSettings.enabled || !browserTtsService.isSupported()) {
+      return;
+    }
+    const interval = setInterval(() => {
+      setTtsPlaying(prev => {
+        const speaking = browserTtsService.isSpeaking();
+        return prev === speaking ? prev : speaking;
+      });
+    }, 200);
+    return () => clearInterval(interval);
+  }, [ttsSettings.enabled]);
 
   useEffect(() => {
     if (!lastRoll) {
@@ -142,6 +165,7 @@ export const SessionPage = () => {
           setLoading(true);
         } else if (data.type === 'turn_complete') {
           setLoading(false);
+          setLastSubmittedAction(null);
           setCustomAction('');
           if (data.session) {
             setSession(data.session);
@@ -169,7 +193,7 @@ export const SessionPage = () => {
               itemBonus: roll.itemBonus,
               isCritical: roll.isCritical,
               difficultyTarget: roll.difficultyTarget,
-              rollNarration: data.turnResult?.rollNarration
+              rollNarration: data.turnResult?.rollNarration,
             });
             setDieExiting(false);
             setTimeout(() => setDieExiting(true), 4000);
@@ -255,6 +279,7 @@ export const SessionPage = () => {
 
   const submitAction = async (action: string, statUsed: string = 'none', difficulty: string = 'normal', difficultyValue: number | null = null, ownerCharId: string | null = null, itemId: string | null = null, targetCharId: string | null = null) => {
     setActionError(null);
+    setLastSubmittedAction({ label: action, stat: statUsed, char: activeChar, difficulty, difficultyValue: difficultyValue ?? undefined });
     setLoading(true);
     audioManager.stopNarrating();
     browserTtsService.stop();
@@ -278,6 +303,7 @@ export const SessionPage = () => {
         setActionError('An unexpected error occurred');
       }
       setLoading(false);
+      setLastSubmittedAction(null);
     }
   };
 
@@ -285,186 +311,77 @@ export const SessionPage = () => {
     return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-amber-500 animate-pulse font-black uppercase tracking-widest">Loading...</div>;
   }
 
-  const isCurrentTurn = viewedTurnIdx === history.length - 1;
   const displayTurn = history[viewedTurnIdx] ?? null;
-  const nextTurn = !isCurrentTurn ? history[viewedTurnIdx + 1] ?? null : null;
-  const takenAction = nextTurn?.lastAction ?? null;
-  const takenChar = nextTurn?.characterId ? session.party.find(c => c.id === nextTurn.characterId) ?? null : null;
   const activeChar = session.party.find(c => c.id === session.activeCharacterId) || null;
+  const isDown = activeChar?.status === 'downed';
+  const partyItemCount = session.party.reduce((s, c) => s + c.inventory.length, 0);
 
   return (
-    <div className="min-h-screen lg:h-screen flex flex-col lg:overflow-hidden bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-slate-100">
-      {headerCollapsed && (
-        <div className="fixed top-4 right-4 z-30 flex gap-2">
-          <button
-            onClick={() => setHeaderCollapsed(false)}
-            className="w-10 h-10 flex items-center justify-center bg-slate-900/90 border border-slate-700 rounded-xl text-slate-400 hover:text-white backdrop-blur-sm text-lg"
-            title="Show header"
-          >☰</button>
-          <Link
-            to="/"
-            onClick={() => audioManager.stopMusic()}
-            className="w-10 h-10 flex items-center justify-center bg-slate-900/90 border border-slate-700 rounded-xl text-slate-400 hover:text-white backdrop-blur-sm text-xs font-black"
-            title="Exit world"
-          >✕</Link>
-        </div>
-      )}
+    <div className="h-screen flex flex-col bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-slate-100 overflow-hidden">
+      <SessionHud
+        session={session}
+        onCharacterClick={setSelectedCharacter}
+        savingsMode={session.savingsMode}
+        onToggleSavingsMode={toggleSavingsMode}
+        audioSettings={settings}
+        onMuteToggle={() => {
+          setMasterMuted(!settings.masterMuted);
+          if (!settings.masterMuted) {
+            browserTtsService.stop();
+          }
+        }}
+      />
 
-      {!headerCollapsed && (
-        <header className="flex-shrink-0 flex flex-wrap justify-between items-center gap-y-3 px-4 md:px-8 pt-4 md:pt-6 pb-4 md:pb-5 border-b border-slate-800/60">
-          <div className="flex items-center gap-3 md:gap-6 flex-wrap">
-            <h1 className="text-amber-500 text-xl md:text-3xl font-display font-black italic tracking-tight">{session.displayName}</h1>
-            <PartyBox party={session.party} activeCharacterId={session.activeCharacterId} onCharacterClick={setSelectedCharacter} />
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={toggleSavingsMode}
-              title={session.savingsMode ? 'Savings mode on - no scene images' : 'Savings mode off - generating scene images'}
-              className={`px-3 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all cursor-pointer ${session.savingsMode ? 'border-amber-500 text-amber-400 bg-amber-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
-            >
-              {session.savingsMode ? '🪙 Saving' : '🖼 Images'}
-            </button>
-            {settings.musicEnabled && (
-              <div className="relative group">
-                <button
-                  onClick={() => {
-                    setMasterMuted(!settings.masterMuted);
-                    if (!settings.masterMuted) {
-                      browserTtsService.stop();
-                    }
-                  }}
-                  className={`px-3 py-2 rounded-xl border font-black text-sm transition-all cursor-pointer ${settings.masterMuted ? 'border-amber-500 bg-amber-500/10' : 'border-slate-700 hover:border-slate-500'}`}
-                >
-                  {settings.masterMuted ? '🔇' : '🔊'}
-                </button>
-                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                  {settings.masterMuted ? 'Unmute' : 'Mute'}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-700" />
-                </div>
-              </div>
-            )}
-            {settings.musicEnabled && (
-              <div className="relative group">
-                <button
-                  onClick={() => audioManager.skipTrack()}
-                  className="px-3 py-2 rounded-xl border border-slate-700 hover:border-slate-500 font-black text-sm transition-all cursor-pointer"
-                >
-                  ⏭
-                </button>
-                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                  Skip Track
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-700" />
-                </div>
-              </div>
-            )}
-            <Link
-              to="/"
-              onClick={() => {
-                audioManager.stopMusic();
-              }}
-              className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 uppercase font-black text-xs tracking-widest transition-all"
-            >Exit World</Link>
-            <button onClick={() => setHeaderCollapsed(true)} className="px-2 py-1 rounded-xl border border-slate-700 text-slate-400 hover:text-white text-xs font-black" title="Hide header">▲</button>
-          </div>
-        </header>
-      )}
-
-      <div className={`lg:flex-1 lg:min-h-0 grid gap-4 md:gap-6 px-4 md:px-8 py-4 md:py-5 ${!session.savingsMode ? 'lg:grid-cols-2' : ''}`}>
-        <div className="min-h-0">
-          <Narration
+      <div className="flex-1 flex flex-col lg:flex-row gap-4 px-4 pb-4 pt-3 min-h-0 overflow-y-auto lg:overflow-hidden">
+        {/* Top / Left: Story Stage */}
+        <div className="flex-shrink-0 h-[50vh] lg:h-auto lg:flex-1 lg:min-w-0 lg:min-h-0">
+          <StoryStage
             history={history}
-            party={session.party}
-            loading={loading}
-            onTurnClick={setViewedTurnIdx}
-            onFullscreenNarration={setFullscreenNarration}
             viewedTurnIdx={viewedTurnIdx}
+            imageLoading={imageLoading}
             ttsSettings={ttsSettings}
+            chronicleOpen={showChronicle}
+            onOpenChronicle={() => setShowChronicle(true)}
+            onFullscreenImage={setFullscreenImage}
+            onFullscreenNarration={setFullscreenNarration}
           />
         </div>
-        {!session.savingsMode && (
-          <div className="bg-slate-900 rounded-[50px] border border-slate-800 overflow-hidden min-h-0">
-            {displayTurn?.imageUrl ? (
-              <img src={imgSrc(displayTurn.imageUrl!)} className="w-full h-full object-cover animate-ken-burns cursor-pointer" onClick={() => setFullscreenImage(imgSrc(displayTurn.imageUrl!))} />
-            ) : (isCurrentTurn && imageLoading) ? (
-              <div className="flex flex-col items-center justify-center gap-3 text-slate-500 h-full">
-                <div className="w-10 h-10 border-4 border-slate-700 border-t-amber-500 rounded-full animate-spin" />
-                <span className="text-sm font-medium tracking-wide">Painting the scene...</span>
-              </div>
-            ) : (
-              <img src={imgSrc('/images/default_scene.png')} className="w-full h-full object-cover opacity-40" />
-            )}
-          </div>
-        )}
+
+        {/* Bottom / Right: Chronicle / Action area */}
+        <div className="flex-shrink-0 lg:w-[380px] xl:w-[420px] lg:min-h-0">
+          {showChronicle ? (
+            <ChronicleDrawer
+              history={history}
+              party={session.party}
+              onClose={() => setShowChronicle(false)}
+              onSelectTurn={setViewedTurnIdx}
+              viewedTurnIdx={viewedTurnIdx}
+              ttsSettings={ttsSettings}
+            />
+          ) : loading ? (
+            <DmDecisionRecapPanel lastSubmittedAction={lastSubmittedAction} />
+          ) : (
+            <ActionDock
+              turn={displayTurn}
+              loading={loading}
+              activeCharacter={activeChar}
+              isDown={isDown}
+              party={session.party}
+              sessionId={session.id}
+              customAction={customAction}
+              setCustomAction={setCustomAction}
+              error={actionError}
+              onSubmit={submitAction}
+              onUseItem={(ownerCharId, itemId, targetCharId) => submitAction('use item', 'none', 'easy', null, ownerCharId, itemId, targetCharId)}
+              onGiveItem={(ownerCharId, itemId, targetCharId) => submitAction('give item', 'none', 'easy', null, ownerCharId, itemId, targetCharId)}
+              onShowPartyGear={() => setShowFullInventory(true)}
+              partyItemCount={partyItemCount}
+            />
+          )}
+        </div>
       </div>
 
-      <div className="flex-shrink-0 border-t border-slate-800/60 overflow-y-auto max-h-[55vh]">
-        {isCurrentTurn
-          ? loading
-            ? (
-              <div className="relative h-[120px] overflow-hidden">
-                <img src={imgSrc('/images/dm_thinking.png')} className="absolute inset-0 w-full h-full object-cover opacity-30" />
-                <div className="absolute inset-0 flex items-center justify-center gap-3">
-                  <div className="w-5 h-5 border-2 border-slate-600 border-t-amber-500 rounded-full animate-spin" />
-                  <span className="text-3xl font-black uppercase tracking-widest text-amber-500/80 animate-pulse">The DM is weaving fate...</span>
-                </div>
-              </div>
-            )
-            : activeChar?.status === 'downed'
-              ? (
-                <div className="px-4 md:px-8 py-4">
-                  <div className="flex flex-col items-center gap-3 p-6 bg-slate-900/50 rounded-[40px] border border-slate-800 text-center">
-                    <div className="flex items-center gap-3">
-                      <img src={imgSrc(activeChar.avatarUrl)} className="w-12 h-12 rounded-full object-cover grayscale opacity-50 border-2 border-slate-700" />
-                      <div>
-                        <div className="font-black text-sm uppercase tracking-widest text-slate-400">{activeChar.name} is downed</div>
-                        <div className="text-[10px] text-slate-600 uppercase tracking-widest">0/{activeChar.max_hp} HP</div>
-                      </div>
-                    </div>
-                    <p className="text-slate-500 text-sm">
-                      {session.party.every(c => c.status === 'downed')
-                        ? 'The whole party is down... the adventure hangs by a thread.'
-                        : 'Another party member needs to use a healing item to revive them.'}
-                    </p>
-                  </div>
-                </div>
-              )
-              : (
-                <div className="px-4 md:px-8 py-4">
-                  <ActionControls
-                    turn={displayTurn}
-                    loading={loading}
-                    activeCharacter={activeChar}
-                    onSubmit={submitAction}
-                    customAction={customAction}
-                    setCustomAction={setCustomAction}
-                    error={actionError}
-                    disabled={loading}
-                    sessionId={session.id}
-                    party={session.party}
-                    activeCharacterId={session.activeCharacterId}
-                    onUseItem={(ownerCharId, itemId, targetCharId) => submitAction('use item', 'none', 'easy', null, ownerCharId, itemId, targetCharId)}
-                    onGiveItem={(ownerCharId, itemId, targetCharId) => submitAction('give item', 'none', 'easy', null, ownerCharId, itemId, targetCharId)}
-                    inventoryDisabled={loading}
-                    onShowPartyGear={() => setShowFullInventory(true)}
-                    partyItemCount={session.party.reduce((s, c) => s + c.inventory.length, 0)}
-                  />
-                </div>
-              )
-          : (
-            <div className="px-4 md:px-8 py-4">
-              <TurnHistoryCard
-                choices={displayTurn?.choices ?? []}
-                takenAction={takenAction}
-                character={takenChar}
-                turnType={displayTurn?.turnType}
-                narration={displayTurn?.narration}
-              />
-            </div>
-          )
-        }
-      </div>
-
-      {/* Popups */}
+      {/* Roll popup */}
       {lastRoll && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in"
@@ -493,6 +410,8 @@ export const SessionPage = () => {
           </div>
         </div>
       )}
+
+      {/* Full inventory modal */}
       {showFullInventory && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in p-4"
@@ -515,7 +434,11 @@ export const SessionPage = () => {
           </div>
         </div>
       )}
+
+      {/* Fullscreen image */}
       {fullscreenImage && <FullscreenImage url={fullscreenImage} onClose={() => setFullscreenImage(null)} />}
+
+      {/* Fullscreen narration */}
       {fullscreenNarration && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950 p-8 md:p-16 animate-in fade-in"
@@ -533,18 +456,22 @@ export const SessionPage = () => {
                 >
                   Replay
                 </button>
-                <button
-                  onClick={() => browserTtsService.stop()}
-                  className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-red-400 hover:border-red-500/40 text-xs font-black uppercase tracking-widest transition-all"
-                >
-                  Stop
-                </button>
+                {ttsPlaying && (
+                  <button
+                    onClick={() => browserTtsService.stop()}
+                    className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 text-xs font-black uppercase tracking-widest transition-all"
+                  >
+                    Stop
+                  </button>
+                )}
               </div>
             )}
             <span className="text-xs uppercase tracking-widest text-slate-600 mt-8 block">tap to dismiss</span>
           </div>
         </div>
       )}
+
+      {/* Intervention banner */}
       {interventionBanner && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-amber-950/90 p-8 animate-in fade-in">
           <div className="max-w-xl text-center space-y-4">
@@ -553,6 +480,8 @@ export const SessionPage = () => {
           </div>
         </div>
       )}
+
+      {/* Sanctuary banner */}
       {sanctuaryBanner && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 p-8 animate-in fade-in">
           <div className="max-w-xl text-center space-y-4">
@@ -562,14 +491,28 @@ export const SessionPage = () => {
           </div>
         </div>
       )}
-      {confirmDialog && <ConfirmDialog message={confirmDialog.message} onConfirm={() => {
-        confirmDialog.onConfirm();
-        setConfirmDialog(null);
-      }} onCancel={() => setConfirmDialog(null)} />}
-      {selectedCharacter && <CharacterPopup character={selectedCharacter} onClose={() => setSelectedCharacter(null)} onAvatarClick={(url) => {
-        setSelectedCharacter(null);
-        setFullscreenImage(url);
-      }} />}
+
+      {confirmDialog && (
+        <ConfirmDialog
+          message={confirmDialog.message}
+          onConfirm={() => {
+            confirmDialog.onConfirm();
+            setConfirmDialog(null);
+          }}
+          onCancel={() => setConfirmDialog(null)}
+        />
+      )}
+
+      {selectedCharacter && (
+        <CharacterPopup
+          character={selectedCharacter}
+          onClose={() => setSelectedCharacter(null)}
+          onAvatarClick={url => {
+            setSelectedCharacter(null);
+            setFullscreenImage(url);
+          }}
+        />
+      )}
     </div>
   );
 };

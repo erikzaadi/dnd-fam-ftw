@@ -1,0 +1,115 @@
+import type { Character } from '../../types';
+import { imgSrc } from '../../lib/api';
+import { beatTarget } from '../../lib/game';
+import { D20 } from './D20';
+
+interface LastSubmittedAction {
+  label: string;
+  stat: string;
+  char: Character | null;
+  difficulty: string;
+  difficultyValue?: number;
+}
+
+interface DmDecisionRecapPanelProps {
+  lastSubmittedAction: LastSubmittedAction | null;
+}
+
+const STAT_ICONS: Record<string, string> = {
+  might: '⚔️',
+  magic: '✨',
+  mischief: '🃏',
+};
+
+const STAT_COLORS: Record<string, string> = {
+  might: 'border-rose-500/60 bg-rose-950/30 text-rose-300',
+  magic: 'border-blue-500/60 bg-blue-950/30 text-blue-300',
+  mischief: 'border-purple-500/60 bg-purple-950/30 text-purple-300',
+  none: 'border-slate-600 bg-slate-900/50 text-slate-400',
+};
+
+export const DmDecisionRecapPanel = ({ lastSubmittedAction }: DmDecisionRecapPanelProps) => {
+  const char = lastSubmittedAction?.char ?? null;
+  const stat = lastSubmittedAction?.stat ?? 'none';
+
+  const statBase = char && stat !== 'none'
+    ? char.stats[stat as keyof typeof char.stats] ?? 0
+    : 0;
+  const statBonus = char && stat !== 'none'
+    ? char.inventory.reduce((s, item) => s + (item.statBonuses?.[stat as keyof typeof item.statBonuses] ?? 0), 0)
+    : 0;
+  const statTotal = statBase + statBonus;
+
+  const target = lastSubmittedAction
+    ? beatTarget(lastSubmittedAction.difficultyValue, lastSubmittedAction.difficulty)
+    : 0;
+  const minNeeded = Math.max(1, Math.min(20, target - statTotal));
+
+  return (
+    <div className="relative flex flex-col items-center justify-center h-full rounded-[32px] overflow-hidden animate-in fade-in zoom-in-95 duration-500">
+      {/* Background */}
+      <img
+        src={imgSrc('/images/dm_thinking.png')}
+        className="absolute inset-0 w-full h-full object-cover animate-ken-burns opacity-40"
+        alt=""
+      />
+      <div className="absolute inset-0 bg-slate-950/70" />
+
+      {/* Content */}
+      <div className="relative z-10 flex flex-col items-center gap-4 p-6 text-center">
+        {/* Golden D20: roll=14 success=true gives amber color */}
+        <D20 roll={14} success size={120} />
+
+        <div className="text-amber-500 font-black uppercase tracking-widest text-lg animate-pulse">
+          The DM is narrating...
+        </div>
+
+        {lastSubmittedAction && (
+          <div className="flex flex-col items-center gap-3 w-full max-w-xs">
+            {/* Actor */}
+            {char && (
+              <div className="flex items-center gap-2">
+                <img
+                  src={imgSrc(char.avatarUrl)}
+                  className="w-10 h-10 rounded-full object-cover border border-slate-600"
+                  alt={char.name}
+                />
+                <span className="text-sm font-black uppercase tracking-widest text-slate-400">
+                  {char.name}
+                </span>
+              </div>
+            )}
+
+            {/* Chosen action */}
+            <div className="px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-2xl w-full">
+              <p className="font-narrative italic text-slate-200 text-base leading-snug">
+                "{lastSubmittedAction.label}"
+              </p>
+            </div>
+
+            {/* Stat info: badge + base + bonus + min roll needed */}
+            {stat !== 'none' && char && (
+              <div className="flex flex-col items-center gap-2">
+                <span className={`px-3 py-1.5 rounded-full border text-xs font-black uppercase tracking-widest ${STAT_COLORS[stat] ?? STAT_COLORS.none}`}>
+                  {STAT_ICONS[stat]} {stat}
+                </span>
+                <div className="flex items-center gap-3 text-sm font-black">
+                  <span className="text-slate-300">
+                    {statBase}{statBonus !== 0 && (
+                      <span className={statBonus > 0 ? 'text-amber-400' : 'text-rose-400'}>
+                        {statBonus > 0 ? `+${statBonus}` : statBonus}
+                      </span>
+                    )}
+                    {' '}= {statTotal}
+                  </span>
+                  <span className="text-slate-600">·</span>
+                  <span className="text-slate-400">Need ≥ {minNeeded}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
