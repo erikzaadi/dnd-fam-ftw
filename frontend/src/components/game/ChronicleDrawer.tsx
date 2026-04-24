@@ -57,9 +57,6 @@ const TurnDetail = ({
 
   return (
     <div className={`flex flex-col gap-3 p-4 rounded-[24px] border bg-slate-900/50 ${special ? special.borderClass : 'border-slate-700/60'}`}>
-      {/* Narration */}
-      <p className="font-narrative italic text-slate-200 text-sm leading-relaxed">{turn.narration}</p>
-
       {/* Special turn header */}
       {special && (
         <div className="flex items-center gap-3">
@@ -68,28 +65,28 @@ const TurnDetail = ({
         </div>
       )}
 
-      {/* Actor + roll row */}
+      {/* Actor + roll - roll takes center stage when present */}
       {(takenChar || actor) && (
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             <img
               src={imgSrc((takenChar ?? actor)?.avatarUrl)}
-              className="w-8 h-8 rounded-full object-cover border border-slate-600 shrink-0"
+              className="w-10 h-10 rounded-full object-cover border border-slate-600 shrink-0"
               alt={(takenChar ?? actor)?.name}
             />
             <div className="min-w-0">
-              <div className="font-black text-xs uppercase tracking-wide text-slate-300 truncate">
+              <div className="font-black text-sm uppercase tracking-wide text-slate-200 truncate">
                 {(takenChar ?? actor)?.name}
               </div>
-              <div className="text-[9px] text-slate-500 uppercase tracking-wide truncate">
+              <div className="text-[10px] text-slate-500 uppercase tracking-wide truncate">
                 {(takenChar ?? actor)?.class}
               </div>
             </div>
           </div>
           {hasRoll && (
-            <div className="flex flex-col items-center gap-0.5 shrink-0">
-              <D20 roll={roll.roll} success={roll.success} size={44} />
-              <span className={`text-[8px] font-black uppercase tracking-widest ${roll.success ? 'text-amber-500' : 'text-rose-400'}`}>
+            <div className="flex flex-col items-center gap-1 shrink-0">
+              <D20 roll={roll.roll} success={roll.success} size={64} />
+              <span className={`text-[10px] font-black uppercase tracking-widest ${roll.success ? 'text-amber-500' : 'text-rose-400'}`}>
                 {roll.success ? 'success' : 'fail'}
               </span>
               <RollBreakdown
@@ -98,16 +95,16 @@ const TurnDetail = ({
                 itemBonus={roll.itemBonus}
                 success={roll.success}
                 difficultyTarget={roll.difficultyTarget}
-                className="text-[8px]"
+                className="text-xs"
               />
             </div>
           )}
           {!hasRoll && takenAction && (
             <div className="flex flex-col items-center gap-1 shrink-0">
-              <div className="w-8 h-8 rounded-full border-2 border-slate-700 flex items-center justify-center">
-                <span className="text-slate-500 text-xs">✓</span>
+              <div className="w-12 h-12 rounded-full border-2 border-slate-700 flex items-center justify-center">
+                <span className="text-slate-400 text-lg">✓</span>
               </div>
-              <span className="text-[8px] uppercase tracking-widest text-slate-600">no roll</span>
+              <span className="text-[9px] uppercase tracking-widest text-slate-600">no roll</span>
             </div>
           )}
         </div>

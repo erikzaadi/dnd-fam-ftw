@@ -28,7 +28,15 @@
   100% { transform: scale(1.09) translate(-1%, 1.5%); }
 }
 
+.story-card-container {
+  /* size (not inline-size) enables both cqw and cqh units on children */
+  container-type: size;
+}
+
 .main-story-text {
-	// font-size: 2cqw;
-	font-size: clamp(1.2em, 2cqw, 2cqw);
+  /* min() picks the tighter constraint - width or height - so text fills
+     the card without overflowing either axis. clamp() keeps it sane on
+     extreme sizes (very small screen / very large monitor). */
+  font-size: clamp(1rem, min(5.6cqw, 7.5cqh), 4rem);
+  line-height: 1.55;
 }

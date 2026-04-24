@@ -17,19 +17,28 @@ export const AudioUnlockOverlay = () => {
     return null;
   }
 
+  const handleUnlock = () => {
+    // Hide first (synchronous) so Safari registers the gesture immediately.
+    // unlock() runs in the background - no await to avoid async gesture issues on iOS.
+    setShow(false);
+    audioManager.unlock();
+  };
+
   return (
-    <div 
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in"
-      onClick={async () => {
-        await audioManager.unlock();
-        setShow(false);
-      }}
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in cursor-pointer"
+      onClick={handleUnlock}
     >
       <div className="bg-slate-900 border-2 border-amber-500/50 p-8 rounded-3xl max-w-sm text-center space-y-4">
         <div className="text-4xl">🔊</div>
         <h2 className="text-xl font-black uppercase tracking-widest text-white">Audio Locked</h2>
         <p className="text-slate-400 text-sm">Tap anywhere to enable game sound and music.</p>
-        <button className="px-6 py-3 bg-amber-600 rounded-xl font-black text-white w-full">Enable Audio</button>
+        <button
+          onClick={handleUnlock}
+          className="px-6 py-3 bg-amber-600 rounded-xl font-black text-white w-full"
+        >
+          Enable Audio
+        </button>
       </div>
     </div>
   );

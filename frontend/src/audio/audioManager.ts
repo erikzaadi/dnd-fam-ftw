@@ -40,23 +40,29 @@ export class AudioManager {
     document.addEventListener('touchstart', handler, { once: true });
   }
 
-  public async unlock() {
+  public unlock() {
     if (this.unlocked) {
       return;
     }
-    
+    // Mark unlocked optimistically - Safari requires the gesture context to stay
+    // synchronous; awaiting a promise can lose the user-gesture association.
+    this.unlocked = true;
+
     const silent = new Audio();
     silent.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
-    try {
-      await silent.play();
-      this.unlocked = true;
+    silent.play().then(() => {
       if (this.pendingPlayback && this.settings.musicEnabled) {
         this.pendingPlayback = false;
-        await this.startAmbientMusic();
+        this.startAmbientMusic();
       }
-    } catch (e) {
-      console.warn('[AudioManager] Unlock failed', e);
-    }
+    }).catch(e => {
+      console.warn('[AudioManager] Silent play failed (audio may still work)', e);
+      // Keep unlocked=true - music will attempt to play on next user action anyway.
+      if (this.pendingPlayback && this.settings.musicEnabled) {
+        this.pendingPlayback = false;
+        this.startAmbientMusic();
+      }
+    });
   }
 
   public updateSettings(settings: AudioSettings) {
