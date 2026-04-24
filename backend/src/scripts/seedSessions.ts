@@ -85,9 +85,9 @@ seedChar(S1, 'seed-s1-c2', 'Zara the Nimble', 'Rogue', 'Halfling', 'Compulsively
 seedChar(S1, 'seed-s1-c3', 'Eldwin Spark', 'Mage', 'Elf', 'Speaks only in riddles when nervous', 1, 5, 1, 5, 10);
 seedChar(S1, 'seed-s1-c4', 'Mira the Bold', 'Cleric', 'Human', 'Blesses everything she touches', 2, 4, 1, 8, 10);
 
-seedItem('seed-s1-c4', 'Healing Potion', 'Restores 4 HP to the target', 4, null, 1, 1);
-seedItem('seed-s1-c3', 'Arcane Focus', 'Boosts spell power', null, JSON.stringify({ magic: 2 }), 0, 0);
-seedItem('seed-s1-c1', 'Battle Axe +1', 'A well-balanced axe', null, JSON.stringify({ might: 1 }), 0, 0);
+seedItem('seed-s1-c4', '🧪 Healing Potion', 'Restores 4 HP to the target', 4, null, 1, 1);
+seedItem('seed-s1-c3', '🔮 Arcane Focus', 'Boosts spell power', null, JSON.stringify({ magic: 2 }), 0, 0);
+seedItem('seed-s1-c1', '🪓 Battle Axe +1', 'A well-balanced axe', null, JSON.stringify({ might: 1 }), 0, 0);
 
 seedTurn(S1, null, 'Your party descends into the damp, torchlit tunnels of the goblin warrens. Goblin sentries chitter in the shadows ahead. The smell of old bones and stolen treasure hangs in the air.', CHOICES_COMBAT, null, null, null, null, null);
 seedTurn(S1, 'seed-s1-c1', 'Barnabas charges the nearest sentry with a bellowing warcry. His axe connects solidly and the goblin goes flying. Two more leap from the shadows!', CHOICES_COMBAT, 'Strike with your weapon', 'might', 1, 14, 5, 'normal', null, 12);
@@ -110,8 +110,8 @@ seedChar(S2, 'seed-s2-c2', 'Solara Brightblade', 'Paladin', 'Half-Elf', 'Sings b
 seedChar(S2, 'seed-s2-c3', 'Grimble', 'Wizard', 'Gnome', 'Cannot stop inventing gadgets at the worst moments', 1, 5, 1, 6, 10);
 seedChar(S2, 'seed-s2-c4', 'The Unnamed One', 'Barbarian', 'Half-Orc', 'Claims to have no name but answers to anything', 5, 1, 1, 9, 10);
 
-seedItem('seed-s2-c2', 'Holy Water Flask', 'Deals 5 extra damage to corrupted foes', 5, null, 1, 1);
-seedItem('seed-s2-c3', 'Experimental Smoke Bomb', 'Creates obscuring smoke', null, JSON.stringify({ mischief: 2 }), 1, 1);
+seedItem('seed-s2-c2', '💧 Holy Water Flask', 'Deals 5 extra damage to corrupted foes', 5, null, 1, 1);
+seedItem('seed-s2-c3', '💨 Experimental Smoke Bomb', 'Creates obscuring smoke', null, JSON.stringify({ mischief: 2 }), 1, 1);
 
 seedTurn(S2, null, 'The summit of Dragon Peak looms above the clouds. The stolen egg pulses with amber light somewhere above. Cultists in obsidian armor guard the narrow path ahead.', CHOICES_COMBAT, null, null, null, null, null);
 seedTurn(S2, 'seed-s2-c4', 'The Unnamed One launches into a fury, hurling cultists off the path like ragdolls. The mountain shakes with each strike. "NAME ME AFTER THIS BATTLE!" they roar.', CHOICES_COMBAT, 'Strike with your weapon', 'might', 1, 18, 5, 'normal', null, 12);
@@ -148,8 +148,8 @@ seedChar(S3, 'seed-s3-c2', 'Thalia Stone', 'Ranger', 'Human', 'Has a pet crow na
 seedChar(S3, 'seed-s3-c3', 'Brother Oswin', 'Cleric', 'Human', 'Apologizes to every creature before attacking it', 2, 4, 1, 9, 10);
 seedChar(S3, 'seed-s3-c4', 'Mirela Voss', 'Sorcerer', 'Tiefling', 'Sparks fly from her hair when she lies', 1, 5, 1, 7, 10);
 
-seedItem('seed-s3-c3', 'Healing Salve', 'Restores 3 HP when applied', 3, null, 1, 1);
-seedItem('seed-s3-c1', 'Lute of Distraction', 'Creates minor illusions', null, JSON.stringify({ mischief: 1 }), 0, 0);
+seedItem('seed-s3-c3', '🩹 Healing Salve', 'Restores 3 HP when applied', 3, null, 1, 1);
+seedItem('seed-s3-c1', '🎸 Lute of Distraction', 'Creates minor illusions', null, JSON.stringify({ mischief: 1 }), 0, 0);
 
 seedTurn(S3, null, 'The Whispering Market is alive with haggling merchants and suspicious glances. You have a tip that the missing shipment passed through here three days ago. The merchant\'s contact - a nervous man named Fil - is supposed to meet you at the spice stall.', CHOICES_SOCIAL, null, null, null, null, null);
 seedTurn(S3, 'seed-s3-c1', 'Pipwick plays a cheerful tune near the spice stall and Fil visibly relaxes. He whispers that the chest was taken by someone in a red cloak - and he saw the same person at the dockside warehouse.', CHOICES_EXPLORE, 'Persuade them', 'mischief', 1, 15, 4, 'normal', null, 11);
@@ -158,12 +158,35 @@ seedTurn(S3, 'seed-s3-c3', 'Brother Oswin examines the cloth and senses a dark e
 seedTurn(S3, 'seed-s3-c4', 'Mirela attempts to unlock the warehouse side door with a spell but a hidden glyph triggers an alarm. Sparks fly from her hair - she was NOT lying about the door being unlocked. Guards converge.', CHOICES_COMBAT, 'Cast a spell', 'magic', 0, 7, 5, 'normal', null, 11);
 seedTurn(S3, 'seed-s3-c2', 'Thalia notches an arrow and shoots out the lantern above the guards, plunging the alley into darkness. The party has seconds to decide - fight, flee, or find another way in.', CHOICES_COMBAT, 'Search the area carefully', 'mischief', 1, 16, 3, 'normal', null, 8, '🎲 Sharp eyes in the dark. The arrow flies true.');
 
+// ── Session 4: ZUG-MA-GEDDON - Endless Arena ─────────────────────────────────
+
+const S4 = 'seed-session-4';
+deleteSession(S4);
+db.prepare(`INSERT INTO sessions (id, scene, sceneId, displayName, turn, activeCharacterId, tone, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, storySummary)
+  VALUES (?, 'The Bloodpit Arena', 'arena-1', 'ZUG-MA-GEDDON: The Endless Arena', 5, 'seed-s4-c2', 'pure chaos and carnage', 'hard', 'zug-ma-geddon', 0, 0, 0, ?)`)
+  .run(S4, 'You were thrown into the Bloodpit Arena by persons unknown. There is no escape. There is only combat. The crowd chants ZUG. ZUG. ZUG.');
+
+seedChar(S4, 'seed-s4-c1', 'Krag Bonecrusher', 'Barbarian', 'Half-Orc', 'Cannot whisper - only screams', 6, 1, 1, 4, 12);
+seedChar(S4, 'seed-s4-c2', 'Spark', 'Sorcerer', 'Tiefling', 'Accidentally sets things on fire when excited', 1, 6, 1, 5, 8);
+seedChar(S4, 'seed-s4-c3', 'Dagmar Ironfist', 'Fighter', 'Dwarf', 'Headbutts doors instead of opening them', 5, 1, 2, 6, 10);
+
+seedItem('seed-s4-c1', '🍖 Mystery Meat', 'Restores 3 HP (best not to ask what it is)', 3, null, 1, 1);
+seedItem('seed-s4-c2', '⚡ Crackling Orb', 'Supercharges the next spell', null, JSON.stringify({ magic: 3 }), 0, 0);
+
+seedTurn(S4, null, 'THE GATES CRASH OPEN. An armored troll the size of a house charges your position bellowing "ZUG ZUG ZUG". The crowd roars. Blood has not yet been spilled. This is about to change.', CHOICES_COMBAT, null, null, null, null, null);
+seedTurn(S4, 'seed-s4-c1', 'Krag SCREAMS and charges headfirst into the troll. The collision shakes the arena floor. The troll stumbles. Krag is bleeding. The crowd loses their minds.', CHOICES_COMBAT, 'Strike with your weapon', 'might', 1, 18, 6, 'normal', null, 14);
+seedTurn(S4, 'seed-s4-c2', 'Spark\'s hair ignites with excitement as three bolts of lightning explode from her fingertips. The troll is scorched black and FURIOUS. It swipes Spark off her feet for 3 damage.', CHOICES_COMBAT, 'Cast a spell', 'magic', 0, 5, 6, 'normal', null, 14);
+seedTurn(S4, 'seed-s4-c3', 'Dagmar headbutts the troll\'s kneecap - cracks it. The troll falls to one knee. The entire arena is on its feet screaming. A second gate is already opening.', CHOICES_COMBAT, 'Strike with your weapon', 'might', 1, 15, 5, 'normal', null, 12);
+seedTurn(S4, 'seed-s4-c1', 'The troll collapses. Gate two opens. An ogre with a giant net and a grin enters. Behind it: three more goblins riding armored wolves. The DM cackles.', CHOICES_COMBAT, 'Dodge and find an opening', 'mischief', 1, 19, 6, 'normal', null, 15, '🎲 Pure instinct. The crowd chants your name.');
+
 // Update session active characters
 db.prepare('UPDATE sessions SET activeCharacterId = ? WHERE id = ?').run('seed-s1-c2', S1);
 db.prepare('UPDATE sessions SET activeCharacterId = ? WHERE id = ?').run('seed-s2-c1', S2);
 db.prepare('UPDATE sessions SET activeCharacterId = ? WHERE id = ?').run('seed-s3-c2', S3);
+db.prepare('UPDATE sessions SET activeCharacterId = ? WHERE id = ?').run('seed-s4-c2', S4);
 
 console.log('Seed complete:');
 console.log(`  Session 1 (${S1}): The Goblin King's Lair - 4 chars, 7 turns`);
 console.log(`  Session 2 (${S2}): Dragon's Peak - 4 chars, 10 turns (intervention + sanctuary)`);
 console.log(`  Session 3 (${S3}): The Merchant's Mystery - 4 chars, 6 turns`);
+console.log(`  Session 4 (${S4}): ZUG-MA-GEDDON - The Endless Arena - 3 chars, 5 turns`);

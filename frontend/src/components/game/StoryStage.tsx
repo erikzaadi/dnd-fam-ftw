@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
 import type { TurnResult } from '../../types';
 import { imgSrc } from '../../lib/api';
-import { browserTtsService } from '../../tts/browserTtsService';
 import type { TtsSettings } from '../../tts/ttsTypes';
+import { TtsButton } from '../TtsButton';
 
 interface StoryStageProps {
   history: TurnResult[];
@@ -25,26 +24,6 @@ export const StoryStage = ({
   onFullscreenImage,
   onFullscreenNarration,
 }: StoryStageProps) => {
-  const [ttsPlaying, setTtsPlaying] = useState(false);
-  const ttsActive = ttsSettings.enabled && browserTtsService.isSupported();
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    if (!ttsActive) {
-      return;
-    }
-    intervalRef.current = setInterval(() => {
-      setTtsPlaying(prev => {
-        const speaking = browserTtsService.isSpeaking();
-        return prev === speaking ? prev : speaking;
-      });
-    }, 200);
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [ttsActive]);
 
   const displayTurn = history[viewedTurnIdx] ?? null;
   const previousTurn = viewedTurnIdx > 0 ? history[viewedTurnIdx - 1] : null;
@@ -115,26 +94,9 @@ export const StoryStage = ({
             <p className="font-narrative text-slate-100 italic text-center main-story-text">
               {narration}
             </p>
-            {ttsActive && (
-              <div className="flex items-center justify-center gap-4 mt-6" onClick={e => e.stopPropagation()}>
-                {!ttsPlaying && (
-                  <button
-                    onClick={() => browserTtsService.speakNarration(narration, ttsSettings)}
-                    className="text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-amber-400 transition-colors"
-                  >
-                    replay
-                  </button>
-                )}
-                {ttsPlaying && (
-                  <button
-                    onClick={() => browserTtsService.stop()}
-                    className="text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-rose-400 transition-colors"
-                  >
-                    stop
-                  </button>
-                )}
-              </div>
-            )}
+            <div className="mt-6" onClick={e => e.stopPropagation()}>
+              <TtsButton text={narration} ttsSettings={ttsSettings} className="justify-center" />
+            </div>
           </div>
         ) : null}
       </div>
@@ -153,8 +115,9 @@ export const StoryStage = ({
         )}
         <button
           onClick={onOpenChronicle}
-          className="text-[10px] font-black uppercase tracking-widest text-amber-600 hover:text-amber-400 transition-colors shrink-0 whitespace-nowrap"
+          className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-amber-600 hover:text-amber-400 transition-colors shrink-0 whitespace-nowrap"
         >
+          <img src={imgSrc('/images/icon_scroll.png')} alt="" className="w-4 h-4 object-contain mix-blend-screen" />
           Open Chronicle →
         </button>
       </div>

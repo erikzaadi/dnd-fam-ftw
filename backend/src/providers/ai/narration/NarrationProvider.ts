@@ -38,7 +38,7 @@ export type NarrationInput = {
   };
   recentHistory: string[];
   tone: string;
-  gameMode?: 'cinematic' | 'balanced' | 'fast';
+  gameMode?: 'cinematic' | 'balanced' | 'fast' | 'zug-ma-geddon';
   isFirstTurn?: boolean;
   interventionRescue?: boolean;
   sanctuaryRecovery?: boolean;

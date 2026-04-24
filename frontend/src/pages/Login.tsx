@@ -1,5 +1,7 @@
 import { useSearchParams } from 'react-router-dom';
-import { imgSrc, apiUrl } from '../lib/api';
+import { apiUrl } from '../lib/api';
+import { SiteHeader } from '../components/SiteHeader';
+import { DmFooter } from '../components/DmFooter';
 
 export const Login = () => {
   const [searchParams] = useSearchParams();
@@ -11,25 +13,10 @@ export const Login = () => {
 
   return (
     <div className="h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col overflow-hidden">
-      {/* Banner */}
-      <div className="flex-shrink-0">
-        <div className="relative mt-4 mx-4 md:mx-6 h-52 md:h-64 rounded-[24px] overflow-hidden border border-slate-800/60 shadow-2xl">
-          <img
-            src={imgSrc('/images/home_banner.png')}
-            className="w-full h-full object-cover animate-ken-burns"
-            alt=""
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent" />
-          <div className="absolute bottom-0 left-0 right-0 flex items-end justify-center pb-6 pointer-events-none">
-            <div className="font-display font-black text-amber-400 italic tracking-tighter text-5xl md:text-7xl drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]">
-              🐉 AI DM
-            </div>
-          </div>
-        </div>
-      </div>
+      <SiteHeader />
 
       {/* Login card */}
-      <div className="flex-1 flex items-center justify-center px-4">
+      <div className="flex-1 flex items-center justify-center px-4 relative z-[10]">
         <div className="bg-slate-900/80 border-2 border-slate-800 rounded-[32px] p-8 max-w-sm w-full space-y-6 text-center">
           <div>
             <h2 className="text-2xl font-display font-black text-amber-400 italic tracking-tighter">Welcome, Adventurer</h2>
@@ -58,6 +45,7 @@ export const Login = () => {
           <p className="text-slate-600 text-xs">This is a private server. Access is by invite only.</p>
         </div>
       </div>
+      <DmFooter />
     </div>
   );
 };

@@ -12,7 +12,7 @@ export class SfxPlayer {
   }
 
   public play(path: string) {
-    if (!this.settings.sfxEnabled || this.settings.masterMuted) {
+    if (!this.settings.enabled || !this.settings.sfxEnabled || this.settings.masterMuted) {
       return;
     }
     const audio = new Audio(path);
@@ -29,7 +29,7 @@ export class SfxPlayer {
   }
 
   public playRandomTracked(options: readonly string[]): HTMLAudioElement | null {
-    if (options.length === 0 || !this.settings.sfxEnabled || this.settings.masterMuted) {
+    if (options.length === 0 || !this.settings.enabled || !this.settings.sfxEnabled || this.settings.masterMuted) {
       return null;
     }
     const path = options[Math.floor(Math.random() * options.length)];

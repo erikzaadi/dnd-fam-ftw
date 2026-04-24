@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { Character } from '../types';
 import { imgSrc } from '../lib/api';
+import { StatImg } from './game/StatIcon';
 
 interface CharacterPopupProps {
   character: Character;
@@ -77,7 +78,10 @@ export const CharacterPopup = ({ character, onClose, onAvatarClick }: CharacterP
             const barPct = Math.min(100, (total / 10) * 100);
             return (
               <div key={key} className={`p-3 rounded-2xl ${track}/40 border border-slate-800`}>
-                <div className={`text-[10px] font-black uppercase tracking-widest ${color} mb-1`}>{label}</div>
+                <div className="flex items-center gap-1 mb-1">
+                  <StatImg stat={key} size="8" />
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${color}`}>{label}</span>
+                </div>
                 <div className="flex items-baseline gap-1">
                   <span className="text-2xl font-black text-white">{total}</span>
                   {bonus > 0 && (

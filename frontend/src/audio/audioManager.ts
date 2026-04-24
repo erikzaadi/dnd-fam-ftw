@@ -69,14 +69,21 @@ export class AudioManager {
     this.settings = settings;
     this.sfxPlayer.updateSettings(settings);
 
+    // Hierarchy: enabled > masterMuted > musicEnabled > volume
+    if (!settings.enabled) {
+      musicPlayer.stop();
+      return;
+    }
+
     musicPlayer.setVolume(settings.musicVolume);
     musicPlayer.setMuted(settings.masterMuted);
-    
-    if (this.settings.musicEnabled) {
-      this.startAmbientMusic();
-    } else {
+
+    if (!settings.musicEnabled) {
       musicPlayer.stop();
+    } else if (!settings.masterMuted) {
+      this.startAmbientMusic();
     }
+    // masterMuted=true: setMuted(true) already silenced it, leave it running
   }
 
   private lastTension: 'low' | 'medium' | 'high' | null = null;
@@ -98,7 +105,7 @@ export class AudioManager {
   }
 
   public async startAmbientMusic() {
-    if (!this.settings.musicEnabled) {
+    if (!this.settings.enabled || !this.settings.musicEnabled || this.settings.masterMuted) {
       return;
     }
     if (!this.unlocked) {
@@ -109,7 +116,7 @@ export class AudioManager {
   }
 
   public async startDangerMusic() {
-    if (!this.settings?.musicEnabled || !this.unlocked) {
+    if (!this.settings?.enabled || !this.settings?.musicEnabled || this.settings.masterMuted || !this.unlocked) {
       return;
     }
     await musicPlayer.start('danger');
@@ -138,7 +145,7 @@ export class AudioManager {
   }
 
   public startNarrating() {
-    if (!this.settings?.sfxEnabled || this.settings.masterMuted) {
+    if (!this.settings?.enabled || !this.settings?.sfxEnabled || this.settings.masterMuted) {
       return;
     }
     musicPlayer.setVolume(this.settings.musicVolume * 0.5);

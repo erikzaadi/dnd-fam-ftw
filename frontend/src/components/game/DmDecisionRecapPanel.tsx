@@ -2,6 +2,9 @@ import type { Character } from '../../types';
 import { imgSrc } from '../../lib/api';
 import { beatTarget } from '../../lib/game';
 import { D20 } from './D20';
+import { StatImg } from './StatIcon';
+import { TtsButton } from '../TtsButton';
+import type { TtsSettings } from '../../tts/ttsTypes';
 
 interface LastSubmittedAction {
   label: string;
@@ -13,13 +16,8 @@ interface LastSubmittedAction {
 
 interface DmDecisionRecapPanelProps {
   lastSubmittedAction: LastSubmittedAction | null;
+  ttsSettings: TtsSettings;
 }
-
-const STAT_ICONS: Record<string, string> = {
-  might: '⚔️',
-  magic: '✨',
-  mischief: '🃏',
-};
 
 const STAT_COLORS: Record<string, string> = {
   might: 'border-rose-500/60 bg-rose-950/30 text-rose-300',
@@ -28,7 +26,7 @@ const STAT_COLORS: Record<string, string> = {
   none: 'border-slate-600 bg-slate-900/50 text-slate-400',
 };
 
-export const DmDecisionRecapPanel = ({ lastSubmittedAction }: DmDecisionRecapPanelProps) => {
+export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings }: DmDecisionRecapPanelProps) => {
   const char = lastSubmittedAction?.char ?? null;
   const stat = lastSubmittedAction?.stat ?? 'none';
 
@@ -85,13 +83,15 @@ export const DmDecisionRecapPanel = ({ lastSubmittedAction }: DmDecisionRecapPan
               <p className="font-narrative italic text-slate-200 text-base leading-snug">
                 "{lastSubmittedAction.label}"
               </p>
+              <TtsButton text={lastSubmittedAction.label} ttsSettings={ttsSettings} className="justify-center mt-2" />
             </div>
 
             {/* Stat info: badge + base + bonus + min roll needed */}
             {stat !== 'none' && char && (
               <div className="flex flex-col items-center gap-2">
-                <span className={`px-3 py-1.5 rounded-full border text-xs font-black uppercase tracking-widest ${STAT_COLORS[stat] ?? STAT_COLORS.none}`}>
-                  {STAT_ICONS[stat]} {stat}
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-black uppercase tracking-widest ${STAT_COLORS[stat] ?? STAT_COLORS.none}`}>
+                  <StatImg stat={stat} size="6" />
+                  {stat}
                 </span>
                 <div className="flex items-center gap-3 text-sm font-black">
                   <span className="text-slate-300">

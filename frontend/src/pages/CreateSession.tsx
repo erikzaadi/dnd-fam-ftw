@@ -4,16 +4,29 @@ import { DmFooter } from '../components/DmFooter';
 import { SiteHeader } from '../components/SiteHeader';
 import { apiFetch } from '../lib/api';
 
+const DIFFICULTY_INFO: Record<string, { color: string; desc: string }> = {
+  easy: { color: 'text-emerald-400', desc: 'Rolls target ~8. Fail = -1 HP. Good for younger players or a chill adventure.' },
+  normal: { color: 'text-amber-400', desc: 'Rolls target ~12. Fail = -2 HP. The intended experience.' },
+  hard: { color: 'text-rose-400', desc: 'Rolls target ~16. Fail = -3 HP. Punishing. Heroes earn every victory.' },
+};
+
+const PACING_INFO: Record<string, string> = {
+  cinematic: 'Rich story, world-building, and character moments. Combat is rare and meaningful. Best for long sessions.',
+  balanced: 'A mix of story and action. Expect a challenge every 4-5 turns. The default experience.',
+  fast: 'High stakes from the start. A fight or challenge appears every 2 turns. Little breathing room.',
+  'zug-ma-geddon': 'STRAIGHT TO BATTLE. Every turn is chaos. High tension, always. Not for the faint of heart.',
+};
+
 export const CreateSession = () => {
   const [worldDescription, setWorldDescription] = useState("");
   const [difficulty, setDifficulty] = useState("normal");
-  const [gameMode, setGameMode] = useState<'cinematic' | 'balanced' | 'fast'>("balanced");
+  const [gameMode, setGameMode] = useState<'cinematic' | 'balanced' | 'fast' | 'zug-ma-geddon'>("balanced");
   const [useLocalAI, setUseLocalAI] = useState(() => {
     const stored = localStorage.getItem('useLocalAI');
     if (stored !== null) {
       return stored === 'true';
     }
-    return false; // backend default applied on load below
+    return false;
   });
   const [showWorldDescription, setShowWorldDescription] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -65,30 +78,45 @@ export const CreateSession = () => {
       <div className="flex-1 overflow-y-auto px-4 md:px-6 py-6 min-h-0">
         <div className="bg-slate-900/80 backdrop-blur-sm p-8 md:p-12 rounded-[60px] border-2 border-slate-800 shadow-2xl max-w-2xl w-full mx-auto text-center space-y-8 relative z-[10]">
           <h3 className="text-4xl font-display font-black uppercase tracking-tighter text-amber-500 italic">New Journey</h3>
-          <div className="flex gap-2 justify-center">
-            {['easy', 'normal', 'hard'].map(d => (
-              <button key={d} onClick={() => setDifficulty(d)} className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${difficulty === d ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-500'}`}>{d}</button>
-            ))}
-          </div>
-          <div className="flex flex-col gap-2 items-center">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-1">Game Pacing</span>
+
+          {/* Difficulty */}
+          <div className="flex flex-col gap-3">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Difficulty</span>
             <div className="flex gap-2 justify-center">
+              {(['easy', 'normal', 'hard'] as const).map(d => (
+                <button key={d} onClick={() => setDifficulty(d)} className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${difficulty === d ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-500'}`}>{d}</button>
+              ))}
+            </div>
+            <div className={`text-xs px-4 py-2.5 bg-black/30 rounded-2xl border border-slate-800 text-left ${DIFFICULTY_INFO[difficulty].color}`}>
+              {DIFFICULTY_INFO[difficulty].desc}
+            </div>
+          </div>
+
+          {/* Game Pacing */}
+          <div className="flex flex-col gap-3">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Game Pacing</span>
+            <div className="flex flex-wrap gap-2 justify-center">
               {[
                 { id: 'cinematic', icon: '🎬', label: 'Cinematic' },
                 { id: 'balanced', icon: '⚖️', label: 'Balanced' },
-                { id: 'fast', icon: '⚡', label: 'Fast' }
+                { id: 'fast', icon: '⚡', label: 'Fast' },
+                { id: 'zug-ma-geddon', icon: '💀', label: 'ZUG-MA-GEDDON' },
               ].map(m => (
-                <button 
-                  key={m.id} 
-                  onClick={() => setGameMode(m.id as 'cinematic' | 'balanced' | 'fast')} 
-                  className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${gameMode === m.id ? 'bg-amber-600/10 border-amber-600 text-amber-500' : 'bg-slate-800/50 border-slate-700 text-slate-500'}`}
-                  title={m.id === 'fast' ? 'Under 3 sentences, high action' : m.id === 'cinematic' ? 'Rich descriptions, slower' : 'Moderate pacing'}
+                <button
+                  key={m.id}
+                  onClick={() => setGameMode(m.id as 'cinematic' | 'balanced' | 'fast' | 'zug-ma-geddon')}
+                  className={`flex flex-col items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${gameMode === m.id ? (m.id === 'zug-ma-geddon' ? 'bg-rose-900/20 border-rose-500 text-rose-400' : 'bg-amber-600/10 border-amber-600 text-amber-500') : 'bg-slate-800/50 border-slate-700 text-slate-500'}`}
                 >
-                  <span className="mr-1">{m.icon}</span> {m.label}
+                  <span className="text-base mb-0.5">{m.icon}</span>
+                  <span>{m.label}</span>
                 </button>
               ))}
             </div>
+            <div className={`text-xs px-4 py-2.5 rounded-2xl border text-left ${gameMode === 'zug-ma-geddon' ? 'bg-rose-950/20 border-rose-800/40 text-rose-300' : 'bg-black/30 border-slate-800 text-slate-400'}`}>
+              {PACING_INFO[gameMode]}
+            </div>
           </div>
+
           {hasLocalAI && (
             <div className="flex justify-center">
               <button
@@ -100,8 +128,8 @@ export const CreateSession = () => {
             </div>
           )}
           {showWorldDescription ? (
-            <textarea 
-              placeholder="Describe the world..." 
+            <textarea
+              placeholder="Describe the world..."
               value={worldDescription}
               onChange={e => setWorldDescription(e.target.value)}
               className="w-full p-6 bg-black/40 rounded-[32px] border-2 border-slate-800 text-lg focus:border-amber-500/50 outline-none resize-none h-40"

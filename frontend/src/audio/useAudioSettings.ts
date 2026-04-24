@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { AudioSettings } from './audioTypes';
 import { audioManager } from './audioManager';
+import { browserTtsService } from '../tts/browserTtsService';
 
 const STORAGE_KEY = 'dnd-audio-settings';
 
@@ -35,17 +36,28 @@ export function useAudioSettings() {
     setSettings(prev => ({ ...prev, [key]: value }));
   }, []);
 
+  const setEnabled = useCallback((value: boolean) => {
+    updateSetting('enabled', value);
+    audioManager.updateSettings({ ...settings, enabled: value });
+    if (!value) {
+      browserTtsService.stop();
+    }
+  }, [updateSetting, settings]);
+
+  const setMasterMuted = useCallback((value: boolean) => {
+    updateSetting('masterMuted', value);
+    audioManager.updateSettings({ ...settings, masterMuted: value });
+    if (value) {
+      browserTtsService.stop();
+    }
+  }, [updateSetting, settings]);
+
   const setMusicEnabled = useCallback((value: boolean) => {
     updateSetting('musicEnabled', value);
     if (value && !audioManager.isUnlocked) {
       audioManager.unlock();
     }
-  }, [updateSetting]);
-
-  const setMasterMuted = useCallback((value: boolean) => {
-    updateSetting('masterMuted', value);
-    // Directly notify the manager
-    audioManager.updateSettings({ ...settings, masterMuted: value });
+    audioManager.updateSettings({ ...settings, musicEnabled: value });
   }, [updateSetting, settings]);
 
   const setMusicVolume = useCallback((value: number) => {
@@ -53,19 +65,29 @@ export function useAudioSettings() {
     audioManager.updateSettings({ ...settings, musicVolume: value });
   }, [updateSetting, settings]);
 
-  const setEnabled = useCallback((value: boolean) => {
-    updateSetting('enabled', value);
-    audioManager.updateSettings({ ...settings, enabled: value });
+  const setSfxEnabled = useCallback((value: boolean) => {
+    updateSetting('sfxEnabled', value);
+    audioManager.updateSettings({ ...settings, sfxEnabled: value });
+  }, [updateSetting, settings]);
+
+  const setSfxVolume = useCallback((value: number) => {
+    updateSetting('sfxVolume', value);
+    audioManager.updateSettings({ ...settings, sfxVolume: value });
+  }, [updateSetting, settings]);
+
+  const setSillyMode = useCallback((value: boolean) => {
+    updateSetting('sillyMode', value);
+    audioManager.updateSettings({ ...settings, sillyMode: value });
   }, [updateSetting, settings]);
 
   return {
     settings,
     setEnabled,
     setMusicEnabled,
-    setSfxEnabled: (v: boolean) => updateSetting('sfxEnabled', v),
+    setSfxEnabled,
     setMasterMuted,
     setMusicVolume,
-    setSfxVolume: (v: number) => updateSetting('sfxVolume', v),
-    setSillyMode: (v: boolean) => updateSetting('sillyMode', v),
+    setSfxVolume,
+    setSillyMode,
   };
 }

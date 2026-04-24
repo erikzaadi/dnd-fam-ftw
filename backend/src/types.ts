@@ -49,7 +49,7 @@ export interface SessionState {
   quests: string[];
   lastChoices: Choice[];
   tone: string;
-  gameMode?: 'cinematic' | 'balanced' | 'fast';
+  gameMode?: 'cinematic' | 'balanced' | 'fast' | 'zug-ma-geddon';
   recentHistory: string[];
   displayName: string;
   difficulty: string;

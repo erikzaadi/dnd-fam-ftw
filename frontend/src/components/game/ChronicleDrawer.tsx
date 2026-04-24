@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { TurnResult, Character } from '../../types';
 import { imgSrc } from '../../lib/api';
+import { StatImg } from './StatIcon';
 import { beatTarget } from '../../lib/game';
 import { D20 } from './D20';
 import { RollBreakdown } from './RollBreakdown';
@@ -129,8 +130,9 @@ const TurnDetail = ({
                   ${isChosen ? 'border-amber-400 bg-amber-500/20 text-amber-200' : `${STAT_COLORS[choice.stat]} opacity-40`}`}
               >
                 <span className="font-black text-xs uppercase leading-tight">{choice.label}</span>
-                <span className={`text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded-full shrink-0
+                <span className={`inline-flex items-center gap-1 text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded-full shrink-0
                   ${isChosen ? 'bg-amber-900/60' : choice.stat === 'might' ? 'bg-rose-900/60' : choice.stat === 'magic' ? 'bg-blue-900/60' : 'bg-purple-900/60'}`}>
+                  <StatImg stat={choice.stat} size="5" />
                   {choice.stat} · {beatTarget(choice.difficultyValue, choice.difficulty)}
                 </span>
               </div>
@@ -160,7 +162,10 @@ export const ChronicleDrawer = ({
     <div className="flex flex-col h-full bg-slate-900 rounded-[32px] border border-slate-800">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 flex-shrink-0">
-        <h2 className="font-display font-black uppercase tracking-widest text-amber-500 text-base">Chronicle</h2>
+        <div className="flex items-center gap-2">
+          <img src={imgSrc('/images/icon_scroll.png')} alt="" className="w-8 h-8 object-contain mix-blend-screen" />
+          <h2 className="font-display font-black uppercase tracking-widest text-amber-500 text-base">Chronicle</h2>
+        </div>
         <button
           onClick={onClose}
           className="w-8 h-8 flex items-center justify-center rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 font-black text-sm transition-all"

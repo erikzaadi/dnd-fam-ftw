@@ -7,6 +7,11 @@ import { DmFooter } from '../components/DmFooter';
 import { SiteHeader } from '../components/SiteHeader';
 import { useTtsSettings } from '../tts/useTtsSettings';
 import { browserTtsService } from '../tts/browserTtsService';
+import { TtsButton } from '../components/TtsButton';
+import { D20 } from '../components/game/D20';
+import { StatImg } from '../components/game/StatIcon';
+import { RollBreakdown } from '../components/game/RollBreakdown';
+import { audioManager } from '../audio/audioManager';
 
 type Mode = 'choose' | 'tldr' | 'movie';
 
@@ -35,17 +40,18 @@ const TldrView = ({ sessionId, onEnter }: { sessionId: string; onEnter: () => vo
   }, [summary, ttsSettings]);
 
   return (
-    <div className="flex flex-col items-center gap-8 max-w-2xl w-full animate-in fade-in duration-500 relative z-[10]">
-      <h2 className="text-2xl font-display font-black text-amber-500 uppercase tracking-widest">The Story So Far</h2>
+    <div className="flex-1 flex flex-col items-center gap-8 w-full max-w-4xl mx-auto px-4 md:px-8 pt-6 pb-24 animate-in fade-in duration-500 relative z-[10]">
+      <h2 className="text-3xl font-display font-black text-amber-500 uppercase tracking-widest">The Story So Far</h2>
       {summary ? (
-        <p className="font-narrative text-xl text-slate-200 leading-relaxed italic text-center">{summary}</p>
+        <>
+          <p className="font-narrative text-2xl text-slate-200 leading-relaxed italic text-center">{summary}</p>
+          <TtsButton text={summary} ttsSettings={ttsSettings} className="justify-center" />
+          <button onClick={onEnter} className="px-12 py-5 bg-amber-600 hover:bg-amber-500 rounded-[28px] font-black uppercase italic tracking-tighter text-2xl shadow-[0_8px_0_rgb(146,64,14)] transition-all animate-in fade-in duration-500">
+            Enter World
+          </button>
+        </>
       ) : (
         <p className="text-amber-500 animate-pulse font-black uppercase tracking-widest">Consulting the chronicles...</p>
-      )}
-      {summary && (
-        <button onClick={onEnter} className="px-12 py-5 bg-amber-600 hover:bg-amber-500 rounded-[28px] font-black uppercase italic tracking-tighter text-2xl shadow-[0_8px_0_rgb(146,64,14)] transition-all animate-in fade-in duration-500">
-          Enter World
-        </button>
       )}
     </div>
   );
@@ -61,8 +67,22 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
   const turn = history[idx];
   const isLast = idx === history.length - 1;
   const actor = turn.characterId ? party.find(c => c.id === turn.characterId) : null;
+  const roll = turn.lastAction?.actionResult;
+  const hasRoll = roll && roll.statUsed !== 'none';
 
-  // Combined: speak narration on slide change, then advance after speech + pause gap
+  // Space key toggles play/pause
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === ' ' && e.target === document.body) {
+        e.preventDefault();
+        setPlaying(p => !p);
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, []);
+
+  // Speak narration on slide change, then advance after speech + pause gap
   useEffect(() => {
     let cancelled = false;
     let advanceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -93,82 +113,176 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
     };
   }, [idx, playing, isLast, ttsSettings, turn.narration]);
 
+  const imageUrl = turn.imageUrl ? imgSrc(turn.imageUrl) : null;
+  const defaultImageUrl = imgSrc('/images/default_scene.png');
+
   return (
-    <div className="flex flex-col items-center gap-6 w-full max-w-3xl animate-in fade-in duration-500 relative z-[10]">
+    <div className="flex-1 flex min-h-0 w-full animate-in fade-in duration-500 relative z-[10]">
       {fullscreenUrl && <FullscreenImage url={fullscreenUrl} onClose={() => setFullscreenUrl(null)} />}
-      {/* Progress dots */}
-      <div className="flex gap-1.5 flex-wrap justify-center">
-        {history.map((_, i) => (
-          <button
-            key={i}
-            onClick={() => {
-              setIdx(i); setPlaying(false); 
-            }}
-            className={`w-2 h-2 rounded-full transition-all ${i === idx ? 'bg-amber-500 w-4' : i < idx ? 'bg-slate-600' : 'bg-slate-800'}`}
+
+      {/* Left: full-bleed cinematic scene */}
+      <div
+        key={idx}
+        className="relative flex-1 min-w-0 animate-in fade-in zoom-in-95 duration-700 overflow-hidden cursor-zoom-in"
+        onClick={() => {
+          setFullscreenUrl(imageUrl ?? defaultImageUrl); setPlaying(false);
+        }}
+      >
+        <img src={defaultImageUrl} className="absolute inset-0 w-full h-full object-cover opacity-20 animate-ken-burns" alt="" />
+        {imageUrl && (
+          <img
+            key={imageUrl}
+            src={imageUrl}
+            className="absolute inset-0 w-full h-full object-cover animate-ken-burns animate-in fade-in duration-1000"
+            alt=""
           />
-        ))}
-      </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent pointer-events-none" />
 
-      {/* Scene */}
-      <div key={idx} className="w-full animate-in fade-in zoom-in-95 duration-700">
-        {turn.imageUrl ? (
+        {/* Narration card - centered vertically */}
+        <div
+          className="absolute inset-0 flex items-center justify-center p-6 z-10"
+          onClick={e => e.stopPropagation()}
+        >
           <div
-            className="w-full h-48 md:h-72 rounded-[40px] border border-slate-800 shadow-2xl overflow-hidden cursor-zoom-in"
-            onClick={() => {
-              setFullscreenUrl(imgSrc(turn.imageUrl)); setPlaying(false); 
-            }}
+            key={`n-${idx}`}
+            className="backdrop-blur-md bg-slate-950/70 rounded-[24px] p-6 md:p-8 w-full max-w-2xl animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300"
           >
-            <img src={imgSrc(turn.imageUrl)} className="w-full h-full object-cover animate-ken-burns" />
+            <p className="font-narrative text-slate-100 italic leading-relaxed text-xl md:text-2xl lg:text-3xl">
+              {turn.narration}
+            </p>
+            <div className="mt-4">
+              <TtsButton text={turn.narration} ttsSettings={ttsSettings} />
+            </div>
           </div>
-        ) : (
-          <div className="w-full h-48 md:h-72 rounded-[40px] border border-slate-800 overflow-hidden relative">
-            <img src={imgSrc('/images/dm_thinking.png')} className="w-full h-full object-cover object-center opacity-20" />
-            <div className="absolute inset-0 bg-slate-900/60" />
+        </div>
+
+        {/* Progress bar overlay - centered at bottom of scene */}
+        <div
+          className="absolute bottom-0 left-0 right-0 pb-4 z-20 flex justify-center"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex gap-1 flex-wrap justify-center px-6 max-w-xl">
+            {history.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => {
+                  setIdx(i); setPlaying(false);
+                }}
+                className={`h-1.5 rounded-full transition-all ${i === idx ? 'bg-amber-500 w-6' : i < idx ? 'bg-slate-500/70 w-1.5' : 'bg-slate-700/70 w-1.5'}`}
+              />
+            ))}
           </div>
-        )}
+        </div>
       </div>
 
-      {/* Narration */}
-      <div key={`n-${idx}`} className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200 text-center px-4">
+      {/* Right: wider info panel with character + roll + action + nav controls */}
+      <div
+        key={`info-${idx}`}
+        className="w-[28rem] xl:w-[32rem] flex-shrink-0 flex flex-col gap-3 p-5 bg-slate-950/80 border-l border-slate-800 overflow-y-auto animate-in fade-in slide-in-from-right-4 duration-500"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Actor */}
         {actor && (
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <img src={imgSrc(actor.avatarUrl)} className="w-8 h-8 rounded-full object-cover border border-slate-600" />
-            <span className="text-xs font-black uppercase tracking-widest text-slate-400">{actor.name}</span>
+          <div className="flex items-center gap-3 p-4 bg-slate-900/60 rounded-2xl border border-slate-800">
+            <img src={imgSrc(actor.avatarUrl)} className="w-16 h-16 rounded-full object-cover border-2 border-slate-600 flex-shrink-0" alt={actor.name} />
+            <div className="min-w-0">
+              <div className="font-black text-base uppercase tracking-wide text-slate-200 truncate">{actor.name}</div>
+              <div className="text-xs text-slate-500 uppercase tracking-wide">{actor.class}</div>
+            </div>
           </div>
         )}
-        {turn.lastAction && (
-          <p className="text-[10px] font-black uppercase tracking-widest text-amber-500/70 mb-2">
-            "{turn.lastAction.actionAttempt}" - {turn.lastAction.actionResult.success ? '✓ success' : '✗ failed'}
-          </p>
+
+        {/* Chosen action */}
+        {turn.lastAction && (() => {
+          const statUsed = turn.lastAction.actionResult.statUsed;
+          const statBorderColor =
+            statUsed === 'might' ? 'border-rose-500/70 bg-rose-950/20' :
+              statUsed === 'magic' ? 'border-blue-500/70 bg-blue-950/20' :
+                statUsed === 'mischief' ? 'border-purple-500/70 bg-purple-950/20' :
+                  'border-amber-500/30 bg-slate-900/60';
+          const statTextColor =
+            statUsed === 'might' ? 'text-rose-300' :
+              statUsed === 'magic' ? 'text-blue-300' :
+                statUsed === 'mischief' ? 'text-purple-300' :
+                  'text-slate-400';
+          return (
+            <div className={`p-4 rounded-2xl border-2 ${statBorderColor}`}>
+              <div className="text-base font-black uppercase tracking-widest text-amber-400 mb-2">Chosen Action</div>
+              {statUsed !== 'none' && (
+                <div className="flex items-center gap-3 mb-3">
+                  <StatImg stat={statUsed} size="16" rounded />
+                  <span className={`text-xl font-black uppercase tracking-widest ${statTextColor}`}>
+                    {statUsed}
+                  </span>
+                </div>
+              )}
+              <p className="font-narrative italic text-slate-100 text-xl leading-snug">
+                "{turn.lastAction.actionAttempt}"
+              </p>
+            </div>
+          );
+        })()}
+
+        {/* Roll result */}
+        {hasRoll && (
+          <div className="p-4 bg-slate-900/60 rounded-2xl border border-slate-800 flex flex-col items-center gap-3">
+            <D20 roll={roll.roll} success={roll.success} size={72} />
+            <span className={`text-sm font-black uppercase tracking-widest ${roll.success ? 'text-amber-500' : 'text-rose-400'}`}>
+              {roll.success ? 'Success' : 'Failed'}
+            </span>
+            <RollBreakdown
+              roll={roll.roll}
+              statBonus={roll.statBonus}
+              itemBonus={roll.itemBonus}
+              success={roll.success}
+              difficultyTarget={roll.difficultyTarget}
+              className="text-xl"
+              iconSize="10"
+            />
+          </div>
         )}
-        <p className="font-narrative text-lg text-slate-200 italic leading-relaxed">{turn.narration}</p>
-      </div>
 
-      {/* Controls */}
-      <div className="flex items-center gap-4">
-        <button onClick={() => {
-          setIdx(i => Math.max(0, i - 1)); setPlaying(false); 
-        }} disabled={idx === 0} className="px-4 py-2 bg-slate-800 rounded-xl font-black text-sm disabled:opacity-30">←</button>
-        <button onClick={() => setPlaying(p => !p)} className="px-4 py-2 bg-slate-800 rounded-xl font-black text-sm w-20">
-          {playing ? 'Pause' : 'Play'}
-        </button>
-        <button onClick={() => {
-          setIdx(i => Math.min(history.length - 1, i + 1)); setPlaying(false); 
-        }} disabled={isLast} className="px-4 py-2 bg-slate-800 rounded-xl font-black text-sm disabled:opacity-30">→</button>
+        {/* Nav controls pinned at bottom */}
+        <div className="mt-auto flex flex-col gap-3 pt-2">
+          <div className="text-center text-[9px] font-black uppercase tracking-widest text-slate-700">
+            Turn {idx + 1} / {history.length}
+          </div>
+          <div className="flex items-center gap-2 justify-center">
+            <button
+              onClick={() => {
+                setIdx(i => Math.max(0, i - 1)); setPlaying(false);
+              }}
+              disabled={idx === 0}
+              className="px-5 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-black text-base disabled:opacity-30 transition-colors"
+            >←</button>
+            <button
+              onClick={() => setPlaying(p => !p)}
+              className="px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-black text-base flex flex-col items-center leading-none gap-0.5 transition-colors"
+            >
+              <span>{playing ? 'Pause' : 'Play'}</span>
+              <span className="text-[8px] text-slate-500 font-normal normal-case tracking-normal">space</span>
+            </button>
+            <button
+              onClick={() => {
+                setIdx(i => Math.min(history.length - 1, i + 1)); setPlaying(false);
+              }}
+              disabled={isLast}
+              className="px-5 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-black text-base disabled:opacity-30 transition-colors"
+            >→</button>
+          </div>
+          {isLast && (
+            <button onClick={onEnter} className="w-full py-3 bg-amber-600 hover:bg-amber-500 rounded-xl font-black uppercase italic tracking-tighter text-base shadow-[0_4px_0_rgb(146,64,14)] transition-all">
+              Enter World →
+            </button>
+          )}
+        </div>
       </div>
-
-      {isLast && (
-        <button onClick={onEnter} className="px-12 py-5 bg-amber-600 hover:bg-amber-500 rounded-[28px] font-black uppercase italic tracking-tighter text-2xl shadow-[0_8px_0_rgb(146,64,14)] transition-all animate-in fade-in duration-500">
-          Enter World
-        </button>
-      )}
     </div>
   );
 };
 
 // ── PAGE ─────────────────────────────────────────────────────────────────────
-
-import { audioManager } from '../audio/audioManager';
 
 export const SessionRecap = () => {
   const { id } = useParams<{ id: string }>();
@@ -219,33 +333,43 @@ export const SessionRecap = () => {
   }
 
   return (
-    <div className="h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col overflow-hidden">
+    <div className="h-screen bg-slate-950 text-white flex flex-col overflow-hidden">
       <SiteHeader />
-      <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center px-4 md:px-8 py-6 gap-8 md:gap-10 min-h-0">
-        <div className="flex items-center justify-between w-full max-w-3xl relative z-[10]">
-          <h1 className="text-xl md:text-3xl font-display font-black text-amber-500 italic tracking-tight">{session.displayName}</h1>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={toggleSavingsMode}
-              title={session.savingsMode ? 'Images off - click to enable' : 'Images on - click to disable'}
-              className={`px-3 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all cursor-pointer ${session.savingsMode ? 'border-amber-500 text-amber-400 bg-amber-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
-            >
-              {session.savingsMode ? '🪙 Saving' : '🖼 Images'}
-            </button>
-            <Link 
-              to="/" 
-              onClick={() => audioManager.stopMusic()}
-              className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 uppercase font-black text-xs tracking-widest transition-all"
-            >Exit World</Link>
-          </div>
-        </div>
 
+      {/* Persistent top bar with session name + controls */}
+      <div className="flex items-center justify-between px-4 md:px-8 py-3 border-b border-slate-800 flex-shrink-0 relative z-[10]">
+        <h1 className="text-lg md:text-2xl font-display font-black text-amber-500 italic tracking-tight truncate">{session.displayName}</h1>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={toggleSavingsMode}
+            className={`px-3 py-1.5 rounded-xl border font-black text-xs tracking-widest uppercase transition-all cursor-pointer ${session.savingsMode ? 'border-amber-500 text-amber-400 bg-amber-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
+          >
+            {session.savingsMode ? '🪙 Saving' : '🖼 Images'}
+          </button>
+          <button
+            onClick={enter}
+            className="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 font-black uppercase text-xs tracking-widest transition-all shadow-[0_3px_0_rgb(146,64,14)]"
+          >
+            Enter World →
+          </button>
+          <Link
+            to="/"
+            onClick={() => audioManager.stopMusic()}
+            className="px-3 py-1.5 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 uppercase font-black text-xs tracking-widest transition-all"
+          >
+            Exit
+          </Link>
+        </div>
+      </div>
+
+      {/* Mode chooser or content */}
+      <div className="flex-1 flex flex-col min-h-0 relative">
         {mode === 'choose' && (
-          <div className="flex flex-col items-center gap-6 animate-in fade-in zoom-in duration-500 relative z-[10]">
-            <p className="text-slate-400 font-black uppercase tracking-widest text-sm">How would you like to catch up?</p>
+          <div className="flex-1 flex flex-col items-center justify-center gap-6 animate-in fade-in zoom-in duration-500 relative z-[10] px-4">
+            <p className="text-lg md:text-2xl font-black uppercase tracking-widest text-amber-400">How would you like to catch up?</p>
             <div className="flex gap-4 md:gap-6">
               <button onClick={() => setMode('tldr')} className="flex flex-col items-center gap-3 p-6 md:p-8 bg-slate-900 hover:bg-slate-800 rounded-[32px] border border-slate-700 hover:border-amber-500/50 transition-all w-36 md:w-44">
-                <span className="text-4xl">📜</span>
+                <img src={imgSrc('/images/icon_scroll.png')} alt="scroll" className="w-12 h-12 object-contain mix-blend-screen" />
                 <span className="font-black uppercase tracking-widest text-sm">TLDR</span>
                 <span className="text-xs text-slate-500 text-center">AI summary of the adventure</span>
               </button>
@@ -255,13 +379,14 @@ export const SessionRecap = () => {
                 <span className="text-xs text-slate-500 text-center">Relive each turn with scenes</span>
               </button>
             </div>
-            <button onClick={enter} className="text-slate-500 hover:text-slate-300 font-black uppercase text-xs tracking-widest transition-colors">Skip → Jump straight in</button>
+            <button onClick={enter} className="text-slate-500 hover:text-slate-300 font-black uppercase text-xs tracking-widest transition-colors">Skip - Jump straight in</button>
           </div>
         )}
 
         {mode === 'tldr' && <TldrView sessionId={id!} onEnter={enter} />}
         {mode === 'movie' && history.length > 0 && <MovieView history={history} party={session.party} onEnter={enter} />}
       </div>
+
       <DmFooter />
     </div>
   );

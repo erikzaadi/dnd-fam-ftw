@@ -359,7 +359,7 @@ export const SessionPage = () => {
               ttsSettings={ttsSettings}
             />
           ) : loading ? (
-            <DmDecisionRecapPanel lastSubmittedAction={lastSubmittedAction} />
+            <DmDecisionRecapPanel lastSubmittedAction={lastSubmittedAction} ttsSettings={ttsSettings} />
           ) : (
             <ActionDock
               turn={displayTurn}

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { TurnResult, Character, InventoryItem } from '../../types';
 import { apiFetch, imgSrc, pulseSyncDelay } from '../../lib/api';
 import { beatTarget } from '../../lib/game';
-import { StatIcon } from './StatIcon';
+import { StatIcon, StatImg } from './StatIcon';
 
 interface ActionDockProps {
   turn: TurnResult | null;
@@ -76,8 +76,11 @@ const ItemsSection = ({
   const otherPartyMembers = party.filter(c => c.id !== char.id);
 
   return (
-    <div className="flex flex-col gap-1.5 p-3 bg-slate-800/50 rounded-2xl border border-slate-700/50">
-      <div className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-0.5">Items</div>
+    <div className="relative flex flex-col gap-1.5 p-3 bg-slate-800/50 rounded-2xl border border-slate-700/50">
+      <img src={imgSrc('/images/icon_inventory.png')} alt="" className="absolute top-2 right-2 w-18 h-18 rounded-lg object-contain mix-blend-screen pointer-events-none" />
+      <div className="mb-1">
+        <span className="text-base font-black uppercase tracking-wide text-slate-400">Items</span>
+      </div>
 
       {items.map(item => {
         const canUse = (item.healValue ?? 0) > 0;
@@ -152,9 +155,11 @@ const ItemsSection = ({
       {partyItemCount > items.length && (
         <button
           onClick={onShowPartyGear}
-          className="mt-0.5 px-3 py-1.5 rounded-xl border border-slate-700 text-slate-400 hover:text-amber-400 hover:border-amber-500/40 text-[9px] font-black uppercase tracking-widest transition-all text-left"
+          className="mt-0.5 text-left"
         >
-          Party Gear ({partyItemCount - items.length} more)
+          <span className="inline-block px-3 py-1.5 rounded-xl border border-slate-700 text-slate-400 hover:text-amber-400 hover:border-amber-500/40 text-xs font-black uppercase tracking-widest transition-all">
+            Party Gear ({partyItemCount - items.length} more)
+          </span>
         </button>
       )}
     </div>
@@ -248,6 +253,7 @@ export const ActionDock = ({
                   base={activeCharacter.stats[stat]}
                   bonus={activeCharacter.inventory.reduce((s, item) => s + (item.statBonuses?.[stat] ?? 0), 0)}
                   className="text-sm"
+                  iconSize="12"
                 />
               ))}
             </div>
@@ -308,10 +314,7 @@ export const ActionDock = ({
                   >
                     <div className="font-black text-base uppercase leading-tight">{choice.label}</div>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      <span className={`text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full
-                        ${choice.stat === 'might' ? 'bg-rose-900/60' : choice.stat === 'magic' ? 'bg-blue-900/60' : 'bg-purple-900/60'}`}>
-                        {choice.stat}
-                      </span>
+                      <StatImg stat={choice.stat} size="12" tooltip className="rounded-xl" />
                       <span className="text-[10px] text-slate-400 font-black">
                         {statTotal} vs {target}
                       </span>

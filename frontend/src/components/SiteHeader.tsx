@@ -20,7 +20,7 @@ export const SiteHeader = () => {
     <div className="flex-shrink-0">
       {fullscreen && <FullscreenImage url={imgSrc('/images/home_banner.png')} onClose={() => setFullscreen(false)} />}
       <div
-        className={`relative mt-4 mx-4 md:mx-6 ${isHome ? 'h-40 md:h-52' : 'h-32 md:h-40'} rounded-[24px] overflow-hidden border border-slate-800/60 shadow-2xl cursor-zoom-in`}
+        className={`relative ${isHome ? 'h-40 md:h-52' : 'h-28 md:h-36'} overflow-hidden border-b border-slate-800/60 shadow-2xl cursor-zoom-in`}
         onClick={() => setFullscreen(true)}
       >
         {!isHome && (
@@ -37,9 +37,8 @@ export const SiteHeader = () => {
         {enabled && user && (
           <button
             onClick={e => {
-              e.stopPropagation(); void handleLogout(); 
+              e.stopPropagation(); void handleLogout();
             }}
-            title={`Signed in as ${user.email}`}
             className="absolute top-3 right-3 z-10 text-slate-300 hover:text-white bg-slate-950/60 backdrop-blur-sm rounded-full px-3 h-9 flex items-center gap-1.5 text-xs font-bold transition-colors"
             aria-label="Sign out"
           >

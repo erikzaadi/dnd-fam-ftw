@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Home } from './pages/Home';
 import { SessionPage } from './pages/Session';
 import { CreateSession } from './pages/CreateSession';
@@ -52,21 +52,21 @@ import { audioManager } from './audio/audioManager';
 
 function App() {
   const { settings } = useAudioSettings();
+  const location = useLocation();
 
   useEffect(() => {
     audioManager.updateSettings(settings);
   }, [settings]);
 
   useEffect(() => {
-    const isMusicRoute = 
-      location.pathname === '/' || 
-      location.pathname === '/create-session' || 
+    const isMusicRoute =
+      location.pathname === '/' ||
+      location.pathname === '/create-session' ||
       location.pathname.includes('/session/');
-      
+
     if (!isMusicRoute) {
       audioManager.stopMusic();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
 
   useEffect(() => {

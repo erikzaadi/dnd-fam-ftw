@@ -43,7 +43,7 @@ export const SessionHud = ({
   const showSkip = audioSettings.enabled && audioSettings.musicEnabled;
 
   return (
-    <header className="flex-shrink-0 flex justify-between items-center gap-4 px-4 py-3 border-b border-white/10 bg-slate-950/90 backdrop-blur-sm">
+    <header className="relative z-[60] flex-shrink-0 flex justify-between items-center gap-4 px-4 py-3 border-b border-white/10 bg-slate-950/90 backdrop-blur-sm">
       <div className="flex items-center gap-3 md:gap-5 min-w-0">
         <h1 className="text-amber-500 text-lg md:text-2xl font-display font-black italic tracking-tight truncate shrink-0">
           {session.displayName}
@@ -65,13 +65,13 @@ export const SessionHud = ({
             ⚙
           </button>
           {!gearOpen && (
-            <div className="absolute top-full right-0 mt-2 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+            <div className="fixed top-[60px] right-4 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-[200]">
               Settings
               <div className="absolute bottom-full right-3 border-4 border-transparent border-b-slate-700" />
             </div>
           )}
           {gearOpen && (
-            <div className="absolute top-full right-0 mt-2 w-52 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3 flex flex-col gap-1 z-50 animate-in fade-in zoom-in-95 duration-150">
+            <div className="fixed top-[60px] right-4 w-52 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3 flex flex-col gap-1 z-[200] animate-in fade-in zoom-in-95 duration-150">
               {/* Images toggle */}
               <button
                 onClick={() => {
@@ -112,6 +112,17 @@ export const SessionHud = ({
                   Skip track
                 </button>
               )}
+              {/* Divider + full settings link */}
+              <div className="border-t border-slate-800 mt-1 pt-1">
+                <Link
+                  to="/settings"
+                  onClick={() => setGearOpen(false)}
+                  className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-all"
+                >
+                  <span className="text-base">⚙</span>
+                  All settings
+                </Link>
+              </div>
             </div>
           )}
         </div>

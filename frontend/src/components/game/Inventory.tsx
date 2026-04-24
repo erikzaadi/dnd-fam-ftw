@@ -202,7 +202,10 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
 
   return (
     <div className="bg-slate-900/50 p-4 md:p-8 rounded-[40px] border border-slate-800 shadow-2xl">
-      <h3 className="text-sm font-black uppercase tracking-widest text-amber-500/70 mb-4">Treasure & Gear</h3>
+      <h3 className="flex items-center gap-2 text-xl font-black uppercase tracking-widest text-amber-500/70 mb-4">
+        <img src={imgSrc('/images/icon_inventory.png')} alt="" className="w-25 h-25 object-contain mix-blend-screen rounded-lg" />
+        Treasure & Gear
+      </h3>
       {partyWithItems.length === 0 ? (
         <p className="text-slate-600 text-sm italic">Empty pockets...</p>
       ) : (
