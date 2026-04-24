@@ -4,12 +4,19 @@ import type { TtsSettings } from '../../tts/ttsTypes';
 import { TtsButton } from '../TtsButton';
 import { SceneBackground } from './SceneBackground';
 
+const TENSION_CONFIG = {
+  low: { label: 'Calm', color: 'text-emerald-400', bg: 'bg-emerald-900/40', border: 'border-emerald-700/40', icon: '🌿' },
+  medium: { label: 'Tense', color: 'text-amber-400', bg: 'bg-amber-900/40', border: 'border-amber-700/40', icon: '⚡' },
+  high: { label: 'Danger', color: 'text-rose-400', bg: 'bg-rose-900/40', border: 'border-rose-700/40', icon: '🔥' },
+};
+
 interface StoryStageProps {
   history: TurnResult[];
   viewedTurnIdx: number;
   imageLoading: boolean;
   ttsSettings: TtsSettings;
   chronicleOpen: boolean;
+  currentTensionLevel?: 'low' | 'medium' | 'high' | null;
   onOpenChronicle: () => void;
   onFullscreenImage: (url: string) => void;
   onFullscreenNarration: (narration: string) => void;
@@ -21,6 +28,7 @@ export const StoryStage = ({
   imageLoading,
   ttsSettings,
   chronicleOpen,
+  currentTensionLevel,
   onOpenChronicle,
   onFullscreenImage,
   onFullscreenNarration,
@@ -57,12 +65,23 @@ export const StoryStage = ({
         </div>
       )}
 
-      {/* Viewing old turn badge */}
-      {!isCurrentTurn && (
-        <div className="absolute top-4 right-4 z-10 px-3 py-1 bg-slate-900/80 border border-slate-700 rounded-full text-[9px] font-black uppercase tracking-widest text-slate-400 backdrop-blur-sm">
-          Turn {viewedTurnIdx + 1}
-        </div>
-      )}
+      {/* Top-right badges: viewing old turn + tension */}
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+        {currentTensionLevel && isCurrentTurn && (() => {
+          const t = TENSION_CONFIG[currentTensionLevel];
+          return (
+            <div className={`flex items-center gap-1 px-2.5 py-1 ${t.bg} border ${t.border} rounded-full backdrop-blur-sm`}>
+              <span className="text-[10px]">{t.icon}</span>
+              <span className={`text-[9px] font-black uppercase tracking-widest ${t.color}`}>{t.label}</span>
+            </div>
+          );
+        })()}
+        {!isCurrentTurn && (
+          <div className="px-3 py-1 bg-slate-900/80 border border-slate-700 rounded-full text-[9px] font-black uppercase tracking-widest text-slate-400 backdrop-blur-sm">
+            Turn {viewedTurnIdx + 1}
+          </div>
+        )}
+      </div>
 
       {/* Narration card - centered, fills ~75% of stage */}
       <div className="relative z-10 flex-1 flex items-center justify-center p-4">

@@ -50,8 +50,15 @@ export const SiteHeader = () => {
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
         {isHome && (
           <div className="absolute bottom-0 left-0 right-0 flex items-end justify-center pb-4 pointer-events-none">
-            <div className="font-display font-black text-amber-400 italic tracking-tighter text-5xl md:text-7xl drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]">
-              🐉 AI DM
+            <div className="flex items-end gap-2 drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]">
+              <span className="font-display font-black text-amber-400 italic tracking-tighter text-5xl md:text-7xl">
+                🐉 AI DM
+              </span>
+              <img
+                src={imgSrc('/images/icon_dice.png')}
+                alt=""
+                className="w-12 h-12 md:w-[4.5rem] md:h-[4.5rem] object-contain mix-blend-screen mb-0.5 ml-2.5 rounded-full"
+              />
             </div>
           </div>
         )}

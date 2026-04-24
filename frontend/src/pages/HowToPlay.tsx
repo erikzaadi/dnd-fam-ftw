@@ -76,17 +76,28 @@ export const HowToPlay = () => {
             </Section>
 
             <Section title="Items">
-              <div className="flex items-start gap-4">
-                <img src={imgSrc('/images/icon_potion.png')} alt="potion" className="w-16 h-16 object-contain mix-blend-screen flex-shrink-0 mt-1" />
-                <div className="flex-1">
-                  <p className="text-slate-300 text-lg leading-relaxed mb-3">
-                    The AI may reward items during the story. From the inventory panel you can:
-                  </p>
-                  <Row label="Use" value="Apply a healing item to yourself or a teammate (even a downed one)" />
-                  <Row label="Give" value="Hand a transferable item to another party member" />
-                  <p className="text-slate-500 text-base mt-3">Using and giving items doesn't cost a roll. They always succeed.</p>
-                </div>
-              </div>
+              <p className="text-slate-300 text-lg leading-relaxed mb-3">
+                The AI may reward items during the story. From the inventory panel you can:
+              </p>
+              <Row
+                label={
+                  <span className="flex items-center gap-2">
+                    <img src={imgSrc('/images/icon_potion.png')} alt="" className="w-8 h-8 object-contain mix-blend-screen flex-shrink-0" />
+                    Use
+                  </span>
+                }
+                value="Apply a healing item to yourself or a teammate (even a downed one)"
+              />
+              <Row
+                label={
+                  <span className="flex items-center gap-2">
+                    <img src={imgSrc('/images/icon_scroll.png')} alt="" className="w-8 h-8 object-contain mix-blend-screen flex-shrink-0" />
+                    Give
+                  </span>
+                }
+                value="Hand a transferable item to another party member"
+              />
+              <p className="text-slate-500 text-base mt-3">Using and giving items doesn't cost a roll. They always succeed.</p>
             </Section>
 
             <Section title="🪙 Trading">

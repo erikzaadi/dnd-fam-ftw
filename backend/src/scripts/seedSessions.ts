@@ -37,14 +37,14 @@ function seedItem(characterId: string, name: string, description: string, healVa
     .run(characterId, Math.random().toString(36).slice(2), name, description, healValue, statBonuses, consumable, transferable);
 }
 
-function seedTurn(sessionId: string, characterId: string | null, narration: string, choices: { label: string; difficulty: string; stat: string; difficultyValue?: number }[], actionAttempt: string | null, actionStat: string | null, actionSuccess: number | null, actionRoll: number | null, actionStatBonus: number | null, turnType: string = 'normal', imageUrl: string | null = null, actionDifficultyTarget: number | null = null, rollNarration: string | null = null) {
-  const info = db.prepare(`INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionDifficultyTarget, turnType)
-    VALUES (?, ?, ?, ?, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(sessionId, characterId, narration, rollNarration, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionDifficultyTarget, turnType);
+function seedTurn(sessionId: string, characterId: string | null, narration: string, choices: { label: string; difficulty: string; stat: string; difficultyValue?: number; narration?: string }[], actionAttempt: string | null, actionStat: string | null, actionSuccess: number | null, actionRoll: number | null, actionStatBonus: number | null, turnType: string = 'normal', imageUrl: string | null = null, actionDifficultyTarget: number | null = null, rollNarration: string | null = null, currentTensionLevel: string | null = null, hpChanges: string | null = null) {
+  const info = db.prepare(`INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges)
+    VALUES (?, ?, ?, ?, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(sessionId, characterId, narration, rollNarration, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges);
   const turnId = info.lastInsertRowid;
   for (const c of choices) {
-    db.prepare(`INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue) VALUES (?, ?, ?, ?, ?)`)
-      .run(turnId, c.label, c.difficulty, c.stat, c.difficultyValue ?? null);
+    db.prepare(`INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue, narration) VALUES (?, ?, ?, ?, ?, ?)`)
+      .run(turnId, c.label, c.difficulty, c.stat, c.difficultyValue ?? null, c.narration ?? null);
   }
 }
 
@@ -76,8 +76,8 @@ const CHOICES_SOCIAL = [
 
 const S1 = 'seed-session-1';
 deleteSession(S1);
-db.prepare(`INSERT INTO sessions (id, scene, sceneId, displayName, turn, activeCharacterId, tone, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, storySummary)
-  VALUES (?, 'The Goblin King Caverns', 'cave-1', 'The Goblin King Lair', 8, 'seed-s1-c2', 'thrilling adventure', 'normal', 'fast', 0, 0, 0, ?)`)
+db.prepare(`INSERT INTO sessions (id, scene, sceneId, displayName, turn, activeCharacterId, tone, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, storySummary, dm_prep)
+  VALUES (?, 'The Goblin King Caverns', 'cave-1', 'The Goblin King Lair', 8, 'seed-s1-c2', 'thrilling adventure', 'normal', 'fast', 0, 0, 0, ?, NULL)`)
   .run(S1, 'The party delved into the goblin caves seeking a stolen artifact. They fought through waves of goblin sentries, discovered a map to the throne room, and now stand before the Goblin King himself.');
 
 seedChar(S1, 'seed-s1-c1', 'Barnabas Strongarm', 'Fighter', 'Dwarf', 'Talks to his axe like it is a person', 5, 1, 1, 7, 10);
@@ -101,8 +101,8 @@ seedTurn(S1, 'seed-s1-c2', 'Zara spots a hidden lever behind the throne - if she
 
 const S2 = 'seed-session-2';
 deleteSession(S2);
-db.prepare(`INSERT INTO sessions (id, scene, sceneId, displayName, turn, activeCharacterId, tone, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, storySummary)
-  VALUES (?, 'The Dragon Peak Summit', 'peak-3', 'Dragon Peak', 10, 'seed-s2-c1', 'epic and dangerous', 'hard', 'balanced', 0, 0, 1, ?)`)
+db.prepare(`INSERT INTO sessions (id, scene, sceneId, displayName, turn, activeCharacterId, tone, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, storySummary, dm_prep)
+  VALUES (?, 'The Dragon Peak Summit', 'peak-3', 'Dragon Peak', 10, 'seed-s2-c1', 'epic and dangerous', 'hard', 'balanced', 0, 0, 1, ?, NULL)`)
   .run(S2, 'The party climbed the treacherous Dragon Peak to retrieve a stolen dragon egg. They survived an ambush by cultists, fell off a cliff only to be saved by a mysterious dragon, woke in a mountain shelter, and now face the final cultist stronghold.');
 
 seedChar(S2, 'seed-s2-c1', 'Vex the Wanderer', 'Rogue', 'Tiefling', 'Leaves a coin wherever they go as a calling card', 2, 2, 5, 5, 10);
@@ -139,8 +139,8 @@ seedTurn(S2, null, 'The party wakes in a warm stone alcove carved into the mount
 
 const S3 = 'seed-session-3';
 deleteSession(S3);
-db.prepare(`INSERT INTO sessions (id, scene, sceneId, displayName, turn, activeCharacterId, tone, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, storySummary)
-  VALUES (?, 'The Whispering Market', 'market-2', 'The Merchant Mystery', 6, 'seed-s3-c2', 'mysterious and intriguing', 'easy', 'cinematic', 0, 0, 0, ?)`)
+db.prepare(`INSERT INTO sessions (id, scene, sceneId, displayName, turn, activeCharacterId, tone, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, storySummary, dm_prep)
+  VALUES (?, 'The Whispering Market', 'market-2', 'The Merchant Mystery', 6, 'seed-s3-c2', 'mysterious and intriguing', 'easy', 'cinematic', 0, 0, 0, ?, NULL)`)
   .run(S3, 'The party was hired to find a missing merchant\'s shipment. They discovered the cargo was actually a locked chest containing a cursed music box. The local thieves\' guild is also searching for it and may be watching.');
 
 seedChar(S3, 'seed-s3-c1', 'Pipwick', 'Bard', 'Gnome', 'Turns every conversation into a song', 1, 2, 4, 7, 10);
@@ -162,8 +162,8 @@ seedTurn(S3, 'seed-s3-c2', 'Thalia notches an arrow and shoots out the lantern a
 
 const S4 = 'seed-session-4';
 deleteSession(S4);
-db.prepare(`INSERT INTO sessions (id, scene, sceneId, displayName, turn, activeCharacterId, tone, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, storySummary)
-  VALUES (?, 'The Bloodpit Arena', 'arena-1', 'ZUG-MA-GEDDON: The Endless Arena', 5, 'seed-s4-c2', 'pure chaos and carnage', 'hard', 'zug-ma-geddon', 0, 0, 0, ?)`)
+db.prepare(`INSERT INTO sessions (id, scene, sceneId, displayName, turn, activeCharacterId, tone, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, storySummary, dm_prep)
+  VALUES (?, 'The Bloodpit Arena', 'arena-1', 'ZUG-MA-GEDDON: The Endless Arena', 5, 'seed-s4-c2', 'pure chaos and carnage', 'hard', 'zug-ma-geddon', 0, 0, 0, ?, NULL)`)
   .run(S4, 'You were thrown into the Bloodpit Arena by persons unknown. There is no escape. There is only combat. The crowd chants ZUG. ZUG. ZUG.');
 
 seedChar(S4, 'seed-s4-c1', 'Krag Bonecrusher', 'Barbarian', 'Half-Orc', 'Cannot whisper - only screams', 6, 1, 1, 4, 12);
@@ -179,14 +179,100 @@ seedTurn(S4, 'seed-s4-c2', 'Spark\'s hair ignites with excitement as three bolts
 seedTurn(S4, 'seed-s4-c3', 'Dagmar headbutts the troll\'s kneecap - cracks it. The troll falls to one knee. The entire arena is on its feet screaming. A second gate is already opening.', CHOICES_COMBAT, 'Strike with your weapon', 'might', 1, 15, 5, 'normal', null, 12);
 seedTurn(S4, 'seed-s4-c1', 'The troll collapses. Gate two opens. An ogre with a giant net and a grin enters. Behind it: three more goblins riding armored wolves. The DM cackles.', CHOICES_COMBAT, 'Dodge and find an opening', 'mischief', 1, 19, 6, 'normal', null, 15, '🎲 Pure instinct. The crowd chants your name.');
 
+// ── Session 5: The Shattered Crown (DM-prepped campaign) ─────────────────────
+
+const S5 = 'seed-session-5';
+deleteSession(S5);
+
+const S5_DM_PREP = `CAMPAIGN: The Shattered Crown
+
+PREMISE: The king is dead. His crown - a relic that keeps the realm's three factions (the Ironveil Knights, the Tideborn Merchants, the Ashwood Druids) from open war - was shattered into three shards. Each faction seized one shard. The party must recover all three before the next new moon, or the realm descends into civil war.
+
+VILLAIN: Lord Castor Vane, the king's spymaster. He engineered the assassination and the crown's theft. He plays each faction against the other while secretly collecting the shards for himself. He is charming, always one step ahead, and has informants everywhere. He should appear helpful at first.
+
+KEY LOCATIONS:
+- Ironveil Keep: A fortress in the northern hills. The Knights believe the shard grants them divine right to the throne. Their leader, Commander Ressa, is honorable but proud.
+- Tideborn Docks: A merchant quarter by the sea. The Merchants want to auction the shard to the highest bidder. Their broker, a gnome called Nix, is slippery and motivated purely by coin.
+- Ashwood Grove: An ancient forest. The Druids believe the crown fragments are corrupting the land and must be unmade, not reunited. High Druid Sylva is stern but not wrong - the crown IS cursed.
+
+CHALLENGES:
+- Each faction demands a favour before handing over their shard (a quest within the quest).
+- Lord Vane keeps sabotaging handoffs - the party may not realise he is behind it at first.
+- The curse: carrying two or more shards causes visions and slowly drains HP each long rest. The party must carry them anyway.
+
+GOALS:
+- Short term: earn the trust of at least one faction.
+- Mid term: expose Lord Vane's involvement before he claims all three shards.
+- Long term: reunite the crown and place it on a worthy successor (the party can nominate).
+
+PITFALLS:
+- Do not let the party skip straight to Vane - he should be revealed gradually over 6-8 turns.
+- The Druids are not wrong about the curse. If the party ignores the corruption angle, the crown reunion should have a cost.
+- Nix the broker will sell info about the party to Vane if given the chance. Let this happen once for drama.`;
+
+db.prepare(`INSERT INTO sessions (id, scene, sceneId, displayName, turn, activeCharacterId, tone, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, storySummary, dm_prep)
+  VALUES (?, 'The Shattered Throne Room', 'throne-1', 'The Shattered Crown', 4, 'seed-s5-c1', 'political intrigue and rising danger', 'normal', 'balanced', 0, 0, 0, ?, ?)`)
+  .run(S5,
+    'The king was found dead at dawn. His crown - the symbol of peace between three rival factions - was shattered. The party was caught near the scene and pressed into service by the royal guard: find the three crown shards before the new moon, or face the noose.',
+    S5_DM_PREP);
+
+seedChar(S5, 'seed-s5-c1', 'Lira Dawnveil', 'Ranger', 'Half-Elf', 'Cannot resist investigating anything suspicious', 3, 2, 3, 9, 10);
+seedChar(S5, 'seed-s5-c2', 'Brother Cask', 'Cleric', 'Dwarf', 'Keeps a journal of every person he meets', 1, 5, 1, 8, 10);
+seedChar(S5, 'seed-s5-c3', 'Fenwick Tallow', 'Rogue', 'Human', 'Has a fake noble title he insists is real', 1, 2, 5, 7, 10);
+seedChar(S5, 'seed-s5-c4', 'Sable', 'Sorcerer', 'Tiefling', 'Her shadow moves independently when she is lying', 1, 5, 1, 6, 10);
+
+seedItem('seed-s5-c2', '📖 Royal Writ', 'Grants access to guarded areas (single use)', null, null, 1, 0);
+seedItem('seed-s5-c1', '🏹 Faction Arrow', 'Inscribed with all three faction seals - a symbol of neutrality', null, JSON.stringify({ mischief: 1 }), 0, 0);
+
+const CHOICES_INTRIGUE = [
+  { label: 'Question the palace steward', difficulty: 'normal', stat: 'mischief', difficultyValue: 11, narration: 'A careful ear might unravel who was in the throne room at dawn.' },
+  { label: 'Inspect the shattered crown case', difficulty: 'easy', stat: 'magic', difficultyValue: 8, narration: 'The residue of magic lingers on every crime scene.' },
+  { label: 'Follow the guard captain', difficulty: 'hard', stat: 'mischief', difficultyValue: 15, narration: 'She is hiding something - you can see it in her eyes.' },
+];
+
+seedTurn(S5, null,
+  'The throne room smells of cold stone and dried blood. The shattered crown case stands open, three empty slots where the shards should sit. Royal guards eye you with open suspicion. A man in a dark doublet - Lord Castor Vane, the royal spymaster - offers you a thin smile from across the room. "How fortunate," he says. "The investigation now has... volunteers."',
+  CHOICES_INTRIGUE, null, null, null, null, null, 'normal', null, null, null, 'low', null);
+
+seedTurn(S5, 'seed-s5-c1',
+  'Lira examines the shattered case and finds traces of a suppression ward - someone masked the theft from palace detection magic. This was planned weeks in advance. Vane watches her work with quiet approval.',
+  [
+    { label: 'Head to Ironveil Keep first', difficulty: 'normal', stat: 'might', difficultyValue: 10, narration: 'The Knights will not welcome uninvited guests.' },
+    { label: 'Seek out the broker Nix at the docks', difficulty: 'normal', stat: 'mischief', difficultyValue: 11, narration: 'Coin talks louder than authority in the Tideborn quarter.' },
+    { label: 'Ask Vane what he knows', difficulty: 'hard', stat: 'magic', difficultyValue: 14, narration: 'Something about him feels wrong - trust your instincts.' },
+  ],
+  'Inspect the shattered crown case', 'magic', 1, 13, 5, 'normal', null, 8, null, 'low', null);
+
+seedTurn(S5, 'seed-s5-c3',
+  'Fenwick introduces himself to Vane as "Lord Fenwick of the Eastern Reaches." Vane does not blink. He hands Fenwick a sealed letter of passage and says: "The Knights are proud. Show them respect first and ask questions second." He is helpful. Almost too helpful.',
+  [
+    { label: 'Ride for Ironveil Keep', difficulty: 'easy', stat: 'might', difficultyValue: 7, narration: 'The road north is long - but the Knights hold one shard.' },
+    { label: 'Open the letter before delivering it', difficulty: 'normal', stat: 'mischief', difficultyValue: 12, narration: 'Breaking a spymaster\'s seal could answer a lot of questions.' },
+    { label: 'Warn the others about Vane in private', difficulty: 'easy', stat: 'mischief', difficultyValue: 6, narration: 'Something is wrong. The others need to know.' },
+  ],
+  'Question the palace steward', 'mischief', 1, 16, 5, 'normal', null, 11, null, 'medium', null);
+
+seedTurn(S5, 'seed-s5-c4',
+  'Sable\'s shadow stretches toward Vane unprompted. She does not mention this to anyone. On the road to Ironveil Keep the party is ambushed by masked riders - they are not bandits. Their armor bears a hidden crest: Vane\'s personal sigil. Someone does not want you to reach the Knights.',
+  [
+    { label: 'Fight the masked riders', difficulty: 'hard', stat: 'might', difficultyValue: 14, narration: 'Steel against steel - and answers, if you take one alive.' },
+    { label: 'Flee into the forest', difficulty: 'normal', stat: 'mischief', difficultyValue: 11, narration: 'A retreat now saves strength for the Keep.' },
+    { label: 'Call out Vane\'s crest aloud', difficulty: 'normal', stat: 'magic', difficultyValue: 10, narration: 'Naming your enemy may rattle them - or provoke a worse response.' },
+  ],
+  'Warn the others about Vane in private', 'mischief', 0, 5, 5, 'normal', null, 6, '🎲 The words catch in her throat. The riders close in.', 'high', JSON.stringify([
+    { characterId: 'seed-s5-c4', characterName: 'Sable', change: -2, newHp: 4, maxHp: 6 },
+  ]));
+
 // Update session active characters
 db.prepare('UPDATE sessions SET activeCharacterId = ? WHERE id = ?').run('seed-s1-c2', S1);
 db.prepare('UPDATE sessions SET activeCharacterId = ? WHERE id = ?').run('seed-s2-c1', S2);
 db.prepare('UPDATE sessions SET activeCharacterId = ? WHERE id = ?').run('seed-s3-c2', S3);
 db.prepare('UPDATE sessions SET activeCharacterId = ? WHERE id = ?').run('seed-s4-c2', S4);
+db.prepare('UPDATE sessions SET activeCharacterId = ? WHERE id = ?').run('seed-s5-c1', S5);
 
 console.log('Seed complete:');
 console.log(`  Session 1 (${S1}): The Goblin King's Lair - 4 chars, 7 turns`);
 console.log(`  Session 2 (${S2}): Dragon's Peak - 4 chars, 10 turns (intervention + sanctuary)`);
 console.log(`  Session 3 (${S3}): The Merchant's Mystery - 4 chars, 6 turns`);
 console.log(`  Session 4 (${S4}): ZUG-MA-GEDDON - The Endless Arena - 3 chars, 5 turns`);
+console.log(`  Session 5 (${S5}): The Shattered Crown - 4 chars, 4 turns (DM prep + intrigue)`);

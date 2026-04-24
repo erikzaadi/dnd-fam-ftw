@@ -1,10 +1,12 @@
 import { z } from 'zod';
+import { DIFFICULTY_VALUES, STAT_VALUES, TENSION_LEVEL_VALUES } from '../../../types.js';
 
 const choiceSchema = z.object({
   label: z.string().min(1),
-  difficulty: z.enum(['easy', 'normal', 'hard']),
-  stat: z.enum(['might', 'magic', 'mischief']),
+  difficulty: z.enum(DIFFICULTY_VALUES),
+  stat: z.enum(STAT_VALUES),
   difficultyValue: z.number().int().min(2).max(20).optional(),
+  narration: z.string().optional(),
 });
 
 const inventoryAddSchema = z.object({
@@ -37,7 +39,7 @@ export const narrationOutputSchema = z.object({
   rollNarration: z.string().optional(),
   imagePrompt: z.string().nullable(),
   imageSuggested: z.boolean(),
-  currentTensionLevel: z.enum(['low', 'medium', 'high']).default('medium'),
+  currentTensionLevel: z.enum(TENSION_LEVEL_VALUES).default('medium'),
   suggestedInventoryAdd: inventoryAddSchema.nullable(),
   suggestedInventoryRemove: inventoryRemoveSchema.nullable().default(null),
   suggestedRevive: reviveSchema.nullable().default(null),
@@ -50,9 +52,9 @@ export type ValidNarrationOutput = z.infer<typeof narrationOutputSchema>;
 export const NARRATION_FALLBACK: ValidNarrationOutput = {
   narration: 'The situation grows more mysterious, but the adventure continues.',
   choices: [
-    { label: 'Inspect the area', difficulty: 'easy', stat: 'might' },
-    { label: 'Talk to someone nearby', difficulty: 'normal', stat: 'mischief' },
-    { label: 'Use your magic', difficulty: 'normal', stat: 'magic' },
+    { label: 'Inspect the area', difficulty: 'easy', stat: 'might', narration: 'You examine your surroundings carefully.' },
+    { label: 'Talk to someone nearby', difficulty: 'normal', stat: 'mischief', narration: 'Perhaps someone here knows more than they are letting on.' },
+    { label: 'Use your magic', difficulty: 'normal', stat: 'magic', narration: 'Channel the arcane to reveal what lies hidden.' },
   ],
   imagePrompt: null,
   imageSuggested: false,

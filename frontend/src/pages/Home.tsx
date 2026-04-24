@@ -6,24 +6,133 @@ import { SiteHeader } from '../components/SiteHeader';
 import { apiFetch, imgSrc } from '../lib/api';
 import type { SessionPreview } from '../types';
 
+const DIFFICULTY_INFO: Record<string, { color: string; label: string }> = {
+  easy: { color: 'text-emerald-400', label: 'Easy' },
+  normal: { color: 'text-amber-400', label: 'Normal' },
+  hard: { color: 'text-rose-400', label: 'Hard' },
+};
+
+const PACING_LABELS: Record<string, { icon: string; label: string }> = {
+  cinematic: { icon: '🎬', label: 'Cinematic' },
+  balanced: { icon: '⚖️', label: 'Balanced' },
+  fast: { icon: '⚡', label: 'Fast' },
+  'zug-ma-geddon': { icon: '💀', label: 'ZUG-MA-GEDDON' },
+};
+
+const EditSessionModal = ({
+  sessionId,
+  initialDifficulty,
+  initialGameMode,
+  onSave,
+  onCancel,
+}: {
+  sessionId: string;
+  initialDifficulty: string;
+  initialGameMode: string;
+  onSave: (difficulty: string, gameMode: string) => void;
+  onCancel: () => void;
+}) => {
+  const [difficulty, setDifficulty] = useState(initialDifficulty);
+  const [gameMode, setGameMode] = useState(initialGameMode);
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    await apiFetch(`/session/${sessionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ difficulty, gameMode }),
+    });
+    setSaving(false);
+    onSave(difficulty, gameMode);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in p-4">
+      <div className="bg-slate-900 border border-slate-700 rounded-[32px] p-6 max-w-md w-full shadow-2xl space-y-5">
+        <h3 className="text-lg font-black uppercase tracking-tighter text-amber-400 italic">Edit World</h3>
+
+        <div className="flex flex-col gap-2">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Difficulty</span>
+          <div className="flex gap-2">
+            {(['easy', 'normal', 'hard'] as const).map(d => (
+              <button
+                key={d}
+                onClick={() => setDifficulty(d)}
+                className={`flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${difficulty === d ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-500'}`}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+          {DIFFICULTY_INFO[difficulty] && (
+            <p className={`text-xs ${DIFFICULTY_INFO[difficulty].color}`}>{DIFFICULTY_INFO[difficulty].label}</p>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Game Pacing</span>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(PACING_LABELS).map(([id, { icon, label }]) => (
+              <button
+                key={id}
+                onClick={() => setGameMode(id)}
+                className={`flex flex-col items-center px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${gameMode === id ? (id === 'zug-ma-geddon' ? 'bg-rose-900/20 border-rose-500 text-rose-400' : 'bg-amber-600/10 border-amber-600 text-amber-500') : 'bg-slate-800/50 border-slate-700 text-slate-500'}`}
+              >
+                <span className="text-sm mb-0.5">{icon}</span>
+                <span className="text-[8px]">{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-400 transition-all"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={save}
+            disabled={saving}
+            className="flex-1 py-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 rounded-2xl text-xs font-black uppercase tracking-widest text-white transition-all"
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const WorldCard = ({
   session,
   onEnter,
   onDelete,
+  onEdit,
 }: {
   session: SessionPreview;
   onEnter: () => void;
   onDelete: () => void;
+  onEdit: () => void;
 }) => {
   const hasDetails = session.party.length > 0 || session.worldDescription || session.storySummary;
 
   return (
     <div className="bg-black/40 rounded-[20px] border-2 border-slate-800 overflow-hidden hover:border-slate-700 transition-colors h-full flex flex-col">
       {/* Header row */}
-      <div className="flex items-center gap-3 p-4 flex-shrink-0">
+      <div className="flex items-center gap-2 p-4 flex-shrink-0">
         <span className="flex-1 text-left text-amber-400 font-black text-xl tracking-tight truncate">
           {session.displayName}
         </span>
+        <button
+          onClick={onEdit}
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-600 hover:text-amber-400 hover:bg-amber-500/10 text-sm transition-colors flex-shrink-0"
+          aria-label="Edit"
+        >
+          ✎
+        </button>
         <button
           onClick={onDelete}
           className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 text-sm font-black transition-colors flex-shrink-0"
@@ -81,6 +190,7 @@ export const Home = () => {
   const [activeSessions, setActiveSessions] = useState<SessionPreview[]>([]);
   const [sessionLimit, setSessionLimit] = useState<{ max: number; current: number } | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
+  const [editSession, setEditSession] = useState<{ id: string; difficulty: string; gameMode: string } | null>(null);
   const navigate = useNavigate();
 
   const loadSessions = () => {
@@ -127,6 +237,21 @@ export const Home = () => {
         />
       )}
 
+      {editSession && (
+        <EditSessionModal
+          sessionId={editSession.id}
+          initialDifficulty={editSession.difficulty}
+          initialGameMode={editSession.gameMode}
+          onSave={(difficulty, gameMode) => {
+            setActiveSessions(prev => prev.map(s =>
+              s.id === editSession.id ? { ...s, difficulty, gameMode } : s
+            ));
+            setEditSession(null);
+          }}
+          onCancel={() => setEditSession(null)}
+        />
+      )}
+
       <SiteHeader />
 
       <div className="flex-1 flex flex-col gap-4 px-4 md:px-8 pt-4 pb-6 relative z-[10] min-h-0 w-full max-w-6xl mx-auto">
@@ -157,6 +282,7 @@ export const Home = () => {
                     session={sess}
                     onEnter={() => navigate(`/session/${sess.id}/recap`)}
                     onDelete={() => deleteSession(sess.id, sess.displayName)}
+                    onEdit={() => setEditSession({ id: sess.id, difficulty: sess.difficulty, gameMode: sess.gameMode })}
                   />
                 ))}
               </div>

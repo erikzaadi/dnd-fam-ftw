@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { TurnResult, Character } from '../../types';
+import type { TurnResult, Character, HpChange } from '../../types';
 import { imgSrc } from '../../lib/api';
 import { StatImg } from './StatIcon';
 import { beatTarget } from '../../lib/game';
@@ -18,17 +18,34 @@ interface ChronicleDrawerProps {
   ttsSettings: TtsSettings;
 }
 
+const HpChangeBadges = ({ hpChanges }: { hpChanges: HpChange[] }) => (
+  <div className="flex flex-wrap gap-1.5">
+    {hpChanges.map(hc => (
+      <div
+        key={hc.characterId}
+        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${hc.change < 0 ? 'bg-rose-900/40 border-rose-700/50 text-rose-400' : 'bg-emerald-900/40 border-emerald-700/50 text-emerald-400'}`}
+      >
+        <span>{hc.change < 0 ? '-' : '+'}{Math.abs(hc.change)}</span>
+        <span className="text-[8px] opacity-70 normal-case tracking-normal font-semibold">{hc.characterName.split(' ')[0]}</span>
+        <span className="opacity-50">{hc.newHp}/{hc.maxHp}</span>
+      </div>
+    ))}
+  </div>
+);
+
 // Narrow-column expanded turn view, designed for ~380-420px panels
 const TurnDetail = ({
   turn,
   actor,
   takenAction,
   takenChar,
+  nextTurnHpChanges,
 }: {
   turn: TurnResult;
   actor: Character | null;
   takenAction: ReturnType<typeof turn.lastAction extends infer T ? () => T : never> | null;
   takenChar: Character | null;
+  nextTurnHpChanges?: HpChange[];
 }) => {
   const special = turn.turnType && turn.turnType !== 'normal' ? SPECIAL_TURNS[turn.turnType] : null;
   const roll = takenAction?.actionResult;
@@ -89,6 +106,11 @@ const TurnDetail = ({
             </div>
           )}
         </div>
+      )}
+
+      {/* HP changes from the action taken */}
+      {nextTurnHpChanges && nextTurnHpChanges.length > 0 && (
+        <HpChangeBadges hpChanges={nextTurnHpChanges} />
       )}
 
       {/* Custom action */}
@@ -205,6 +227,7 @@ export const ChronicleDrawer = ({
                       actor={actor ?? null}
                       takenAction={takenAction}
                       takenChar={takenChar}
+                      nextTurnHpChanges={nextTurn?.hpChanges}
                     />
                   </div>
                 )}

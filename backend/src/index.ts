@@ -15,7 +15,7 @@ import { createChatClient } from './providers/ai/AiProviderFactory.js';
 import { SettingsService } from './services/settingsService.js';
 import { StorySummaryService } from './services/storySummaryService.js';
 import { parseSuggestedStats, STAT_FALLBACK } from './services/statSuggestionService.js';
-import { Character, type AIInput } from './types.js';
+import { Character, type AIInput, type HpChange, type GameMode } from './types.js';
 import { getConfig, isAuthEnabled } from './config/env.js';
 import { getImageStorageProvider } from './providers/storage/storageProviderFactory.js';
 import { getAuthPublicConfig, buildGoogleAuthUrl, exchangeCodeForEmail, signJwt } from './services/authService.js';
@@ -287,9 +287,27 @@ const broadcastUpdate = (sessionId: string, type: string, payload: Record<string
   eventEmitter.emit('update', { sessionId, type, ...payload });
 };
 
+// Compute per-character HP changes between two party snapshots
+const computeHpChanges = (before: Character[], after: Character[]): HpChange[] => {
+  const changes: HpChange[] = [];
+  for (const beforeChar of before) {
+    const afterChar = after.find(c => c.id === beforeChar.id);
+    if (afterChar && afterChar.hp !== beforeChar.hp) {
+      changes.push({
+        characterId: beforeChar.id,
+        characterName: beforeChar.name,
+        change: afterChar.hp - beforeChar.hp,
+        newHp: afterChar.hp,
+        maxHp: beforeChar.max_hp,
+      });
+    }
+  }
+  return changes;
+};
+
 // API Endpoints
 app.post('/session/create', asyncHandler(async (req, res) => {
-  const { worldDescription, difficulty, useLocalAI, gameMode } = req.body;
+  const { worldDescription, difficulty, useLocalAI, gameMode, dmPrep } = req.body;
   try {
     const limits = StateService.getNamespaceLimits(req.namespaceId);
     if (limits.maxSessions !== null) {
@@ -300,7 +318,7 @@ app.post('/session/create', asyncHandler(async (req, res) => {
       }
     }
     const savingsMode = !SettingsService.get().imagesEnabled;
-    const session = await StateService.createSession(worldDescription, difficulty, !!useLocalAI, savingsMode, req.namespaceId, gameMode);
+    const session = await StateService.createSession(worldDescription, difficulty, !!useLocalAI, savingsMode, req.namespaceId, gameMode, dmPrep || undefined);
     res.json(session);
   } catch (error: unknown) {
     const status = (error as { status?: number })?.status;
@@ -319,6 +337,23 @@ app.get('/session/:id', asyncHandler(async (req, res) => {
     return;
   }
   res.json(session);
+}));
+
+app.patch('/session/:id', asyncHandler(async (req, res) => {
+  const session = await StateService.getSession(req.params.id as string);
+  if (!session) {
+    res.status(404).json({ error: 'Session not found' });
+    return;
+  }
+  const { difficulty, gameMode } = req.body as { difficulty?: string; gameMode?: string };
+  if (difficulty) {
+    session.difficulty = difficulty;
+  }
+  if (gameMode) {
+    session.gameMode = gameMode as GameMode;
+  }
+  await StateService.updateSession(req.params.id as string, session);
+  res.json({ id: session.id, difficulty: session.difficulty, gameMode: session.gameMode });
 }));
 
 app.post('/session/:id/suggest-stat', asyncHandler(async (req, res) => {
@@ -558,6 +593,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
     await StateService.updateSession(sessionId, newState);
     turnResult.lastAction = itemAttempt;
     turnResult.characterId = actingCharId;
+    turnResult.hpChanges = computeHpChanges(itemState.party, newState.party);
     turnResult.id = await StateService.addTurnResult(sessionId, turnResult, actingCharId);
     broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
     res.json({ actionAttempt: itemAttempt, turnResult, session: newState });
@@ -596,6 +632,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
 
   turnResult.lastAction = actionAttempt;
   turnResult.characterId = actingCharId;
+  turnResult.hpChanges = computeHpChanges(session.party, newState.party);
 
   turnResult.id = await StateService.addTurnResult(sessionId, turnResult, actingCharId);
   broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });

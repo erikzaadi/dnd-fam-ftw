@@ -44,6 +44,7 @@ export function toNarrationInput(input: AIInput): NarrationInput {
     recentHistory: input.recentHistory ?? [],
     tone: input.tone,
     gameMode: input.gameMode,
+    ...(input.dmPrep && { dmPrep: input.dmPrep }),
     isFirstTurn: input.turn === 1,
     interventionRescue: input.interventionRescue,
     sanctuaryRecovery: input.sanctuaryRecovery,

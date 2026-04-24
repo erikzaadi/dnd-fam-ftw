@@ -120,8 +120,8 @@ export const SessionHud = ({
   onMuteToggle,
 }: SessionHudProps) => (
   <header className="relative z-[60] flex-shrink-0 flex justify-between items-center gap-4 px-4 py-3 border-b border-white/10 bg-slate-950/90 backdrop-blur-sm">
-    <div className="flex items-center gap-3 md:gap-5 min-w-0">
-      <h1 className="text-amber-500 text-lg md:text-2xl font-display font-black italic tracking-tight truncate shrink-0">
+    <div className="flex items-center gap-3 md:gap-5 min-w-0 flex-1">
+      <h1 className="text-amber-500 text-lg md:text-2xl font-display font-black italic tracking-tight truncate min-w-[80px]">
         {session.displayName}
       </h1>
       <PartyBox

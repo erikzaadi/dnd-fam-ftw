@@ -23,6 +23,7 @@ Each action MUST include:
 - difficulty: one of ["easy", "normal", "hard"]
 - stat: one of ["might", "magic", "mischief"]
 - difficultyValue: exact number the player must meet or exceed (roll + stat + item bonuses)
+- narration: 1 evocative sentence (max 15 words) previewing what this action might lead to — a teaser, not a spoiler
 
 Tone: Thrilling, adventurous, slightly dark but still accessible.
 Do NOT invent or modify game state (HP, stats).
@@ -52,6 +53,7 @@ Story Continuity:
 - If \`storySummary\` is provided, use it to maintain narrative continuity. Reference past events naturally.
 - \`recentHistory\` contains the last few turn narrations. Build on them, do not repeat them.
 - Do NOT contradict established story facts.
+- If \`dmPrep\` is provided, use it as campaign context: honour the lore, villains, locations, and plot hooks the DM specified. Weave them naturally into the story.
 
 Acting and Next Character:
 - \`actingCharacterName\` is the character who just performed the \`actionAttempt\`. Your narration MUST attribute the success or failure of the action to THIS character.
@@ -141,9 +143,9 @@ Return your response in STRICT JSON format:
 {
   "narration": "string",
   "choices": [
-    { "label": "string", "difficulty": "string", "stat": "string", "difficultyValue": 10 },
-    { "label": "string", "difficulty": "string", "stat": "string", "difficultyValue": 10 },
-    { "label": "string", "difficulty": "string", "stat": "string", "difficultyValue": 10 }
+    { "label": "string", "difficulty": "string", "stat": "string", "difficultyValue": 10, "narration": "string" },
+    { "label": "string", "difficulty": "string", "stat": "string", "difficultyValue": 10, "narration": "string" },
+    { "label": "string", "difficulty": "string", "stat": "string", "difficultyValue": 10, "narration": "string" }
   ],
   "rollNarration": "string",
   "imagePrompt": "string | null",

@@ -6,6 +6,8 @@ import { StatIcon, StatImg } from './StatIcon';
 import { STAT_COLORS } from '../../lib/statColors';
 import { TargetPicker } from './TargetPicker';
 import { getHpColors } from '../../lib/hpColors';
+import { useTtsSettings } from '../../tts/useTtsSettings';
+import { browserTtsService } from '../../tts/browserTtsService';
 
 interface ActionDockProps {
   turn: TurnResult | null;
@@ -170,6 +172,8 @@ export const ActionDock = ({
   partyItemCount,
 }: ActionDockProps) => {
   const [statThinking, setStatThinking] = useState(false);
+  const { settings: ttsSettings } = useTtsSettings();
+  const ttsEnabled = ttsSettings.enabled && browserTtsService.isSupported();
 
   const submitCustom = async () => {
     if (!customAction.trim() || loading) {
@@ -299,7 +303,25 @@ export const ActionDock = ({
                     disabled={loading}
                     className={`w-full p-3 rounded-2xl border-2 text-left transition-all hover:brightness-110 disabled:opacity-50 ${STAT_COLORS[choice.stat]}`}
                   >
-                    <div className="font-black text-base uppercase leading-tight">{choice.label}</div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="font-black text-base uppercase leading-tight flex-1">{choice.label}</div>
+                      {ttsEnabled && (
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            const text = choice.narration ? `${choice.label}. ${choice.narration}` : choice.label;
+                            browserTtsService.speakNarration(text, ttsSettings);
+                          }}
+                          className="shrink-0 w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 text-sm transition-colors"
+                          aria-label="Read aloud"
+                        >
+                          🔊
+                        </button>
+                      )}
+                    </div>
+                    {choice.narration && (
+                      <div className="text-[11px] italic text-slate-300/70 mt-0.5 leading-snug">{choice.narration}</div>
+                    )}
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       <StatImg stat={choice.stat} size="12" tooltip className="rounded-xl" />
                       <span className="text-[10px] text-slate-400 font-black">

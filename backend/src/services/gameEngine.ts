@@ -1,4 +1,4 @@
-import { Character, SessionState, ActionAttempt, InventoryItem, Choice } from '../types.js';
+import { Character, SessionState, ActionAttempt, InventoryItem, Choice, type Stat, type Difficulty } from '../types.js';
 
 export class GameEngine {
   private static DIFFICULTIES = {
@@ -91,7 +91,7 @@ export class GameEngine {
     return { roll, total: roll + stat };
   }
 
-  public static checkSuccess(total: number, difficultyLabel: 'easy' | 'normal' | 'hard' | number): boolean {
+  public static checkSuccess(total: number, difficultyLabel: Difficulty | number): boolean {
     const difficulty = typeof difficultyLabel === 'number'
       ? difficultyLabel
       : (this.DIFFICULTIES[difficultyLabel] || 12);
@@ -222,8 +222,8 @@ export class GameEngine {
   public static resolveAction(
     character: Character,
     action: string,
-    statName: 'might' | 'magic' | 'mischief' | 'none',
-    difficulty: 'easy' | 'normal' | 'hard' = 'normal',
+    statName: Stat | 'none',
+    difficulty: Difficulty = 'normal',
     difficultyValue?: number
   ): ActionAttempt {
     if (statName === 'none') {

@@ -1,7 +1,10 @@
+import type { Difficulty, GameMode, Stat, TensionLevel } from '../../../types.js';
+
 export type NarrationChoice = {
   label: string;
-  difficulty: 'easy' | 'normal' | 'hard';
-  stat: 'might' | 'magic' | 'mischief';
+  difficulty: Difficulty;
+  stat: Stat;
+  narration?: string;
 };
 
 export type NarrationInput = {
@@ -32,13 +35,14 @@ export type NarrationInput = {
   actionResult: {
     success: boolean;
     roll?: number;
-    statUsed?: 'might' | 'magic' | 'mischief';
+    statUsed?: Stat;
     difficulty?: string;
     summary: string;
   };
   recentHistory: string[];
   tone: string;
-  gameMode?: 'cinematic' | 'balanced' | 'fast' | 'zug-ma-geddon';
+  gameMode?: GameMode;
+  dmPrep?: string;
   isFirstTurn?: boolean;
   interventionRescue?: boolean;
   sanctuaryRecovery?: boolean;
@@ -50,7 +54,7 @@ export type NarrationOutput = {
   rollNarration?: string;
   imagePrompt: string | null;
   imageSuggested: boolean;
-  currentTensionLevel: 'low' | 'medium' | 'high';
+  currentTensionLevel: TensionLevel;
   suggestedInventoryAdd: {
     name: string;
     description: string;

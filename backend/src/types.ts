@@ -1,5 +1,17 @@
 export type CharacterStatus = 'active' | 'downed';
 
+export const GAME_MODE_VALUES = ['cinematic', 'balanced', 'fast', 'zug-ma-geddon'] as const;
+export type GameMode = typeof GAME_MODE_VALUES[number];
+
+export const STAT_VALUES = ['might', 'magic', 'mischief'] as const;
+export type Stat = typeof STAT_VALUES[number];
+
+export const DIFFICULTY_VALUES = ['easy', 'normal', 'hard'] as const;
+export type Difficulty = typeof DIFFICULTY_VALUES[number];
+
+export const TENSION_LEVEL_VALUES = ['low', 'medium', 'high'] as const;
+export type TensionLevel = typeof TENSION_LEVEL_VALUES[number];
+
 export interface InventoryItem {
   id: string;
   name: string;
@@ -42,6 +54,7 @@ export interface SessionState {
   scene: string;
   sceneId: string;
   worldDescription?: string;
+  dmPrep?: string;
   turn: number;
   party: Character[];
   activeCharacterId: string;
@@ -49,7 +62,7 @@ export interface SessionState {
   quests: string[];
   lastChoices: Choice[];
   tone: string;
-  gameMode?: 'cinematic' | 'balanced' | 'fast' | 'zug-ma-geddon';
+  gameMode?: GameMode;
   recentHistory: string[];
   displayName: string;
   difficulty: string;
@@ -61,12 +74,21 @@ export interface SessionState {
 
 export interface Choice {
   label: string;
-  difficulty: 'easy' | 'normal' | 'hard';
-  stat: 'might' | 'magic' | 'mischief';
+  difficulty: Difficulty;
+  stat: Stat;
   difficultyValue?: number;
+  narration?: string;
 }
 
 export type TurnType = 'normal' | 'intervention' | 'sanctuary';
+
+export interface HpChange {
+  characterId: string;
+  characterName: string;
+  change: number;
+  newHp: number;
+  maxHp: number;
+}
 
 export interface TurnResult {
   id?: number;
@@ -84,7 +106,8 @@ export interface TurnResult {
   lastAction?: ActionAttempt | null;
   characterId?: string;
   turnType?: TurnType;
-  currentTensionLevel?: 'low' | 'medium' | 'high';
+  currentTensionLevel?: TensionLevel;
+  hpChanges?: HpChange[];
 }
 
 export interface ActionAttempt {
@@ -92,7 +115,7 @@ export interface ActionAttempt {
   actionResult: {
     success: boolean;
     roll: number;
-    statUsed: 'might' | 'magic' | 'mischief' | 'none';
+    statUsed: Stat | 'none';
     statBonus?: number;
     itemBonus?: number;
     isCritical?: boolean;

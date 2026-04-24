@@ -19,6 +19,8 @@ const PACING_INFO: Record<string, string> = {
 
 export const CreateSession = () => {
   const [worldDescription, setWorldDescription] = useState("");
+  const [dmPrep, setDmPrep] = useState("");
+  const [showDmPrep, setShowDmPrep] = useState(false);
   const [difficulty, setDifficulty] = useState("normal");
   const [gameMode, setGameMode] = useState<'cinematic' | 'balanced' | 'fast' | 'zug-ma-geddon'>("balanced");
   const [useLocalAI, setUseLocalAI] = useState(() => {
@@ -57,7 +59,7 @@ export const CreateSession = () => {
     const res = await apiFetch('/session/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ worldDescription, difficulty, useLocalAI, gameMode })
+      body: JSON.stringify({ worldDescription, difficulty, useLocalAI, gameMode, dmPrep: dmPrep || undefined })
     });
     const data = await res.json();
     setIsLoading(false);
@@ -136,6 +138,16 @@ export const CreateSession = () => {
             />
           ) : (
             <button onClick={() => setShowWorldDescription(true)} className="px-8 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-xs font-black uppercase tracking-widest">+ Add World Description</button>
+          )}
+          {showDmPrep ? (
+            <textarea
+              placeholder="DM prep: describe villains, lore, plot hooks, campaign notes..."
+              value={dmPrep}
+              onChange={e => setDmPrep(e.target.value)}
+              className="w-full p-6 bg-black/40 rounded-[32px] border-2 border-purple-900/40 text-base focus:border-purple-500/50 outline-none resize-none h-32 text-slate-300 placeholder-slate-600"
+            />
+          ) : (
+            <button onClick={() => setShowDmPrep(true)} className="px-8 py-3 bg-slate-800/60 hover:bg-slate-700/60 border border-purple-900/40 hover:border-purple-700/60 rounded-2xl text-xs font-black uppercase tracking-widest text-purple-400 hover:text-purple-300 transition-all">+ DM Prep (Campaign Notes)</button>
           )}
           {error && (
             <div className="flex items-center justify-between gap-4 px-6 py-3 bg-rose-950/60 border border-rose-700 rounded-2xl text-rose-300 text-sm">

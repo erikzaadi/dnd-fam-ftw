@@ -35,6 +35,7 @@ export interface Choice {
   difficulty: 'easy' | 'normal' | 'hard';
   stat: 'might' | 'magic' | 'mischief';
   difficultyValue?: number;
+  narration?: string;
 }
 
 export interface ActionAttempt {
@@ -55,6 +56,8 @@ export interface SessionPreview {
   displayName: string;
   worldDescription?: string;
   storySummary?: string;
+  difficulty: string;
+  gameMode: string;
   party: { id: string; name: string; class: string; species: string; avatarUrl?: string; hp: number; max_hp: number }[];
 }
 
@@ -73,6 +76,14 @@ export interface Session {
 
 export type TurnType = 'normal' | 'intervention' | 'sanctuary';
 
+export interface HpChange {
+  characterId: string;
+  characterName: string;
+  change: number;
+  newHp: number;
+  maxHp: number;
+}
+
 export interface TurnResult {
   id?: number;
   narration: string;
@@ -86,4 +97,5 @@ export interface TurnResult {
   characterId?: string;
   turnType?: TurnType;
   currentTensionLevel?: 'low' | 'medium' | 'high';
+  hpChanges?: HpChange[];
 }

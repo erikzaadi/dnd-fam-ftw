@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import type { Session, Character, TurnResult } from '../types';
+import type { Session, Character, TurnResult, HpChange } from '../types';
 import { apiFetch } from '../lib/api';
 import { useSessionEvents } from '../hooks/useSessionEvents';
 import { PageLoader } from '../components/PageLoader';
@@ -45,7 +45,7 @@ export const SessionPage = () => {
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
-  const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; isCritical?: boolean; difficultyTarget?: number; rollNarration?: string } | null>(null);
+  const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; isCritical?: boolean; difficultyTarget?: number; rollNarration?: string; hpChanges?: HpChange[] } | null>(null);
   const [dieExiting, setDieExiting] = useState(false);
   const [interventionBanner, setInterventionBanner] = useState<string | null>(null);
   const [sanctuaryBanner, setSanctuaryBanner] = useState<string | null>(null);
@@ -53,6 +53,7 @@ export const SessionPage = () => {
   const [showChronicle, setShowChronicle] = useState(false);
   const [lastSubmittedAction, setLastSubmittedAction] = useState<LastSubmittedAction | null>(null);
   const [ttsPlaying, setTtsPlaying] = useState(false);
+  const [currentTensionLevel, setCurrentTensionLevel] = useState<'low' | 'medium' | 'high' | null>(null);
 
   const joinSession = useCallback(async (sessionId: string) => {
     const res = await apiFetch(`/session/${sessionId}`);
@@ -158,6 +159,9 @@ export const SessionPage = () => {
       setLoading(false);
       setLastSubmittedAction(null);
       setCustomAction('');
+      if (turnResult?.currentTensionLevel) {
+        setCurrentTensionLevel(turnResult.currentTensionLevel);
+      }
       if (updatedSession) {
         setSession(updatedSession);
       }
@@ -172,6 +176,7 @@ export const SessionPage = () => {
           isCritical: roll.isCritical,
           difficultyTarget: roll.difficultyTarget,
           rollNarration: turnResult?.rollNarration,
+          hpChanges: turnResult?.hpChanges,
         });
         setDieExiting(false);
         setTimeout(() => setDieExiting(true), 4000);
@@ -314,6 +319,7 @@ export const SessionPage = () => {
             imageLoading={imageLoading}
             ttsSettings={ttsSettings}
             chronicleOpen={showChronicle}
+            currentTensionLevel={currentTensionLevel}
             onOpenChronicle={() => setShowChronicle(true)}
             onFullscreenImage={setFullscreenImage}
             onFullscreenNarration={setFullscreenNarration}
@@ -326,7 +332,10 @@ export const SessionPage = () => {
             <ChronicleDrawer
               history={history}
               party={session.party}
-              onClose={() => setShowChronicle(false)}
+              onClose={() => {
+                setShowChronicle(false);
+                setViewedTurnIdx(history.length - 1);
+              }}
               onSelectTurn={setViewedTurnIdx}
               viewedTurnIdx={viewedTurnIdx}
               ttsSettings={ttsSettings}
@@ -378,6 +387,20 @@ export const SessionPage = () => {
               <p className="text-amber-100/90 text-center font-medium italic mt-2 max-w-xs leading-tight animate-in slide-in-from-bottom-2 duration-700">
                 {lastRoll.rollNarration}
               </p>
+            )}
+            {lastRoll.hpChanges && lastRoll.hpChanges.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 justify-center mt-3">
+                {lastRoll.hpChanges.map(hc => (
+                  <div
+                    key={hc.characterId}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-widest border ${hc.change < 0 ? 'bg-rose-900/40 border-rose-700/50 text-rose-400' : 'bg-emerald-900/40 border-emerald-700/50 text-emerald-400'}`}
+                  >
+                    <span>{hc.change < 0 ? '' : '+'}{hc.change}</span>
+                    <span className="opacity-70 normal-case tracking-normal font-semibold">{hc.characterName.split(' ')[0]}</span>
+                    <span className="opacity-50 text-[10px]">{hc.newHp}/{hc.maxHp}</span>
+                  </div>
+                ))}
+              </div>
             )}
             <span className="text-[10px] uppercase tracking-widest text-slate-600 mt-2">tap to dismiss</span>
           </div>
