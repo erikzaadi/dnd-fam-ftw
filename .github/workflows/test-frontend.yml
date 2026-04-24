@@ -1,14 +1,14 @@
-name: Test
+name: Test Frontend
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'backend/**'
+      - 'frontend/**'
   pull_request:
     paths:
-      - 'backend/**'
+      - 'frontend/**'
   workflow_dispatch:
 
 jobs:
@@ -22,8 +22,8 @@ jobs:
         with:
           node-version: 24
 
-      - name: Install backend deps
-        run: cd backend && npm ci
+      - name: Install frontend deps
+        run: cd frontend && npm ci
 
       - name: Run tests
-        run: cd backend && npm test
+        run: cd frontend && npm test

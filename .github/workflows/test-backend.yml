@@ -1,0 +1,29 @@
+name: Test Backend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+  pull_request:
+    paths:
+      - 'backend/**'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Install backend deps
+        run: cd backend && npm ci
+
+      - name: Run tests
+        run: cd backend && npm test
