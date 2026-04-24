@@ -5,6 +5,7 @@ import { D20 } from './D20';
 import { StatImg } from './StatIcon';
 import { TtsButton } from '../TtsButton';
 import type { TtsSettings } from '../../tts/ttsTypes';
+import { STAT_COLORS } from '../../lib/statColors';
 
 interface LastSubmittedAction {
   label: string;
@@ -18,13 +19,6 @@ interface DmDecisionRecapPanelProps {
   lastSubmittedAction: LastSubmittedAction | null;
   ttsSettings: TtsSettings;
 }
-
-const STAT_COLORS: Record<string, string> = {
-  might: 'border-rose-500/60 bg-rose-950/30 text-rose-300',
-  magic: 'border-blue-500/60 bg-blue-950/30 text-blue-300',
-  mischief: 'border-purple-500/60 bg-purple-950/30 text-purple-300',
-  none: 'border-slate-600 bg-slate-900/50 text-slate-400',
-};
 
 export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings }: DmDecisionRecapPanelProps) => {
   const char = lastSubmittedAction?.char ?? null;

@@ -3,8 +3,9 @@ import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { createImageProvider } from '../providers/ai/AiProviderFactory.js';
-import { DEFAULT_NEGATIVE_PROMPT } from '../providers/ai/images/ImageProvider.js';
+import { DEFAULT_NEGATIVE_PROMPT, type ImageProvider } from '../providers/ai/images/ImageProvider.js';
 import { getImageStorageProvider } from '../providers/storage/storageProviderFactory.js';
+import type { ImageStorageProvider } from '../providers/storage/ImageStorageProvider.js';
 import { getConfig } from '../config/env.js';
 
 export type ImageResult = { url: string; storageKey: string; storageProvider: string };
@@ -16,12 +17,14 @@ export class ImageService {
     char: { name: string; class: string; species: string; quirk: string; gender?: string },
     sessionId: string,
     useLocalAI?: boolean,
+    overrideImageProvider?: ImageProvider,
+    overrideStorageProvider?: ImageStorageProvider,
   ): Promise<{ url: string; prompt: string; storageKey: string; storageProvider: string }> {
     const genderDesc = char.gender ? `${char.gender} ` : '';
     const prompt = `fantasy character portrait, ${genderDesc}${char.species} ${char.class}, detailed face, plain dark background, vibrant colors, cinematic lighting, digital illustration`;
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
     const fileName = `avatar_${sessionId}_${char.name}_${promptHash}.png`;
-    const storage = getImageStorageProvider();
+    const storage = overrideStorageProvider ?? getImageStorageProvider();
     const config = getConfig();
 
     if (await storage.exists(fileName)) {
@@ -31,7 +34,7 @@ export class ImageService {
     try {
       console.log(`[ImageService] Generating avatar for ${char.name}`);
       const avatarStart = Date.now();
-      const imageProvider = createImageProvider(useLocalAI);
+      const imageProvider = overrideImageProvider ?? createImageProvider(useLocalAI);
       const result = await imageProvider.generateImage({
         prompt,
         negativePrompt: DEFAULT_NEGATIVE_PROMPT,
@@ -55,10 +58,12 @@ export class ImageService {
     sessionId: string,
     turn: number,
     useLocalAI?: boolean,
+    overrideImageProvider?: ImageProvider,
+    overrideStorageProvider?: ImageStorageProvider,
   ): Promise<ImageResult | null> {
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
     const fileName = `${sessionId}_turn${turn}_${promptHash}.png`;
-    const storage = getImageStorageProvider();
+    const storage = overrideStorageProvider ?? getImageStorageProvider();
     const config = getConfig();
 
     if (await storage.exists(fileName)) {
@@ -67,7 +72,7 @@ export class ImageService {
 
     try {
       console.log(`[ImageService] Generating image for session ${sessionId}: ${prompt}`);
-      const imageProvider = createImageProvider(useLocalAI);
+      const imageProvider = overrideImageProvider ?? createImageProvider(useLocalAI);
       const result = await imageProvider.generateImage({
         prompt,
         negativePrompt: DEFAULT_NEGATIVE_PROMPT,
@@ -82,7 +87,7 @@ export class ImageService {
       const code = (error as { code?: string })?.code;
       if (code === 'content_policy_violation') {
         console.warn('[ImageService] Content policy hit, retrying with sanitized prompt');
-        return this.generateSanitizedImage(prompt, sessionId, turn, useLocalAI);
+        return this.generateSanitizedImage(prompt, sessionId, turn, useLocalAI, overrideImageProvider, overrideStorageProvider);
       }
       console.error('[ImageService] Error generating image:', error);
       return null;
@@ -118,16 +123,18 @@ export class ImageService {
     sessionId: string,
     turn: number,
     useLocalAI?: boolean,
+    overrideImageProvider?: ImageProvider,
+    overrideStorageProvider?: ImageStorageProvider,
   ): Promise<ImageResult | null> {
     const sanitized = this.sanitizePrompt(originalPrompt);
     const promptHash = crypto.createHash('md5').update(sanitized).digest('hex');
     const fileName = `${sessionId}_turn${turn}_${promptHash}_safe.png`;
-    const storage = getImageStorageProvider();
+    const storage = overrideStorageProvider ?? getImageStorageProvider();
     const config = getConfig();
 
     try {
       console.log('Before image provider');
-      const imageProvider = createImageProvider(useLocalAI);
+      const imageProvider = overrideImageProvider ?? createImageProvider(useLocalAI);
       console.log('After image provider generating');
       const result = await imageProvider.generateImage({
         prompt: `family-friendly, ${sanitized}`,

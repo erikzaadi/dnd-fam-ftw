@@ -3,6 +3,9 @@ import type { TurnResult, Character, InventoryItem } from '../../types';
 import { apiFetch, imgSrc, pulseSyncDelay } from '../../lib/api';
 import { beatTarget } from '../../lib/game';
 import { StatIcon, StatImg } from './StatIcon';
+import { STAT_COLORS } from '../../lib/statColors';
+import { TargetPicker } from './TargetPicker';
+import { getHpColors } from '../../lib/hpColors';
 
 interface ActionDockProps {
   turn: TurnResult | null;
@@ -20,13 +23,6 @@ interface ActionDockProps {
   onShowPartyGear: () => void;
   partyItemCount: number;
 }
-
-const STAT_COLORS: Record<string, string> = {
-  might: 'border-rose-500/70 bg-rose-950/30 text-rose-200',
-  magic: 'border-blue-500/70 bg-blue-950/30 text-blue-200',
-  mischief: 'border-purple-500/70 bg-purple-950/30 text-purple-200',
-  none: 'border-slate-600 bg-slate-900 text-slate-300',
-};
 
 const RISK_MAP: Record<string, { label: string; color: string }> = {
   easy: { label: 'Favorable', color: 'text-emerald-400' },
@@ -108,23 +104,14 @@ const ItemsSection = ({
             </div>
 
             {isPending ? (
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[9px] text-slate-500 uppercase tracking-widest font-black">
-                  {pending.action === 'use' ? 'Use on:' : 'Give to:'}
-                </span>
-                {party
-                  .filter(t => pending.action === 'use' ? true : t.id !== char.id)
-                  .map(target => (
-                    <button key={target.id} onClick={() => confirm(target.id)} title={target.name}>
-                      <img
-                        src={imgSrc(target.avatarUrl)}
-                        className={`w-7 h-7 rounded-full object-cover border-2 hover:scale-110 transition-all ${target.status === 'downed' ? 'grayscale opacity-50 border-slate-600' : 'border-slate-600 hover:border-amber-500'}`}
-                        alt={target.name}
-                      />
-                    </button>
-                  ))}
-                <button onClick={() => setPending(null)} className="text-[9px] text-slate-600 hover:text-slate-400 font-black px-1">✕</button>
-              </div>
+              <TargetPicker
+                compact
+                party={party}
+                action={pending.action}
+                ownerCharId={char.id}
+                onConfirm={confirm}
+                onCancel={() => setPending(null)}
+              />
             ) : (
               (canUse || canGive) && !disabled && (
                 <div className="flex items-center gap-1.5">
@@ -230,7 +217,7 @@ export const ActionDock = ({
           <div className="flex flex-col gap-1 min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-black text-base uppercase tracking-wide truncate">{activeCharacter.name}</span>
-              <span className={`text-xs font-black shrink-0 ${activeCharacter.hp <= activeCharacter.max_hp * 0.25 ? 'text-rose-400' : activeCharacter.hp <= activeCharacter.max_hp * 0.5 ? 'text-amber-400' : 'text-emerald-400'}`}>
+              <span className={`text-xs font-black shrink-0 ${getHpColors(activeCharacter.hp, activeCharacter.max_hp).text}`}>
                 {activeCharacter.hp}/{activeCharacter.max_hp} HP
               </span>
             </div>
@@ -240,7 +227,7 @@ export const ActionDock = ({
             {/* HP bar */}
             <div className="h-1 rounded-full bg-slate-700 w-full mt-0.5">
               <div
-                className={`h-1 rounded-full transition-all ${activeCharacter.hp <= activeCharacter.max_hp * 0.25 ? 'bg-rose-500' : activeCharacter.hp <= activeCharacter.max_hp * 0.5 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                className={`h-1 rounded-full transition-all ${getHpColors(activeCharacter.hp, activeCharacter.max_hp).bar}`}
                 style={{ width: `${Math.max(0, (activeCharacter.hp / activeCharacter.max_hp) * 100)}%` }}
               />
             </div>

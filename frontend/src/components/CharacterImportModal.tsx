@@ -1,5 +1,6 @@
 import type { Character } from '../types';
 import { imgSrc } from '../lib/api';
+import { Modal } from './Modal';
 
 interface CharacterImportModalProps {
   characters: Character[];
@@ -9,7 +10,7 @@ interface CharacterImportModalProps {
 }
 
 export const CharacterImportModal = ({ characters, onImport, onClose, loading }: CharacterImportModalProps) => (
-  <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4">
+  <Modal>
     <div className="bg-slate-900 p-10 rounded-[40px] border-2 border-slate-700 shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-y-auto relative">
       <h2 className="text-3xl font-black text-white mb-8">Import Hero</h2>
       {!loading && <button onClick={onClose} className="absolute top-6 right-6 text-slate-500 hover:text-white text-2xl">✕</button>}
@@ -36,5 +37,5 @@ export const CharacterImportModal = ({ characters, onImport, onClose, loading }:
         </div>
       )}
     </div>
-  </div>
+  </Modal>
 );

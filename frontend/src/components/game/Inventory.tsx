@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { Character, InventoryItem } from '../../types';
 import { imgSrc } from '../../lib/api';
+import { TargetPicker } from './TargetPicker';
 
 interface InventoryProps {
   party: Character[];
@@ -90,21 +91,14 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
             )}
             {/* Target picker */}
             {isPendingThis && (
-              <div className="flex gap-1 flex-wrap justify-end items-center mt-0.5">
-                <span className="text-[8px] text-slate-500 uppercase tracking-widest">{pending.action === 'use' ? 'On:' : 'To:'}</span>
-                {party
-                  .filter(t => pending.action === 'use' ? true : t.id !== char.id)
-                  .map(target => (
-                    <button key={target.id} onClick={() => confirm(target.id)} title={target.name}>
-                      <img
-                        src={imgSrc(target.avatarUrl)}
-                        className={`w-7 h-7 rounded-full object-cover border-2 hover:scale-110 transition-all ${target.status === 'downed' ? 'grayscale opacity-50 border-slate-600' : 'border-slate-600 hover:border-amber-500'}`}
-                        alt={target.name}
-                      />
-                    </button>
-                  ))}
-                <button onClick={() => setPending(null)} className="text-[8px] text-slate-600 hover:text-slate-400 font-black px-1">✕</button>
-              </div>
+              <TargetPicker
+                compact
+                party={party}
+                action={pending.action}
+                ownerCharId={char.id}
+                onConfirm={confirm}
+                onCancel={() => setPending(null)}
+              />
             )}
           </div>
           {/* Tooltip - appears to the left since items are right-aligned */}
@@ -152,31 +146,13 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
             )}
           </div>
           {isPendingThis && (
-            <div className="mt-2 pt-2 border-t border-slate-700">
-              <p className="text-[9px] uppercase tracking-widest text-slate-500 mb-2">
-                {pending.action === 'use' ? 'Use on:' : 'Give to:'}
-              </p>
-              <div className="flex gap-2 flex-wrap">
-                {party
-                  .filter(t => pending.action === 'use' ? true : t.id !== char.id)
-                  .map(target => (
-                    <button
-                      key={target.id}
-                      onClick={() => confirm(target.id)}
-                      title={target.name}
-                      className="flex flex-col items-center gap-1 group/target"
-                    >
-                      <img
-                        src={imgSrc(target.avatarUrl)}
-                        className={`w-9 h-9 rounded-full object-cover border-2 transition-all group-hover/target:scale-110 ${target.status === 'downed' ? 'grayscale opacity-50 border-slate-600' : 'border-slate-600 group-hover/target:border-amber-500'}`}
-                        alt={target.name}
-                      />
-                      <span className="text-[8px] font-black uppercase tracking-widest text-slate-500 group-hover/target:text-amber-400">{target.name.split(' ')[0]}</span>
-                    </button>
-                  ))}
-                <button onClick={() => setPending(null)} className="self-start px-2 py-1 text-[9px] text-slate-600 hover:text-slate-400 font-black uppercase">✕</button>
-              </div>
-            </div>
+            <TargetPicker
+              party={party}
+              action={pending.action}
+              ownerCharId={char.id}
+              onConfirm={confirm}
+              onCancel={() => setPending(null)}
+            />
           )}
           {item.description && !isPendingThis && (
             <div className="absolute bottom-full left-0 mb-2 w-56 px-3 py-2 bg-slate-800 border border-slate-600 rounded-xl text-xs text-slate-300 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">

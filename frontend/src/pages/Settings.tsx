@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { DmFooter } from '../components/DmFooter';
 import { SiteHeader } from '../components/SiteHeader';
 import { apiFetch } from '../lib/api';
+import { RangeSlider } from '../components/RangeSlider';
 
 interface AppSettings {
   imagesEnabled: boolean;
@@ -200,21 +201,15 @@ export const Settings = () => {
                       />
                       {audioSettings.musicEnabled && (
                         <>
-                          <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
-                            <div className="flex justify-between items-center">
-                              <span className="font-black uppercase tracking-tighter text-white">Music Volume</span>
-                              <span className="text-sm text-slate-400">{Math.round(audioSettings.musicVolume * 100)}%</span>
-                            </div>
-                            <input
-                              type="range"
-                              min="0"
-                              max="1"
-                              step="0.05"
-                              value={audioSettings.musicVolume}
-                              onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
-                              className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-600"
-                            />
-                          </div>
+                          <RangeSlider
+                            label="Music Volume"
+                            value={audioSettings.musicVolume}
+                            min={0}
+                            max={1}
+                            step={0.05}
+                            displayValue={`${Math.round(audioSettings.musicVolume * 100)}%`}
+                            onChange={setMusicVolume}
+                          />
                           <button
                             disabled={audioSettings.masterMuted || !audioSettings.enabled}
                             onClick={() => {
@@ -261,21 +256,15 @@ export const Settings = () => {
                         label="Sound Effects"
                         description="Play sound effects for dice rolls and game actions."
                       />
-                      <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
-                        <div className="flex justify-between items-center">
-                          <span className="font-black uppercase tracking-tighter text-white">SFX Volume</span>
-                          <span className="text-sm text-slate-400">{Math.round(audioSettings.sfxVolume * 100)}%</span>
-                        </div>
-                        <input
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.05"
-                          value={audioSettings.sfxVolume}
-                          onChange={(e) => setSfxVolume(parseFloat(e.target.value))}
-                          className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-600"
-                        />
-                      </div>
+                      <RangeSlider
+                        label="SFX Volume"
+                        value={audioSettings.sfxVolume}
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        displayValue={`${Math.round(audioSettings.sfxVolume * 100)}%`}
+                        onChange={setSfxVolume}
+                      />
                       {audioSettings.sfxEnabled && (
                         <div className="flex gap-3">
                           <button
@@ -386,51 +375,33 @@ export const Settings = () => {
                               <option value="male">Prefer male</option>
                             </select>
                           </div>
-                          <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
-                            <div className="flex justify-between items-center">
-                              <span className="font-black uppercase tracking-tighter text-white">Speech Speed</span>
-                              <span className="text-sm text-slate-400">{ttsSettings.rate.toFixed(2)}x</span>
-                            </div>
-                            <input
-                              type="range"
-                              min="0.7"
-                              max="1.4"
-                              step="0.05"
-                              value={ttsSettings.rate}
-                              onChange={e => setRate(parseFloat(e.target.value))}
-                              className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-600"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
-                            <div className="flex justify-between items-center">
-                              <span className="font-black uppercase tracking-tighter text-white">Pitch</span>
-                              <span className="text-sm text-slate-400">{ttsSettings.pitch.toFixed(2)}</span>
-                            </div>
-                            <input
-                              type="range"
-                              min="0.5"
-                              max="1.5"
-                              step="0.05"
-                              value={ttsSettings.pitch}
-                              onChange={e => setPitch(parseFloat(e.target.value))}
-                              className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-600"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
-                            <div className="flex justify-between items-center">
-                              <span className="font-black uppercase tracking-tighter text-white">Voice Volume</span>
-                              <span className="text-sm text-slate-400">{Math.round(ttsSettings.volume * 100)}%</span>
-                            </div>
-                            <input
-                              type="range"
-                              min="0"
-                              max="1"
-                              step="0.05"
-                              value={ttsSettings.volume}
-                              onChange={e => setTtsVolume(parseFloat(e.target.value))}
-                              className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-600"
-                            />
-                          </div>
+                          <RangeSlider
+                            label="Speech Speed"
+                            value={ttsSettings.rate}
+                            min={0.7}
+                            max={1.4}
+                            step={0.05}
+                            displayValue={`${ttsSettings.rate.toFixed(2)}x`}
+                            onChange={setRate}
+                          />
+                          <RangeSlider
+                            label="Pitch"
+                            value={ttsSettings.pitch}
+                            min={0.5}
+                            max={1.5}
+                            step={0.05}
+                            displayValue={ttsSettings.pitch.toFixed(2)}
+                            onChange={setPitch}
+                          />
+                          <RangeSlider
+                            label="Voice Volume"
+                            value={ttsSettings.volume}
+                            min={0}
+                            max={1}
+                            step={0.05}
+                            displayValue={`${Math.round(ttsSettings.volume * 100)}%`}
+                            onChange={setTtsVolume}
+                          />
                           <button
                             disabled={!ttsSettings.enabled}
                             onClick={() => {

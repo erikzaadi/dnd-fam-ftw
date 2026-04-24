@@ -2,6 +2,7 @@ import type { TurnResult } from '../../types';
 import { imgSrc } from '../../lib/api';
 import type { TtsSettings } from '../../tts/ttsTypes';
 import { TtsButton } from '../TtsButton';
+import { SceneBackground } from './SceneBackground';
 
 interface StoryStageProps {
   history: TurnResult[];
@@ -46,22 +47,7 @@ export const StoryStage = ({
       className="relative flex flex-col h-full overflow-hidden rounded-[32px] bg-slate-950 cursor-zoom-in"
       onClick={handleStageClick}
     >
-      {/* Default image always shown as base */}
-      <img
-        src={defaultImageUrl}
-        className="absolute inset-0 w-full h-full object-cover opacity-20 animate-ken-burns"
-        alt=""
-      />
-
-      {/* Turn image crossfades in over default when ready */}
-      {imageUrl && (
-        <img
-          key={imageUrl}
-          src={imageUrl}
-          className="absolute inset-0 w-full h-full object-cover animate-ken-burns animate-in fade-in duration-1000"
-          alt=""
-        />
-      )}
+      <SceneBackground imageUrl={imageUrl} defaultImageUrl={defaultImageUrl} />
 
       {/* Painting the scene badge - top-left when loading */}
       {imageLoading && (
@@ -70,9 +56,6 @@ export const StoryStage = ({
           <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Painting the scene...</span>
         </div>
       )}
-
-      {/* Gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent pointer-events-none" />
 
       {/* Viewing old turn badge */}
       {!isCurrentTurn && (

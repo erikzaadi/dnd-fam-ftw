@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { Character } from '../types';
+import { Modal } from './Modal';
 
 interface CharacterFormProps {
   onSave: (e: React.FormEvent<HTMLFormElement>) => void;
@@ -20,7 +21,7 @@ export const CharacterForm = ({ onSave, onCancel, isLoading, initialValues }: Ch
   }, [onCancel]);
 
   return (
-    <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4">
+    <Modal>
       <div className="bg-slate-900 p-10 rounded-[40px] border-2 border-amber-500/30 shadow-2xl max-w-lg w-full relative">
         <h3 className="text-3xl font-black text-white mb-6">{initialValues ? 'Edit Hero' : 'Create New Hero'}</h3>
 
@@ -45,6 +46,6 @@ export const CharacterForm = ({ onSave, onCancel, isLoading, initialValues }: Ch
           </form>
         )}
       </div>
-    </div>
+    </Modal>
   );
 };

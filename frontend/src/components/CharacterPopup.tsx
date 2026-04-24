@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import type { Character } from '../types';
 import { imgSrc } from '../lib/api';
 import { StatImg } from './game/StatIcon';
+import { Modal } from './Modal';
+import { getHpColors } from '../lib/hpColors';
 
 interface CharacterPopupProps {
   character: Character;
@@ -34,10 +36,10 @@ export const CharacterPopup = ({ character, onClose, onAvatarClick }: CharacterP
   }
 
   const hpPct = Math.max(0, Math.min(100, (character.hp / character.max_hp) * 100));
-  const hpColor = hpPct > 50 ? 'bg-emerald-500' : hpPct > 25 ? 'bg-amber-500' : 'bg-rose-500';
+  const { bar: hpColor } = getHpColors(character.hp, character.max_hp);
 
   return (
-    <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 animate-in fade-in duration-300">
+    <Modal className="animate-in fade-in duration-300">
       <div className="bg-slate-900 p-6 md:p-10 rounded-[40px] border-2 border-amber-500/30 shadow-2xl max-w-lg w-full relative">
         <button onClick={onClose} className="absolute top-6 right-6 text-slate-500 hover:text-white">✕</button>
 
@@ -117,6 +119,6 @@ export const CharacterPopup = ({ character, onClose, onAvatarClick }: CharacterP
           ))}
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };

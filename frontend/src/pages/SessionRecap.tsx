@@ -12,6 +12,9 @@ import { D20 } from '../components/game/D20';
 import { StatImg } from '../components/game/StatIcon';
 import { RollBreakdown } from '../components/game/RollBreakdown';
 import { audioManager } from '../audio/audioManager';
+import { SceneBackground } from '../components/game/SceneBackground';
+import { STAT_COLORS } from '../lib/statColors';
+import { PageLoader } from '../components/PageLoader';
 
 type Mode = 'choose' | 'tldr' | 'movie';
 
@@ -128,16 +131,7 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
           setFullscreenUrl(imageUrl ?? defaultImageUrl); setPlaying(false);
         }}
       >
-        <img src={defaultImageUrl} className="absolute inset-0 w-full h-full object-cover opacity-20 animate-ken-burns" alt="" />
-        {imageUrl && (
-          <img
-            key={imageUrl}
-            src={imageUrl}
-            className="absolute inset-0 w-full h-full object-cover animate-ken-burns animate-in fade-in duration-1000"
-            alt=""
-          />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent pointer-events-none" />
+        <SceneBackground imageUrl={imageUrl} defaultImageUrl={defaultImageUrl} />
 
         {/* Narration card - centered vertically */}
         <div
@@ -196,23 +190,14 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
         {/* Chosen action */}
         {turn.lastAction && (() => {
           const statUsed = turn.lastAction.actionResult.statUsed;
-          const statBorderColor =
-            statUsed === 'might' ? 'border-rose-500/70 bg-rose-950/20' :
-              statUsed === 'magic' ? 'border-blue-500/70 bg-blue-950/20' :
-                statUsed === 'mischief' ? 'border-purple-500/70 bg-purple-950/20' :
-                  'border-amber-500/30 bg-slate-900/60';
-          const statTextColor =
-            statUsed === 'might' ? 'text-rose-300' :
-              statUsed === 'magic' ? 'text-blue-300' :
-                statUsed === 'mischief' ? 'text-purple-300' :
-                  'text-slate-400';
+          const statColors = STAT_COLORS[statUsed] ?? STAT_COLORS.none;
           return (
-            <div className={`p-4 rounded-2xl border-2 ${statBorderColor}`}>
+            <div className={`p-4 rounded-2xl border-2 ${statColors}`}>
               <div className="text-base font-black uppercase tracking-widest text-amber-400 mb-2">Chosen Action</div>
               {statUsed !== 'none' && (
                 <div className="flex items-center gap-3 mb-3">
                   <StatImg stat={statUsed} size="16" rounded />
-                  <span className={`text-xl font-black uppercase tracking-widest ${statTextColor}`}>
+                  <span className="text-xl font-black uppercase tracking-widest">
                     {statUsed}
                   </span>
                 </div>
@@ -329,7 +314,7 @@ export const SessionRecap = () => {
   }, [session, history.length]);
 
   if (!session) {
-    return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-amber-500 animate-pulse font-black uppercase tracking-widest">Loading...</div>;
+    return <PageLoader />;
   }
 
   return (

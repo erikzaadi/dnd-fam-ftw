@@ -6,6 +6,8 @@ import { beatTarget } from '../../lib/game';
 import { D20 } from './D20';
 import { RollBreakdown } from './RollBreakdown';
 import type { TtsSettings } from '../../tts/ttsTypes';
+import { STAT_COLORS } from '../../lib/statColors';
+import { SPECIAL_TURNS } from '../../lib/specialTurns';
 
 interface ChronicleDrawerProps {
   history: TurnResult[];
@@ -15,28 +17,6 @@ interface ChronicleDrawerProps {
   viewedTurnIdx: number;
   ttsSettings: TtsSettings;
 }
-
-const STAT_COLORS: Record<string, string> = {
-  might: 'border-rose-500/50 bg-rose-950/20 text-rose-300',
-  magic: 'border-blue-500/50 bg-blue-950/20 text-blue-300',
-  mischief: 'border-purple-500/50 bg-purple-950/20 text-purple-300',
-  none: 'border-slate-600 bg-slate-900 text-slate-300',
-};
-
-const SPECIAL_TURNS: Record<string, { img: string; label: string; borderClass: string; textClass: string }> = {
-  intervention: {
-    img: '/images/intervention_dragon.png',
-    label: 'Miraculous Rescue',
-    borderClass: 'border-amber-500/60',
-    textClass: 'text-amber-400',
-  },
-  sanctuary: {
-    img: '/images/sanctuary_light.png',
-    label: 'Sanctuary',
-    borderClass: 'border-blue-400/60',
-    textClass: 'text-blue-300',
-  },
-};
 
 // Narrow-column expanded turn view, designed for ~380-420px panels
 const TurnDetail = ({

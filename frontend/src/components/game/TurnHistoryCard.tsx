@@ -3,6 +3,8 @@ import { imgSrc } from '../../lib/api';
 import { beatTarget } from '../../lib/game';
 import { D20 } from './D20';
 import { RollBreakdown } from './RollBreakdown';
+import { STAT_COLORS } from '../../lib/statColors';
+import { SPECIAL_TURNS } from '../../lib/specialTurns';
 
 interface TurnHistoryCardProps {
   choices: Choice[];
@@ -12,32 +14,10 @@ interface TurnHistoryCardProps {
   narration?: string;
 }
 
-const STAT_COLORS: Record<string, string> = {
-  might: 'border-rose-500/50 bg-rose-950/20 text-rose-300',
-  magic: 'border-blue-500/50 bg-blue-950/20 text-blue-300',
-  mischief: 'border-purple-500/50 bg-purple-950/20 text-purple-300',
-  none: 'border-slate-600 bg-slate-900 text-slate-300'
-};
-
 const DIFF_COLORS: Record<string, string> = {
   easy: 'shadow-[inset_0_0_8px_rgba(34,197,94,0.2)]',
   normal: 'shadow-[inset_0_0_8px_rgba(245,158,11,0.2)]',
   hard: 'shadow-[inset_0_0_8px_rgba(239,68,68,0.2)]'
-};
-
-const SPECIAL_TURNS: Record<string, { img: string; label: string; borderClass: string; textClass: string }> = {
-  intervention: {
-    img: '/images/intervention_dragon.png',
-    label: 'Miraculous Rescue',
-    borderClass: 'border-amber-500/60',
-    textClass: 'text-amber-400',
-  },
-  sanctuary: {
-    img: '/images/sanctuary_light.png',
-    label: 'Sanctuary',
-    borderClass: 'border-blue-400/60',
-    textClass: 'text-blue-300',
-  },
 };
 
 export const TurnHistoryCard = ({ choices, takenAction, character, turnType, narration }: TurnHistoryCardProps) => {

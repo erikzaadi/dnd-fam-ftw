@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Session, Character, TurnResult } from '../types';
-import { apiFetch, apiUrl } from '../lib/api';
+import { apiFetch } from '../lib/api';
+import { useSessionEvents } from '../hooks/useSessionEvents';
+import { PageLoader } from '../components/PageLoader';
 import { CharacterPopup } from '../components/CharacterPopup';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { FullscreenImage } from '../components/FullscreenImage';
@@ -149,120 +151,91 @@ export const SessionPage = () => {
     return () => window.removeEventListener('keydown', handler);
   }, [lastRoll]);
 
-  useEffect(() => {
-    if (!id) {
-      return;
-    }
-    let es: EventSource;
-    let reconnectTimer: ReturnType<typeof setTimeout>;
-
-    const connect = () => {
-      es = new EventSource(apiUrl(`/session/${id}/events`), { withCredentials: true });
-
-      es.onmessage = (e: MessageEvent) => {
-        const data = JSON.parse(e.data);
-        if (data.type === 'dm_narrating') {
-          setLoading(true);
-        } else if (data.type === 'turn_complete') {
-          setLoading(false);
-          setLastSubmittedAction(null);
-          setCustomAction('');
-          if (data.session) {
-            setSession(data.session);
-          }
-          if (data.turnResult?.currentTensionLevel) {
-            audioManager.setTension(data.turnResult.currentTensionLevel);
-          }
-          const roll = data.turnResult?.lastAction?.actionResult;
-          if (roll && roll.statUsed !== 'none') {
-            audioManager.playSfx('dice-roll');
-            setTimeout(() => {
-              if (roll.roll === 20) {
-                audioManager.playSfx('roll-20');
-              } else if (roll.success) {
-                audioManager.playSfx('success-roll');
-              } else {
-                audioManager.playSfx('failed-roll');
-              }
-            }, 600);
-            setLastRoll({
-              roll: roll.roll,
-              success: roll.success,
-              stat: roll.statUsed,
-              statBonus: roll.statBonus,
-              itemBonus: roll.itemBonus,
-              isCritical: roll.isCritical,
-              difficultyTarget: roll.difficultyTarget,
-              rollNarration: data.turnResult?.rollNarration,
-            });
-            setDieExiting(false);
-            setTimeout(() => setDieExiting(true), 4000);
-            setTimeout(() => {
-              setLastRoll(null);
-              setDieExiting(false);
-            }, 4500);
-          }
-        } else if (data.type === 'image_ready') {
-          setImageLoading(false);
-          setHistory(prev => {
-            if (prev.length === 0) {
-              return prev;
-            }
-            const last = prev[prev.length - 1];
-            if (last.turnType === 'intervention' || last.turnType === 'sanctuary') {
-              return prev;
-            }
-            const updated = [...prev];
-            updated[updated.length - 1] = { ...last, imageUrl: data.imageUrl };
-            return updated;
-          });
-        } else if (data.type === 'intervention') {
-          setInterventionBanner(data.turnResult?.narration ?? 'A mysterious force saved the party!');
-          if (data.session) {
-            setSession(data.session);
-          }
-          if (data.turnResult) {
-            setHistory(prev => {
-              const u = [...prev, data.turnResult];
-              setViewedTurnIdx(u.length - 1);
-              return u;
-            });
-          }
-          setTimeout(() => setInterventionBanner(null), 8000);
-        } else if (data.type === 'sanctuary_recovery') {
-          setSanctuaryBanner(data.turnResult?.narration ?? 'The party found sanctuary...');
-          if (data.session) {
-            setSession(data.session);
-          }
-          if (data.turnResult) {
-            setHistory(prev => {
-              const u = [...prev, data.turnResult];
-              setViewedTurnIdx(u.length - 1);
-              return u;
-            });
-          }
-          setTimeout(() => setSanctuaryBanner(null), 10000);
-        } else if (data.type === 'party_update') {
-          if (data.session) {
-            setSession(data.session);
-          } else {
-            joinSession(id);
-          }
+  useSessionEvents({
+    sessionId: id!,
+    onNarrating: () => setLoading(true),
+    onTurnComplete: (updatedSession, turnResult) => {
+      setLoading(false);
+      setLastSubmittedAction(null);
+      setCustomAction('');
+      if (updatedSession) {
+        setSession(updatedSession);
+      }
+      const roll = turnResult?.lastAction?.actionResult;
+      if (roll && roll.statUsed !== 'none') {
+        setLastRoll({
+          roll: roll.roll,
+          success: roll.success,
+          stat: roll.statUsed,
+          statBonus: roll.statBonus,
+          itemBonus: roll.itemBonus,
+          isCritical: roll.isCritical,
+          difficultyTarget: roll.difficultyTarget,
+          rollNarration: turnResult?.rollNarration,
+        });
+        setDieExiting(false);
+        setTimeout(() => setDieExiting(true), 4000);
+        setTimeout(() => {
+          setLastRoll(null);
+          setDieExiting(false);
+        }, 4500);
+      }
+      if (turnResult) {
+        setHistory(prev => [...prev, turnResult]);
+        setViewedTurnIdx(history.length);
+      }
+    },
+    onImageReady: (imageUrl) => {
+      setImageLoading(false);
+      setHistory(prev => {
+        if (prev.length === 0) {
+          return prev;
         }
-      };
-
-      es.onerror = () => {
-        es.close();
-        reconnectTimer = setTimeout(connect, 3000);
-      };
-    };
-
-    connect();
-    return () => {
-      es?.close();
-      clearTimeout(reconnectTimer);
-    };
-  }, [id, joinSession]);
+        const last = prev[prev.length - 1];
+        if (last.turnType === 'intervention' || last.turnType === 'sanctuary') {
+          return prev;
+        }
+        const updated = [...prev];
+        updated[updated.length - 1] = { ...last, imageUrl };
+        return updated;
+      });
+    },
+    onIntervention: (narration, updatedSession, turnResult) => {
+      setInterventionBanner(narration);
+      if (updatedSession) {
+        setSession(updatedSession);
+      }
+      if (turnResult) {
+        setHistory(prev => {
+          const u = [...prev, turnResult];
+          setViewedTurnIdx(u.length - 1);
+          return u;
+        });
+      }
+      setTimeout(() => setInterventionBanner(null), 8000);
+    },
+    onSanctuaryRecovery: (narration, updatedSession, turnResult) => {
+      setSanctuaryBanner(narration);
+      if (updatedSession) {
+        setSession(updatedSession);
+      }
+      if (turnResult) {
+        setHistory(prev => {
+          const u = [...prev, turnResult];
+          setViewedTurnIdx(u.length - 1);
+          return u;
+        });
+      }
+      setTimeout(() => setSanctuaryBanner(null), 10000);
+    },
+    onPartyUpdate: (updatedSession) => {
+      if (updatedSession) {
+        setSession(updatedSession);
+      } else {
+        joinSession(id!);
+      }
+    },
+  });
 
   const toggleSavingsMode = async () => {
     if (!session) {
@@ -308,7 +281,7 @@ export const SessionPage = () => {
   };
 
   if (!session) {
-    return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-amber-500 animate-pulse font-black uppercase tracking-widest">Loading...</div>;
+    return <PageLoader />;
   }
 
   const displayTurn = history[viewedTurnIdx] ?? null;
