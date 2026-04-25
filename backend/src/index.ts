@@ -370,6 +370,20 @@ app.patch('/session/:id', asyncHandler(async (req, res) => {
   });
 }));
 
+app.post('/session/:id/regenerate-dm-prep', asyncHandler(async (req, res) => {
+  const session = await StateService.getSession(req.params.id as string);
+  if (!session) {
+    res.status(404).json({ error: 'Session not found' });
+    return;
+  }
+  const brief = await StorySummaryService.generateCampaignBrief(session.id, session.worldDescription, session.useLocalAI);
+  if (!brief) {
+    res.status(500).json({ error: 'Failed to generate campaign brief' });
+    return;
+  }
+  res.json({ dmPrep: brief });
+}));
+
 app.post('/session/:id/suggest-stat', asyncHandler(async (req, res) => {
   const { action, characterClass, characterQuirk } = req.body as { action: string; characterClass?: string; characterQuirk?: string };
   const session = await StateService.getSession(req.params.id as string);

@@ -63,7 +63,7 @@ Focus only on the current situation and the essential journey, ignoring defeated
     }
   }
 
-  static async generateCampaignBrief(sessionId: string, worldDescription: string | undefined, useLocalAI: boolean): Promise<void> {
+  static async generateCampaignBrief(sessionId: string, worldDescription: string | undefined, useLocalAI: boolean): Promise<string | null> {
     try {
       const descContext = worldDescription?.trim()
         ? `\n\nRealm description: "${worldDescription.trim()}"`
@@ -79,9 +79,12 @@ Be specific and imaginative. This will guide the AI Dungeon Master to give playe
       if (brief) {
         await StateService.patchSession(sessionId, { dmPrep: brief });
         console.log(`[Campaign] Brief generated for session ${sessionId}`);
+        return brief;
       }
+      return null;
     } catch (err) {
       console.warn('[Campaign] generateCampaignBrief failed:', err);
+      return null;
     }
   }
 

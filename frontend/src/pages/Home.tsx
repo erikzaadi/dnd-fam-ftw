@@ -38,6 +38,7 @@ const EditSessionModal = ({
   const [gameMode, setGameMode] = useState(initialGameMode);
   const [dmPrep, setDmPrep] = useState(initialDmPrep ?? '');
   const [saving, setSaving] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
 
   const save = async () => {
     setSaving(true);
@@ -48,6 +49,19 @@ const EditSessionModal = ({
     });
     setSaving(false);
     onSave(difficulty, gameMode, dmPrep);
+  };
+
+  const regenerateDmPrep = async () => {
+    setRegenerating(true);
+    try {
+      const res = await apiFetch(`/session/${sessionId}/regenerate-dm-prep`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json() as { dmPrep: string };
+        setDmPrep(data.dmPrep);
+      }
+    } finally {
+      setRegenerating(false);
+    }
   };
 
   return (
@@ -90,7 +104,16 @@ const EditSessionModal = ({
         </div>
 
         <div className="flex flex-col gap-2">
-          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">DM Prep Notes</span>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">DM Prep Notes</span>
+            <button
+              onClick={regenerateDmPrep}
+              disabled={regenerating}
+              className="text-[9px] font-black uppercase tracking-widest text-amber-500 hover:text-amber-400 disabled:opacity-40 transition-colors"
+            >
+              {regenerating ? 'Generating...' : 'AI Generate'}
+            </button>
+          </div>
           <textarea
             value={dmPrep}
             onChange={e => setDmPrep(e.target.value)}
