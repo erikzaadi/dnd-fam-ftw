@@ -37,7 +37,7 @@ const GearPopover = ({ savingsMode, onToggleSavingsMode, audioSettings, onMuteTo
     <div ref={ref} className="relative group">
       <button
         onClick={() => setOpen(o => !o)}
-        className={`w-9 h-9 flex items-center justify-center rounded-xl border text-base transition-all ${open ? 'border-amber-500/60 bg-amber-500/10 text-amber-400' : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'}`}
+        className={`w-9 h-9 xl:w-11 xl:h-11 flex items-center justify-center rounded-xl border text-base xl:text-lg transition-all ${open ? 'border-amber-500/60 bg-amber-500/10 text-amber-400' : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'}`}
       >
         ⚙
       </button>
@@ -119,9 +119,9 @@ export const SessionHud = ({
   audioSettings,
   onMuteToggle,
 }: SessionHudProps) => (
-  <header className="relative z-[60] flex-shrink-0 flex justify-between items-center gap-4 px-4 py-3 border-b border-white/10 bg-slate-950/90 backdrop-blur-sm">
+  <header className="sticky top-0 z-[60] flex-shrink-0 flex justify-between items-center gap-4 px-4 py-3 border-b border-white/10 bg-slate-950/90 backdrop-blur-sm">
     <div className="flex items-center gap-3 md:gap-5 min-w-0 flex-1">
-      <h1 className="text-amber-500 text-lg md:text-2xl font-display font-black italic tracking-tight truncate min-w-[80px]">
+      <h1 className="text-amber-500 text-lg md:text-2xl xl:text-3xl font-display font-black italic tracking-tight truncate min-w-[80px]">
         {session.displayName}
       </h1>
       <PartyBox
@@ -144,7 +144,7 @@ export const SessionHud = ({
         <Link
           to="/"
           onClick={() => audioManager.stopMusic()}
-          className="w-9 h-9 flex items-center justify-center rounded-xl border border-rose-900/60 text-rose-500 hover:bg-rose-900/20 hover:border-rose-700 hover:text-rose-300 font-black text-sm transition-all"
+          className="w-9 h-9 xl:w-11 xl:h-11 flex items-center justify-center rounded-xl border border-rose-900/60 text-rose-500 hover:bg-rose-900/20 hover:border-rose-700 hover:text-rose-300 font-black text-sm xl:text-base transition-all"
         >
           ✕
         </Link>

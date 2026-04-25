@@ -23,10 +23,10 @@ const HpChangeBadges = ({ hpChanges }: { hpChanges: HpChange[] }) => (
     {hpChanges.map(hc => (
       <div
         key={hc.characterId}
-        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${hc.change < 0 ? 'bg-rose-900/40 border-rose-700/50 text-rose-400' : 'bg-emerald-900/40 border-emerald-700/50 text-emerald-400'}`}
+        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-black uppercase tracking-widest border ${hc.change < 0 ? 'bg-rose-900/40 border-rose-700/50 text-rose-400' : 'bg-emerald-900/40 border-emerald-700/50 text-emerald-400'}`}
       >
         <span>{hc.change < 0 ? '-' : '+'}{Math.abs(hc.change)}</span>
-        <span className="text-[8px] opacity-70 normal-case tracking-normal font-semibold">{hc.characterName.split(' ')[0]}</span>
+        <span className="text-xs opacity-70 normal-case tracking-normal font-semibold">{hc.characterName.split(' ')[0]}</span>
         <span className="opacity-50">{hc.newHp}/{hc.maxHp}</span>
       </div>
     ))}
@@ -76,7 +76,7 @@ const TurnDetail = ({
               <div className="font-black text-sm uppercase tracking-wide text-slate-200 truncate">
                 {(takenChar ?? actor)?.name}
               </div>
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide truncate">
+              <div className="text-xs text-slate-500 uppercase tracking-wide truncate">
                 {(takenChar ?? actor)?.class}
               </div>
             </div>
@@ -84,7 +84,7 @@ const TurnDetail = ({
           {hasRoll && (
             <div className="flex flex-col items-center gap-1 shrink-0">
               <D20 roll={roll.roll} success={roll.success} size={64} />
-              <span className={`text-[10px] font-black uppercase tracking-widest ${roll.success ? 'text-amber-500' : 'text-rose-400'}`}>
+              <span className={`text-xs font-black uppercase tracking-widest ${roll.success ? 'text-amber-500' : 'text-rose-400'}`}>
                 {roll.success ? 'success' : 'fail'}
               </span>
               <RollBreakdown
@@ -102,7 +102,7 @@ const TurnDetail = ({
               <div className="w-12 h-12 rounded-full border-2 border-slate-700 flex items-center justify-center">
                 <span className="text-slate-400 text-lg">✓</span>
               </div>
-              <span className="text-[9px] uppercase tracking-widest text-slate-600">no roll</span>
+              <span className="text-xs uppercase tracking-widest text-slate-600">no roll</span>
             </div>
           )}
         </div>
@@ -132,7 +132,7 @@ const TurnDetail = ({
                   ${isChosen ? 'border-amber-400 bg-amber-500/20 text-amber-200' : `${STAT_COLORS[choice.stat]} opacity-40`}`}
               >
                 <span className="font-black text-xs uppercase leading-tight">{choice.label}</span>
-                <span className={`inline-flex items-center gap-1 text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded-full shrink-0
+                <span className={`inline-flex items-center gap-1 text-xs font-black tracking-widest px-1.5 py-0.5 rounded-full shrink-0
                   ${isChosen ? 'bg-amber-900/60' : choice.stat === 'might' ? 'bg-rose-900/60' : choice.stat === 'magic' ? 'bg-blue-900/60' : 'bg-purple-900/60'}`}>
                   <StatImg stat={choice.stat} size="5" />
                   {choice.stat} · {beatTarget(choice.difficultyValue, choice.difficulty)}
@@ -161,7 +161,7 @@ export const ChronicleDrawer = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-900 rounded-[32px] border border-slate-800">
+    <div className="flex flex-col min-h-[55vh] lg:h-full bg-slate-900 rounded-[32px] border border-slate-800">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -201,7 +201,7 @@ export const ChronicleDrawer = ({
                   onClick={() => handleRowClick(i)}
                   className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all hover:bg-slate-800/50 ${isSelected ? 'bg-amber-500/5' : ''}`}
                 >
-                  <span className={`text-[9px] font-black uppercase tracking-widest shrink-0 w-5 text-center ${isSelected ? 'text-amber-500' : 'text-slate-600'}`}>
+                  <span className={`text-xs font-black uppercase tracking-widest shrink-0 w-5 text-center ${isSelected ? 'text-amber-500' : 'text-slate-600'}`}>
                     {i + 1}
                   </span>
                   {actor ? (
@@ -209,11 +209,11 @@ export const ChronicleDrawer = ({
                   ) : (
                     <div className="w-6 h-6 rounded-full bg-slate-800 border border-slate-700 shrink-0" />
                   )}
-                  <p className={`flex-1 min-w-0 text-[11px] italic leading-snug truncate ${isSelected ? 'text-slate-200' : 'text-slate-500'}`}>
+                  <p className={`flex-1 min-w-0 text-xs italic leading-snug truncate ${isSelected ? 'text-slate-200' : 'text-slate-500'}`}>
                     {turn.narration}
                   </p>
                   {hasRoll && (
-                    <span className={`shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-full ${roll.success ? 'bg-emerald-900/60 text-emerald-400' : 'bg-rose-900/60 text-rose-400'}`}>
+                    <span className={`shrink-0 text-xs font-black px-1.5 py-0.5 rounded-full ${roll.success ? 'bg-emerald-900/60 text-emerald-400' : 'bg-rose-900/60 text-rose-400'}`}>
                       {roll.roll}
                     </span>
                   )}

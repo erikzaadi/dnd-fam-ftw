@@ -37,7 +37,7 @@ export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings }: DmDec
   const minNeeded = Math.max(1, Math.min(20, target - statTotal));
 
   return (
-    <div className="relative flex flex-col items-center justify-center h-full rounded-[32px] overflow-hidden animate-in fade-in zoom-in-95 duration-500">
+    <div className="relative flex flex-col items-center justify-center min-h-[55vh] lg:h-full rounded-[32px] overflow-hidden animate-in fade-in zoom-in-95 duration-500">
       {/* Background */}
       <img
         src={imgSrc('/images/dm_thinking.png')}

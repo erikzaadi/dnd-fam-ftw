@@ -61,7 +61,7 @@ export const StoryStage = ({
       {imageLoading && (
         <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 bg-slate-900/80 border border-slate-700 rounded-full backdrop-blur-sm">
           <div className="w-3 h-3 border-2 border-slate-600 border-t-amber-500 rounded-full animate-spin shrink-0" />
-          <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Painting the scene...</span>
+          <span className="text-xs font-black uppercase tracking-widest text-slate-400">Painting the scene...</span>
         </div>
       )}
 
@@ -72,12 +72,12 @@ export const StoryStage = ({
           return (
             <div className={`flex items-center gap-1 px-2.5 py-1 ${t.bg} border ${t.border} rounded-full backdrop-blur-sm`}>
               <span className="text-[10px]">{t.icon}</span>
-              <span className={`text-[9px] font-black uppercase tracking-widest ${t.color}`}>{t.label}</span>
+              <span className={`text-xs font-black uppercase tracking-widest ${t.color}`}>{t.label}</span>
             </div>
           );
         })()}
         {!isCurrentTurn && (
-          <div className="px-3 py-1 bg-slate-900/80 border border-slate-700 rounded-full text-[9px] font-black uppercase tracking-widest text-slate-400 backdrop-blur-sm">
+          <div className="px-3 py-1 bg-slate-900/80 border border-slate-700 rounded-full text-xs font-black uppercase tracking-widest text-slate-400 backdrop-blur-sm">
             Turn {viewedTurnIdx + 1}
           </div>
         )}
@@ -109,7 +109,7 @@ export const StoryStage = ({
         onClick={e => e.stopPropagation()}
       >
         {previousTurn ? (
-          <p className="text-[11px] text-slate-500 italic truncate flex-1 min-w-0">
+          <p className="text-xs text-slate-500 italic truncate flex-1 min-w-0">
             {previousTurn.narration.slice(0, 80)}{previousTurn.narration.length > 80 ? '...' : ''}
           </p>
         ) : (
@@ -117,7 +117,7 @@ export const StoryStage = ({
         )}
         <button
           onClick={onOpenChronicle}
-          className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-amber-600 hover:text-amber-400 transition-colors shrink-0 whitespace-nowrap"
+          className="inline-flex items-center gap-1 text-xs font-black uppercase tracking-widest text-amber-600 hover:text-amber-400 transition-colors shrink-0 whitespace-nowrap"
         >
           <img src={imgSrc('/images/icon_scroll.png')} alt="" className="w-4 h-4 object-contain mix-blend-screen" />
           Open Chronicle →

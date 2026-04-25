@@ -45,7 +45,7 @@ const TargetAvatar = ({
     >
       <img src={imgSrc(target.avatarUrl)} className={imgClass} alt={target.name} />
       {showName && (
-        <span className="text-[8px] font-black uppercase tracking-widest text-slate-500 group-hover/target:text-amber-400">
+        <span className="text-xs font-black uppercase tracking-widest text-slate-500 group-hover/target:text-amber-400">
           {target.name.split(' ')[0]}
         </span>
       )}
@@ -60,23 +60,23 @@ export const TargetPicker = ({ party, action, ownerCharId, compact, onConfirm, o
   if (compact) {
     return (
       <div className="flex gap-1 flex-wrap justify-end items-center mt-0.5">
-        <span className="text-[8px] text-slate-500 uppercase tracking-widest font-black">{label}</span>
+        <span className="text-xs text-slate-500 uppercase tracking-widest font-black">{label}</span>
         {targets.map(target => (
           <TargetAvatar key={target.id} target={target} size="sm" onConfirm={onConfirm} showName={false} />
         ))}
-        <button onClick={onCancel} className="text-[8px] text-slate-600 hover:text-slate-400 font-black px-1">✕</button>
+        <button onClick={onCancel} className="text-xs text-slate-600 hover:text-slate-400 font-black px-1">✕</button>
       </div>
     );
   }
 
   return (
     <div className="mt-2 pt-2 border-t border-slate-700">
-      <p className="text-[9px] uppercase tracking-widest text-slate-500 mb-2">{label}</p>
+      <p className="text-xs uppercase tracking-widest text-slate-500 mb-2">{label}</p>
       <div className="flex gap-2 flex-wrap">
         {targets.map(target => (
           <TargetAvatar key={target.id} target={target} size="md" onConfirm={onConfirm} showName={true} />
         ))}
-        <button onClick={onCancel} className="self-start px-2 py-1 text-[9px] text-slate-600 hover:text-slate-400 font-black uppercase">✕</button>
+        <button onClick={onCancel} className="self-start px-2 py-1 text-xs text-slate-600 hover:text-slate-400 font-black uppercase">✕</button>
       </div>
     </div>
   );

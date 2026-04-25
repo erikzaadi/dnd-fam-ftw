@@ -35,7 +35,7 @@ export const PartyBox = ({ party, activeCharacterId, onCharacterClick }: PartyBo
               <img
                 src={imgSrc(c.avatarUrl)}
                 onClick={() => onCharacterClick(c)}
-                className={`rounded-full object-cover cursor-pointer border-2 transition-all hover:scale-110 ${c.status === 'downed' ? 'grayscale opacity-40' : ''} ${hpBorderClass(c)} ${isActive ? 'w-16 h-16 animate-border-pulse' : 'w-11 h-11'}`}
+                className={`rounded-full object-cover cursor-pointer border-2 transition-all hover:scale-110 ${c.status === 'downed' ? 'grayscale opacity-40' : ''} ${hpBorderClass(c)} ${isActive ? 'w-16 h-16 xl:w-20 xl:h-20 animate-border-pulse' : 'w-11 h-11 xl:w-14 xl:h-14'}`}
                 style={isActive ? { animationDelay: pulseSyncDelay() } : undefined}
                 alt={c.name}
               />
@@ -45,7 +45,7 @@ export const PartyBox = ({ party, activeCharacterId, onCharacterClick }: PartyBo
                 </div>
               )}
             </div>
-            <span className={`font-black uppercase tracking-widest leading-none truncate text-center ${isActive ? 'text-[10px] text-amber-400 max-w-[64px]' : 'text-[8px] text-slate-500 max-w-[44px]'}`}>
+            <span className={`font-black uppercase tracking-widest leading-none truncate text-center ${isActive ? 'text-[10px] xl:text-xs text-amber-400 max-w-[64px] xl:max-w-[80px]' : 'text-[8px] xl:text-[10px] text-slate-500 max-w-[44px] xl:max-w-[56px]'}`}>
               {c.name.split(' ')[0]}
             </span>
             {/* Tooltip */}

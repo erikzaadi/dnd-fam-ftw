@@ -91,15 +91,15 @@ const ItemsSection = ({
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
                 <div className="font-black text-xs uppercase tracking-wide text-slate-200 truncate">{item.name}</div>
-                <div className="text-[10px] text-slate-500 mt-0.5 leading-snug line-clamp-1">{item.description}</div>
+                <div className="text-xs text-slate-500 mt-0.5 leading-snug line-clamp-1">{item.description}</div>
               </div>
               {((item.healValue ?? 0) > 0 || bonuses.length > 0) && (
                 <div className="flex gap-1 shrink-0">
                   {(item.healValue ?? 0) > 0 && (
-                    <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">+{item.healValue} hp</span>
+                    <span className="text-xs font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">+{item.healValue} hp</span>
                   )}
                   {bonuses.map(([stat, val]) => (
-                    <span key={stat} className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400">+{val} {stat}</span>
+                    <span key={stat} className="text-xs font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400">+{val} {stat}</span>
                   ))}
                 </div>
               )}
@@ -120,7 +120,7 @@ const ItemsSection = ({
                   {canUse && (
                     <button
                       onClick={() => setPending({ itemId: item.id, action: 'use' })}
-                      className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-emerald-900/60 text-emerald-400 hover:bg-emerald-800/60 border border-emerald-700/40 transition-all"
+                      className="px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-widest bg-emerald-900/60 text-emerald-400 hover:bg-emerald-800/60 border border-emerald-700/40 transition-all"
                     >
                       Use
                     </button>
@@ -128,7 +128,7 @@ const ItemsSection = ({
                   {canGive && (
                     <button
                       onClick={() => setPending({ itemId: item.id, action: 'give' })}
-                      className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-blue-900/60 text-blue-400 hover:bg-blue-800/60 border border-blue-700/40 transition-all"
+                      className="px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-widest bg-blue-900/60 text-blue-400 hover:bg-blue-800/60 border border-blue-700/40 transition-all"
                     >
                       Give
                     </button>
@@ -225,7 +225,7 @@ export const ActionDock = ({
                 {activeCharacter.hp}/{activeCharacter.max_hp} HP
               </span>
             </div>
-            <div className="text-[9px] text-slate-400 uppercase tracking-wide truncate">
+            <div className="text-xs text-slate-400 uppercase tracking-wide truncate">
               {activeCharacter.class} · {activeCharacter.species}
             </div>
             {/* HP bar */}
@@ -286,7 +286,7 @@ export const ActionDock = ({
           {/* Action cards */}
           {turn?.choices && turn.choices.length > 0 && (
             <div className="flex flex-col gap-2">
-              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-1">Choose an Action</div>
+              <div className="text-xs font-black uppercase tracking-widest text-slate-500 px-1">Choose an Action</div>
               {turn.choices.map((choice, i) => {
                 const risk = RISK_MAP[choice.difficulty] ?? RISK_MAP.normal;
                 const statTotal = activeCharacter
@@ -304,7 +304,7 @@ export const ActionDock = ({
                     className={`w-full p-3 rounded-2xl border-2 text-left transition-all hover:brightness-110 disabled:opacity-50 ${STAT_COLORS[choice.stat]}`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="font-black text-base uppercase leading-tight flex-1">{choice.label}</div>
+                      <div className="font-black text-base xl:text-lg uppercase leading-tight flex-1">{choice.label}</div>
                       {ttsEnabled && (
                         <button
                           onClick={e => {
@@ -320,15 +320,15 @@ export const ActionDock = ({
                       )}
                     </div>
                     {choice.narration && (
-                      <div className="text-[11px] italic text-slate-300/70 mt-0.5 leading-snug">{choice.narration}</div>
+                      <div className="text-xs italic text-slate-300/70 mt-0.5 leading-snug">{choice.narration}</div>
                     )}
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       <StatImg stat={choice.stat} size="12" tooltip className="rounded-xl" />
-                      <span className="text-[10px] text-slate-400 font-black">
+                      <span className="text-xs text-slate-400 font-black">
                         {statTotal} vs {target}
                       </span>
-                      <span className={`text-[10px] font-black uppercase tracking-widest ${risk.color}`}>{risk.label}</span>
-                      <span className="text-[10px] text-slate-500 font-black ml-auto">{prob}%</span>
+                      <span className={`text-xs font-black uppercase tracking-widest ${risk.color}`}>{risk.label}</span>
+                      <span className="text-xs text-slate-500 font-black ml-auto">{prob}%</span>
                     </div>
                   </button>
                 );
@@ -355,7 +355,7 @@ export const ActionDock = ({
             <button
               onClick={submitCustom}
               disabled={loading || statThinking || !customAction.trim()}
-              className="w-full py-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 rounded-2xl font-black uppercase tracking-tighter text-xl shadow-[0_6px_0_rgb(146,64,14)] transition-all italic"
+              className="w-full py-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 rounded-2xl font-black uppercase tracking-tighter text-xl xl:text-2xl shadow-[0_6px_0_rgb(146,64,14)] transition-all italic"
             >
               {statThinking ? '...' : 'UNLEASH'}
             </button>

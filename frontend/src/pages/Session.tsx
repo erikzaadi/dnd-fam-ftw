@@ -307,7 +307,7 @@ export const SessionPage = () => {
   const partyItemCount = session.party.reduce((s, c) => s + c.inventory.length, 0);
 
   return (
-    <div className="h-screen flex flex-col bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-slate-100 overflow-hidden">
+    <div className="flex flex-col bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-slate-100 overflow-x-hidden lg:h-dvh lg:overflow-hidden">
       <SessionHud
         session={session}
         onCharacterClick={setSelectedCharacter}
@@ -339,7 +339,7 @@ export const SessionPage = () => {
         </div>
 
         {/* Bottom / Right: Chronicle / Action area */}
-        <div className="flex-shrink-0 lg:w-[380px] xl:w-[420px] lg:min-h-0">
+        <div className="flex-shrink-0 lg:w-[380px] xl:w-[440px] 2xl:w-[500px] lg:min-h-0">
           {showChronicle ? (
             <ChronicleDrawer
               history={history}
