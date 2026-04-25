@@ -63,6 +63,28 @@ Focus only on the current situation and the essential journey, ignoring defeated
     }
   }
 
+  static async generateCampaignBrief(sessionId: string, worldDescription: string | undefined, useLocalAI: boolean): Promise<void> {
+    try {
+      const descContext = worldDescription?.trim()
+        ? `\n\nRealm description: "${worldDescription.trim()}"`
+        : '';
+      const prompt = `/no_think Generate a compact DM campaign brief (3-5 sentences) for a family fantasy adventure.${descContext}
+Include:
+1. An overarching quest or threat (the final goal the party will face)
+2. Three escalating stages: early discovery, a dangerous mid-game challenge, and a climactic confrontation
+3. One or two recurring elements (a villain, a magical item, a landmark) woven across all stages
+Be specific and imaginative. This will guide the AI Dungeon Master to give players a sense of forward progress.`;
+
+      const brief = await this.callSummarize(prompt, useLocalAI);
+      if (brief) {
+        await StateService.patchSession(sessionId, { dmPrep: brief });
+        console.log(`[Campaign] Brief generated for session ${sessionId}`);
+      }
+    } catch (err) {
+      console.warn('[Campaign] generateCampaignBrief failed:', err);
+    }
+  }
+
   private static async callSummarize(prompt: string, useLocalAI: boolean): Promise<string> {
     const { client, model } = createChatClient(useLocalAI);
     const response = await client.chat.completions.create({

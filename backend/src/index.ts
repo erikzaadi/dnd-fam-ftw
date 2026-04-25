@@ -319,6 +319,11 @@ app.post('/session/create', asyncHandler(async (req, res) => {
     }
     const savingsMode = !SettingsService.get().imagesEnabled;
     const session = await StateService.createSession(worldDescription, difficulty, !!useLocalAI, savingsMode, req.namespaceId, gameMode, dmPrep || undefined);
+    if (!dmPrep) {
+      StorySummaryService.generateCampaignBrief(session.id, worldDescription, !!useLocalAI).catch(err => {
+        console.warn('[Campaign] Brief generation failed silently:', err);
+      });
+    }
     res.json(session);
   } catch (error: unknown) {
     const status = (error as { status?: number })?.status;
