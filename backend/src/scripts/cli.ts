@@ -9,7 +9,7 @@
  *   namespaces      list | create <name> | rename <id> <name> | delete <id>
  *                   sessions <id> | assign-session <sessionId> <nsId>
  *                   add-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
- *   sessions        list [--json] | nuke | seed
+ *   sessions        list [--json] | nuke | seed | export | import
  *   metrics         [--json]
  *   invite-requests list [--json] | clear
  */
@@ -17,6 +17,7 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import fs from 'fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../../../.env'), quiet: true });
@@ -29,6 +30,17 @@ const [, , resource, subcommand, ...rest] = process.argv;
 const allArgs = [subcommand, ...rest].filter(Boolean);
 const jsonMode = process.argv.includes('--json') || process.argv.includes('-j');
 const positional = allArgs.filter(a => a !== '--json' && a !== '-j' && !a.startsWith('--')).slice(1);
+
+function parseArgValue(arg: string | undefined): string | undefined {
+  if (!arg) {
+    return undefined;
+  }
+  if (arg.includes('=')) {
+    return arg.split('=').slice(1).join('=');
+  }
+  const idx = allArgs.indexOf(arg);
+  return idx >= 0 ? allArgs[idx + 1] : undefined;
+}
 
 function fail(msg: string): never {
   console.error(msg);
@@ -381,12 +393,180 @@ case 'sessions': {
     await import('./seedSessions.js');
     break;
   }
+  case 'export': {
+    const sessionFilter = parseArgValue(allArgs.find(a => a === '--session' || a.startsWith('--session=')));
+    const nsFilter = parseArgValue(allArgs.find(a => a === '--namespace' || a.startsWith('--namespace=')));
+    const outputFile = parseArgValue(allArgs.find(a => a === '--output' || a.startsWith('--output=')));
+
+    const dbPath = path.resolve(getConfig().SQLITE_DB_PATH);
+    const db = new Database(dbPath, { readonly: true });
+
+    let sessionRows: Record<string, unknown>[];
+    if (sessionFilter) {
+      sessionRows = db.prepare('SELECT * FROM sessions WHERE id = ?').all(sessionFilter) as Record<string, unknown>[];
+      if (sessionRows.length === 0) {
+        db.close();
+        fail(`Session not found: ${sessionFilter}`);
+      }
+    } else if (nsFilter) {
+      sessionRows = db.prepare('SELECT * FROM sessions WHERE namespace_id = ?').all(nsFilter) as Record<string, unknown>[];
+    } else {
+      sessionRows = db.prepare('SELECT * FROM sessions').all() as Record<string, unknown>[];
+    }
+
+    const exported = sessionRows.map(s => {
+      const sessionId = s.id as string;
+      const characters = (db.prepare('SELECT * FROM characters WHERE sessionId = ?').all(sessionId) as Record<string, unknown>[]).map(c => {
+        const charId = c.id as string;
+        const inventory = db.prepare('SELECT * FROM inventory WHERE characterId = ?').all(charId);
+        return { ...c, inventory };
+      });
+      const turnHistory = (db.prepare('SELECT * FROM turn_history WHERE sessionId = ?').all(sessionId) as Record<string, unknown>[]).map(t => {
+        const turnId = t.id as number;
+        const choices = db.prepare('SELECT * FROM turn_choices WHERE turnId = ?').all(turnId);
+        return { ...t, choices };
+      });
+      return { ...s, characters, turnHistory };
+    });
+
+    db.close();
+
+    const output = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), sessions: exported }, null, 2);
+
+    if (outputFile) {
+      fs.writeFileSync(outputFile, output, 'utf-8');
+      console.error(`Exported ${exported.length} session(s) to ${outputFile}`);
+    } else {
+      process.stdout.write(output + '\n');
+    }
+    break;
+  }
+  case 'import': {
+    const [inputFile] = positional;
+    if (!inputFile) {
+      fail('Usage: cli sessions import <file.json> [--namespace-id <id>]');
+    }
+    const targetNsId = parseArgValue(allArgs.find(a => a === '--namespace-id' || a.startsWith('--namespace-id=')));
+
+    let data: { version?: number; sessions: Record<string, unknown>[] };
+    try {
+      data = JSON.parse(fs.readFileSync(inputFile, 'utf-8')) as typeof data;
+    } catch (err) {
+      fail(`Failed to read ${inputFile}: ${err}`);
+    }
+    if (!data.sessions || !Array.isArray(data.sessions)) {
+      fail('Invalid export file: missing sessions array');
+    }
+
+    const dbPath = path.resolve(getConfig().SQLITE_DB_PATH);
+    const db = new Database(dbPath);
+
+    if (targetNsId) {
+      const ns = db.prepare('SELECT id FROM namespaces WHERE id = ?').get(targetNsId);
+      if (!ns) {
+        db.close();
+        fail(`Namespace not found: ${targetNsId}`);
+      }
+    }
+
+    let importedCount = 0;
+
+    const importAll = db.transaction(() => {
+      for (const session of data.sessions) {
+        const oldSessionId = session.id as string;
+        const exists = db.prepare('SELECT id FROM sessions WHERE id = ?').get(oldSessionId);
+        const newSessionId = exists ? Math.random().toString(36).substring(7) : oldSessionId;
+        const nsId = targetNsId ?? (session.namespace_id as string) ?? 'local';
+
+        db.prepare(`
+          INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, turn, activeCharacterId, tone, displayName, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, storySummary, namespace_id, createdAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          newSessionId,
+          session.scene, session.sceneId, session.worldDescription ?? null, session.dm_prep ?? null,
+          session.turn, session.activeCharacterId, session.tone, session.displayName,
+          session.difficulty, session.gameMode ?? 'balanced',
+          session.savingsMode ?? 0, session.useLocalAI ?? 0, session.interventionUsed ?? 0,
+          session.storySummary ?? '', nsId,
+          session.createdAt ?? null,
+        );
+
+        const charIdMap = new Map<string, string>();
+        for (const char of (session.characters as Record<string, unknown>[]) ?? []) {
+          const oldCharId = char.id as string;
+          const charExists = db.prepare('SELECT id FROM characters WHERE id = ?').get(oldCharId);
+          const newCharId = charExists ? Math.random().toString(36).substring(7) : oldCharId;
+          charIdMap.set(oldCharId, newCharId);
+
+          db.prepare(`
+            INSERT INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt, status, avatar_storage_key, avatar_storage_provider, history, gender)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            newCharId, newSessionId,
+            char.name, char.class, char.species, char.quirk,
+            char.hp, char.max_hp, char.might, char.magic, char.mischief,
+            char.avatarUrl ?? null, char.avatarPrompt ?? null,
+            char.status ?? 'active',
+            char.avatar_storage_key ?? null, char.avatar_storage_provider ?? null,
+            char.history ?? null, char.gender ?? null,
+          );
+
+          for (const item of (char.inventory as Record<string, unknown>[]) ?? []) {
+            db.prepare(`
+              INSERT INTO inventory (characterId, itemId, name, description, statBonuses, healValue, transferable, consumable)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+              newCharId, item.itemId ?? null, item.name, item.description ?? '',
+              item.statBonuses ?? null, item.healValue ?? null,
+              item.transferable ?? null, item.consumable ?? null,
+            );
+          }
+        }
+
+        for (const turn of (session.turnHistory as Record<string, unknown>[]) ?? []) {
+          const mappedCharId = turn.characterId ? (charIdMap.get(turn.characterId as string) ?? null) : null;
+          const result = db.prepare(`
+            INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, image_storage_key, image_storage_provider, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionIsCritical, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            newSessionId, mappedCharId,
+            turn.narration, turn.rollNarration ?? null,
+            turn.imagePrompt ?? null, turn.imageSuggested ?? 0,
+            turn.imageUrl ?? null, turn.image_storage_key ?? null, turn.image_storage_provider ?? null,
+            turn.actionAttempt ?? null, turn.actionStat ?? null,
+            turn.actionSuccess ?? null, turn.actionRoll ?? null,
+            turn.actionStatBonus ?? null, turn.actionItemBonus ?? null,
+            turn.actionIsCritical ?? null, turn.actionDifficultyTarget ?? null,
+            turn.turnType ?? 'normal',
+            turn.currentTensionLevel ?? null, turn.hpChanges ?? null,
+          );
+
+          const newTurnId = result.lastInsertRowid;
+          for (const choice of (turn.choices as Record<string, unknown>[]) ?? []) {
+            db.prepare('INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue, narration) VALUES (?, ?, ?, ?, ?, ?)')
+              .run(newTurnId, choice.label, choice.difficulty, choice.stat, choice.difficultyValue ?? null, choice.narration ?? null);
+          }
+        }
+
+        const idNote = exists ? ` (old ID: ${oldSessionId} -> new: ${newSessionId})` : ` (ID: ${newSessionId})`;
+        console.log(`  Imported "${session.displayName}"${idNote} -> namespace: ${nsId}`);
+        importedCount++;
+      }
+    });
+
+    importAll();
+    db.close();
+    console.log(`\nImported ${importedCount} session(s).`);
+    break;
+  }
   default:
     console.log(`
 sessions <sub-command>
-  list [--json]   List all sessions, characters, inventory, and turn history
-  nuke            Delete all sessions and their data (dev only)
-  seed            Seed example sessions (dev only, idempotent)
+  list [--json]                                         List all sessions, characters, inventory, and turn history
+  nuke                                                  Delete all sessions and their data (dev only)
+  seed                                                  Seed example sessions (dev only, idempotent)
+  export [--session <id>] [--namespace <id>] [--output <file>]   Export sessions to JSON (stdout if no --output)
+  import <file.json> [--namespace-id <id>]              Import sessions from a JSON export file
 `);
   }
   break;
@@ -512,7 +692,7 @@ Resources:
   namespaces      list | create <name> | rename <id> <name> | delete <id>
                   sessions <id> | assign-session <sessionId> <nsId>
                   add-user <nsId> <email> | remove-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
-  sessions        list [--json] | nuke | seed
+  sessions        list [--json] | nuke | seed | export | import
   metrics         [--json]
   invite-requests list [--json] | clear
 
@@ -524,6 +704,9 @@ Examples:
   npm run cli -- namespaces add-user <nsId> someone@gmail.com
   npm -s run cli -- sessions list --json | jq '.sessions[].displayName'
   npm -s run cli -- metrics --json | jq '.[].total_turns'
+  npm run cli -- sessions export --output backup.json
+  npm run cli -- sessions export --session abc123 --output session.json
+  npm run cli -- sessions import backup.json --namespace-id xyz789
 `);
 
 }

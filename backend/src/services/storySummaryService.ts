@@ -63,12 +63,13 @@ Focus only on the current situation and the essential journey, ignoring defeated
     }
   }
 
-  static async generateCampaignBrief(sessionId: string, worldDescription: string | undefined, useLocalAI: boolean): Promise<string | null> {
+  static async generateCampaignBrief(sessionId: string, worldDescription: string | undefined, useLocalAI: boolean, displayName?: string): Promise<string | null> {
     try {
+      const nameContext = displayName?.trim() ? `\n\nRealm name: "${displayName.trim()}"` : '';
       const descContext = worldDescription?.trim()
         ? `\n\nRealm description: "${worldDescription.trim()}"`
         : '';
-      const prompt = `/no_think Generate a compact DM campaign brief (3-5 sentences) for a family fantasy adventure.${descContext}
+      const prompt = `/no_think Generate a compact DM campaign brief (3-5 sentences) for a family fantasy adventure.${nameContext}${descContext}
 Include:
 1. An overarching quest or threat (the final goal the party will face)
 2. Three escalating stages: early discovery, a dangerous mid-game challenge, and a climactic confrontation

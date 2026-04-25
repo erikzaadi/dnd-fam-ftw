@@ -20,6 +20,7 @@ const PACING_LABELS: Record<string, { icon: string; label: string }> = {
 };
 
 const EditSessionModal = ({
+  sessionName,
   sessionId,
   initialDifficulty,
   initialGameMode,
@@ -27,6 +28,7 @@ const EditSessionModal = ({
   onSave,
   onCancel,
 }: {
+  sessionName: string;
   sessionId: string;
   initialDifficulty: string;
   initialGameMode: string;
@@ -67,7 +69,7 @@ const EditSessionModal = ({
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in p-4">
       <div className="bg-slate-900 border border-slate-700 rounded-[32px] p-6 max-w-md w-full shadow-2xl space-y-5">
-        <h3 className="text-lg font-black uppercase tracking-tighter text-amber-400 italic">Edit Realm</h3>
+        <h3 className="text-lg font-black uppercase tracking-tighter text-amber-400 italic">Edit Realm - {sessionName}</h3>
 
         <div className="flex flex-col gap-2">
           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Difficulty</span>
@@ -227,7 +229,7 @@ export const Home = () => {
   const [activeSessions, setActiveSessions] = useState<SessionPreview[]>([]);
   const [sessionLimit, setSessionLimit] = useState<{ max: number; current: number } | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
-  const [editSession, setEditSession] = useState<{ id: string; difficulty: string; gameMode: string; dmPrep?: string } | null>(null);
+  const [editSession, setEditSession] = useState<{ id: string; displayName: string; difficulty: string; gameMode: string; dmPrep?: string } | null>(null);
   const navigate = useNavigate();
 
   const loadSessions = () => {
@@ -276,6 +278,7 @@ export const Home = () => {
 
       {editSession && (
         <EditSessionModal
+          sessionName={editSession.displayName}
           sessionId={editSession.id}
           initialDifficulty={editSession.difficulty}
           initialGameMode={editSession.gameMode}
@@ -325,7 +328,7 @@ export const Home = () => {
                     session={sess}
                     onEnter={() => navigate(`/session/${sess.id}/recap`)}
                     onDelete={() => deleteSession(sess.id, sess.displayName)}
-                    onEdit={() => setEditSession({ id: sess.id, difficulty: sess.difficulty, gameMode: sess.gameMode, dmPrep: sess.dmPrep })}
+                    onEdit={() => setEditSession({ id: sess.id, displayName: sess.displayName, difficulty: sess.difficulty, gameMode: sess.gameMode, dmPrep: sess.dmPrep })}
                   />
                 ))}
               </div>
