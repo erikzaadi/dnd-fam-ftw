@@ -2,19 +2,24 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ImageService } from './imageService.js';
 import type { ImageProvider } from '../providers/ai/images/ImageProvider.js';
 import type { ImageStorageProvider, StoredImage } from '../providers/storage/ImageStorageProvider.js';
 
-// Set env vars before any service method is called.
-// getConfig() is lazily cached, so these are picked up on first use.
 const TEST_IMG_DIR = path.join(os.tmpdir(), `dnd-test-imgs-${Date.now()}`);
-process.env.LOCAL_IMAGE_STORAGE_PATH = TEST_IMG_DIR;
-process.env.LOCAL_IMAGE_PUBLIC_BASE_URL = '/test-images';
-process.env.IMAGE_STORAGE_PROVIDER = 'local';
-process.env.SQLITE_DB_PATH = path.join(os.tmpdir(), `dnd-test-state-img-${Date.now()}.sqlite`);
 
-// Minimal valid PNG as a data URL (1x1 transparent pixel).
+beforeAll(() => {
+  process.env.LOCAL_IMAGE_STORAGE_PATH = TEST_IMG_DIR;
+  process.env.LOCAL_IMAGE_PUBLIC_BASE_URL = '/test-images';
+  process.env.IMAGE_STORAGE_PROVIDER = 'local';
+  process.env.SQLITE_DB_PATH = path.join(os.tmpdir(), `dnd-test-state-img-${Date.now()}.sqlite`);
+});
+
+afterAll(() => {
+  try { fs.rmSync(TEST_IMG_DIR, { recursive: true, force: true }); } catch { /* ignore */ }
+});
+
 const FAKE_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
 function makeMockStorage(existingKeys: Set<string> = new Set()): ImageStorageProvider & { stored: Map<string, Buffer> } {
@@ -42,273 +47,150 @@ function makeMockImageProvider(returnUrl: string = FAKE_DATA_URL): ImageProvider
   };
 }
 
-console.log('Testing ImageService...');
+describe('ImageService.generateImage', () => {
+  it('cache miss: calls provider and stores result', async () => {
+    const storage = makeMockStorage();
+    const provider = makeMockImageProvider();
+    const result = await ImageService.generateImage('A dragon attacks', 'sess-1', 1, false, provider, storage);
+    expect(result).not.toBeNull();
+    expect(provider.calls).toHaveLength(1);
+    expect(provider.calls[0]).toContain('A dragon attacks');
+    expect(storage.stored.size).toBe(1);
+    expect(result!.url).toMatch(/^http:\/\/mock-storage\//);
+  });
 
-// ── generateImage ─────────────────────────────────────────────────────────────
+  it('cache hit: skips provider and returns cached URL', async () => {
+    const provider = makeMockImageProvider();
+    const prompt = 'A dragon attacks';
+    const hash = crypto.createHash('md5').update(prompt).digest('hex');
+    const cachedKey = `sess-cached_turn1_${hash}.png`;
+    const storage = makeMockStorage(new Set([cachedKey]));
+    const result = await ImageService.generateImage(prompt, 'sess-cached', 1, false, provider, storage);
+    expect(result).not.toBeNull();
+    expect(provider.calls).toHaveLength(0);
+    expect(result!.url).toContain(cachedKey);
+  });
 
-// Test 1: generateImage cache miss - calls provider and stores result
-console.log('Test 1: generateImage cache miss calls provider and stores...');
-{
-  const storage = makeMockStorage();
-  const provider = makeMockImageProvider();
-  const result = await ImageService.generateImage('A dragon attacks', 'sess-1', 1, false, provider, storage);
-  if (!result) {
-    throw new Error('Expected a result, got null');
-  }
-  if (provider.calls.length !== 1) {
-    throw new Error(`Expected 1 provider call, got ${provider.calls.length}`);
-  }
-  if (!provider.calls[0].includes('A dragon attacks')) {
-    throw new Error(`Expected prompt to contain 'A dragon attacks', got '${provider.calls[0]}'`);
-  }
-  if (storage.stored.size !== 1) {
-    throw new Error(`Expected 1 stored image, got ${storage.stored.size}`);
-  }
-  if (!result.url.startsWith('http://mock-storage/')) {
-    throw new Error(`Unexpected URL: ${result.url}`);
-  }
-  console.log('- Provider called once, image stored, URL returned ✓');
-}
+  it('returns null on provider failure', async () => {
+    const storage = makeMockStorage();
+    const failProvider: ImageProvider = {
+      generateImage: async (): Promise<{ url: string }> => { throw new Error('Provider exploded'); },
+    };
+    const result = await ImageService.generateImage('A goblin sneaks', 'sess-fail', 2, false, failProvider, storage);
+    expect(result).toBeNull();
+  });
 
-// Test 2: generateImage cache hit - returns cached URL without calling provider
-console.log('Test 2: generateImage cache hit skips provider...');
-{
-  const provider = makeMockImageProvider();
-  const prompt = 'A dragon attacks';
-  const hash = crypto.createHash('md5').update(prompt).digest('hex');
-  const cachedKey = `sess-cached_turn1_${hash}.png`;
-  const storage = makeMockStorage(new Set([cachedKey]));
-  const result = await ImageService.generateImage(prompt, 'sess-cached', 1, false, provider, storage);
-  if (!result) {
-    throw new Error('Expected a cached result');
-  }
-  if (provider.calls.length !== 0) {
-    throw new Error(`Expected 0 provider calls (cache hit), got ${provider.calls.length}`);
-  }
-  if (!result.url.includes(cachedKey)) {
-    throw new Error(`Expected URL to contain '${cachedKey}', got '${result.url}'`);
-  }
-  console.log('- Cache hit: provider not called, cached URL returned ✓');
-}
+  it('retries with sanitized prompt on content_policy_violation', async () => {
+    const storage = makeMockStorage();
+    let callCount = 0;
+    const receivedPrompts: string[] = [];
+    const policyProvider: ImageProvider = {
+      generateImage: async ({ prompt }: { prompt: string }): Promise<{ url: string }> => {
+        callCount++;
+        receivedPrompts.push(prompt);
+        if (callCount === 1) {
+          const err = new Error('Content policy violation') as Error & { code: string };
+          err.code = 'content_policy_violation';
+          throw err;
+        }
+        return { url: FAKE_DATA_URL };
+      },
+    };
+    const result = await ImageService.generateImage('kill the undead skeleton', 'sess-policy', 3, false, policyProvider, storage);
+    expect(result).not.toBeNull();
+    expect(callCount).toBe(2);
+    expect(receivedPrompts[1]).not.toContain('undead');
+    expect(receivedPrompts[1]).not.toContain('skeleton');
+    expect(receivedPrompts[1]).not.toContain('kill');
+  });
 
-// Test 3: generateImage provider failure returns null
-console.log('Test 3: generateImage returns null on provider failure...');
-{
-  const storage = makeMockStorage();
-  const failProvider: ImageProvider = {
-    generateImage: async (): Promise<{ url: string }> => {
-      throw new Error('Provider exploded');
-    },
-  };
-  const result = await ImageService.generateImage('A goblin sneaks', 'sess-fail', 2, false, failProvider, storage);
-  if (result !== null) {
-    throw new Error('Expected null on provider failure');
-  }
-  console.log('- Returns null on failure ✓');
-}
-
-// Test 4: generateImage content_policy_violation retries with sanitized prompt
-console.log('Test 4: generateImage retries with sanitized prompt on content_policy_violation...');
-{
-  const storage = makeMockStorage();
-  let callCount = 0;
-  const receivedPrompts: string[] = [];
-  const policyProvider: ImageProvider = {
-    generateImage: async ({ prompt }: { prompt: string }): Promise<{ url: string }> => {
-      callCount++;
-      receivedPrompts.push(prompt);
-      if (callCount === 1) {
-        const err = new Error('Content policy violation') as Error & { code: string };
+  it('returns null when sanitized retry also fails', async () => {
+    const storage = makeMockStorage();
+    const alwaysFailProvider: ImageProvider = {
+      generateImage: async (): Promise<{ url: string }> => {
+        const err = new Error('Content policy') as Error & { code: string };
         err.code = 'content_policy_violation';
         throw err;
-      }
-      return { url: FAKE_DATA_URL };
-    },
-  };
-  const result = await ImageService.generateImage('kill the undead skeleton', 'sess-policy', 3, false, policyProvider, storage);
-  if (!result) {
-    throw new Error('Expected a result after sanitized retry');
-  }
-  if (callCount !== 2) {
-    throw new Error(`Expected 2 provider calls (original + retry), got ${callCount}`);
-  }
-  const sanitizedPrompt = receivedPrompts[1];
-  if (sanitizedPrompt.includes('undead')) {
-    throw new Error(`Sanitized prompt should not contain 'undead': ${sanitizedPrompt}`);
-  }
-  if (sanitizedPrompt.includes('skeleton')) {
-    throw new Error(`Sanitized prompt should not contain 'skeleton': ${sanitizedPrompt}`);
-  }
-  if (sanitizedPrompt.includes('kill')) {
-    throw new Error(`Sanitized prompt should not contain 'kill': ${sanitizedPrompt}`);
-  }
-  console.log('- Content policy: retried with sanitized prompt ✓');
-}
+      },
+    };
+    const result = await ImageService.generateImage('undead attack', 'sess-double-policy', 4, false, alwaysFailProvider, storage);
+    expect(result).toBeNull();
+  });
+});
 
-// Test 5: generateImage returns null if sanitized retry also fails
-console.log('Test 5: generateImage returns null if sanitized retry also fails...');
-{
-  const storage = makeMockStorage();
-  const alwaysFailProvider: ImageProvider = {
-    generateImage: async (): Promise<{ url: string }> => {
-      const err = new Error('Content policy') as Error & { code: string };
-      err.code = 'content_policy_violation';
-      throw err;
-    },
-  };
-  const result = await ImageService.generateImage('undead attack', 'sess-double-policy', 4, false, alwaysFailProvider, storage);
-  if (result !== null) {
-    throw new Error('Expected null when both original and sanitized calls fail');
-  }
-  console.log('- Returns null when both original and retry fail ✓');
-}
+describe('ImageService.generateAvatar', () => {
+  it('cache miss: calls provider and stores result', async () => {
+    const storage = makeMockStorage();
+    const provider = makeMockImageProvider();
+    const char = { name: 'Pip', class: 'Rogue', species: 'Halfling', quirk: 'Talks to plants' };
+    const result = await ImageService.generateAvatar(char, 'sess-avatar-1', false, provider, storage);
+    expect(result.url).toBeTruthy();
+    expect(result.prompt).toContain('Halfling Rogue');
+    expect(provider.calls).toHaveLength(1);
+    expect(storage.stored.size).toBe(1);
+  });
 
-// ── generateAvatar ────────────────────────────────────────────────────────────
+  it('cache hit: skips provider', async () => {
+    const provider = makeMockImageProvider();
+    const char = { name: 'Pip', class: 'Rogue', species: 'Halfling', quirk: 'Talks to plants' };
+    const prompt = `fantasy character portrait, ${char.species} ${char.class}, detailed face, plain dark background, vibrant colors, cinematic lighting, digital illustration`;
+    const hash = crypto.createHash('md5').update(prompt).digest('hex');
+    const cachedKey = `avatar_sess-avatar-cached_${char.name}_${hash}.png`;
+    const storage = makeMockStorage(new Set([cachedKey]));
+    const result = await ImageService.generateAvatar(char, 'sess-avatar-cached', false, provider, storage);
+    expect(provider.calls).toHaveLength(0);
+    expect(result.url).toContain(cachedKey);
+  });
 
-// Test 6: generateAvatar cache miss - calls provider and stores
-console.log('Test 6: generateAvatar cache miss calls provider and stores...');
-{
-  const storage = makeMockStorage();
-  const provider = makeMockImageProvider();
-  const char = { name: 'Pip', class: 'Rogue', species: 'Halfling', quirk: 'Talks to plants' };
-  const result = await ImageService.generateAvatar(char, 'sess-avatar-1', false, provider, storage);
-  if (!result.url) {
-    throw new Error('Expected a URL');
-  }
-  if (!result.prompt.includes('Halfling Rogue')) {
-    throw new Error(`Prompt should mention species/class, got: ${result.prompt}`);
-  }
-  if (provider.calls.length !== 1) {
-    throw new Error(`Expected 1 provider call, got ${provider.calls.length}`);
-  }
-  if (storage.stored.size !== 1) {
-    throw new Error(`Expected 1 stored image, got ${storage.stored.size}`);
-  }
-  console.log(`- Avatar generated, prompt='${result.prompt}' ✓`);
-}
+  it('falls back to initials SVG on provider failure', async () => {
+    const storage = makeMockStorage();
+    const failProvider: ImageProvider = {
+      generateImage: async (): Promise<{ url: string }> => { throw new Error('Avatar provider exploded'); },
+    };
+    const char = { name: 'Zomgush', class: 'Barbarian', species: 'Orc', quirk: 'Hates silence' };
+    const result = await ImageService.generateAvatar(char, 'sess-avatar-fail', false, failProvider, storage);
+    expect(result.url).toBeTruthy();
+    expect(result.url).toContain('avatar_initials');
+    expect(storage.stored.size).toBe(0);
+  });
 
-// Test 7: generateAvatar cache hit - skips provider
-console.log('Test 7: generateAvatar cache hit skips provider...');
-{
-  const provider = makeMockImageProvider();
-  const char = { name: 'Pip', class: 'Rogue', species: 'Halfling', quirk: 'Talks to plants' };
-  const prompt = `fantasy character portrait, ${char.species} ${char.class}, detailed face, plain dark background, vibrant colors, cinematic lighting, digital illustration`;
-  const hash = crypto.createHash('md5').update(prompt).digest('hex');
-  const cachedKey = `avatar_sess-avatar-cached_${char.name}_${hash}.png`;
-  const storage = makeMockStorage(new Set([cachedKey]));
-  const result = await ImageService.generateAvatar(char, 'sess-avatar-cached', false, provider, storage);
-  if (provider.calls.length !== 0) {
-    throw new Error(`Expected 0 provider calls (cache hit), got ${provider.calls.length}`);
-  }
-  if (!result.url.includes(cachedKey)) {
-    throw new Error(`Expected URL to contain '${cachedKey}', got '${result.url}'`);
-  }
-  console.log('- Avatar cache hit: provider not called ✓');
-}
+  it('includes gender in prompt when provided', async () => {
+    const storage = makeMockStorage();
+    const provider = makeMockImageProvider();
+    const char = { name: 'Aria', class: 'Mage', species: 'Elf', quirk: 'Loves riddles', gender: 'female' };
+    const result = await ImageService.generateAvatar(char, 'sess-avatar-gender', false, provider, storage);
+    expect(result.prompt).toContain('female');
+  });
+});
 
-// Test 8: generateAvatar provider failure falls back to initials SVG
-console.log('Test 8: generateAvatar falls back to initials SVG on provider failure...');
-{
-  const storage = makeMockStorage();
-  const failProvider: ImageProvider = {
-    generateImage: async (): Promise<{ url: string }> => {
-      throw new Error('Avatar provider exploded');
-    },
-  };
-  const char = { name: 'Zomgush', class: 'Barbarian', species: 'Orc', quirk: 'Hates silence' };
-  const result = await ImageService.generateAvatar(char, 'sess-avatar-fail', false, failProvider, storage);
-  if (!result.url) {
-    throw new Error('Expected a fallback URL');
-  }
-  if (!result.url.includes('avatar_initials')) {
-    throw new Error(`Expected initials SVG URL, got '${result.url}'`);
-  }
-  if (storage.stored.size !== 0) {
-    throw new Error('Failed avatar should not be stored via provider storage');
-  }
-  console.log(`- Fallback to initials SVG: '${result.url}' ✓`);
-}
+describe('ImageService.generateInitialsSvg', () => {
+  it('produces correct two-word initials', () => {
+    const svgUrl = ImageService.generateInitialsSvg('Barnaby Foxwick', 'sess-svg-1');
+    const filePath = path.join(TEST_IMG_DIR, `avatar_initials_sess-svg-1_Barnaby_Foxwick.svg`);
+    expect(fs.existsSync(filePath)).toBe(true);
+    expect(fs.readFileSync(filePath, 'utf8')).toContain('>BF<');
+    expect(svgUrl).toContain('avatar_initials_sess-svg-1_Barnaby_Foxwick.svg');
+  });
 
-// Test 9: generateAvatar includes gender in prompt when provided
-console.log('Test 9: generateAvatar includes gender in prompt...');
-{
-  const storage = makeMockStorage();
-  const provider = makeMockImageProvider();
-  const char = { name: 'Aria', class: 'Mage', species: 'Elf', quirk: 'Loves riddles', gender: 'female' };
-  const result = await ImageService.generateAvatar(char, 'sess-avatar-gender', false, provider, storage);
-  if (!result.prompt.includes('female')) {
-    throw new Error(`Prompt should contain gender 'female', got: ${result.prompt}`);
-  }
-  console.log('- Gender included in avatar prompt ✓');
-}
+  it('produces first-two-chars initials for single-word name', () => {
+    ImageService.generateInitialsSvg('Zomgush', 'sess-svg-2');
+    const content = fs.readFileSync(path.join(TEST_IMG_DIR, `avatar_initials_sess-svg-2_Zomgush.svg`), 'utf8');
+    expect(content).toContain('>ZO<');
+  });
 
-// ── generateInitialsSvg ───────────────────────────────────────────────────────
+  it('produces valid SVG markup and URL with configured base path', () => {
+    const svgUrl = ImageService.generateInitialsSvg('Test Hero', 'sess-svg-3');
+    const content = fs.readFileSync(path.join(TEST_IMG_DIR, `avatar_initials_sess-svg-3_Test_Hero.svg`), 'utf8');
+    expect(content).toContain('<svg');
+    expect(content).toContain('</svg>');
+    expect(content).toContain('<polygon');
+    expect(content).toContain('<text');
+    expect(svgUrl).toMatch(/^\/test-images\//);
+  });
+});
 
-// Test 10: generateInitialsSvg produces correct two-word initials
-console.log('Test 10: generateInitialsSvg produces correct initials for two-word name...');
-{
-  const svgUrl = ImageService.generateInitialsSvg('Barnaby Foxwick', 'sess-svg-1');
-  const fileName = `avatar_initials_sess-svg-1_Barnaby_Foxwick.svg`;
-  const filePath = path.join(TEST_IMG_DIR, fileName);
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`SVG file not found at ${filePath}`);
-  }
-  const content = fs.readFileSync(filePath, 'utf8');
-  if (!content.includes('>BF<')) {
-    throw new Error(`Expected initials 'BF' in SVG, got: ${content.slice(0, 200)}`);
-  }
-  if (!svgUrl.includes(fileName)) {
-    throw new Error(`URL should contain filename, got: ${svgUrl}`);
-  }
-  console.log(`- Initials 'BF' written to SVG ✓`);
-}
-
-// Test 11: generateInitialsSvg produces correct single-word initials (first 2 chars)
-console.log('Test 11: generateInitialsSvg produces correct initials for single-word name...');
-{
-  ImageService.generateInitialsSvg('Zomgush', 'sess-svg-2');
-  const fileName = `avatar_initials_sess-svg-2_Zomgush.svg`;
-  const filePath = path.join(TEST_IMG_DIR, fileName);
-  const content = fs.readFileSync(filePath, 'utf8');
-  if (!content.includes('>ZO<')) {
-    throw new Error(`Expected initials 'ZO' in SVG, got: ${content.slice(0, 200)}`);
-  }
-  console.log('- Single-word name: initials ZO ✓');
-}
-
-// Test 12: generateInitialsSvg SVG is well-formed and URL uses configured base path
-console.log('Test 12: generateInitialsSvg produces valid SVG markup and correct URL...');
-{
-  const svgUrl = ImageService.generateInitialsSvg('Test Hero', 'sess-svg-3');
-  const fileName = `avatar_initials_sess-svg-3_Test_Hero.svg`;
-  const filePath = path.join(TEST_IMG_DIR, fileName);
-  const content = fs.readFileSync(filePath, 'utf8');
-  if (!content.includes('<svg')) {
-    throw new Error('Missing <svg> tag');
-  }
-  if (!content.includes('</svg>')) {
-    throw new Error('Missing </svg> closing tag');
-  }
-  if (!content.includes('<polygon')) {
-    throw new Error('Missing hexagon polygon');
-  }
-  if (!content.includes('<text')) {
-    throw new Error('Missing text element');
-  }
-  if (!svgUrl.startsWith('/test-images/')) {
-    throw new Error(`URL should start with /test-images/, got: ${svgUrl}`);
-  }
-  console.log('- SVG is well-formed, URL uses configured base path ✓');
-}
-
-// Test 13: getDefaultImage returns the fallback path
-console.log('Test 13: getDefaultImage returns fallback...');
-{
-  const def = ImageService.getDefaultImage();
-  if (def !== '/images/default_scene.png') {
-    throw new Error(`Expected '/images/default_scene.png', got '${def}'`);
-  }
-  console.log(`- Default image: '${def}' ✓`);
-}
-
-console.log('\nAll imageService tests passed!');
+describe('ImageService.getDefaultImage', () => {
+  it('returns the fallback path', () => {
+    expect(ImageService.getDefaultImage()).toBe('/images/default_scene.png');
+  });
+});

@@ -65,6 +65,17 @@ frontend/src/
 terraform/                         # AWS infrastructure (see Terraform section below)
 ```
 
+## Keeping docs up to date
+
+When making changes, check whether any of these need updating:
+
+- **`README.md`** - setup, stack, feature overview. Update if adding a new major feature or changing dev/deploy steps.
+- **`MANAGE.md`** - CLI reference and production operations. Update if adding/changing CLI commands, deploy scripts, or env vars.
+- **`GAME_ENGINE_RULES.md`** - dice mechanics, stats, damage, turn flow, special turns. Update if changing `gameEngine.ts` logic, difficulty, or turn types.
+- **`frontend/src/pages/HowToPlay.tsx`** - the in-game help page shown to players. Update if gameplay rules or flow visible to players changes.
+
+`github-secrets.md` and `how-it-all-started.md` are not user-facing and rarely change.
+
 ## Coding conventions
 
 - **No em dashes** in code, comments, UI strings, or docs. Use a hyphen or colon instead.
@@ -120,9 +131,22 @@ Resources: `users`, `namespaces`, `sessions`, `metrics`, `invite-requests`. See 
 
 Characters have a `history` field. When importing a character from a previous session (CharacterAssembly), an AI-generated one-sentence summary of their past adventures is stored in `history`. This is passed to the AI DM as context for each turn.
 
+## Testing
+
+Run from root:
+```bash
+npm run test              # runs backend + frontend tests
+npm run test:backend      # vitest run in backend/
+npm run test:frontend     # vitest run in frontend/
+```
+
+**Frontend** (`frontend/src/**/*.test.ts(x)`): vitest + @testing-library/react + jsdom. Setup file at `frontend/src/test/setup.ts`. Use `describe/it/expect` from vitest. Component tests use `render/screen/fireEvent` from `@testing-library/react`. Pure lib utilities (e.g. `lib/sessionRoute.ts`) are tested directly without rendering.
+
+**Backend** (`backend/src/**/*.test.ts`): vitest with `pool: 'forks'`. Use `describe/it/expect/beforeAll/afterAll` from vitest. Test files that need env vars set them in `beforeAll` before calling any service methods (config is lazily cached). Integration tests (stateService) use a temp SQLite file created per run and cleaned up in `afterAll`. Tests that need to stub providers (imageService) define minimal mock implementations inline.
+
 ## DB migrations
 
-`stateService.ts` runs migrations on every startup via `migrate()`. Add new columns as `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` checks at the bottom of `migrate()`. Never drop columns. Never change existing column types. When adding new migrations, be sure to update the seed script (./backend/src/scripts/seedSessions.ts)
+`stateService.ts` runs migrations on every startup via `migrate()`. Add new columns as `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` checks at the bottom of `migrate()`. Never drop columns. Never change existing column types. When adding new migrations or changing game engine types/state shape, be sure to update the seed script (`./backend/src/scripts/seedSessions.ts`).
 
 ## Image storage
 

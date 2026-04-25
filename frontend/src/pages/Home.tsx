@@ -4,6 +4,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DmFooter } from '../components/DmFooter';
 import { SiteHeader } from '../components/SiteHeader';
 import { apiFetch, imgSrc } from '../lib/api';
+import { getSessionEntryPath } from '../lib/sessionRoute';
 import type { SessionPreview } from '../types';
 
 const DIFFICULTY_INFO: Record<string, { color: string; label: string }> = {
@@ -326,7 +327,7 @@ export const Home = () => {
                   <WorldCard
                     key={sess.id}
                     session={sess}
-                    onEnter={() => navigate(`/session/${sess.id}/recap`)}
+                    onEnter={() => navigate(getSessionEntryPath(sess))}
                     onDelete={() => deleteSession(sess.id, sess.displayName)}
                     onEdit={() => setEditSession({ id: sess.id, displayName: sess.displayName, difficulty: sess.difficulty, gameMode: sess.gameMode, dmPrep: sess.dmPrep })}
                   />
