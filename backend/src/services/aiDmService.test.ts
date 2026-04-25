@@ -144,4 +144,51 @@ describe('toNarrationInput', () => {
     const out = toNarrationInput({ ...makeAIInput(), interventionRescue: true });
     expect(out.interventionRescue).toBe(true);
   });
+
+  it('actingCharacterName is undefined when characterId does not match any party member', () => {
+    const out = toNarrationInput(makeAIInput({ characterId: 'no-such-id' }));
+    expect(out.actingCharacterName).toBeUndefined();
+  });
+
+  it('nextCharacterName is undefined when activeCharacterId does not match any party member', () => {
+    const out = toNarrationInput(makeAIInput({ activeCharacterId: 'no-such-id' }));
+    expect(out.nextCharacterName).toBeUndefined();
+  });
+
+  it('difficulty is undefined in actionResult when acting character is not found', () => {
+    const out = toNarrationInput(makeAIInput({ characterId: 'no-such-id' }));
+    expect(out.actionResult.difficulty).toBeUndefined();
+  });
+
+  it('difficulty is set in actionResult when acting character is found', () => {
+    const out = toNarrationInput(makeAIInput({ characterId: 'hero-1' }));
+    expect(out.actionResult.difficulty).toBe('normal');
+  });
+
+  it('empty party produces empty party and inventory arrays', () => {
+    const out = toNarrationInput(makeAIInput({ party: [], characterId: '', activeCharacterId: '' }));
+    expect(out.party).toHaveLength(0);
+    expect(out.inventory).toHaveLength(0);
+  });
+
+  it('dmPrep is included when set', () => {
+    const out = toNarrationInput(makeAIInput({ dmPrep: 'The villain is a dragon named Zyx.' }));
+    expect(out.dmPrep).toBe('The villain is a dragon named Zyx.');
+  });
+
+  it('dmPrep is omitted when not set', () => {
+    const out = toNarrationInput(makeAIInput({ dmPrep: undefined }));
+    expect('dmPrep' in out).toBe(false);
+  });
+
+  it('character history is included in party entry when set', () => {
+    const charWithHistory = { ...makeAIInput().party[0], history: 'Survived the goblin war.' };
+    const out = toNarrationInput(makeAIInput({ party: [charWithHistory] }));
+    expect(out.party[0].history).toBe('Survived the goblin war.');
+  });
+
+  it('character history is omitted from party entry when not set', () => {
+    const out = toNarrationInput(makeAIInput());
+    expect('history' in out.party[0]).toBe(false);
+  });
 });

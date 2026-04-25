@@ -25,4 +25,23 @@ describe('RangeSlider', () => {
     fireEvent.change(input, { target: { value: '1.05' } });
     expect(onChange).toHaveBeenCalledWith(1.05);
   });
+
+  it('renders correctly when min equals max', () => {
+    render(<RangeSlider label="Fixed" value={1} min={1} max={1} step={0.1} displayValue="1" onChange={() => {}} />);
+    const input = screen.getByRole('slider');
+    expect(input).toHaveAttribute('min', '1');
+    expect(input).toHaveAttribute('max', '1');
+  });
+
+  it('calls onChange with integer when step is 1', () => {
+    const onChange = vi.fn();
+    render(<RangeSlider label="Count" value={3} min={1} max={10} step={1} displayValue="3" onChange={onChange} />);
+    fireEvent.change(screen.getByRole('slider'), { target: { value: '7' } });
+    expect(onChange).toHaveBeenCalledWith(7);
+  });
+
+  it('renders displayValue as the visible label text', () => {
+    render(<RangeSlider label="Vol" value={0} min={0} max={1} step={0.1} displayValue="muted" onChange={() => {}} />);
+    expect(screen.getByText('muted')).toBeInTheDocument();
+  });
 });

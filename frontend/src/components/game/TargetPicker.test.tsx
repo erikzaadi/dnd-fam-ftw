@@ -81,3 +81,37 @@ describe('TargetPicker - compact mode', () => {
     expect(screen.getByAltText('Alice')).toBeInTheDocument();
   });
 });
+
+describe('TargetPicker - downed characters', () => {
+  const DOWNED = makeChar('down', 'Down', 'downed');
+
+  it('downed character is still rendered as a target for use', () => {
+    render(<TargetPicker party={[ALICE, DOWNED]} action="use" ownerCharId="alice" onConfirm={() => {}} onCancel={() => {}} />);
+    expect(screen.getByAltText('Down')).toBeInTheDocument();
+  });
+
+  it('downed character avatar has grayscale class', () => {
+    render(<TargetPicker party={[ALICE, DOWNED]} action="use" ownerCharId="alice" onConfirm={() => {}} onCancel={() => {}} />);
+    const img = screen.getByAltText('Down');
+    expect(img.className).toContain('grayscale');
+  });
+
+  it('clicking a downed character still fires onConfirm', async () => {
+    const onConfirm = vi.fn();
+    render(<TargetPicker party={[ALICE, DOWNED]} action="use" ownerCharId="alice" onConfirm={onConfirm} onCancel={() => {}} />);
+    await userEvent.click(screen.getByAltText('Down').closest('button')!);
+    expect(onConfirm).toHaveBeenCalledWith('down');
+  });
+});
+
+describe('TargetPicker - edge cases', () => {
+  it('shows no targets when party is empty', () => {
+    render(<TargetPicker party={[]} action="use" ownerCharId="alice" onConfirm={() => {}} onCancel={() => {}} />);
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  });
+
+  it('shows no targets for give when only one member (the owner)', () => {
+    render(<TargetPicker party={[ALICE]} action="give" ownerCharId="alice" onConfirm={() => {}} onCancel={() => {}} />);
+    expect(screen.queryByAltText('Alice')).not.toBeInTheDocument();
+  });
+});

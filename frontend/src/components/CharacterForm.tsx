@@ -23,7 +23,7 @@ export const CharacterForm = ({ onSave, onCancel, isLoading, initialValues }: Ch
   return (
     <Modal>
       <div className="bg-slate-900 p-10 rounded-[40px] border-2 border-amber-500/30 shadow-2xl max-w-lg w-full relative">
-        <h3 className="text-3xl font-black text-white mb-6">{initialValues ? 'Edit Hero' : 'Create New Hero'}</h3>
+        <h3 className="text-3xl font-black text-white mb-6">{isLoading ? 'Creating your hero...' : initialValues ? 'Edit Hero' : 'Create New Hero'}</h3>
 
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-16 gap-4">

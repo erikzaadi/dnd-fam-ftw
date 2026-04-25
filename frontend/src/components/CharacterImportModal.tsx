@@ -12,7 +12,7 @@ interface CharacterImportModalProps {
 export const CharacterImportModal = ({ characters, onImport, onClose, loading }: CharacterImportModalProps) => (
   <Modal>
     <div className="bg-slate-900 p-10 rounded-[40px] border-2 border-slate-700 shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-y-auto relative">
-      <h2 className="text-3xl font-black text-white mb-8">Import Hero</h2>
+      <h2 className="text-3xl font-black text-white mb-8">{loading ? 'Importing hero...' : 'Import Hero'}</h2>
       {!loading && <button onClick={onClose} className="absolute top-6 right-6 text-slate-500 hover:text-white text-2xl">✕</button>}
 
       {loading ? (
