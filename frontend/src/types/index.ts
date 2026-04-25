@@ -56,6 +56,7 @@ export interface SessionPreview {
   displayName: string;
   worldDescription?: string;
   storySummary?: string;
+  dmPrep?: string;
   difficulty: string;
   gameMode: string;
   party: { id: string; name: string; class: string; species: string; avatarUrl?: string; hp: number; max_hp: number }[];

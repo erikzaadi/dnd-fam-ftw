@@ -243,11 +243,11 @@ export class StateService {
     const isLocal = process.env.AI_NARRATION_PROVIDER === 'localai';
     console.log(`[Session] Generating display name via ${isLocal ? 'LocalAI' : 'OpenAI'} model=${model}`);
     const nameStart = Date.now();
-    let displayName = 'A New World';
+    let displayName = 'A New Realm';
     try {
       const nameResponse = await client.chat.completions.create({
         model,
-        messages: [{ role: 'user', content: `/no_think Give me a short, evocative name (max 3 words) for a story setting based on: ${worldDescription || 'a random world'}. Reply with the name only, no explanation.` }],
+        messages: [{ role: 'user', content: `/no_think Give me a short, evocative name (max 3 words) for a story setting based on: ${worldDescription || 'a random realm'}. Reply with the name only, no explanation.` }],
         max_tokens: 100,
       }, { signal: AbortSignal.timeout(20_000) });
       console.log(`[Session] Display name received in ${Date.now() - nameStart}ms`);
@@ -263,17 +263,17 @@ export class StateService {
         .replace(/\s*[-–—].*/g, '')
         .split('\n')
         .map((l: string) => l.trim())
-        .find((l: string) => l.length > 0) ?? 'A New World';
+        .find((l: string) => l.length > 0) ?? 'A New Realm';
     } catch (err) {
       console.warn(`[Session] Display name generation failed or timed out (${Date.now() - nameStart}ms), using fallback:`, err);
     }
 
     db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, turn, tone, displayName, difficulty, gameMode, useLocalAI, savingsMode, namespace_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, "A New World", "start-1", worldDescription || null, dmPrep || null, 1, "thrilling adventure", displayName, difficulty, gameMode, useLocalAI ? 1 : 0, savingsMode ? 1 : 0, namespaceId);
+      .run(id, "A New Realm", "start-1", worldDescription || null, dmPrep || null, 1, "thrilling adventure", displayName, difficulty, gameMode, useLocalAI ? 1 : 0, savingsMode ? 1 : 0, namespaceId);
 
     return {
       id,
-      scene: "A New World",
+      scene: "A New Realm",
       sceneId: "start-1",
       worldDescription,
       dmPrep,
@@ -478,9 +478,26 @@ export class StateService {
     }
   }
 
-  public static async listSessions(namespaceId: string = 'local'): Promise<{ id: string; displayName: string; worldDescription?: string; storySummary?: string; difficulty: string; gameMode: string; party: { id: string; name: string; class: string; species: string; avatarUrl?: string; hp: number; max_hp: number }[] }[]> {
+  public static async patchSession(id: string, fields: { difficulty?: string; gameMode?: string; dmPrep?: string | null }): Promise<void> {
     const db = this.getDb();
-    const rows = db.prepare('SELECT id, displayName, worldDescription, storySummary, difficulty, gameMode FROM sessions WHERE namespace_id = ? ORDER BY createdAt DESC').all(namespaceId) as { id: string; displayName: string; worldDescription: string | null; storySummary: string | null; difficulty: string; gameMode: string }[];
+    const colMap: Record<string, string> = { difficulty: 'difficulty', gameMode: 'gameMode', dmPrep: 'dm_prep' };
+    const sets: string[] = [];
+    const values: unknown[] = [];
+    for (const [key, col] of Object.entries(colMap)) {
+      if (key in fields) {
+        sets.push(`${col} = ?`);
+        values.push((fields as Record<string, unknown>)[key] ?? null);
+      }
+    }
+    if (sets.length === 0) {
+      return;
+    }
+    db.prepare(`UPDATE sessions SET ${sets.join(', ')} WHERE id = ?`).run(...values, id);
+  }
+
+  public static async listSessions(namespaceId: string = 'local'): Promise<{ id: string; displayName: string; worldDescription?: string; storySummary?: string; dmPrep?: string; difficulty: string; gameMode: string; party: { id: string; name: string; class: string; species: string; avatarUrl?: string; hp: number; max_hp: number }[] }[]> {
+    const db = this.getDb();
+    const rows = db.prepare('SELECT id, displayName, worldDescription, storySummary, dm_prep, difficulty, gameMode FROM sessions WHERE namespace_id = ? ORDER BY createdAt DESC').all(namespaceId) as { id: string; displayName: string; worldDescription: string | null; storySummary: string | null; dm_prep: string | null; difficulty: string; gameMode: string }[];
     return rows.map(row => {
       const chars = db.prepare('SELECT id, name, class, species, avatarUrl, hp, max_hp FROM characters WHERE sessionId = ?').all(row.id) as { id: string; name: string; class: string; species: string; avatarUrl: string | null; hp: number; max_hp: number }[];
       return {
@@ -488,6 +505,7 @@ export class StateService {
         displayName: row.displayName,
         worldDescription: row.worldDescription || undefined,
         storySummary: row.storySummary || undefined,
+        dmPrep: row.dm_prep || undefined,
         difficulty: row.difficulty,
         gameMode: row.gameMode,
         party: chars.map(c => ({ ...c, avatarUrl: c.avatarUrl || undefined })),

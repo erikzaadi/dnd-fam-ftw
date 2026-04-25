@@ -19,6 +19,7 @@ export type SfxEvent =
 
 export interface MusicPlayer {
   start(category: MusicCategory): Promise<void>;
+  startNext(category: MusicCategory): Promise<void>;
   stop(): void;
   setVolume(volume: number): void;
   setMuted(muted: boolean): void;

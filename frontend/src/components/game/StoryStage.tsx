@@ -67,7 +67,7 @@ export const StoryStage = ({
 
       {/* Top-right badges: viewing old turn + tension */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-        {currentTensionLevel && isCurrentTurn && (() => {
+        {currentTensionLevel && currentTensionLevel !== 'low' && isCurrentTurn && (() => {
           const t = TENSION_CONFIG[currentTensionLevel];
           return (
             <div className={`flex items-center gap-1 px-2.5 py-1 ${t.bg} border ${t.border} rounded-full backdrop-blur-sm`}>

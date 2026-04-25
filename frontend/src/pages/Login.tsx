@@ -20,7 +20,7 @@ export const Login = () => {
         <div className="bg-slate-900/80 border-2 border-slate-800 rounded-[32px] p-8 max-w-sm w-full space-y-6 text-center">
           <div>
             <h2 className="text-2xl font-display font-black text-amber-400 italic tracking-tighter">Welcome, Adventurer</h2>
-            <p className="text-slate-400 text-sm mt-2">Sign in to access your party and worlds.</p>
+            <p className="text-slate-400 text-sm mt-2">Sign in to access your party and realms.</p>
           </div>
 
           {unauthorized && (

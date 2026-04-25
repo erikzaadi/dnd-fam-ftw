@@ -5,6 +5,8 @@
   --font-narrative: 'Lora', serif;
   --animate-border-pulse: border-pulse 2.5s ease-in-out infinite;
   --animate-ken-burns: ken-burns 24s ease-in-out infinite alternate;
+  --animate-dice-spin: dice-spin 1.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-dice-shake: dice-shake 7s ease-in-out infinite;
 }
 
 .scrollbar-hide {
@@ -26,6 +28,26 @@
   50%  { transform: scale(1.10) translate(1.5%, 2%); }
   75%  { transform: scale(1.14) translate(2%, -1%); }
   100% { transform: scale(1.09) translate(-1%, 1.5%); }
+}
+
+@keyframes dice-spin {
+  0%   { transform: rotate(0deg) scale(1); }
+  20%  { transform: rotate(72deg) scale(1.1) translateY(-3px); }
+  40%  { transform: rotate(144deg) scale(0.92) translateY(2px); }
+  60%  { transform: rotate(216deg) scale(1.07) translateY(-2px); }
+  80%  { transform: rotate(288deg) scale(0.95) translateY(3px); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+@keyframes dice-shake {
+  0%, 78%, 100% { transform: rotate(0deg) scale(1); }
+  80%  { transform: rotate(-14deg) scale(1.08) translateY(-3px); }
+  83%  { transform: rotate(12deg) scale(1.04) translateY(1px); }
+  86%  { transform: rotate(-16deg) scale(1.1) translateY(-4px); }
+  89%  { transform: rotate(10deg) scale(1.05) translateY(2px); }
+  92%  { transform: rotate(-10deg) scale(1.07) translateY(-2px); }
+  95%  { transform: rotate(8deg) scale(1.03) translateY(1px); }
+  98%  { transform: rotate(-4deg) scale(1.01); }
 }
 
 .story-card-container {

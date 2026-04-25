@@ -23,17 +23,20 @@ const EditSessionModal = ({
   sessionId,
   initialDifficulty,
   initialGameMode,
+  initialDmPrep,
   onSave,
   onCancel,
 }: {
   sessionId: string;
   initialDifficulty: string;
   initialGameMode: string;
-  onSave: (difficulty: string, gameMode: string) => void;
+  initialDmPrep?: string;
+  onSave: (difficulty: string, gameMode: string, dmPrep: string) => void;
   onCancel: () => void;
 }) => {
   const [difficulty, setDifficulty] = useState(initialDifficulty);
   const [gameMode, setGameMode] = useState(initialGameMode);
+  const [dmPrep, setDmPrep] = useState(initialDmPrep ?? '');
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
@@ -41,16 +44,16 @@ const EditSessionModal = ({
     await apiFetch(`/session/${sessionId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ difficulty, gameMode }),
+      body: JSON.stringify({ difficulty, gameMode, dmPrep: dmPrep || undefined }),
     });
     setSaving(false);
-    onSave(difficulty, gameMode);
+    onSave(difficulty, gameMode, dmPrep);
   };
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in p-4">
       <div className="bg-slate-900 border border-slate-700 rounded-[32px] p-6 max-w-md w-full shadow-2xl space-y-5">
-        <h3 className="text-lg font-black uppercase tracking-tighter text-amber-400 italic">Edit World</h3>
+        <h3 className="text-lg font-black uppercase tracking-tighter text-amber-400 italic">Edit Realm</h3>
 
         <div className="flex flex-col gap-2">
           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Difficulty</span>
@@ -84,6 +87,17 @@ const EditSessionModal = ({
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">DM Prep Notes</span>
+          <textarea
+            value={dmPrep}
+            onChange={e => setDmPrep(e.target.value)}
+            rows={4}
+            placeholder="Lore, villains, locations, plot hooks..."
+            className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-slate-200 placeholder-slate-600 resize-none focus:outline-none focus:border-amber-600/60 transition-colors"
+          />
         </div>
 
         <div className="flex gap-3">
@@ -179,7 +193,7 @@ const WorldCard = ({
           onClick={onEnter}
           className="w-full py-3 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-600/40 hover:border-amber-500/60 rounded-xl font-black uppercase tracking-widest text-amber-400 text-sm transition-all"
         >
-          Enter World →
+          Enter Realm →
         </button>
       </div>
     </div>
@@ -190,7 +204,7 @@ export const Home = () => {
   const [activeSessions, setActiveSessions] = useState<SessionPreview[]>([]);
   const [sessionLimit, setSessionLimit] = useState<{ max: number; current: number } | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
-  const [editSession, setEditSession] = useState<{ id: string; difficulty: string; gameMode: string } | null>(null);
+  const [editSession, setEditSession] = useState<{ id: string; difficulty: string; gameMode: string; dmPrep?: string } | null>(null);
   const navigate = useNavigate();
 
   const loadSessions = () => {
@@ -242,9 +256,10 @@ export const Home = () => {
           sessionId={editSession.id}
           initialDifficulty={editSession.difficulty}
           initialGameMode={editSession.gameMode}
-          onSave={(difficulty, gameMode) => {
+          initialDmPrep={editSession.dmPrep}
+          onSave={(difficulty, gameMode, dmPrep) => {
             setActiveSessions(prev => prev.map(s =>
-              s.id === editSession.id ? { ...s, difficulty, gameMode } : s
+              s.id === editSession.id ? { ...s, difficulty, gameMode, dmPrep: dmPrep || undefined } : s
             ));
             setEditSession(null);
           }}
@@ -258,22 +273,27 @@ export const Home = () => {
         {/* New world / limit button - full width */}
         {sessionLimit && sessionLimit.current >= sessionLimit.max ? (
           <div className="px-8 py-5 bg-slate-800 border-2 border-slate-700 rounded-[32px] text-center flex-shrink-0">
-            <p className="text-slate-400 font-black uppercase italic tracking-tighter text-xl md:text-2xl">SESSION LIMIT REACHED</p>
-            <p className="text-slate-500 text-sm mt-1">{sessionLimit.current} / {sessionLimit.max} worlds - delete one to start another</p>
+            <p className="text-slate-400 font-black uppercase italic tracking-tighter text-xl md:text-2xl">REALM LIMIT REACHED</p>
+            <p className="text-slate-500 text-sm mt-1">{sessionLimit.current} / {sessionLimit.max} realms - delete one to start another</p>
           </div>
         ) : (
           <button
             onClick={() => navigate('/create-session')}
-            className="px-8 py-5 md:py-6 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-2xl md:text-4xl font-black shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter w-full flex-shrink-0"
+            className="px-8 py-5 md:py-6 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-2xl md:text-4xl font-black shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter w-full flex-shrink-0 flex items-center justify-center gap-4"
           >
-            START A NEW WORLD{sessionLimit ? ` (${sessionLimit.current}/${sessionLimit.max})` : ''}
+            <img
+              src={imgSrc('/images/icon_dice.png')}
+              className="w-10 h-10 md:w-14 md:h-14 rounded-full object-cover animate-dice-shake flex-shrink-0"
+              alt=""
+            />
+            START A NEW REALM{sessionLimit ? ` (${sessionLimit.current}/${sessionLimit.max})` : ''}
           </button>
         )}
 
         {/* Sessions grid */}
         {activeSessions.length > 0 ? (
           <div className="flex-1 flex flex-col min-h-0 gap-2">
-            <h3 className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-white italic flex-shrink-0">Active Worlds 🌍</h3>
+            <h3 className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-white italic flex-shrink-0">Active Realms 🌍</h3>
             <div className="flex-1 overflow-y-auto min-h-0">
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pb-2 auto-rows-fr">
                 {activeSessions.map(sess => (
@@ -282,7 +302,7 @@ export const Home = () => {
                     session={sess}
                     onEnter={() => navigate(`/session/${sess.id}/recap`)}
                     onDelete={() => deleteSession(sess.id, sess.displayName)}
-                    onEdit={() => setEditSession({ id: sess.id, difficulty: sess.difficulty, gameMode: sess.gameMode })}
+                    onEdit={() => setEditSession({ id: sess.id, difficulty: sess.difficulty, gameMode: sess.gameMode, dmPrep: sess.dmPrep })}
                   />
                 ))}
               </div>

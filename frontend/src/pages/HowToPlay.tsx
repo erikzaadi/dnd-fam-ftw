@@ -36,7 +36,7 @@ export const HowToPlay = () => {
           <div className="bg-slate-900/80 border-2 border-slate-800 rounded-[32px] p-6 md:p-10 space-y-10">
             <Section title="The Goal">
               <p className="text-slate-300 text-lg leading-relaxed">
-                You and your party are heroes in a world of the AI's imagination. Each turn the AI Dungeon Master narrates what's happening and offers three choices. Pick one (or type your own), roll the dice, and see what happens. There's no win condition, just the story.
+                You and your party are heroes in a realm of the AI's imagination. Each turn the AI Dungeon Master narrates what's happening and offers three choices. Pick one (or type your own), roll the dice, and see what happens. There's no win condition, just the story.
               </p>
             </Section>
 

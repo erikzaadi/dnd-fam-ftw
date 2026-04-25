@@ -123,7 +123,11 @@ export class AudioManager {
   }
 
   public async skipTrack() {
-    await musicPlayer.skipTrack();
+    if (!this.settings.enabled || !this.settings.musicEnabled || this.settings.masterMuted || !this.unlocked) {
+      return;
+    }
+    const category = this.lastTension === 'high' ? 'danger' : 'ambient';
+    await musicPlayer.startNext(category);
   }
 
   public stopMusic() {

@@ -50,7 +50,7 @@ const TldrView = ({ sessionId, onEnter }: { sessionId: string; onEnter: () => vo
           <p className="font-narrative text-2xl text-slate-200 leading-relaxed italic text-center">{summary}</p>
           <TtsButton text={summary} ttsSettings={ttsSettings} className="justify-center" />
           <button onClick={onEnter} className="px-12 py-5 bg-amber-600 hover:bg-amber-500 rounded-[28px] font-black uppercase italic tracking-tighter text-2xl shadow-[0_8px_0_rgb(146,64,14)] transition-all animate-in fade-in duration-500">
-            Enter World
+            Enter Realm
           </button>
         </>
       ) : (
@@ -258,7 +258,7 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
           </div>
           {isLast && (
             <button onClick={onEnter} className="w-full py-3 bg-amber-600 hover:bg-amber-500 rounded-xl font-black uppercase italic tracking-tighter text-base shadow-[0_4px_0_rgb(146,64,14)] transition-all">
-              Enter World →
+              Enter Realm →
             </button>
           )}
         </div>
@@ -335,7 +335,7 @@ export const SessionRecap = () => {
             onClick={enter}
             className="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 font-black uppercase text-xs tracking-widest transition-all shadow-[0_3px_0_rgb(146,64,14)]"
           >
-            Enter World →
+            Enter Realm →
           </button>
           <Link
             to="/"

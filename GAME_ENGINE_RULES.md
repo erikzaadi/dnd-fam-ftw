@@ -233,13 +233,14 @@ This separation ensures the AI can accurately narrate what *just happened* to th
 
 ## Game Mode
 
-Game mode is set at world creation alongside difficulty. It controls the **pacing and narrative style** the AI DM uses throughout the session.
+Game mode is set at realm creation alongside difficulty. It controls the **pacing and narrative style** the AI DM uses throughout the session.
 
 | Mode | Pacing |
 |------|--------|
 | **Fast** | Narration under 3 sentences. Immediate action, frequent conflict, skip slow descriptions. Tension escalates quickly. Prioritises combat, traps, and danger. |
 | **Balanced** | Mix of exploration and action. Moderate pacing. Tension escalates at a natural rate. |
 | **Cinematic** | Rich descriptions, character moments, slower pacing. Tension builds deliberately. |
+| **ZUG-MA-GEDDON** | Straight to battle. Every turn is chaos. Maximum tension always. The AI is instructed to generate non-stop combat encounters and escalate without mercy. Not for the faint of heart. |
 
 Game mode is passed to the AI on every narration call. It does not change the dice math : it shapes tone and what kind of choices the AI tends to suggest.
 
@@ -256,7 +257,21 @@ The AI is expected to escalate tension more aggressively in **fast** mode and mo
 
 ## Difficulty Settings
 
-Difficulty is set at world creation and affects AI tone and the default `difficultyValue` suggestions the AI proposes per choice. The base thresholds (8 / 12 / 16) are fixed, but the AI can tune each action's specific target within the spirit of the chosen difficulty.
+Difficulty is set at realm creation and affects AI tone and the default `difficultyValue` suggestions the AI proposes per choice. The base thresholds (8 / 12 / 16) are fixed, but the AI can tune each action's specific target within the spirit of the chosen difficulty.
+
+---
+
+## DM Prep
+
+An optional free-text field set at realm creation (or edited later via the home screen).
+
+When provided, the DM Prep is included in every narration call as campaign context. The AI is instructed to:
+
+- Honour the lore, factions, villains, and locations described in the prep.
+- Weave them naturally into the story rather than forcing them in all at once.
+- Reference the DM Prep alongside the rolling story summary and recent history.
+
+DM Prep is the DM's creative brief. It does not change dice mechanics, turn structure, or any other rules. It is purely a narrative guide.
 
 ---
 

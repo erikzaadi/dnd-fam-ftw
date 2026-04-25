@@ -131,13 +131,13 @@ export const CreateSession = () => {
           )}
           {showWorldDescription ? (
             <textarea
-              placeholder="Describe the world..."
+              placeholder="Describe the realm..."
               value={worldDescription}
               onChange={e => setWorldDescription(e.target.value)}
               className="w-full p-6 bg-black/40 rounded-[32px] border-2 border-slate-800 text-lg focus:border-amber-500/50 outline-none resize-none h-40"
             />
           ) : (
-            <button onClick={() => setShowWorldDescription(true)} className="px-8 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-xs font-black uppercase tracking-widest">+ Add World Description</button>
+            <button onClick={() => setShowWorldDescription(true)} className="px-8 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-xs font-black uppercase tracking-widest">+ Add Realm Description</button>
           )}
           {showDmPrep ? (
             <textarea

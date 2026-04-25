@@ -345,15 +345,24 @@ app.patch('/session/:id', asyncHandler(async (req, res) => {
     res.status(404).json({ error: 'Session not found' });
     return;
   }
-  const { difficulty, gameMode } = req.body as { difficulty?: string; gameMode?: string };
-  if (difficulty) {
-    session.difficulty = difficulty;
+  const { difficulty, gameMode, dmPrep } = req.body as { difficulty?: string; gameMode?: string; dmPrep?: string };
+  const patch: { difficulty?: string; gameMode?: string; dmPrep?: string | null } = {};
+  if (difficulty !== undefined) {
+    patch.difficulty = difficulty;
   }
-  if (gameMode) {
-    session.gameMode = gameMode as GameMode;
+  if (gameMode !== undefined) {
+    patch.gameMode = gameMode as GameMode;
   }
-  await StateService.updateSession(req.params.id as string, session);
-  res.json({ id: session.id, difficulty: session.difficulty, gameMode: session.gameMode });
+  if (dmPrep !== undefined) {
+    patch.dmPrep = dmPrep || null;
+  }
+  await StateService.patchSession(req.params.id as string, patch);
+  res.json({
+    id: session.id,
+    difficulty: patch.difficulty ?? session.difficulty,
+    gameMode: patch.gameMode ?? session.gameMode,
+    dmPrep: patch.dmPrep !== undefined ? patch.dmPrep : session.dmPrep,
+  });
 }));
 
 app.post('/session/:id/suggest-stat', asyncHandler(async (req, res) => {
@@ -746,7 +755,7 @@ app.post('/session/:id/start', asyncHandler(async (req, res) => {
   res.json({ success: true });
 
   if (!session.savingsMode) {
-    void ImageService.generateImage(initialTurn.imagePrompt || 'A fantasy world map', sessionId, session.turn, session.useLocalAI).then(async result => {
+    void ImageService.generateImage(initialTurn.imagePrompt || 'A fantasy realm map', sessionId, session.turn, session.useLocalAI).then(async result => {
       if (result) {
         await StateService.updateLatestTurnImage(sessionId, result.url, result.storageKey, result.storageProvider);
         broadcastUpdate(sessionId, 'image_ready', { imageUrl: result.url });

@@ -52,6 +52,11 @@ export class WebMusicPlayer implements MusicPlayer {
     await this.playNext(true);
   }
 
+  public async startNext(category: MusicCategory): Promise<void> {
+    this.currentCategory = category;
+    await this.playNext(true);
+  }
+
   public stop() {
     if (this.fadeInterval) {
       clearInterval(this.fadeInterval);

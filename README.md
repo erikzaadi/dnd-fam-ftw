@@ -10,7 +10,7 @@ A family-friendly, AI-powered D&D adventure game built for short, hilarious stor
 
 ## What Is This?
 
-You and your family pick heroes, describe a world, and the AI takes over as DM. Each turn the AI narrates what happens, suggests three actions, and you pick one (or improvise your own). Roll dice. Take damage. Find cursed amulets. Argue about whether kicking a magic tome counts as Might or Mischief.
+You and your family pick heroes, describe a realm, and the AI takes over as DM. Each turn the AI narrates what happens, suggests three actions, and you pick one (or improvise your own). Roll dice. Take damage. Find cursed amulets. Argue about whether kicking a magic tome counts as Might or Mischief.
 
 No prep required. No DM experience required. Just vibes and a d20.
 
@@ -73,9 +73,12 @@ Every hero gets a generated portrait and carries their quirk into the story:
 - All audio is opt-in and individually toggleable in Settings; mute button also stops TTS
 
 ### Quality of Life
+- **DM Prep** : add campaign notes (lore, villains, locations, plot hooks) when creating or editing a realm; the AI weaves them naturally into the story
+- **Chronicle** : tap "Open Chronicle" in-game to review every past turn with expanded details, rolls, and HP changes; click any turn to jump back and view that scene
+- **Edit realm** : change difficulty, game pacing, or DM Prep at any time from the home screen
 - **Savings mode** : toggle off image generation per-session (or globally in Settings); session toggle always wins
 - **Session persistence** : SQLite, so your adventure survives a server restart
-- **World details on home screen** : tap ℹ on any active world to see the party roster, world description, and the last story summary before jumping in
+- **Realm details on home screen** : tap ✎ on any active realm to see the party roster, realm description, and the last story summary before jumping in
 - **Mobile & tablet friendly** : playable on the couch
 
 ---
@@ -154,7 +157,7 @@ LOCALAI_IMAGE_STEPS=8
 # LOCALAI_IMAGE_BASE_URL=http://127.0.0.1:8081
 ```
 
-You can also switch between cloud and local per-session using the toggle on the new world screen.
+You can also switch between cloud and local per-session using the toggle on the new realm screen.
 
 ### 2. Install dependencies
 
@@ -196,8 +199,8 @@ dnd-fam-ftw/
 ├── frontend/
 │   └── src/
 │       ├── pages/
-│       │   ├── Home.tsx              # World list
-│       │   ├── CreateSession.tsx     # New world form
+│       │   ├── Home.tsx              # Realm list
+│       │   ├── CreateSession.tsx     # New realm form
 │       │   ├── CharacterAssembly.tsx # Party management + character import
 │       │   ├── Session.tsx           # Active gameplay
 │       │   ├── SessionRecap.tsx      # TLDR + Movie modes
@@ -280,7 +283,7 @@ There are six distinct AI calls in the app, each with a different purpose and co
 | **Scene image** | `imageService.ts` | dall-e-3 | LocalAI (SD 3.5 Large) | Every turn, async via SSE, cached by prompt hash |
 | **Avatar generation** | `imageService.ts` | dall-e-3 | LocalAI (SD 3.5 Large) | Once per character creation, cached permanently |
 | **TLDR summary** | `index.ts` (route) | gpt-4o-mini | - | On demand in recap screen |
-| **Session naming** | `stateService.ts` | gpt-4o-mini | LocalAI | Once at world creation |
+| **Session naming** | `stateService.ts` | gpt-4o-mini | LocalAI | Once at realm creation |
 | **Character history** | `index.ts` (route) | gpt-4o-mini | - | When importing a character from a previous session |
 
 Use `npm run cli -- metrics` (or `./dnd-fam-ftw-prod-cli metrics` on production) to see per-namespace counts for sessions, turns, images, and avatars generated.
@@ -353,11 +356,11 @@ For the complete ruleset : dice math, downed state, party wipes, item mechanics,
 
 ---
 
-## Starting a New World
+## Starting a New Realm
 
-![New world creation form](docs/create-world.png)
+![New realm creation form](docs/create-world.png)
 
-Pick a difficulty, choose a **game pacing** mode (Cinematic for rich descriptions, Balanced for a mix, Fast for immediate action and frequent conflict), describe your world (or leave it blank for a surprise), and hit **Next: Assemble Heroes**.
+Pick a difficulty, choose a **game pacing** mode (Cinematic for rich descriptions, Balanced for a mix, Fast for immediate action and frequent conflict, ZUG-MA-GEDDON for pure chaos), describe your realm (or leave it blank for a surprise), add optional **DM Prep notes** (lore, villains, plot hooks the AI should weave in), and hit **Next: Assemble Heroes**.
 
 ---
 

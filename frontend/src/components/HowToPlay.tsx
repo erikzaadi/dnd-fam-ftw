@@ -36,7 +36,7 @@ export const HowToPlay = ({ onClose }: Props) => (
 
         <Section title="The Goal">
           <p className="text-slate-300 text-sm leading-relaxed">
-            You and your party are heroes in a world of the AI's imagination. Each turn the AI Dungeon Master narrates what's happening and offers three choices. Pick one (or type your own), roll the dice, and see what happens. There's no win condition, just the story.
+            You and your party are heroes in a realm of the AI's imagination. Each turn the AI Dungeon Master narrates what's happening and offers three choices. Pick one (or type your own), roll the dice, and see what happens. There's no win condition, just the story.
           </p>
         </Section>
 
@@ -79,6 +79,12 @@ export const HowToPlay = ({ onClose }: Props) => (
           <Row label="Use" value="Apply a healing item to yourself or a teammate (even a downed one)" />
           <Row label="Give" value="Hand a transferable item to another party member" />
           <p className="text-slate-500 text-xs mt-2">Using and giving items doesn't cost a roll. They always succeed.</p>
+        </Section>
+
+        <Section title="🪙 Trading">
+          <p className="text-slate-300 text-sm leading-relaxed">
+            When a merchant, vendor, or trader appears in the story, the AI may offer a trade action. Accepting a trade can swap one of your items for something new - choose wisely, trades are final.
+          </p>
         </Section>
 
         <Section title="🐉 Party Wipes">

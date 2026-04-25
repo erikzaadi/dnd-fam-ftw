@@ -1,7 +1,6 @@
 import type { Character } from '../../types';
 import { imgSrc } from '../../lib/api';
 import { beatTarget } from '../../lib/game';
-import { D20 } from './D20';
 import { StatImg } from './StatIcon';
 import { TtsButton } from '../TtsButton';
 import type { TtsSettings } from '../../tts/ttsTypes';
@@ -49,8 +48,11 @@ export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings }: DmDec
 
       {/* Content */}
       <div className="relative z-10 flex flex-col items-center gap-4 p-6 text-center">
-        {/* Golden D20: roll=14 success=true gives amber color */}
-        <D20 roll={14} success size={120} />
+        <img
+          src={imgSrc('/images/icon_dice.png')}
+          className="w-28 h-28 rounded-full object-cover animate-dice-spin"
+          alt="Rolling dice"
+        />
 
         <div className="text-amber-500 font-black uppercase tracking-widest text-lg animate-pulse">
           The DM is narrating...

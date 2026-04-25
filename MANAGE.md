@@ -76,7 +76,7 @@ Dev tools for inspecting and resetting session data.
 ./dnd-fam-ftw-cli sessions list             # print all sessions, characters, inventory, turn history
 ./dnd-fam-ftw-cli sessions list --json
 ./dnd-fam-ftw-cli sessions nuke             # delete all sessions and their data
-./dnd-fam-ftw-cli sessions seed             # seed 3 example sessions (idempotent)
+./dnd-fam-ftw-cli sessions seed             # seed 5 example sessions (idempotent)
 ```
 
 ### metrics

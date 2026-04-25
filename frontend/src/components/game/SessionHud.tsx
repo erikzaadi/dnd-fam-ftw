@@ -149,7 +149,7 @@ export const SessionHud = ({
           ✕
         </Link>
         <div className="absolute top-full right-0 mt-2 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-          Exit world
+          Exit realm
           <div className="absolute bottom-full right-3 border-4 border-transparent border-b-slate-700" />
         </div>
       </div>

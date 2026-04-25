@@ -186,8 +186,14 @@ export const SessionPage = () => {
         }, 4500);
       }
       if (turnResult) {
-        setHistory(prev => [...prev, turnResult]);
-        setViewedTurnIdx(history.length);
+        setHistory(prev => {
+          if (turnResult.id && prev.some(t => t.id === turnResult.id)) {
+            return prev;
+          }
+          const next = [...prev, turnResult];
+          setViewedTurnIdx(next.length - 1);
+          return next;
+        });
       }
     },
     onImageReady: (imageUrl) => {
@@ -272,8 +278,14 @@ export const SessionPage = () => {
         throw new Error(data.message || 'Action failed');
       }
       setSession(data.session);
-      setHistory(prev => [...prev, data.turnResult]);
-      setViewedTurnIdx(history.length);
+      setHistory(prev => {
+        if (data.turnResult.id && prev.some(t => t.id === data.turnResult.id)) {
+          return prev;
+        }
+        const next = [...prev, data.turnResult];
+        setViewedTurnIdx(next.length - 1);
+        return next;
+      });
     } catch (err: unknown) {
       if (err instanceof Error) {
         setActionError(err.message);
