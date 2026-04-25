@@ -28,7 +28,7 @@ import { getConfig } from '../config/env.js';
 const [, , resource, subcommand, ...rest] = process.argv;
 const allArgs = [subcommand, ...rest].filter(Boolean);
 const jsonMode = process.argv.includes('--json') || process.argv.includes('-j');
-const positional = allArgs.filter(a => a !== '--json' && a !== '-j' && !a.startsWith('--'));
+const positional = allArgs.filter(a => a !== '--json' && a !== '-j' && !a.startsWith('--')).slice(1);
 
 function fail(msg: string): never {
   console.error(msg);
@@ -64,7 +64,7 @@ case 'users': {
   case 'add': {
     const [email, namespaceName] = positional;
     if (!email) {
-      fail('Usage: cli users add <email> [namespace-name]'); 
+      fail('Usage: cli users add <email> [namespace-name]');
     }
     const existing = StateService.getUserByEmail(email);
     if (existing) {
@@ -80,7 +80,7 @@ case 'users': {
   case 'remove': {
     const [email] = positional;
     if (!email) {
-      fail('Usage: cli users remove <email>'); 
+      fail('Usage: cli users remove <email>');
     }
     const deleted = StateService.deleteUser(email);
     if (deleted) {
@@ -94,7 +94,7 @@ case 'users': {
   case 'set-primary': {
     const [email, namespaceId] = positional;
     if (!email || !namespaceId) {
-      fail('Usage: cli users set-primary <email> <namespaceId>'); 
+      fail('Usage: cli users set-primary <email> <namespaceId>');
     }
     const result = StateService.setPrimaryNamespace(email, namespaceId);
     if (result.ok) {
@@ -148,7 +148,7 @@ case 'namespaces': {
   case 'create': {
     const [name] = positional;
     if (!name) {
-      fail('Usage: cli namespaces create <name>'); 
+      fail('Usage: cli namespaces create <name>');
     }
     const { namespaceId } = StateService.createNamespace(name);
     console.log(`Created namespace: "${name}"\n  namespaceId: ${namespaceId}`);
@@ -157,7 +157,7 @@ case 'namespaces': {
   case 'rename': {
     const [id, newName] = positional;
     if (!id || !newName) {
-      fail('Usage: cli namespaces rename <id> <new-name>'); 
+      fail('Usage: cli namespaces rename <id> <new-name>');
     }
     const ok = StateService.renameNamespace(id, newName);
     if (ok) {
@@ -171,7 +171,7 @@ case 'namespaces': {
   case 'delete': {
     const [id] = positional;
     if (!id) {
-      fail('Usage: cli namespaces delete <id>'); 
+      fail('Usage: cli namespaces delete <id>');
     }
     const result = StateService.deleteNamespace(id);
     if (result.ok) {
@@ -185,7 +185,7 @@ case 'namespaces': {
   case 'sessions': {
     const [id] = positional;
     if (!id) {
-      fail('Usage: cli namespaces sessions <namespace-id>'); 
+      fail('Usage: cli namespaces sessions <namespace-id>');
     }
     const ns = StateService.getNamespaceById(id);
     if (!ns) {
@@ -212,7 +212,7 @@ case 'namespaces': {
   case 'assign-session': {
     const [sessionId, nsId] = positional;
     if (!sessionId || !nsId) {
-      fail('Usage: cli namespaces assign-session <sessionId> <namespaceId>'); 
+      fail('Usage: cli namespaces assign-session <sessionId> <namespaceId>');
     }
     const ns = StateService.getNamespaceById(nsId);
     if (!ns) {
@@ -231,7 +231,7 @@ case 'namespaces': {
   case 'add-user': {
     const [nsId, email] = positional;
     if (!nsId || !email) {
-      fail('Usage: cli namespaces add-user <namespaceId> <email>'); 
+      fail('Usage: cli namespaces add-user <namespaceId> <email>');
     }
     const result = StateService.addUserToNamespace(email, nsId);
     if (result.ok) {
@@ -245,7 +245,7 @@ case 'namespaces': {
   case 'remove-user': {
     const [nsId, email] = positional;
     if (!nsId || !email) {
-      fail('Usage: cli namespaces remove-user <namespaceId> <email>'); 
+      fail('Usage: cli namespaces remove-user <namespaceId> <email>');
     }
     const result = StateService.removeUserFromNamespace(email, nsId);
     if (result.ok) {
@@ -259,7 +259,7 @@ case 'namespaces': {
   case 'set-limits': {
     const [id] = positional;
     if (!id) {
-      fail('Usage: cli namespaces set-limits <id> [--max-sessions N] [--max-turns N]'); 
+      fail('Usage: cli namespaces set-limits <id> [--max-sessions N] [--max-turns N]');
     }
     const ns = StateService.getNamespaceById(id);
     if (!ns) {
