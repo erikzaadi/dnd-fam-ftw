@@ -17,7 +17,11 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  try { fs.unlinkSync(DB_PATH); } catch { /* ignore */ }
+  try {
+    fs.unlinkSync(DB_PATH);
+  } catch {
+    // ignore
+  }
 });
 
 function getTestDb() {

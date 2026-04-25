@@ -17,7 +17,11 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  try { fs.rmSync(TEST_IMG_DIR, { recursive: true, force: true }); } catch { /* ignore */ }
+  try {
+    fs.rmSync(TEST_IMG_DIR, { recursive: true, force: true });
+  } catch {
+    // ignore
+  }
 });
 
 const FAKE_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
@@ -74,7 +78,9 @@ describe('ImageService.generateImage', () => {
   it('returns null on provider failure', async () => {
     const storage = makeMockStorage();
     const failProvider: ImageProvider = {
-      generateImage: async (): Promise<{ url: string }> => { throw new Error('Provider exploded'); },
+      generateImage: async (): Promise<{ url: string }> => {
+        throw new Error('Provider exploded');
+      },
     };
     const result = await ImageService.generateImage('A goblin sneaks', 'sess-fail', 2, false, failProvider, storage);
     expect(result).toBeNull();
@@ -145,7 +151,9 @@ describe('ImageService.generateAvatar', () => {
   it('falls back to initials SVG on provider failure', async () => {
     const storage = makeMockStorage();
     const failProvider: ImageProvider = {
-      generateImage: async (): Promise<{ url: string }> => { throw new Error('Avatar provider exploded'); },
+      generateImage: async (): Promise<{ url: string }> => {
+        throw new Error('Avatar provider exploded');
+      },
     };
     const char = { name: 'Zomgush', class: 'Barbarian', species: 'Orc', quirk: 'Hates silence' };
     const result = await ImageService.generateAvatar(char, 'sess-avatar-fail', false, failProvider, storage);

@@ -45,7 +45,11 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  try { fs.unlinkSync(DB_PATH); } catch { /* ignore */ }
+  try {
+    fs.unlinkSync(DB_PATH);
+  } catch {
+    // ignore
+  }
 });
 
 // ── users ─────────────────────────────────────────────────────────────────────
@@ -187,7 +191,11 @@ describe('CLI sessions export/import', () => {
       const data = JSON.parse(fs.readFileSync(outFile, 'utf8')) as { version: number; sessions: unknown[] };
       expect(data.version).toBe(1);
     } finally {
-      try { fs.unlinkSync(outFile); } catch { /* ignore */ }
+      try {
+        fs.unlinkSync(outFile);
+      } catch {
+        // ignore
+      }
     }
   });
 
@@ -211,7 +219,11 @@ describe('CLI sessions export/import', () => {
       expect(stdout).toContain('Export Test World');
       expect(stdout).toContain('Imported 1 session');
     } finally {
-      try { fs.unlinkSync(exportFile); } catch { /* ignore */ }
+      try {
+        fs.unlinkSync(exportFile);
+      } catch {
+        // ignore
+      }
     }
   });
 

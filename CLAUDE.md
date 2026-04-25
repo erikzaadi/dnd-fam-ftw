@@ -11,6 +11,29 @@ npm run dev           # starts backend :3001 + frontend :5173 (concurrently, Ctr
 
 The dev server runs with base path `/` (no prefix). All env vars live in the root `.env`.
 
+## Before committing
+
+After any change, run these checks for the affected workspace(s):
+
+```bash
+# Lint
+npm run lint:backend    # if backend changed
+npm run lint:frontend   # if frontend changed
+
+# Type check
+cd backend && npx tsc --noEmit   # if backend changed
+cd frontend && npx tsc -b        # if frontend changed
+
+# Tests (run the files relevant to what changed)
+npm run test:backend    # if backend changed
+npm run test:frontend   # if frontend changed
+```
+
+Or run everything at once from root:
+```bash
+npm run lint && npm test
+```
+
 ## Linting
 
 Run everything from root:
