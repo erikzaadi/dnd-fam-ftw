@@ -63,18 +63,35 @@ Focus only on the current situation and the essential journey, ignoring defeated
     }
   }
 
-  static async generateCampaignBrief(sessionId: string, worldDescription: string | undefined, useLocalAI: boolean, displayName?: string): Promise<string | null> {
+  static async generateCampaignBrief(sessionId: string, worldDescription: string | undefined, useLocalAI: boolean, displayName?: string, difficulty?: string, gameMode?: string): Promise<string | null> {
     try {
-      const nameContext = displayName?.trim() ? `\n\nRealm name: "${displayName.trim()}"` : '';
-      const descContext = worldDescription?.trim()
-        ? `\n\nRealm description: "${worldDescription.trim()}"`
-        : '';
-      const prompt = `/no_think Generate a compact DM campaign brief (3-5 sentences) for a family fantasy adventure.${nameContext}${descContext}
-Include:
-1. An overarching quest or threat (the final goal the party will face)
-2. Three escalating stages: early discovery, a dangerous mid-game challenge, and a climactic confrontation
-3. One or two recurring elements (a villain, a magical item, a landmark) woven across all stages
-Be specific and imaginative. This will guide the AI Dungeon Master to give players a sense of forward progress.`;
+      const nameContext = displayName?.trim() ? `\nRealm name: "${displayName.trim()}"` : '';
+      const descContext = worldDescription?.trim() ? `\nRealm description: "${worldDescription.trim()}"` : '';
+
+      const difficultyGuidance: Record<string, string> = {
+        easy: 'Stakes are low and forgiving - threats are scary but survivable, setbacks are temporary, and the villain can be reasoned with.',
+        normal: 'Balanced stakes - real danger exists but the party has a fair chance if they are clever.',
+        hard: 'High stakes and unforgiving - the villain is ruthless, consequences are permanent, and failure has real costs.',
+      };
+      const gameModeGuidance: Record<string, string> = {
+        cinematic: 'Focus on drama, character moments, and narrative twists over combat.',
+        balanced: 'Mix of combat, exploration, and social challenges.',
+        fast: 'Keep it punchy - short scenes, quick escalation, minimal filler.',
+        'zug-ma-geddon': 'Pure combat chaos. Every location is an arena. Every NPC is either an enemy or a meatshield.',
+      };
+      const difficultyNote = difficulty ? `\nDifficulty: ${difficulty} - ${difficultyGuidance[difficulty] ?? ''}` : '';
+      const gameModeNote = gameMode ? `\nGame mode: ${gameMode} - ${gameModeGuidance[gameMode] ?? ''}` : '';
+
+      const prompt = `/no_think Generate a structured DM campaign brief for a family fantasy adventure.${nameContext}${descContext}${difficultyNote}${gameModeNote}
+
+Use this format exactly:
+PREMISE: (1-2 sentences - the core threat or quest and what is at stake)
+VILLAIN: (name + one sentence on motivation and one tell or behaviour the DM can use)
+LOCATIONS: (2-3 key locations, each with a one-line description and a notable NPC or obstacle)
+STAGES: Early - | Mid - | Climax -
+DM NOTE: (one pitfall to avoid or one rule about pacing)
+
+Be specific: invent names, places, and details. This guides the AI Dungeon Master turn by turn.`;
 
       const brief = await this.callSummarize(prompt, useLocalAI);
       if (brief) {
@@ -94,7 +111,7 @@ Be specific and imaginative. This will guide the AI Dungeon Master to give playe
     const response = await client.chat.completions.create({
       model,
       messages: [{ role: 'user', content: `/no_think ${prompt}` }],
-      max_tokens: 150,
+      max_tokens: 500,
     }, { signal: AbortSignal.timeout(20_000) });
     const msg = response.choices[0].message;
     const raw = msg.content || (msg as unknown as Record<string, string>)['reasoning_content'] || '';

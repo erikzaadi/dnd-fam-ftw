@@ -320,7 +320,7 @@ app.post('/session/create', asyncHandler(async (req, res) => {
     const savingsMode = !SettingsService.get().imagesEnabled;
     const session = await StateService.createSession(worldDescription, difficulty, !!useLocalAI, savingsMode, req.namespaceId, gameMode, dmPrep || undefined);
     if (!dmPrep) {
-      StorySummaryService.generateCampaignBrief(session.id, worldDescription, !!useLocalAI, session.displayName).catch(err => {
+      StorySummaryService.generateCampaignBrief(session.id, worldDescription, !!useLocalAI, session.displayName, difficulty, gameMode).catch(err => {
         console.warn('[Campaign] Brief generation failed silently:', err);
       });
     }
@@ -376,7 +376,7 @@ app.post('/session/:id/regenerate-dm-prep', asyncHandler(async (req, res) => {
     res.status(404).json({ error: 'Session not found' });
     return;
   }
-  const brief = await StorySummaryService.generateCampaignBrief(session.id, session.worldDescription, session.useLocalAI, session.displayName);
+  const brief = await StorySummaryService.generateCampaignBrief(session.id, session.worldDescription, session.useLocalAI, session.displayName, session.difficulty, session.gameMode);
   if (!brief) {
     res.status(500).json({ error: 'Failed to generate campaign brief' });
     return;
