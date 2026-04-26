@@ -132,18 +132,20 @@ Inventory:
 - CRITICAL: If you are setting suggestedInventoryAdd in this response, do not offer choices that try to acquire that same item - the party is already receiving it.
 - CRITICAL: If you are setting suggestedInventoryRemove in this response, do not offer choices that reference that item as something the party still has or can trade.
 
-- BOSS LOOT (CRITICAL): If the narration resolves the defeat of a notable foe — a mini-boss, a boss, a named enemy, a pack leader, a powerful creature — you MUST set suggestedInventoryAdd with meaningful loot: a unique weapon, a rare artifact, a magical item, a key, or a treasure fitting the enemy's nature. Never defeat a significant foe and leave empty hands.
+- COMBAT LOOT (CRITICAL): When any combat encounter concludes with a victory — defeating any foe, enemy group, creature, or threat — you MUST set suggestedInventoryAdd with loot thematically tied to the defeated enemy. A goblin drops a crude blade or stolen coin purse. A wolf drops a pelt or fang. A guard drops a key or insignia. A mage drops a scroll or reagent. A boss or named enemy drops something unique, powerful, and memorable. The loot must feel earned and fitting — never generic. Never finish a battle without rewarding the party.
 - CRITICAL: If your narration mentions giving, finding, receiving, looting, rewarding, harvesting, gathering, foraging, picking, crafting, buying, or obtaining ANY item, you MUST set suggestedInventoryAdd. Never narrate an item being obtained without setting this field.
 - CRITICAL: Item name MUST be prefixed with a single fitting emoji (e.g. "⚔️ Iron Sword", "🧪 Healing Potion", "🗡️ Dagger", "📜 Ancient Scroll", "🛡️ Shield", "🪄 Magic Wand", "🏹 Shortbow", "🔑 Key", "💎 Gem", "🌿 Healing Herbs"). Pick the emoji that best represents the item's nature or appearance.
-- To grant a new item: { "name": "emoji + item name", "description": "string", "targetCharacterName": "optional — name of the character who receives it, omit if acting character", "statBonuses": {...}, "healValue": 0, "consumable": true, "transferable": false }
+- To grant a new item: { "name": "emoji + item name", "description": "string", "targetCharacterName": "optional — name of the character who receives it, omit if acting character", "statBonuses": {...}, "healValue": 0, "consumable": false, "transferable": true }
+- Set "consumable": true only for single-use items (potions, scrolls, food). Set "transferable": false only for quest items or items bound to a character (cursed gear, soul-bound artifacts). Default both to false/true respectively.
 - statBonuses values should reflect the item's nature (sword: might +1, spellbook: magic +2, thieves' kit: mischief +1). Omit stats with 0 bonus. Cap at +3.
 - Set healValue only for healing items (potions, food, etc.). Default 0 means no healing.
 - Only grant items when the narrative earns it (found in chest, rewarded, looted, etc.).
 - Otherwise set suggestedInventoryAdd: null.
 
 - CRITICAL: If your narration describes a trade, exchange, purchase, barter, or any situation where the party gives an item to an NPC or vendor, you MUST set suggestedInventoryRemove for the item being given away. Never narrate an item being handed over without removing it.
+- CRITICAL: If a party member gives, passes, or transfers an item to ANOTHER PARTY MEMBER, you MUST set BOTH suggestedInventoryRemove (remove from the giver) AND suggestedInventoryAdd (add to the receiver, using targetCharacterName). Copy the exact item data (name, description, statBonuses, healValue, consumable, transferable) from the giver's inventory to the add payload.
 - suggestedInventoryRemove: { "characterName": "exact name of party member giving the item", "itemName": "name of item being given away" }
-- For trades: set BOTH suggestedInventoryRemove (item given away) AND suggestedInventoryAdd (item received). Use targetCharacterName on suggestedInventoryAdd if the received item goes to a specific character.
+- For trades with NPCs: set BOTH suggestedInventoryRemove (item given away) AND suggestedInventoryAdd (item received). Use targetCharacterName on suggestedInventoryAdd if the received item goes to a specific character.
 - Otherwise set suggestedInventoryRemove: null.
 
 Image Strategy:

@@ -15,7 +15,7 @@ import { createChatClient } from './providers/ai/AiProviderFactory.js';
 import { SettingsService } from './services/settingsService.js';
 import { StorySummaryService } from './services/storySummaryService.js';
 import { parseSuggestedStats, STAT_FALLBACK } from './services/statSuggestionService.js';
-import { Character, type AIInput, type HpChange, type GameMode } from './types.js';
+import { Character, type AIInput, type HpChange, type InventoryChange, type GameMode } from './types.js';
 import { getConfig, isAuthEnabled } from './config/env.js';
 import { getImageStorageProvider } from './providers/storage/storageProviderFactory.js';
 import { getAuthPublicConfig, buildGoogleAuthUrl, exchangeCodeForEmail, signJwt } from './services/authService.js';
@@ -300,6 +300,29 @@ const computeHpChanges = (before: Character[], after: Character[]): HpChange[] =
         newHp: afterChar.hp,
         maxHp: beforeChar.max_hp,
       });
+    }
+  }
+  return changes;
+};
+
+const computeInventoryChanges = (before: Character[], after: Character[]): InventoryChange[] => {
+  const changes: InventoryChange[] = [];
+  for (const beforeChar of before) {
+    const afterChar = after.find(c => c.id === beforeChar.id);
+    if (!afterChar) {
+      continue;
+    }
+    const beforeIds = new Set(beforeChar.inventory.map(i => i.id));
+    const afterIds = new Set(afterChar.inventory.map(i => i.id));
+    for (const item of afterChar.inventory) {
+      if (!beforeIds.has(item.id)) {
+        changes.push({ characterName: afterChar.name, itemName: item.name, type: 'added' });
+      }
+    }
+    for (const item of beforeChar.inventory) {
+      if (!afterIds.has(item.id)) {
+        changes.push({ characterName: beforeChar.name, itemName: item.name, type: 'removed' });
+      }
     }
   }
   return changes;
@@ -622,6 +645,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
     turnResult.lastAction = itemAttempt;
     turnResult.characterId = actingCharId;
     turnResult.hpChanges = computeHpChanges(itemState.party, newState.party);
+    turnResult.inventoryChanges = computeInventoryChanges(itemState.party, newState.party);
     turnResult.id = await StateService.addTurnResult(sessionId, turnResult, actingCharId);
     broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
     res.json({ actionAttempt: itemAttempt, turnResult, session: newState });
@@ -661,6 +685,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
   turnResult.lastAction = actionAttempt;
   turnResult.characterId = actingCharId;
   turnResult.hpChanges = computeHpChanges(session.party, newState.party);
+  turnResult.inventoryChanges = computeInventoryChanges(session.party, newState.party);
 
   turnResult.id = await StateService.addTurnResult(sessionId, turnResult, actingCharId);
   broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });

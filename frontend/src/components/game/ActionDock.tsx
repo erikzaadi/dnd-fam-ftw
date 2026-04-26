@@ -89,7 +89,7 @@ const ItemsSection = ({
 
       {items.map(item => {
         const canUse = (item.healValue ?? 0) > 0;
-        const canGive = !!item.transferable && otherPartyMembers.length > 0;
+        const canGive = item.transferable !== false && otherPartyMembers.length > 0;
         const isPending = pending?.itemId === item.id;
         const bonuses = item.statBonuses ? Object.entries(item.statBonuses).filter(([, v]) => v && v > 0) : [];
 

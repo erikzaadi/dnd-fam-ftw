@@ -87,13 +87,13 @@ export const StoryStage = ({
       <div className="relative z-10 flex-1 flex items-center justify-center p-4">
         {narration ? (
           <div
-            className="story-card-container backdrop-blur-md bg-slate-950/55 rounded-[24px] p-8 lg:p-12 w-[78%] h-[75%] flex flex-col items-center justify-center cursor-pointer hover:bg-slate-950/65 transition-colors overflow-y-auto scrollbar-hide"
+            className="backdrop-blur-md bg-slate-950/55 rounded-[24px] p-8 lg:p-12 w-[78%] h-[75%] flex flex-col items-start justify-start cursor-pointer hover:bg-slate-950/65 transition-colors overflow-y-auto scrollbar-hide"
             onClick={e => {
               e.stopPropagation();
               onFullscreenNarration(narration);
             }}
           >
-            <p className="font-narrative text-slate-100 italic text-center main-story-text">
+            <p className="font-narrative text-slate-100 italic text-center w-full text-sm sm:text-base md:text-lg lg:text-3xl xl:text-4xl 2xl:text-5xl 3xl:text-6xl 4xl:text-7xl ultrawide:text-7xl leading-relaxed">
               {narration}
             </p>
             <div className="mt-6" onClick={e => e.stopPropagation()}>

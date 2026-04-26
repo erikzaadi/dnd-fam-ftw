@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import type { Session, Character, TurnResult, HpChange } from '../types';
+import type { Session, Character, TurnResult, HpChange, InventoryChange } from '../types';
 import { apiFetch, imgSrc } from '../lib/api';
 import { useSessionEvents } from '../hooks/useSessionEvents';
 import { PageLoader } from '../components/PageLoader';
@@ -47,7 +47,7 @@ export const SessionPage = () => {
   const [confirmDialog, setConfirmDialog] = useState<{message: string; confirmLabel?: string; onConfirm: () => void} | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
-  const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; isCritical?: boolean; difficultyTarget?: number; rollNarration?: string; hpChanges?: HpChange[] } | null>(null);
+  const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; isCritical?: boolean; difficultyTarget?: number; rollNarration?: string; hpChanges?: HpChange[]; inventoryChanges?: InventoryChange[] } | null>(null);
   const [dieExiting, setDieExiting] = useState(false);
   const [interventionBanner, setInterventionBanner] = useState<string | null>(null);
   const [sanctuaryBanner, setSanctuaryBanner] = useState<string | null>(null);
@@ -233,6 +233,7 @@ export const SessionPage = () => {
           difficultyTarget: roll.difficultyTarget,
           rollNarration: turnResult?.rollNarration,
           hpChanges: turnResult?.hpChanges,
+          inventoryChanges: turnResult?.inventoryChanges,
         });
         setDieExiting(false);
         setTimeout(() => setDieExiting(true), 4000);
@@ -541,6 +542,20 @@ export const SessionPage = () => {
                 ))}
               </div>
             )}
+            {lastRoll.inventoryChanges && lastRoll.inventoryChanges.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 justify-center mt-2">
+                {lastRoll.inventoryChanges.map((ic, i) => (
+                  <div
+                    key={i}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black border ${ic.type === 'added' ? 'bg-amber-900/40 border-amber-700/50 text-amber-400' : 'bg-slate-800/60 border-slate-700/50 text-slate-400'}`}
+                  >
+                    <span>{ic.type === 'added' ? '＋' : '－'}</span>
+                    <span className="normal-case tracking-normal font-semibold">{ic.itemName}</span>
+                    <span className="opacity-60">→ {ic.characterName.split(' ')[0]}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             <span className="text-[10px] uppercase tracking-widest text-slate-600 mt-2">tap to dismiss</span>
           </div>
         </div>
@@ -576,11 +591,12 @@ export const SessionPage = () => {
       {/* Fullscreen narration */}
       {fullscreenNarration && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950 p-8 md:p-16 animate-in fade-in"
+          className="fixed inset-0 z-[100] overflow-y-auto bg-slate-950 animate-in fade-in"
           onClick={() => setFullscreenNarration(null)}
         >
-          <div className="max-w-4xl w-full text-center">
-            <p className="text-3xl md:text-5xl lg:text-6xl font-serif leading-snug text-slate-100 font-medium italic">
+          <div className="min-h-full flex items-center justify-center p-8 md:p-16">
+          <div className="max-w-4xl ultrawide:max-w-7xl w-full text-center">
+            <p className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl 2xl:text-7xl 3xl:text-8xl 4xl:text-8xl ultrawide:text-8xl font-serif leading-snug text-slate-100 font-medium italic">
               {fullscreenNarration}
             </p>
             {ttsSettings.enabled && browserTtsService.isSupported() && (
@@ -602,6 +618,7 @@ export const SessionPage = () => {
               </div>
             )}
             <span className="text-xs uppercase tracking-widest text-slate-600 mt-8 block">tap to dismiss</span>
+          </div>
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import type { TurnResult, Character, HpChange } from '../../types';
+import type { TurnResult, Character, HpChange, InventoryChange } from '../../types';
 import { imgSrc } from '../../lib/api';
 import { StatImg } from './StatIcon';
 import { beatTarget } from '../../lib/game';
@@ -35,6 +35,21 @@ const HpChangeBadges = ({ hpChanges }: { hpChanges: HpChange[] }) => (
   </div>
 );
 
+const InventoryChangeBadges = ({ inventoryChanges }: { inventoryChanges: InventoryChange[] }) => (
+  <div className="flex flex-wrap gap-1.5">
+    {inventoryChanges.map((ic, i) => (
+      <div
+        key={i}
+        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-black border ${ic.type === 'added' ? 'bg-amber-900/40 border-amber-700/50 text-amber-400' : 'bg-slate-800/60 border-slate-700/50 text-slate-400'}`}
+      >
+        <span>{ic.type === 'added' ? '＋' : '－'}</span>
+        <span className="normal-case tracking-normal font-semibold truncate max-w-[120px]">{ic.itemName}</span>
+        <span className="opacity-60 shrink-0">→ {ic.characterName.split(' ')[0]}</span>
+      </div>
+    ))}
+  </div>
+);
+
 // Narrow-column expanded turn view, designed for ~380-420px panels
 const TurnDetail = ({
   turn,
@@ -42,12 +57,14 @@ const TurnDetail = ({
   takenAction,
   takenChar,
   nextTurnHpChanges,
+  nextTurnInventoryChanges,
 }: {
   turn: TurnResult;
   actor: Character | null;
   takenAction: ReturnType<typeof turn.lastAction extends infer T ? () => T : never> | null;
   takenChar: Character | null;
   nextTurnHpChanges?: HpChange[];
+  nextTurnInventoryChanges?: InventoryChange[];
 }) => {
   const special = turn.turnType && turn.turnType !== 'normal' ? SPECIAL_TURNS[turn.turnType] : null;
   const roll = takenAction?.actionResult;
@@ -113,6 +130,9 @@ const TurnDetail = ({
       {/* HP changes from the action taken */}
       {nextTurnHpChanges && nextTurnHpChanges.length > 0 && (
         <HpChangeBadges hpChanges={nextTurnHpChanges} />
+      )}
+      {nextTurnInventoryChanges && nextTurnInventoryChanges.length > 0 && (
+        <InventoryChangeBadges inventoryChanges={nextTurnInventoryChanges} />
       )}
 
       {/* Custom action */}
@@ -252,6 +272,7 @@ export const ChronicleDrawer = ({
                       takenAction={takenAction}
                       takenChar={takenChar}
                       nextTurnHpChanges={nextTurn?.hpChanges}
+                      nextTurnInventoryChanges={nextTurn?.inventoryChanges}
                     />
                   </div>
                 )}

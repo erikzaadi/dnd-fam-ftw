@@ -1,0 +1,26 @@
+{
+  "name": "Fam D&D FTW",
+  "short_name": "DnD FTW",
+  "description": "AI-powered family D&D — pick heroes, describe a world, let the AI DM narrate your adventure.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    {
+      "src": "/images/icon_dice.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/images/icon_dice.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["games", "entertainment"],
+  "lang": "en"
+}

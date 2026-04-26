@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+@custom-variant 3xl (@media (width >= 1600px));
+@custom-variant 4xl (@media (width >= 1920px));
+@custom-variant ultrawide (@media (width >= 3440px));
+
 @theme {
   --font-display: 'Cinzel', serif;
   --font-narrative: 'Lora', serif;
@@ -7,6 +11,7 @@
   --animate-ken-burns: ken-burns 24s ease-in-out infinite alternate;
   --animate-dice-spin: dice-spin 1.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   --animate-dice-shake: dice-shake 7s ease-in-out infinite;
+
 }
 
 .scrollbar-hide {
@@ -55,10 +60,3 @@
   container-type: size;
 }
 
-.main-story-text {
-  /* min() picks the tighter constraint - width or height - so text fills
-     the card without overflowing either axis. clamp() keeps it sane on
-     extreme sizes (very small screen / very large monitor). */
-  font-size: clamp(1rem, min(5.6cqw, 7.5cqh), 4rem);
-  line-height: 1.55;
-}

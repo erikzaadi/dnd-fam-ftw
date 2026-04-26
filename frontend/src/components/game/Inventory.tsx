@@ -18,7 +18,7 @@ interface InventoryProps {
 type PendingAction = { itemId: string; ownerCharId: string; action: 'use' | 'give' };
 
 const isUsable = (item: InventoryItem) => !!((item.healValue ?? 0) > 0);
-const isGiveable = (item: InventoryItem) => !!item.transferable;
+const isGiveable = (item: InventoryItem) => item.transferable !== false;
 
 export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, disabled, filterCharId, compact }: InventoryProps) => {
   const [pending, setPending] = useState<PendingAction | null>(null);

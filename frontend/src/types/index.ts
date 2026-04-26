@@ -87,6 +87,12 @@ export interface HpChange {
   maxHp: number;
 }
 
+export interface InventoryChange {
+  characterName: string;
+  itemName: string;
+  type: 'added' | 'removed';
+}
+
 export interface TurnResult {
   id?: number;
   narration: string;
@@ -101,4 +107,5 @@ export interface TurnResult {
   turnType?: TurnType;
   currentTensionLevel?: 'low' | 'medium' | 'high';
   hpChanges?: HpChange[];
+  inventoryChanges?: InventoryChange[];
 }
