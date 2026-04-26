@@ -58,7 +58,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: shellcheck (scripts)
-        run: shellcheck -x --severity=warning scripts/**/*.sh scripts/deploy/*.sh
+        run: shellcheck -x --severity=warning scripts/*.sh scripts/deploy/*.sh
 
       - name: actionlint
         uses: rhysd/actionlint@v1.7.12
@@ -110,7 +110,7 @@ jobs:
 
   notify:
     needs: [lint-workflows, lint-backend, lint-frontend]
-    if: always() && (needs.lint-workflows.result != 'skipped' || needs.lint-backend.result != 'skipped' || needs.lint-frontend.result != 'skipped')
+    if: always() && (needs.lint-workflows.result != 'skipped' || needs.lint-backend.result != 'skipped' || needs.lint-frontend.result != 'skipped')  # yamllint disable-line rule:line-length
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

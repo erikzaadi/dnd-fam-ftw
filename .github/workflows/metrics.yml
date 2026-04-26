@@ -80,7 +80,11 @@ jobs:
             --with-decryption \
             --query 'Parameter.Value' --output text)
 
+          PROMPT="You are a usage analyst for a family D&D game app."
+          PROMPT="$PROMPT Summarize this week's metrics in 2 sentences, highlighting trends vs last week."
+          PROMPT="$PROMPT Be concise and friendly. If no previous metrics, just summarize current state."
           PAYLOAD=$(jq -n \
+            --arg prompt "$PROMPT" \
             --arg current "$CURRENT_METRICS" \
             --arg previous "${PREV_METRICS:-none}" \
             '{
@@ -88,7 +92,7 @@ jobs:
               max_tokens: 120,
               messages: [{
                 role: "user",
-                content: "You are a usage analyst for a family D&D game app. Summarize this week\u2019s metrics in 2 sentences, highlighting trends vs last week. Be concise and friendly. If previous metrics are none, just summarize the current state.\n\nCurrent:\n\($current)\n\nPrevious week:\n\($previous)"
+                content: "\($prompt)\n\nCurrent:\n\($current)\n\nPrevious week:\n\($previous)"
               }]
             }')
 
