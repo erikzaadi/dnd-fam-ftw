@@ -60,6 +60,7 @@ jobs:
       - name: Gather metrics
         id: metrics
         run: |
+          # shellcheck disable=SC2029
           METRICS=$(ssh "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}" \
             "bash -lc 'cd $CURRENT_DIR && node --env-file=$APP_ENV_FILE dist/scripts/cli.js metrics'")
           {
