@@ -165,26 +165,41 @@ Items with `statBonuses` provide a **passive** benefit : they are always active 
 
 ## Party Wipe & Recovery
 
-### Intervention (once per session)
+### Rescue limits by difficulty
 
-When **all party members are downed at the end of a turn**, the backend checks `interventionState.used`.
+When **all party members are downed at the end of a turn**, the backend checks `interventionState.rescuesUsed` against the difficulty's rescue limit:
 
-If the intervention has **not** been used:
+| Difficulty | Rescue limit |
+|------------|-------------|
+| easy | unlimited |
+| normal | 2 |
+| hard | 1 |
+| zug-ma-geddon | 0 (game over immediately) |
+
+### Intervention (first wipe, `rescuesUsed === 0`)
+
 1. All downed characters are restored to `1 HP` and set `active`.
-2. `interventionState.used` is set to `true` (permanent for this session).
+2. `interventionState.rescuesUsed` is incremented to 1.
 3. The AI is called with a special `[INTERVENTION]` prefix, instructed to narrate a dramatic magical rescue (dragon, time rewind, divine blessing, absurd coincidence).
 4. The rescue narration is added to the story summary async.
-5. An `intervention` SSE event is broadcast to all clients : the frontend shows an amber 🐉 banner.
+5. An `intervention` SSE event is broadcast to all clients : the frontend shows an amber banner.
 
-### Sanctuary Recovery (second wipe)
+### Sanctuary Recovery (subsequent wipes within limit)
 
-If the party wipes again and the intervention has **already** been used:
+If the party wipes again and `rescuesUsed` is still below the difficulty limit:
 1. All downed characters are restored to `1 HP` and set `active`.
-2. `interventionState.used` stays `true` (not reset : there is no third rescue).
+2. `interventionState.rescuesUsed` is incremented.
 3. The AI is called with a special `[SANCTUARY]` prefix, instructed to narrate the party waking up somewhere safe and quiet.
-4. An `sanctuary_recovery` SSE event is broadcast : the frontend shows a grey 🏕️ banner.
+4. A `sanctuary_recovery` SSE event is broadcast : the frontend shows a grey banner.
 
-The game never permanently halts. There is always a path forward.
+### Game Over (wipe with no rescues remaining)
+
+If `rescuesUsed >= rescueLimit` when the party wipes:
+1. `gameOver: true` is written to the session state.
+2. A `game_over` SSE event is broadcast : the frontend shows the campaign-over screen.
+3. No further actions can be taken in the session.
+
+On **zug-ma-geddon** the rescue limit is 0, so the very first wipe triggers game over with no intervention.
 
 ---
 

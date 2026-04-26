@@ -108,14 +108,17 @@ export const HowToPlay = () => {
 
             <Section title="🐉 Party Wipes">
               <p className="text-slate-300 text-lg leading-relaxed">
-                If <em>everyone</em> goes down at once, the adventure isn't over:
+                If <em>everyone</em> goes down at once, the backend checks how many rescues your difficulty allows:
               </p>
               <div className="space-y-2 mt-3">
                 <div className="text-base text-slate-300 p-4 bg-amber-900/20 border border-amber-800/40 rounded-2xl">
-                  <strong className="text-amber-400">First wipe 🐉</strong> - A magical intervention (dragon, time rewind, divine coincidence) saves the party at 1 HP each. Once per session.
+                  <strong className="text-amber-400">First wipe 🐉</strong> - A magical intervention (dragon, time rewind, divine coincidence) saves the party at 1 HP each.
                 </div>
                 <div className="text-base text-slate-300 p-4 bg-slate-800/60 border border-slate-700 rounded-2xl">
-                  <strong className="text-slate-300">Second wipe 🏕️</strong> - The party wakes up somewhere safe and quiet. Battered, humbled, alive. The story continues.
+                  <strong className="text-slate-300">Further wipes 🏕️</strong> - The party wakes up somewhere safe and quiet. Battered, humbled, alive.
+                </div>
+                <div className="text-base text-slate-300 p-4 bg-rose-900/20 border border-rose-800/40 rounded-2xl">
+                  <strong className="text-rose-400">No rescues left 💀</strong> - The campaign is over. How many chances you get depends on difficulty: easy is unlimited, normal gets 2, hard gets 1, and zug-ma-geddon gives you none.
                 </div>
               </div>
             </Section>

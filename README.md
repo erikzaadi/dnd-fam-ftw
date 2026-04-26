@@ -48,7 +48,7 @@ No prep required. No DM experience required. Just vibes and a d20.
 - **Hero library** : import characters from previous adventures
 - **HP tracking** : fail a roll, take damage; the stakes are real (ish)
 - **Downed state** : reach 0 HP and your hero collapses; teammates must revive you
-- **Party wipe rescue** : if everyone goes down, a once-per-session magical intervention saves the party at 1 HP each; a second wipe wakes them in a sanctuary
+- **Party wipe rescue** : if everyone goes down, a magical intervention saves the party at 1 HP each; further wipes trigger a sanctuary recovery; rescue attempts are limited by difficulty - run out and the campaign ends
 - **Rolling story summary** : the AI compresses the adventure every 5 turns so context stays sharp across long sessions
 
 ![Create new hero form](docs/create-hero-form.png)
@@ -301,8 +301,9 @@ All connected clients receive the same events via Server-Sent Events:
 | `turn_complete` | After every turn | Narration + new choices appear; session state refreshes |
 | `image_ready` | After async image generation | Scene image fades in |
 | `party_update` | After a `use_item` / `give_item` action | Party HP and inventory update without a full turn refresh |
-| `intervention` | All party members downed, first time | Amber 🐉 rescue banner shown for 8 s |
-| `sanctuary_recovery` | All party members downed, second time | Grey 🏕️ sanctuary banner shown for 10 s |
+| `intervention` | All party members downed, first rescue | Amber 🐉 rescue banner shown for 8 s |
+| `sanctuary_recovery` | All party members downed, rescue within limit | Grey 🏕️ sanctuary banner shown for 10 s |
+| `game_over` | All party members downed, no rescues remaining | Campaign-over screen shown |
 
 ---
 
@@ -386,4 +387,8 @@ Pick a difficulty, choose a **game pacing** mode (Cinematic for rich description
 
 ---
 
-[Beerware License](LICENSE) : if you like it, buy me a beer someday.
+## License
+
+This project is licensed under the AGPL-3.0 [License](./LICENSE).
+
+If you run a modified version of this software as a service, you must make the source code of your modifications available to users.

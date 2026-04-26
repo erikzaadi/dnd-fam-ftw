@@ -1,8 +1,18 @@
-/*
- * ----------------------------------------------------------------------------
- * "THE BEERWARE LICENSE" (Revision 42):
- * Erik Zaadi wrote this. As long as you retain this notice you can do whatever
- * you want with this stuff. If we meet someday, and you think this is worth it,
- * you can buy me a beer in return.
- * ----------------------------------------------------------------------------
- */
+# License
+
+Copyright (C) 2026 Erik Zaadi
+
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
+
+You may redistribute and/or modify this software under the terms of the AGPL-3.0 as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+This software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability and fitness for a particular purpose.
+
+## Full License Text
+
+The full license text is available at:
+https://www.gnu.org/licenses/agpl-3.0.en.html
+
+## Additional Note
+
+If you run a modified version of this software as a network service, you must make the source code of your modifications available to users, as required by the AGPL-3.0.
