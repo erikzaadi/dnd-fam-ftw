@@ -11,7 +11,7 @@ _dnd_subcommands() {
   case "$1" in
     users)           echo "list add remove set-primary" ;;
     namespaces)      echo "list create rename delete sessions assign-session add-user remove-user set-limits" ;;
-    sessions)        echo "list nuke seed" ;;
+    sessions)        echo "list nuke seed export import" ;;
     metrics)         echo "" ;;
     invite-requests) echo "list clear" ;;
     *)               echo "" ;;
@@ -26,8 +26,18 @@ _dnd_supports_json() {
   esac
 }
 
+# Flags available for each resource/subcommand
+_dnd_flags() {
+  case "$1/$2" in
+    sessions/export)  echo "--session= --namespace= --output=" ;;
+    sessions/import)  echo "--namespace-id=" ;;
+    namespaces/set-limits) echo "--max-sessions= --max-turns=" ;;
+    *) echo "" ;;
+  esac
+}
+
 _dnd_complete() {
-  local cur resource subcommand i word
+  local cur resource subcommand i word flags
   cur="${COMP_WORDS[COMP_CWORD]}"
   resource=""
   subcommand=""
@@ -49,9 +59,20 @@ _dnd_complete() {
   elif [[ -z "$subcommand" ]]; then
     # shellcheck disable=SC2207
     COMPREPLY=($(compgen -W "$(_dnd_subcommands "$resource")" -- "$cur"))
-  elif _dnd_supports_json "$resource" "$subcommand"; then
-    # shellcheck disable=SC2207
-    COMPREPLY=($(compgen -W "--json -j" -- "$cur"))
+  else
+    flags=""
+    if _dnd_supports_json "$resource" "$subcommand"; then
+      flags="--json -j"
+    fi
+    flags="$flags $(_dnd_flags "$resource" "$subcommand")"
+    if [[ -n "${flags// }" ]]; then
+      # shellcheck disable=SC2207
+      COMPREPLY=($(compgen -W "$flags" -- "$cur"))
+    elif [[ "$resource/$subcommand" == "sessions/import" ]]; then
+      # complete filenames for import
+      # shellcheck disable=SC2207
+      COMPREPLY=($(compgen -f -- "$cur"))
+    fi
   fi
 }
 

@@ -9,6 +9,8 @@ backend/public/generated/*
 !backend/public/generated/.gitkeep
 backend/dist
 backend/data
+**/.claude_session
+.claude_session
 
 # Terraform - sensitive values and state never go in git
 terraform/terraform.tfvars

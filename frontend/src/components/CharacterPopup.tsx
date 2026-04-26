@@ -53,8 +53,8 @@ export const CharacterPopup = ({ character, onClose, onAvatarClick }: CharacterP
           />
           <div className="flex-1 min-w-0">
             <h3 className="text-2xl md:text-3xl font-black text-white truncate">{character.name}</h3>
-            <p className="text-amber-500 text-sm">{character.species} · {character.class}</p>
-            <p className="text-xs text-slate-400 mt-1 italic">"{character.quirk}"</p>
+            <p className="text-amber-500 text-base">{character.species} · {character.class}</p>
+            <p className="text-sm text-slate-400 mt-1 italic">"{character.quirk}"</p>
             {/* HP bar */}
             <div className="mt-3">
               <div className="flex justify-between items-center mb-1">

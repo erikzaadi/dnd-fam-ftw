@@ -1,11 +1,19 @@
 import { useEffect } from 'react';
-import type { Session, TurnResult } from '../types';
+import type { Session, TurnResult, Character } from '../types';
 import { apiUrl } from '../lib/api';
 import { audioManager } from '../audio/audioManager';
 
+interface NarratingPayload {
+  action?: string;
+  statUsed?: string;
+  difficulty?: string;
+  difficultyValue?: number;
+  character?: Character;
+}
+
 interface SessionEventHandlers {
   sessionId: string;
-  onNarrating: () => void;
+  onNarrating: (payload: NarratingPayload) => void;
   onTurnComplete: (session: Session, turnResult: TurnResult | null) => void;
   onImageReady: (imageUrl: string) => void;
   onIntervention: (narration: string, session: Session | null, turnResult: TurnResult | null) => void;
@@ -34,7 +42,7 @@ export const useSessionEvents = ({
       es.onmessage = (e: MessageEvent) => {
         const data = JSON.parse(e.data);
         if (data.type === 'dm_narrating') {
-          onNarrating();
+          onNarrating({ action: data.action, statUsed: data.statUsed, difficulty: data.difficulty, difficultyValue: data.difficultyValue, character: data.character });
         } else if (data.type === 'turn_complete') {
           if (data.turnResult?.currentTensionLevel) {
             audioManager.setTension(data.turnResult.currentTensionLevel);

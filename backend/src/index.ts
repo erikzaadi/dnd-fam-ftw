@@ -613,7 +613,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
     return;
   }
 
-  broadcastUpdate(sessionId, 'dm_narrating', {});
+  broadcastUpdate(sessionId, 'dm_narrating', { action, statUsed, difficulty, difficultyValue, character });
 
   if (actionType === 'use_item' || actionType === 'give_item') {
     const targetId = targetCharacterId || actingCharId;

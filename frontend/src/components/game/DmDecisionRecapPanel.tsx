@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import type { Character } from '../../types';
 import { imgSrc } from '../../lib/api';
 import { beatTarget } from '../../lib/game';
@@ -18,10 +17,9 @@ interface LastSubmittedAction {
 interface DmDecisionRecapPanelProps {
   lastSubmittedAction: LastSubmittedAction | null;
   ttsSettings: TtsSettings;
-  controls?: ReactNode;
 }
 
-export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings, controls }: DmDecisionRecapPanelProps) => {
+export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings }: DmDecisionRecapPanelProps) => {
   const char = lastSubmittedAction?.char ?? null;
   const stat = lastSubmittedAction?.stat ?? 'none';
 
@@ -40,9 +38,6 @@ export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings, control
 
   return (
     <div className="relative flex flex-col items-center justify-center min-h-[55vh] lg:h-full rounded-[32px] overflow-hidden animate-in fade-in zoom-in-95 duration-500">
-      {controls && (
-        <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5">{controls}</div>
-      )}
       {/* Background */}
       <img
         src={imgSrc('/images/dm_thinking.png')}

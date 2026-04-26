@@ -234,7 +234,7 @@ export const CharacterAssembly = () => {
                     />
                     <div className="min-w-0">
                       <div className="font-black text-sm text-slate-100 cursor-pointer hover:text-amber-400 transition-colors" onClick={() => setViewingChar(c)}>{c.name}</div>
-                      <div className="text-[10px] text-slate-500 uppercase tracking-wide">{c.class} · {c.species}</div>
+                      <div className="text-xs text-slate-500 uppercase tracking-wide">{c.class} · {c.species}</div>
                     </div>
                     <div className="flex gap-1 ml-2">
                       <button onClick={() => {

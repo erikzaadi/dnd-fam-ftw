@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import type { ReactNode } from 'react';
 import type { TurnResult, Character, HpChange, InventoryChange } from '../../types';
 import { imgSrc } from '../../lib/api';
 import { StatImg } from './StatIcon';
@@ -17,7 +16,6 @@ interface ChronicleDrawerProps {
   onSelectTurn: (idx: number) => void;
   viewedTurnIdx: number;
   ttsSettings: TtsSettings;
-  controls?: ReactNode;
 }
 
 const HpChangeBadges = ({ hpChanges }: { hpChanges: HpChange[] }) => (
@@ -174,7 +172,6 @@ export const ChronicleDrawer = ({
   onClose,
   onSelectTurn,
   viewedTurnIdx,
-  controls,
 }: ChronicleDrawerProps) => {
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
 
@@ -217,7 +214,6 @@ export const ChronicleDrawer = ({
           <img src={imgSrc('/images/icon_scroll.png')} alt="" className="w-8 h-8 object-contain mix-blend-screen" />
           <h2 className="font-display font-black uppercase tracking-widest text-amber-500 text-base">Chronicle</h2>
         </div>
-        {controls && <div className="flex items-center gap-2">{controls}</div>}
       </div>
 
       {/* Turn list */}

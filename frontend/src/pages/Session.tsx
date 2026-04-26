@@ -57,6 +57,7 @@ export const SessionPage = () => {
   const [lastSubmittedAction, setLastSubmittedAction] = useState<LastSubmittedAction | null>(null);
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [currentTensionLevel, setCurrentTensionLevel] = useState<'low' | 'medium' | 'high' | null>(null);
+  const [showBanner, setShowBanner] = useState(true);
   const displayTurnRef = useRef<TurnResult | null>(null);
 
   const joinSession = useCallback(async (sessionId: string) => {
@@ -199,6 +200,8 @@ export const SessionPage = () => {
             navigate('/');
           },
         });
+      } else if (e.key === 'b') {
+        setShowBanner(prev => !prev);
       }
     };
     window.addEventListener('keydown', handler);
@@ -210,7 +213,12 @@ export const SessionPage = () => {
     onGameOver: (updatedSession) => {
       setSession(updatedSession);
     },
-    onNarrating: () => setLoading(true),
+    onNarrating: ({ action, statUsed, difficulty, difficultyValue, character }) => {
+      setLoading(true);
+      if (action && statUsed && difficulty && character) {
+        setLastSubmittedAction(prev => prev ?? { label: action, stat: statUsed, difficulty, difficultyValue, char: character });
+      }
+    },
     onTurnComplete: (updatedSession, turnResult) => {
       setLoading(false);
       setLastSubmittedAction(null);
@@ -414,14 +422,72 @@ export const SessionPage = () => {
 
   return (
     <div className="bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-slate-100 overflow-x-hidden lg:h-dvh lg:overflow-hidden">
-      <SessionHud
-        session={session}
-        onCharacterClick={setSelectedCharacter}
-      />
+      {showBanner && (
+        <SessionHud
+          session={session}
+          onCharacterClick={setSelectedCharacter}
+        />
+      )}
 
-      <div className="flex flex-col lg:flex-row gap-4 px-4 pb-4 pt-3 h-dvh lg:overflow-hidden">
+      {/* Top-right controls */}
+      {showBanner ? (
+        <div className="fixed top-3 right-4 z-[70] flex items-center gap-1.5 pointer-events-auto">
+          <div className="relative group">
+            <button
+              onClick={() => setShowBanner(false)}
+              className="w-9 h-9 xl:w-11 xl:h-11 flex items-center justify-center rounded-xl border border-slate-700 text-slate-400 hover:bg-slate-800 hover:border-slate-500 hover:text-slate-200 text-sm xl:text-base transition-all"
+              aria-label="Hide banner"
+            >
+              ▲
+            </button>
+            <div className="absolute top-full right-0 mt-2 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+              Hide banner [b]
+              <div className="absolute bottom-full right-3 border-4 border-transparent border-b-slate-700" />
+            </div>
+          </div>
+          <GearPopover
+            savingsMode={session.savingsMode}
+            onToggleSavingsMode={toggleSavingsMode}
+            audioSettings={settings}
+            onMuteToggle={() => {
+              setMasterMuted(!settings.masterMuted);
+              if (!settings.masterMuted) {
+                browserTtsService.stop();
+              }
+            }}
+          />
+          <div className="relative group">
+            <button
+              onClick={handleExitClick}
+              className="w-9 h-9 xl:w-11 xl:h-11 flex items-center justify-center rounded-xl border border-rose-900/60 text-rose-500 hover:bg-rose-900/20 hover:border-rose-700 hover:text-rose-300 font-black text-sm xl:text-base transition-all"
+            >
+              ✕
+            </button>
+            <div className="absolute top-full right-0 mt-2 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+              Exit realm [q]
+              <div className="absolute bottom-full right-3 border-4 border-transparent border-b-slate-700" />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="fixed top-3 right-4 z-[70] group pointer-events-auto">
+          <button
+            onClick={() => setShowBanner(true)}
+            className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-700 text-[9px] font-black text-slate-500 hover:text-slate-300 hover:border-slate-500 transition-all shadow-lg"
+            aria-label="Show banner"
+          >
+            ▼
+          </button>
+          <div className="absolute top-full right-0 mt-2 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+            Show banner [b]
+            <div className="absolute bottom-full right-3 border-4 border-transparent border-b-slate-700" />
+          </div>
+        </div>
+      )}
+
+      <div className={`flex flex-col lg:flex-row gap-4 px-4 pb-4 h-dvh overflow-hidden ${showBanner ? 'pt-36 sm:pt-24' : 'pt-3'}`}>
         {/* Top / Left: Story Stage */}
-        <div className="flex-shrink-0 h-[50vh] lg:h-auto lg:flex-1 lg:min-w-0 lg:min-h-0">
+        <div className="flex-shrink-0 h-[40vh] lg:h-auto lg:flex-1 lg:min-w-0 lg:min-h-0">
           <StoryStage
             history={history}
             viewedTurnIdx={viewedTurnIdx}
@@ -436,70 +502,39 @@ export const SessionPage = () => {
         </div>
 
         {/* Bottom / Right: Chronicle / Action area */}
-        <div className="flex-shrink-0 lg:w-[380px] xl:w-[440px] 2xl:w-[500px] lg:min-h-0">
-          {(() => {
-            const panelControls = (
-              <>
-                <GearPopover
-                  savingsMode={session.savingsMode}
-                  onToggleSavingsMode={toggleSavingsMode}
-                  audioSettings={settings}
-                  onMuteToggle={() => {
-                    setMasterMuted(!settings.masterMuted);
-                    if (!settings.masterMuted) {
-                      browserTtsService.stop();
-                    }
-                  }}
-                />
-                <div className="relative group">
-                  <button
-                    onClick={handleExitClick}
-                    className="w-9 h-9 xl:w-11 xl:h-11 flex items-center justify-center rounded-xl border border-rose-900/60 text-rose-500 hover:bg-rose-900/20 hover:border-rose-700 hover:text-rose-300 font-black text-sm xl:text-base transition-all"
-                  >
-                    ✕
-                  </button>
-                  <div className="absolute top-full right-0 mt-2 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                    Exit realm [q]
-                    <div className="absolute bottom-full right-3 border-4 border-transparent border-b-slate-700" />
-                  </div>
-                </div>
-              </>
-            );
-            return showChronicle ? (
-              <ChronicleDrawer
-                history={history}
-                party={session.party}
-                onClose={() => {
-                  setShowChronicle(false);
-                  setViewedTurnIdx(history.length - 1);
-                }}
-                onSelectTurn={setViewedTurnIdx}
-                viewedTurnIdx={viewedTurnIdx}
-                ttsSettings={ttsSettings}
-                controls={panelControls}
-              />
-            ) : loading ? (
-              <DmDecisionRecapPanel lastSubmittedAction={lastSubmittedAction} ttsSettings={ttsSettings} controls={panelControls} />
-            ) : (
-              <ActionDock
-                turn={displayTurn}
-                loading={loading}
-                activeCharacter={activeChar}
-                isDown={isDown}
-                party={session.party}
-                sessionId={session.id}
-                customAction={customAction}
-                setCustomAction={setCustomAction}
-                error={actionError}
-                onSubmit={submitAction}
-                onUseItem={(ownerCharId, itemId, targetCharId) => submitAction('use item', 'none', 'easy', null, ownerCharId, itemId, targetCharId)}
-                onGiveItem={(ownerCharId, itemId, targetCharId) => submitAction('give item', 'none', 'easy', null, ownerCharId, itemId, targetCharId)}
-                onShowPartyGear={() => setShowFullInventory(true)}
-                partyItemCount={partyItemCount}
-                controls={panelControls}
-              />
-            );
-          })()}
+        <div className="flex-1 min-h-0 lg:flex-none lg:flex-shrink-0 lg:w-[380px] xl:w-[440px] 2xl:w-[500px] lg:min-h-0">
+          {showChronicle ? (
+            <ChronicleDrawer
+              history={history}
+              party={session.party}
+              onClose={() => {
+                setShowChronicle(false);
+                setViewedTurnIdx(history.length - 1);
+              }}
+              onSelectTurn={setViewedTurnIdx}
+              viewedTurnIdx={viewedTurnIdx}
+              ttsSettings={ttsSettings}
+            />
+          ) : loading ? (
+            <DmDecisionRecapPanel lastSubmittedAction={lastSubmittedAction} ttsSettings={ttsSettings} />
+          ) : (
+            <ActionDock
+              turn={displayTurn}
+              loading={loading}
+              activeCharacter={activeChar}
+              isDown={isDown}
+              party={session.party}
+              sessionId={session.id}
+              customAction={customAction}
+              setCustomAction={setCustomAction}
+              error={actionError}
+              onSubmit={submitAction}
+              onUseItem={(ownerCharId, itemId, targetCharId) => submitAction('use item', 'none', 'easy', null, ownerCharId, itemId, targetCharId)}
+              onGiveItem={(ownerCharId, itemId, targetCharId) => submitAction('give item', 'none', 'easy', null, ownerCharId, itemId, targetCharId)}
+              onShowPartyGear={() => setShowFullInventory(true)}
+              partyItemCount={partyItemCount}
+            />
+          )}
         </div>
       </div>
 
@@ -681,6 +716,7 @@ export const SessionPage = () => {
             { key: 'Enter', action: 'Expand turn detail (Chronicle open)' },
             { key: 's', action: 'Open / close settings' },
             { key: 'q', action: 'Exit realm (with confirm)' },
+            { key: 'b', action: 'Toggle banner' },
             { key: 'Esc', action: 'Close overlays / blur input' },
             { key: '?', action: 'Toggle this help' },
           ]}

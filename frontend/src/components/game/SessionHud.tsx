@@ -147,18 +147,17 @@ interface SessionHudProps {
   onCharacterClick: (c: Character) => void;
 }
 
-export const SessionHud = ({
-  session,
-  onCharacterClick,
-}: SessionHudProps) => (
-  <header className="fixed top-0 left-0 right-0 z-[60] flex items-center gap-4 px-4 py-3">
-    <h1 className="text-amber-500 text-lg md:text-2xl xl:text-3xl font-display font-black italic tracking-tight shrink-0 bg-slate-950/60 backdrop-blur-md ml-4 px-4 py-2 rounded-2xl">
+export const SessionHud = ({ session, onCharacterClick }: SessionHudProps) => (
+  <header className="fixed top-0 left-0 right-0 z-[60] flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3 pointer-events-none">
+    <h1 className="text-amber-500 text-lg md:text-2xl xl:text-3xl font-display font-black italic tracking-tight shrink-0 bg-slate-950/60 backdrop-blur-md ml-4 px-4 py-2 rounded-2xl pointer-events-auto self-start">
       {session.displayName}
     </h1>
-    <PartyBox
-      party={session.party}
-      activeCharacterId={session.activeCharacterId}
-      onCharacterClick={onCharacterClick}
-    />
+    <div className="pointer-events-auto ml-4 sm:ml-0">
+      <PartyBox
+        party={session.party}
+        activeCharacterId={session.activeCharacterId}
+        onCharacterClick={onCharacterClick}
+      />
+    </div>
   </header>
 );

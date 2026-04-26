@@ -25,7 +25,7 @@ const hpBorderClass = (c: Character): string => {
 };
 
 export const PartyBox = ({ party, activeCharacterId, onCharacterClick }: PartyBoxProps) => (
-  <div className="flex items-center gap-3 bg-slate-950/60 backdrop-blur-md px-7 py-5 rounded-full border border-slate-800 shadow-xl">
+  <div className="flex items-center gap-3 bg-slate-950/60 backdrop-blur-md px-5 py-2 rounded-full border border-slate-800 shadow-xl pointer-events-auto">
     <div className="flex gap-3 items-center">
       {party.map(c => {
         const isActive = c.id === activeCharacterId && c.status !== 'downed';
@@ -35,7 +35,7 @@ export const PartyBox = ({ party, activeCharacterId, onCharacterClick }: PartyBo
               <img
                 src={imgSrc(c.avatarUrl)}
                 onClick={() => onCharacterClick(c)}
-                className={`rounded-full object-cover cursor-pointer border-2 transition-all hover:scale-110 ${c.status === 'downed' ? 'grayscale opacity-40' : ''} ${hpBorderClass(c)} ${isActive ? 'w-16 h-16 xl:w-20 xl:h-20 animate-border-pulse' : 'w-11 h-11 xl:w-14 xl:h-14'}`}
+                className={`rounded-full object-cover cursor-pointer border-2 transition-all hover:scale-110 ${c.status === 'downed' ? 'grayscale opacity-40' : ''} ${hpBorderClass(c)} ${isActive ? 'w-12 h-12 xl:w-14 xl:h-14 animate-border-pulse' : 'w-9 h-9 xl:w-11 xl:h-11'}`}
                 style={isActive ? { animationDelay: pulseSyncDelay() } : undefined}
                 alt={c.name}
               />
@@ -45,7 +45,7 @@ export const PartyBox = ({ party, activeCharacterId, onCharacterClick }: PartyBo
                 </div>
               )}
             </div>
-            <span className={`font-black uppercase tracking-widest leading-none truncate text-center ${isActive ? 'text-[10px] xl:text-xs text-amber-400 max-w-[64px] xl:max-w-[80px]' : 'text-[8px] xl:text-[10px] text-slate-500 max-w-[44px] xl:max-w-[56px]'}`}>
+            <span className={`font-black uppercase tracking-widest leading-none truncate text-center ${isActive ? 'text-[9px] xl:text-[10px] text-amber-400 max-w-[48px] xl:max-w-[56px]' : 'text-[8px] xl:text-[9px] text-slate-500 max-w-[36px] xl:max-w-[44px]'}`}>
               {c.name.split(' ')[0]}
             </span>
             {/* Tooltip */}

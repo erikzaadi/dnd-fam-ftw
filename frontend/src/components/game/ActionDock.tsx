@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import type { ReactNode } from 'react';
 import type { TurnResult, Character, InventoryItem } from '../../types';
 import { apiFetch, imgSrc, pulseSyncDelay } from '../../lib/api';
 import { beatTarget } from '../../lib/game';
@@ -30,7 +29,6 @@ interface ActionDockProps {
   onGiveItem: (ownerCharId: string, itemId: string, targetCharId: string) => void;
   onShowPartyGear: () => void;
   partyItemCount: number;
-  controls?: ReactNode;
 }
 
 const RISK_MAP: Record<string, { label: string; color: string }> = {
@@ -177,7 +175,6 @@ export const ActionDock = ({
   onGiveItem,
   onShowPartyGear,
   partyItemCount,
-  controls,
 }: ActionDockProps) => {
   const [statThinking, setStatThinking] = useState(false);
   const choiceButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -308,6 +305,12 @@ export const ActionDock = ({
       {/* Active hero panel */}
       {activeCharacter && (
         <div className="flex items-start gap-3 p-3 bg-slate-800/50 rounded-2xl border border-slate-700/50">
+          <img
+            src={imgSrc(activeCharacter.avatarUrl)}
+            className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-500 animate-border-pulse shrink-0"
+            style={{ animationDelay: pulseSyncDelay() }}
+            alt={activeCharacter.name}
+          />
           <div className="flex flex-col gap-1 min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-black text-base uppercase tracking-wide truncate">{activeCharacter.name}</span>
@@ -315,7 +318,7 @@ export const ActionDock = ({
                 {activeCharacter.hp}/{activeCharacter.max_hp} HP
               </span>
             </div>
-            <div className="text-xs text-slate-400 uppercase tracking-wide truncate">
+            <div className="text-sm text-slate-400 uppercase tracking-wide truncate">
               {activeCharacter.class} · {activeCharacter.species}
             </div>
             {/* HP bar */}
@@ -338,15 +341,6 @@ export const ActionDock = ({
                 />
               ))}
             </div>
-          </div>
-          <div className="flex flex-col items-center gap-2 shrink-0">
-            {controls && <div className="flex items-center gap-1.5">{controls}</div>}
-            <img
-              src={imgSrc(activeCharacter.avatarUrl)}
-              className="w-14 h-14 rounded-2xl object-cover border-2 border-amber-500 animate-border-pulse"
-              style={{ animationDelay: pulseSyncDelay() }}
-              alt={activeCharacter.name}
-            />
           </div>
         </div>
       )}
