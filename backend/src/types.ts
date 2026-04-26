@@ -46,7 +46,7 @@ export interface Character {
 }
 
 export interface InterventionState {
-  used: boolean;
+  rescuesUsed: number;
 }
 
 export interface SessionState {
@@ -70,6 +70,7 @@ export interface SessionState {
   useLocalAI: boolean;
   interventionState: InterventionState;
   storySummary: string;
+  gameOver?: boolean;
 }
 
 export interface Choice {

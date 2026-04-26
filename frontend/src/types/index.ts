@@ -59,6 +59,7 @@ export interface SessionPreview {
   dmPrep?: string;
   difficulty: string;
   gameMode: string;
+  gameOver?: boolean;
   party: { id: string; name: string; class: string; species: string; avatarUrl?: string; hp: number; max_hp: number }[];
 }
 
@@ -72,7 +73,8 @@ export interface Session {
   savingsMode: boolean;
   useLocalAI: boolean;
   gameMode?: 'cinematic' | 'balanced' | 'fast';
-  interventionState: { used: boolean };
+  interventionState: { rescuesUsed: number };
+  gameOver?: boolean;
 }
 
 export type TurnType = 'normal' | 'intervention' | 'sanctuary';

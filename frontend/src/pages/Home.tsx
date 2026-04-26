@@ -163,8 +163,13 @@ const WorldCard = ({
     <div className="bg-black/40 rounded-[20px] border-2 border-slate-800 overflow-hidden hover:border-slate-700 transition-colors h-full flex flex-col">
       {/* Header row */}
       <div className="flex items-center gap-2 p-4 flex-shrink-0">
-        <span className="flex-1 text-left text-amber-400 font-black text-xl tracking-tight truncate">
+        <span className="flex-1 text-left text-amber-400 font-black text-xl tracking-tight truncate flex items-center gap-2">
           {session.displayName}
+          {session.gameOver && (
+            <span className="text-[9px] font-black uppercase tracking-widest text-rose-500 border border-rose-700/50 bg-rose-900/20 px-1.5 py-0.5 rounded-full flex-shrink-0">
+              FALLEN
+            </span>
+          )}
         </span>
         <button
           onClick={onEdit}
@@ -215,12 +220,21 @@ const WorldCard = ({
 
       {/* Enter button - always pinned at bottom */}
       <div className="px-4 py-4 flex-shrink-0 border-t border-slate-800/60">
-        <button
-          onClick={onEnter}
-          className="w-full py-3 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-600/40 hover:border-amber-500/60 rounded-xl font-black uppercase tracking-widest text-amber-400 text-sm transition-all"
-        >
-          Enter Realm →
-        </button>
+        {session.gameOver ? (
+          <button
+            onClick={onEnter}
+            className="w-full py-3 bg-rose-900/20 hover:bg-rose-900/30 border border-rose-700/40 hover:border-rose-600/60 rounded-xl font-black uppercase tracking-widest text-rose-500 text-sm transition-all"
+          >
+            Campaign Fallen - View Chronicle
+          </button>
+        ) : (
+          <button
+            onClick={onEnter}
+            className="w-full py-3 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-600/40 hover:border-amber-500/60 rounded-xl font-black uppercase tracking-widest text-amber-400 text-sm transition-all"
+          >
+            Enter Realm →
+          </button>
+        )}
       </div>
     </div>
   );

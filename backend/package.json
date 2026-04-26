@@ -10,7 +10,8 @@
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix",
     "test": "vitest run",
-    "cli": "tsx src/scripts/cli.ts"
+    "cli": "tsx src/scripts/cli.ts",
+    "generate-static-assets": "tsx src/scripts/generateStaticAssets.ts"
   },
   "keywords": [],
   "author": "",

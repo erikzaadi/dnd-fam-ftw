@@ -102,6 +102,20 @@ export class GameEngine {
     return state.party.length > 0 && state.party.every(c => c.status === 'downed');
   }
 
+  public static getRescueLimit(difficulty: string): number {
+    if (difficulty === 'zug-ma-geddon') {
+      return 0;
+    }
+    if (difficulty === 'hard') {
+      return 1;
+    }
+    if (difficulty === 'normal') {
+      return 2;
+    }
+    // easy: endless
+    return Infinity;
+  }
+
   public static applySanctuaryRecovery(state: SessionState): SessionState {
     const newState: SessionState = JSON.parse(JSON.stringify(state));
     for (const char of newState.party) {
@@ -113,6 +127,7 @@ export class GameEngine {
     if (newState.party.length > 0) {
       newState.activeCharacterId = newState.party[0].id;
     }
+    newState.interventionState = { rescuesUsed: (state.interventionState?.rescuesUsed ?? 0) + 1 };
     return newState;
   }
 
@@ -124,8 +139,7 @@ export class GameEngine {
         char.hp = 1;
       }
     }
-    newState.interventionState = { used: true };
-    // Reset active character to the first one
+    newState.interventionState = { rescuesUsed: (state.interventionState?.rescuesUsed ?? 0) + 1 };
     if (newState.party.length > 0) {
       newState.activeCharacterId = newState.party[0].id;
     }

@@ -228,6 +228,16 @@ export class StateService {
     if (!charColsFull.includes('history')) {
       db.prepare("ALTER TABLE characters ADD COLUMN history TEXT").run();
     }
+
+    const sessionColsFull = (db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[]).map(r => r.name);
+    if (!sessionColsFull.includes('rescues_used')) {
+      db.prepare("ALTER TABLE sessions ADD COLUMN rescues_used INTEGER NOT NULL DEFAULT 0").run();
+      // Backfill: old sessions with interventionUsed=1 have had 1 rescue
+      db.prepare("UPDATE sessions SET rescues_used = 1 WHERE interventionUsed = 1").run();
+    }
+    if (!sessionColsFull.includes('game_over')) {
+      db.prepare("ALTER TABLE sessions ADD COLUMN game_over INTEGER NOT NULL DEFAULT 0").run();
+    }
   }
 
   // Ensures the DB is open and migrations have run. Safe to call multiple times.
@@ -290,8 +300,9 @@ export class StateService {
       difficulty,
       savingsMode,
       useLocalAI,
-      interventionState: { used: false },
+      interventionState: { rescuesUsed: 0 },
       storySummary: '',
+      gameOver: false,
     };
   }
 
@@ -312,6 +323,8 @@ export class StateService {
       savingsMode: number;
       useLocalAI: number;
       interventionUsed: number;
+      rescues_used: number;
+      game_over: number;
       storySummary: string;
     } | undefined;
     if (!row) {
@@ -399,8 +412,9 @@ export class StateService {
       gameMode: (row.gameMode as GameMode) || 'balanced',
       savingsMode: !!row.savingsMode,
       useLocalAI: !!row.useLocalAI,
-      interventionState: { used: !!row.interventionUsed },
+      interventionState: { rescuesUsed: row.rescues_used ?? (row.interventionUsed ? 1 : 0) },
       storySummary: row.storySummary ?? '',
+      gameOver: !!row.game_over,
     };
   }
 
@@ -463,8 +477,9 @@ export class StateService {
 
   public static async updateSession(id: string, state: SessionState): Promise<void> {
     const db = this.getDb();
-    db.prepare('UPDATE sessions SET scene = ?, sceneId = ?, turn = ?, activeCharacterId = ?, tone = ?, interventionUsed = ?, storySummary = ?, difficulty = ?, gameMode = ? WHERE id = ?')
-      .run(state.scene, state.sceneId, state.turn, state.activeCharacterId, state.tone, state.interventionState?.used ? 1 : 0, state.storySummary ?? '', state.difficulty, state.gameMode ?? 'balanced', id);
+    const rescuesUsed = state.interventionState?.rescuesUsed ?? 0;
+    db.prepare('UPDATE sessions SET scene = ?, sceneId = ?, turn = ?, activeCharacterId = ?, tone = ?, interventionUsed = ?, rescues_used = ?, game_over = ?, storySummary = ?, difficulty = ?, gameMode = ? WHERE id = ?')
+      .run(state.scene, state.sceneId, state.turn, state.activeCharacterId, state.tone, rescuesUsed > 0 ? 1 : 0, rescuesUsed, state.gameOver ? 1 : 0, state.storySummary ?? '', state.difficulty, state.gameMode ?? 'balanced', id);
 
     for (const char of state.party) {
       db.prepare('INSERT OR REPLACE INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt, status, avatar_storage_key, avatar_storage_provider, history, gender) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
@@ -495,9 +510,9 @@ export class StateService {
     db.prepare(`UPDATE sessions SET ${sets.join(', ')} WHERE id = ?`).run(...values, id);
   }
 
-  public static async listSessions(namespaceId: string = 'local'): Promise<{ id: string; displayName: string; worldDescription?: string; storySummary?: string; dmPrep?: string; difficulty: string; gameMode: string; party: { id: string; name: string; class: string; species: string; avatarUrl?: string; hp: number; max_hp: number }[] }[]> {
+  public static async listSessions(namespaceId: string = 'local'): Promise<{ id: string; displayName: string; worldDescription?: string; storySummary?: string; dmPrep?: string; difficulty: string; gameMode: string; gameOver?: boolean; party: { id: string; name: string; class: string; species: string; avatarUrl?: string; hp: number; max_hp: number }[] }[]> {
     const db = this.getDb();
-    const rows = db.prepare('SELECT id, displayName, worldDescription, storySummary, dm_prep, difficulty, gameMode FROM sessions WHERE namespace_id = ? ORDER BY createdAt DESC').all(namespaceId) as { id: string; displayName: string; worldDescription: string | null; storySummary: string | null; dm_prep: string | null; difficulty: string; gameMode: string }[];
+    const rows = db.prepare('SELECT id, displayName, worldDescription, storySummary, dm_prep, difficulty, gameMode, game_over FROM sessions WHERE namespace_id = ? ORDER BY createdAt DESC').all(namespaceId) as { id: string; displayName: string; worldDescription: string | null; storySummary: string | null; dm_prep: string | null; difficulty: string; gameMode: string; game_over: number }[];
     return rows.map(row => {
       const chars = db.prepare('SELECT id, name, class, species, avatarUrl, hp, max_hp FROM characters WHERE sessionId = ?').all(row.id) as { id: string; name: string; class: string; species: string; avatarUrl: string | null; hp: number; max_hp: number }[];
       return {
@@ -508,6 +523,7 @@ export class StateService {
         dmPrep: row.dm_prep || undefined,
         difficulty: row.difficulty,
         gameMode: row.gameMode,
+        gameOver: !!row.game_over || undefined,
         party: chars.map(c => ({ ...c, avatarUrl: c.avatarUrl || undefined })),
       };
     });

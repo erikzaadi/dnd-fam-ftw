@@ -11,6 +11,7 @@ interface SessionEventHandlers {
   onIntervention: (narration: string, session: Session | null, turnResult: TurnResult | null) => void;
   onSanctuaryRecovery: (narration: string, session: Session | null, turnResult: TurnResult | null) => void;
   onPartyUpdate: (session: Session | null) => void;
+  onGameOver: (session: Session) => void;
 }
 
 export const useSessionEvents = ({
@@ -21,6 +22,7 @@ export const useSessionEvents = ({
   onIntervention,
   onSanctuaryRecovery,
   onPartyUpdate,
+  onGameOver,
 }: SessionEventHandlers) => {
   useEffect(() => {
     let es: EventSource;
@@ -67,6 +69,8 @@ export const useSessionEvents = ({
           );
         } else if (data.type === 'party_update') {
           onPartyUpdate(data.session ?? null);
+        } else if (data.type === 'game_over') {
+          onGameOver(data.session);
         }
       };
 

@@ -154,6 +154,9 @@ export const SessionPage = () => {
 
   useSessionEvents({
     sessionId: id!,
+    onGameOver: (updatedSession) => {
+      setSession(updatedSession);
+    },
     onNarrating: () => setLoading(true),
     onTurnComplete: (updatedSession, turnResult) => {
       setLoading(false);
@@ -299,6 +302,42 @@ export const SessionPage = () => {
 
   if (!session) {
     return <PageLoader />;
+  }
+
+  if (session.gameOver) {
+    return (
+      <div className="h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-slate-100 flex flex-col items-center justify-center gap-8 p-8">
+        <div className="flex flex-col items-center gap-4 max-w-lg text-center">
+          <img
+            src="/images/campaign_over.png"
+            className="w-48 h-48 rounded-[32px] object-cover opacity-80 shadow-2xl"
+            onError={e => {
+              (e.currentTarget as HTMLImageElement).style.display = 'none';
+            }}
+            alt="Campaign Over"
+          />
+          <h1 className="text-5xl font-black uppercase tracking-tighter text-rose-500 italic">Campaign Over</h1>
+          <p className="text-slate-400 text-lg font-medium leading-relaxed">
+            The party has fallen and there are no more rescues remaining. The campaign of <span className="text-amber-400 font-black">{session.displayName}</span> has ended.
+          </p>
+          <p className="text-slate-600 text-sm italic">Their legend lives on in the chronicle.</p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
+          <button
+            onClick={() => navigate(`/session/${session.id}/recap`)}
+            className="flex-1 py-4 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-600/40 hover:border-amber-500/60 rounded-2xl font-black uppercase tracking-widest text-amber-400 text-sm transition-all"
+          >
+            View Chronicle
+          </button>
+          <button
+            onClick={() => navigate('/')}
+            className="flex-1 py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-2xl font-black uppercase tracking-widest text-slate-400 text-sm transition-all"
+          >
+            Return Home
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const displayTurn = history[viewedTurnIdx] ?? null;

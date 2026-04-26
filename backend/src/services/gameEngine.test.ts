@@ -32,7 +32,7 @@ const makeSession = (overrides: Partial<SessionState> = {}): SessionState => ({
   difficulty: 'normal',
   savingsMode: false,
   useLocalAI: false,
-  interventionState: { used: false },
+  interventionState: { rescuesUsed: 0 },
   storySummary: '',
   ...overrides,
 });
@@ -209,9 +209,9 @@ describe('GameEngine.applyIntervention', () => {
     expect(result.party.every(c => c.hp === 1)).toBe(true);
   });
 
-  it('sets interventionState.used to true', () => {
+  it('increments interventionState.rescuesUsed', () => {
     const result = GameEngine.applyIntervention(makeSession());
-    expect(result.interventionState.used).toBe(true);
+    expect(result.interventionState.rescuesUsed).toBe(1);
   });
 
   it('does not mutate the original state', () => {
@@ -271,5 +271,35 @@ describe('GameEngine.applyItemUse - error paths', () => {
     const revived = newState.party.find(c => c.id === 'downed');
     expect(revived!.status).toBe('active');
     expect(revived!.hp).toBeGreaterThan(0);
+  });
+});
+
+describe('GameEngine.getRescueLimit', () => {
+  it('returns Infinity for easy', () => {
+    expect(GameEngine.getRescueLimit('easy')).toBe(Infinity);
+  });
+
+  it('returns 2 for normal', () => {
+    expect(GameEngine.getRescueLimit('normal')).toBe(2);
+  });
+
+  it('returns 1 for hard', () => {
+    expect(GameEngine.getRescueLimit('hard')).toBe(1);
+  });
+
+  it('returns 0 for zug-ma-geddon', () => {
+    expect(GameEngine.getRescueLimit('zug-ma-geddon')).toBe(0);
+  });
+
+  it('returns Infinity for unknown difficulty', () => {
+    expect(GameEngine.getRescueLimit('unknown')).toBe(Infinity);
+  });
+});
+
+describe('GameEngine.applySanctuaryRecovery rescuesUsed', () => {
+  it('increments rescuesUsed', () => {
+    const session = makeSession({ interventionState: { rescuesUsed: 1 } });
+    const result = GameEngine.applySanctuaryRecovery(session);
+    expect(result.interventionState.rescuesUsed).toBe(2);
   });
 });
