@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { TurnResult, Character, InventoryItem } from '../../types';
 import { apiFetch, imgSrc, pulseSyncDelay } from '../../lib/api';
 import { beatTarget } from '../../lib/game';
@@ -172,7 +172,43 @@ export const ActionDock = ({
   partyItemCount,
 }: ActionDockProps) => {
   const [statThinking, setStatThinking] = useState(false);
+  const choiceButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { settings: ttsSettings } = useTtsSettings();
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const inTextField = target.tagName === 'TEXTAREA' || target.tagName === 'INPUT';
+
+      if (inTextField) {
+        if (e.key === 'Escape') {
+          target.blur();
+        }
+        return;
+      }
+
+      if (loading || isDown) {
+        return;
+      }
+
+      const choices = turn?.choices ?? [];
+      if (e.key === '1' && choices[0]) {
+        choiceButtonRefs.current[0]?.focus();
+      } else if (e.key === '2' && choices[1]) {
+        choiceButtonRefs.current[1]?.focus();
+      } else if (e.key === '3' && choices[2]) {
+        choiceButtonRefs.current[2]?.focus();
+      } else if (e.key === '4') {
+        textareaRef.current?.focus();
+      } else if (e.key === 'i') {
+        onShowPartyGear();
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [loading, isDown, turn, onShowPartyGear]);
   const ttsEnabled = ttsSettings.enabled && browserTtsService.isSupported();
 
   const submitCustom = async () => {
@@ -299,6 +335,9 @@ export const ActionDock = ({
                 return (
                   <button
                     key={i}
+                    ref={el => {
+                      choiceButtonRefs.current[i] = el;
+                    }}
                     onClick={() => onSubmit(choice.label, choice.stat, choice.difficulty, choice.difficultyValue)}
                     disabled={loading}
                     className={`w-full p-3 rounded-2xl border-2 text-left transition-all hover:brightness-110 disabled:opacity-50 ${STAT_COLORS[choice.stat]}`}
@@ -339,6 +378,7 @@ export const ActionDock = ({
           {/* Command bar + UNLEASH */}
           <div className="flex flex-col gap-2 pt-1">
             <textarea
+              ref={textareaRef}
               value={customAction}
               onChange={e => setCustomAction(e.target.value)}
               onKeyDown={e => {

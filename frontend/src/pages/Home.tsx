@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DmFooter } from '../components/DmFooter';
@@ -151,11 +151,13 @@ const WorldCard = ({
   onEnter,
   onDelete,
   onEdit,
+  enterRef,
 }: {
   session: SessionPreview;
   onEnter: () => void;
   onDelete: () => void;
   onEdit: () => void;
+  enterRef?: (el: HTMLButtonElement | null) => void;
 }) => {
   const hasDetails = session.party.length > 0 || session.worldDescription || session.storySummary;
 
@@ -222,6 +224,7 @@ const WorldCard = ({
       <div className="px-4 py-4 flex-shrink-0 border-t border-slate-800/60">
         {session.gameOver ? (
           <button
+            ref={enterRef}
             onClick={onEnter}
             className="w-full py-3 bg-rose-900/20 hover:bg-rose-900/30 border border-rose-700/40 hover:border-rose-600/60 rounded-xl font-black uppercase tracking-widest text-rose-500 text-sm transition-all"
           >
@@ -229,6 +232,7 @@ const WorldCard = ({
           </button>
         ) : (
           <button
+            ref={enterRef}
             onClick={onEnter}
             className="w-full py-3 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-600/40 hover:border-amber-500/60 rounded-xl font-black uppercase tracking-widest text-amber-400 text-sm transition-all"
           >
@@ -246,6 +250,7 @@ export const Home = () => {
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
   const [editSession, setEditSession] = useState<{ id: string; displayName: string; difficulty: string; gameMode: string; dmPrep?: string } | null>(null);
   const navigate = useNavigate();
+  const cardRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const loadSessions = () => {
     apiFetch('/sessions')
@@ -268,6 +273,29 @@ export const Home = () => {
     loadSessions();
     loadLimits();
   }, []);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (activeSessions.length === 0) {
+        return;
+      }
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowDown' && e.key !== 'ArrowLeft' && e.key !== 'ArrowUp') {
+        return;
+      }
+      const current = cardRefs.current.findIndex(el => el === document.activeElement);
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        const next = current === -1 ? 0 : Math.min(activeSessions.length - 1, current + 1);
+        cardRefs.current[next]?.focus();
+      } else {
+        e.preventDefault();
+        const next = current === -1 ? 0 : Math.max(0, current - 1);
+        cardRefs.current[next]?.focus();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [activeSessions.length]);
 
   const deleteSession = (id: string, displayName: string) => {
     setConfirmDialog({
@@ -337,9 +365,12 @@ export const Home = () => {
             <h3 className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-white italic flex-shrink-0">Active Realms 🌍</h3>
             <div className="flex-1 overflow-y-auto min-h-0">
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pb-2 auto-rows-fr">
-                {activeSessions.map(sess => (
+                {activeSessions.map((sess, i) => (
                   <WorldCard
                     key={sess.id}
+                    enterRef={el => {
+                      cardRefs.current[i] = el;
+                    }}
                     session={sess}
                     onEnter={() => navigate(getSessionEntryPath(sess))}
                     onDelete={() => deleteSession(sess.id, sess.displayName)}

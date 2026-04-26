@@ -19,6 +19,7 @@ import { audioManager } from '../audio/audioManager';
 import { useAudioSettings } from '../audio/useAudioSettings';
 import { useTtsSettings } from '../tts/useTtsSettings';
 import { browserTtsService } from '../tts/browserTtsService';
+import { KeybindingsHelp } from '../components/KeybindingsHelp';
 
 interface LastSubmittedAction {
   label: string;
@@ -51,6 +52,7 @@ export const SessionPage = () => {
   const [sanctuaryBanner, setSanctuaryBanner] = useState<string | null>(null);
   const [showFullInventory, setShowFullInventory] = useState(false);
   const [showChronicle, setShowChronicle] = useState(false);
+  const [showKeybindingsHelp, setShowKeybindingsHelp] = useState(false);
   const [lastSubmittedAction, setLastSubmittedAction] = useState<LastSubmittedAction | null>(null);
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [currentTensionLevel, setCurrentTensionLevel] = useState<'low' | 'medium' | 'high' | null>(null);
@@ -151,6 +153,27 @@ export const SessionPage = () => {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [lastRoll]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const inTextField = (e.target as HTMLElement).tagName === 'TEXTAREA' || (e.target as HTMLElement).tagName === 'INPUT';
+      if (inTextField) {
+        return;
+      }
+      if (e.key === '?') {
+        setShowKeybindingsHelp(h => !h);
+      } else if (e.key === 'c') {
+        setShowChronicle(prev => {
+          if (prev) {
+            setViewedTurnIdx(history.length - 1);
+          }
+          return !prev;
+        });
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [history.length]);
 
   useSessionEvents({
     sessionId: id!,
@@ -558,6 +581,20 @@ export const SessionPage = () => {
             setSelectedCharacter(null);
             setFullscreenImage(url);
           }}
+        />
+      )}
+      {showKeybindingsHelp && (
+        <KeybindingsHelp
+          onClose={() => setShowKeybindingsHelp(false)}
+          bindings={[
+            { key: '1 / 2 / 3', action: 'Focus action choice (Enter submits)' },
+            { key: '4', action: 'Focus custom action input' },
+            { key: 'i', action: 'Open inventory' },
+            { key: 'c', action: 'Open / close Chronicle' },
+            { key: '← →', action: 'Navigate turns (Chronicle open)' },
+            { key: 'Esc', action: 'Blur input / dismiss dice roll / close Chronicle' },
+            { key: '?', action: 'Toggle this help' },
+          ]}
         />
       )}
     </div>

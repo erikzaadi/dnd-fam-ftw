@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { TurnResult, Character, HpChange } from '../../types';
 import { imgSrc } from '../../lib/api';
 import { StatImg } from './StatIcon';
@@ -154,6 +154,22 @@ export const ChronicleDrawer = ({
   viewedTurnIdx,
 }: ChronicleDrawerProps) => {
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        onSelectTurn(Math.max(0, viewedTurnIdx - 1));
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        onSelectTurn(Math.min(history.length - 1, viewedTurnIdx + 1));
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose, onSelectTurn, viewedTurnIdx, history.length]);
 
   const handleRowClick = (i: number) => {
     onSelectTurn(i);

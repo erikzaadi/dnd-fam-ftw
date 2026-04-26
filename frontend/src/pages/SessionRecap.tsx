@@ -15,6 +15,7 @@ import { audioManager } from '../audio/audioManager';
 import { SceneBackground } from '../components/game/SceneBackground';
 import { STAT_COLORS } from '../lib/statColors';
 import { PageLoader } from '../components/PageLoader';
+import { KeybindingsHelp } from '../components/KeybindingsHelp';
 
 type Mode = 'choose' | 'tldr' | 'movie';
 
@@ -73,17 +74,25 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
   const roll = turn.lastAction?.actionResult;
   const hasRoll = roll && roll.statUsed !== 'none';
 
-  // Space key toggles play/pause
+  // Keyboard nav: space = play/pause, arrows = prev/next
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === ' ' && e.target === document.body) {
+      if (e.key === ' ') {
         e.preventDefault();
         setPlaying(p => !p);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setIdx(i => Math.max(0, i - 1));
+        setPlaying(false);
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setIdx(i => Math.min(history.length - 1, i + 1));
+        setPlaying(false);
       }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, []);
+  }, [history.length]);
 
   // Speak narration on slide change, then advance after speech + pause gap
   useEffect(() => {
@@ -236,11 +245,15 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
           <div className="flex items-center gap-2 justify-center">
             <button
               onClick={() => {
-                setIdx(i => Math.max(0, i - 1)); setPlaying(false);
+                setIdx(i => Math.max(0, i - 1));
+                setPlaying(false);
               }}
               disabled={idx === 0}
-              className="px-5 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-black text-base disabled:opacity-30 transition-colors"
-            >←</button>
+              className="px-5 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-black text-base disabled:opacity-30 transition-colors flex flex-col items-center leading-none gap-0.5"
+            >
+              <span>←</span>
+              <span className="text-[8px] text-slate-500 font-normal normal-case tracking-normal">arrow</span>
+            </button>
             <button
               onClick={() => setPlaying(p => !p)}
               className="px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-black text-base flex flex-col items-center leading-none gap-0.5 transition-colors"
@@ -250,11 +263,15 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
             </button>
             <button
               onClick={() => {
-                setIdx(i => Math.min(history.length - 1, i + 1)); setPlaying(false);
+                setIdx(i => Math.min(history.length - 1, i + 1));
+                setPlaying(false);
               }}
               disabled={isLast}
-              className="px-5 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-black text-base disabled:opacity-30 transition-colors"
-            >→</button>
+              className="px-5 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-black text-base disabled:opacity-30 transition-colors flex flex-col items-center leading-none gap-0.5"
+            >
+              <span>→</span>
+              <span className="text-[8px] text-slate-500 font-normal normal-case tracking-normal">arrow</span>
+            </button>
           </div>
           {isLast && (
             <button onClick={onEnter} className="w-full py-3 bg-amber-600 hover:bg-amber-500 rounded-xl font-black uppercase italic tracking-tighter text-base shadow-[0_4px_0_rgb(146,64,14)] transition-all">
@@ -275,8 +292,28 @@ export const SessionRecap = () => {
   const [mode, setMode] = useState<Mode>('choose');
   const [session, setSession] = useState<Session | null>(null);
   const [history, setHistory] = useState<TurnResult[]>([]);
+  const [showKeybindingsHelp, setShowKeybindingsHelp] = useState(false);
 
   const enter = useCallback(() => navigate(`/session/${id}`), [id, navigate]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === '?') {
+        setShowKeybindingsHelp(h => !h);
+        return;
+      }
+      if (mode !== 'choose') {
+        return;
+      }
+      if (e.key === '1') {
+        setMode('tldr');
+      } else if (e.key === '2') {
+        setMode('movie');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [mode]);
 
   const toggleSavingsMode = async () => {
     if (!session) {
@@ -353,12 +390,14 @@ export const SessionRecap = () => {
           <div className="flex-1 flex flex-col items-center justify-center gap-6 animate-in fade-in zoom-in duration-500 relative z-[10] px-4">
             <p className="text-lg md:text-2xl font-black uppercase tracking-widest text-amber-400">How would you like to catch up?</p>
             <div className="flex gap-4 md:gap-6">
-              <button onClick={() => setMode('tldr')} className="flex flex-col items-center gap-3 p-6 md:p-8 bg-slate-900 hover:bg-slate-800 rounded-[32px] border border-slate-700 hover:border-amber-500/50 transition-all w-36 md:w-44">
+              <button onClick={() => setMode('tldr')} className="relative flex flex-col items-center gap-3 p-6 md:p-8 bg-slate-900 hover:bg-slate-800 rounded-[32px] border border-slate-700 hover:border-amber-500/50 transition-all w-36 md:w-44">
+                <span className="absolute top-2 right-3 text-[9px] font-black text-slate-600 tracking-widest">[1]</span>
                 <img src={imgSrc('/images/icon_scroll.png')} alt="scroll" className="w-12 h-12 object-contain mix-blend-screen" />
                 <span className="font-black uppercase tracking-widest text-sm">TLDR</span>
                 <span className="text-xs text-slate-500 text-center">AI summary of the adventure</span>
               </button>
-              <button onClick={() => setMode('movie')} className="flex flex-col items-center gap-3 p-6 md:p-8 bg-slate-900 hover:bg-slate-800 rounded-[32px] border border-slate-700 hover:border-amber-500/50 transition-all w-36 md:w-44">
+              <button onClick={() => setMode('movie')} className="relative flex flex-col items-center gap-3 p-6 md:p-8 bg-slate-900 hover:bg-slate-800 rounded-[32px] border border-slate-700 hover:border-amber-500/50 transition-all w-36 md:w-44">
+                <span className="absolute top-2 right-3 text-[9px] font-black text-slate-600 tracking-widest">[2]</span>
                 <span className="text-4xl">🎬</span>
                 <span className="font-black uppercase tracking-widest text-sm">Movie</span>
                 <span className="text-xs text-slate-500 text-center">Relive each turn with scenes</span>
@@ -373,6 +412,22 @@ export const SessionRecap = () => {
       </div>
 
       <DmFooter />
+      {showKeybindingsHelp && (
+        <KeybindingsHelp
+          onClose={() => setShowKeybindingsHelp(false)}
+          bindings={mode === 'movie' ? [
+            { key: 'Space', action: 'Play / Pause' },
+            { key: '← →', action: 'Previous / Next scene' },
+            { key: '?', action: 'Toggle this help' },
+          ] : mode === 'choose' ? [
+            { key: '1', action: 'TLDR summary' },
+            { key: '2', action: 'Movie mode' },
+            { key: '?', action: 'Toggle this help' },
+          ] : [
+            { key: '?', action: 'Toggle this help' },
+          ]}
+        />
+      )}
     </div>
   );
 };
