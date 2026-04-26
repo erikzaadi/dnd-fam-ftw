@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Session, Character, TurnResult, HpChange } from '../types';
-import { apiFetch } from '../lib/api';
+import { apiFetch, imgSrc } from '../lib/api';
 import { useSessionEvents } from '../hooks/useSessionEvents';
 import { PageLoader } from '../components/PageLoader';
 import { CharacterPopup } from '../components/CharacterPopup';
@@ -33,6 +33,7 @@ export const SessionPage = () => {
   const { settings, setMasterMuted } = useAudioSettings();
   const { settings: ttsSettings } = useTtsSettings();
   const lastSpokenTurnIdRef = useRef<number | null>(null);
+  const imageLoadingRef = useRef(false);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [session, setSession] = useState<Session | null>(null);
@@ -43,7 +44,7 @@ export const SessionPage = () => {
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [fullscreenNarration, setFullscreenNarration] = useState<string | null>(null);
-  const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{message: string; confirmLabel?: string; onConfirm: () => void} | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
   const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; isCritical?: boolean; difficultyTarget?: number; rollNarration?: string; hpChanges?: HpChange[] } | null>(null);
@@ -56,6 +57,7 @@ export const SessionPage = () => {
   const [lastSubmittedAction, setLastSubmittedAction] = useState<LastSubmittedAction | null>(null);
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [currentTensionLevel, setCurrentTensionLevel] = useState<'low' | 'medium' | 'high' | null>(null);
+  const displayTurnRef = useRef<TurnResult | null>(null);
 
   const joinSession = useCallback(async (sessionId: string) => {
     const res = await apiFetch(`/session/${sessionId}`);
@@ -169,11 +171,39 @@ export const SessionPage = () => {
           }
           return !prev;
         });
+      } else if (e.key === 'Escape') {
+        if (showFullInventory) {
+          setShowFullInventory(false);
+        } else {
+          setFullscreenNarration(null);
+          setFullscreenImage(null);
+        }
+      } else if (e.key === 'n') {
+        const narration = displayTurnRef.current?.narration;
+        if (narration) {
+          setFullscreenNarration(prev => (prev ? null : narration));
+        }
+      } else if (e.key === 'f') {
+        const rawUrl = displayTurnRef.current?.imageUrl;
+        const url = rawUrl ? imgSrc(rawUrl) : (!imageLoadingRef.current ? imgSrc('/images/default_scene.png') : null);
+        if (url) {
+          setFullscreenImage(prev => (prev ? null : url));
+        }
+      } else if (e.key === 'q') {
+        setConfirmDialog({
+          message: 'Exit this realm and return home?',
+          confirmLabel: 'Exit',
+          onConfirm: () => {
+            audioManager.stopMusic();
+            browserTtsService.stop();
+            navigate('/');
+          },
+        });
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [history.length]);
+  }, [history.length, navigate, showFullInventory]);
 
   useSessionEvents({
     sessionId: id!,
@@ -364,9 +394,22 @@ export const SessionPage = () => {
   }
 
   const displayTurn = history[viewedTurnIdx] ?? null;
+  displayTurnRef.current = displayTurn;
+  imageLoadingRef.current = imageLoading;
   const activeChar = session.party.find(c => c.id === session.activeCharacterId) || null;
   const isDown = activeChar?.status === 'downed';
   const partyItemCount = session.party.reduce((s, c) => s + c.inventory.length, 0);
+
+  const handleExitClick = () => {
+    setConfirmDialog({
+      message: 'Exit this realm and return home?',
+      onConfirm: () => {
+        audioManager.stopMusic();
+        browserTtsService.stop();
+        navigate('/');
+      },
+    });
+  };
 
   return (
     <div className="flex flex-col bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-slate-100 overflow-x-hidden lg:h-dvh lg:overflow-hidden">
@@ -382,6 +425,7 @@ export const SessionPage = () => {
             browserTtsService.stop();
           }
         }}
+        onExitClick={handleExitClick}
       />
 
       <div className="flex-1 flex flex-col lg:flex-row gap-4 px-4 pb-4 pt-3 min-h-0 overflow-y-auto lg:overflow-hidden">
@@ -565,6 +609,7 @@ export const SessionPage = () => {
       {confirmDialog && (
         <ConfirmDialog
           message={confirmDialog.message}
+          confirmLabel={confirmDialog.confirmLabel}
           onConfirm={() => {
             confirmDialog.onConfirm();
             setConfirmDialog(null);
@@ -590,9 +635,14 @@ export const SessionPage = () => {
             { key: '1 / 2 / 3', action: 'Focus action choice (Enter submits)' },
             { key: '4', action: 'Focus custom action input' },
             { key: 'i', action: 'Open inventory' },
+            { key: 'n', action: 'Toggle fullscreen narration' },
+            { key: 'f', action: 'Toggle fullscreen image' },
             { key: 'c', action: 'Open / close Chronicle' },
-            { key: '← →', action: 'Navigate turns (Chronicle open)' },
-            { key: 'Esc', action: 'Blur input / dismiss dice roll / close Chronicle' },
+            { key: '← → ↑ ↓ / h j k l', action: 'Navigate turns (Chronicle open)' },
+            { key: 'Enter', action: 'Expand turn detail (Chronicle open)' },
+            { key: 's', action: 'Open / close settings' },
+            { key: 'q', action: 'Exit realm (with confirm)' },
+            { key: 'Esc', action: 'Close overlays / blur input' },
             { key: '?', action: 'Toggle this help' },
           ]}
         />

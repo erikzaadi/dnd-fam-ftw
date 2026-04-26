@@ -200,6 +200,7 @@ export const ActionDock = ({
       } else if (e.key === '3' && choices[2]) {
         choiceButtonRefs.current[2]?.focus();
       } else if (e.key === '4') {
+        e.preventDefault();
         textareaRef.current?.focus();
       } else if (e.key === 'i') {
         onShowPartyGear();

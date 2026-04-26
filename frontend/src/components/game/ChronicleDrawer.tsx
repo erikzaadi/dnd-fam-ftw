@@ -159,12 +159,15 @@ export const ChronicleDrawer = ({
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
-      } else if (e.key === 'ArrowLeft') {
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'h' || e.key === 'k') {
         e.preventDefault();
         onSelectTurn(Math.max(0, viewedTurnIdx - 1));
-      } else if (e.key === 'ArrowRight') {
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'l' || e.key === 'j') {
         e.preventDefault();
         onSelectTurn(Math.min(history.length - 1, viewedTurnIdx + 1));
+      } else if (e.key === 'Enter') {
+        setExpandedIdx(prev => (prev === viewedTurnIdx ? null : viewedTurnIdx));
+        onSelectTurn(viewedTurnIdx);
       }
     };
     window.addEventListener('keydown', handler);

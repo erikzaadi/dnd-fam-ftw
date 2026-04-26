@@ -279,11 +279,13 @@ export const Home = () => {
       if (activeSessions.length === 0) {
         return;
       }
-      if (e.key !== 'ArrowRight' && e.key !== 'ArrowDown' && e.key !== 'ArrowLeft' && e.key !== 'ArrowUp') {
+      const isNext = e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'l' || e.key === 'j';
+      const isPrev = e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'h' || e.key === 'k';
+      if (!isNext && !isPrev) {
         return;
       }
       const current = cardRefs.current.findIndex(el => el === document.activeElement);
-      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      if (isNext) {
         e.preventDefault();
         const next = current === -1 ? 0 : Math.min(activeSessions.length - 1, current + 1);
         cardRefs.current[next]?.focus();
@@ -299,7 +301,7 @@ export const Home = () => {
 
   const deleteSession = (id: string, displayName: string) => {
     setConfirmDialog({
-      message: `Permanently destroy "${displayName}"?`,
+      message: `Delete realm "${displayName}"?`,
       onConfirm: async () => {
         await apiFetch(`/session/${id}`, { method: 'DELETE' });
         loadSessions();
@@ -314,6 +316,7 @@ export const Home = () => {
       {confirmDialog && (
         <ConfirmDialog
           message={confirmDialog.message}
+          confirmLabel="Delete"
           onConfirm={confirmDialog.onConfirm}
           onCancel={() => setConfirmDialog(null)}
         />

@@ -80,11 +80,11 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
       if (e.key === ' ') {
         e.preventDefault();
         setPlaying(p => !p);
-      } else if (e.key === 'ArrowLeft') {
+      } else if (e.key === 'ArrowLeft' || e.key === 'h') {
         e.preventDefault();
         setIdx(i => Math.max(0, i - 1));
         setPlaying(false);
-      } else if (e.key === 'ArrowRight') {
+      } else if (e.key === 'ArrowRight' || e.key === 'l') {
         e.preventDefault();
         setIdx(i => Math.min(history.length - 1, i + 1));
         setPlaying(false);
@@ -309,11 +309,13 @@ export const SessionRecap = () => {
         setMode('tldr');
       } else if (e.key === '2') {
         setMode('movie');
+      } else if (e.key === '3') {
+        enter();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [mode]);
+  }, [mode, enter]);
 
   const toggleSavingsMode = async () => {
     if (!session) {
@@ -403,7 +405,10 @@ export const SessionRecap = () => {
                 <span className="text-xs text-slate-500 text-center">Relive each turn with scenes</span>
               </button>
             </div>
-            <button onClick={enter} className="text-slate-500 hover:text-slate-300 font-black uppercase text-xs tracking-widest transition-colors">Skip - Jump straight in</button>
+            <button onClick={enter} className="relative text-slate-500 hover:text-slate-300 font-black uppercase text-xs tracking-widest transition-colors">
+              <span className="absolute -top-1 -right-5 text-[9px] font-black text-slate-700 tracking-widest">[3]</span>
+              Skip - Jump straight in
+            </button>
           </div>
         )}
 
@@ -422,6 +427,7 @@ export const SessionRecap = () => {
           ] : mode === 'choose' ? [
             { key: '1', action: 'TLDR summary' },
             { key: '2', action: 'Movie mode' },
+            { key: '3', action: 'Skip - Enter realm directly' },
             { key: '?', action: 'Toggle this help' },
           ] : [
             { key: '?', action: 'Toggle this help' },

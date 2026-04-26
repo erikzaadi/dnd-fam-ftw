@@ -62,10 +62,52 @@ describe('ChronicleDrawer keyboard navigation', () => {
     expect(onSelectTurn).toHaveBeenCalledWith(1);
   });
 
+  it('calls onSelectTurn with previous index on ArrowUp', () => {
+    const onSelectTurn = vi.fn();
+    renderDrawer(2, onSelectTurn);
+    fireEvent.keyDown(window, { key: 'ArrowUp' });
+    expect(onSelectTurn).toHaveBeenCalledWith(1);
+  });
+
+  it('calls onSelectTurn with previous index on vim k', () => {
+    const onSelectTurn = vi.fn();
+    renderDrawer(2, onSelectTurn);
+    fireEvent.keyDown(window, { key: 'k' });
+    expect(onSelectTurn).toHaveBeenCalledWith(1);
+  });
+
+  it('calls onSelectTurn with previous index on vim h', () => {
+    const onSelectTurn = vi.fn();
+    renderDrawer(2, onSelectTurn);
+    fireEvent.keyDown(window, { key: 'h' });
+    expect(onSelectTurn).toHaveBeenCalledWith(1);
+  });
+
   it('calls onSelectTurn with next index on ArrowRight', () => {
     const onSelectTurn = vi.fn();
     renderDrawer(1, onSelectTurn);
     fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(onSelectTurn).toHaveBeenCalledWith(2);
+  });
+
+  it('calls onSelectTurn with next index on ArrowDown', () => {
+    const onSelectTurn = vi.fn();
+    renderDrawer(1, onSelectTurn);
+    fireEvent.keyDown(window, { key: 'ArrowDown' });
+    expect(onSelectTurn).toHaveBeenCalledWith(2);
+  });
+
+  it('calls onSelectTurn with next index on vim j', () => {
+    const onSelectTurn = vi.fn();
+    renderDrawer(1, onSelectTurn);
+    fireEvent.keyDown(window, { key: 'j' });
+    expect(onSelectTurn).toHaveBeenCalledWith(2);
+  });
+
+  it('calls onSelectTurn with next index on vim l', () => {
+    const onSelectTurn = vi.fn();
+    renderDrawer(1, onSelectTurn);
+    fireEvent.keyDown(window, { key: 'l' });
     expect(onSelectTurn).toHaveBeenCalledWith(2);
   });
 
@@ -81,6 +123,22 @@ describe('ChronicleDrawer keyboard navigation', () => {
     renderDrawer(2, onSelectTurn);
     fireEvent.keyDown(window, { key: 'ArrowRight' });
     expect(onSelectTurn).toHaveBeenCalledWith(2);
+  });
+
+  it('Enter expands the currently viewed turn and calls onSelectTurn', () => {
+    const onSelectTurn = vi.fn();
+    renderDrawer(1, onSelectTurn);
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(onSelectTurn).toHaveBeenCalledWith(1);
+  });
+
+  it('Enter toggles expanded state: second Enter collapses', () => {
+    const onSelectTurn = vi.fn();
+    renderDrawer(1, onSelectTurn);
+    fireEvent.keyDown(window, { key: 'Enter' });
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(onSelectTurn).toHaveBeenCalledTimes(2);
+    expect(onSelectTurn).toHaveBeenCalledWith(1);
   });
 
   it('renders turn narration rows', () => {
