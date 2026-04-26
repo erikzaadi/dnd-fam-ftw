@@ -1,0 +1,52 @@
+name: Notify Pushover
+description: Send a Pushover notification with job status and a link to the run
+
+inputs:
+  status:
+    required: true
+    description: 'success or failure'
+  token:
+    required: true
+    description: 'Pushover app token'
+  user:
+    required: true
+    description: 'Pushover user key'
+  title:
+    required: true
+    description: 'Notification title (workflow name)'
+  message:
+    required: false
+    default: ''
+    description: 'Custom message body - auto-generated from status if omitted'
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        PUSHOVER_TOKEN: ${{ inputs.token }}
+        PUSHOVER_USER: ${{ inputs.user }}
+        NOTIFY_STATUS: ${{ inputs.status }}
+        NOTIFY_TITLE: ${{ inputs.title }}
+        NOTIFY_MESSAGE: ${{ inputs.message }}
+        GITHUB_REF_NAME: ${{ github.ref_name }}
+        GITHUB_ACTOR_NAME: ${{ github.actor }}
+        GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        if [[ "$NOTIFY_STATUS" == "success" ]]; then
+          EMOJI="✅"
+        else
+          EMOJI="❌"
+        fi
+        MSG="$NOTIFY_MESSAGE"
+        if [[ -z "$MSG" ]]; then
+          MSG="${EMOJI} ${NOTIFY_TITLE} ${NOTIFY_STATUS} on ${GITHUB_REF_NAME} by ${GITHUB_ACTOR_NAME}"
+        fi
+        curl -s \
+          --form-string "token=${PUSHOVER_TOKEN}" \
+          --form-string "user=${PUSHOVER_USER}" \
+          --form-string "title=${EMOJI} dnd-fam-ftw / ${NOTIFY_TITLE}" \
+          --form-string "message=${MSG}" \
+          --form-string "url=${GITHUB_RUN_URL}" \
+          --form-string "url_title=View Run" \
+          https://api.pushover.net/1/messages.json || true

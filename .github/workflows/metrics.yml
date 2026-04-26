@@ -1,0 +1,128 @@
+name: Weekly Metrics
+
+on:
+  schedule:
+    - cron: '0 10 * * 0'  # Sunday 10:00 AM UTC
+  workflow_dispatch:
+
+env:
+  AWS_REGION: eu-west-1
+  SSM_PREFIX: /dnd-fam-ftw/prod
+  METRICS_SSM_PATH: /dnd-fam-ftw/internal/last-weekly-metrics
+  CURRENT_DIR: /opt/dnd-fam-ftw/current
+  APP_ENV_FILE: /opt/dnd-fam-ftw/app.env
+  SSH_USER: ubuntu
+
+jobs:
+  metrics:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Open SSH for this runner
+        id: ssh_access
+        run: |
+          RUNNER_IP=$(curl -s https://checkip.amazonaws.com)
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws lightsail open-instance-public-ports \
+            --no-cli-pager \
+            --instance-name "${{ secrets.LIGHTSAIL_INSTANCE_NAME }}" \
+            --port-info fromPort=22,toPort=22,protocol=TCP,cidrs="[\"$RUNNER_IP/32\"]"
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.LIGHTSAIL_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Fetch previous metrics from SSM
+        id: previous
+        run: |
+          PREV=$(aws ssm get-parameter \
+            --name "$METRICS_SSM_PATH" \
+            --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+          {
+            echo "output<<EOF"
+            echo "$PREV"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Gather metrics
+        id: metrics
+        run: |
+          METRICS=$(ssh "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}" \
+            "bash -lc 'cd $CURRENT_DIR && node --env-file=$APP_ENV_FILE dist/scripts/cli.js metrics'")
+          {
+            echo "output<<EOF"
+            echo "$METRICS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Generate AI summary
+        id: summary
+        env:
+          CURRENT_METRICS: ${{ steps.metrics.outputs.output }}
+          PREV_METRICS: ${{ steps.previous.outputs.output }}
+        run: |
+          OPENAI_API_KEY=$(aws ssm get-parameter \
+            --name "$SSM_PREFIX/OPENAI_API_KEY" \
+            --with-decryption \
+            --query 'Parameter.Value' --output text)
+
+          PAYLOAD=$(jq -n \
+            --arg current "$CURRENT_METRICS" \
+            --arg previous "${PREV_METRICS:-none}" \
+            '{
+              model: "gpt-4o-mini",
+              max_tokens: 120,
+              messages: [{
+                role: "user",
+                content: "You are a usage analyst for a family D&D game app. Summarize this week\u2019s metrics in 2 sentences, highlighting trends vs last week. Be concise and friendly. If previous metrics are none, just summarize the current state.\n\nCurrent:\n\($current)\n\nPrevious week:\n\($previous)"
+              }]
+            }')
+
+          SUMMARY=$(curl -s https://api.openai.com/v1/chat/completions \
+            -H "Authorization: Bearer $OPENAI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" | jq -r '.choices[0].message.content')
+
+          {
+            echo "output<<EOF"
+            echo "$SUMMARY"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Send summary to Pushover
+        uses: ./.github/actions/notify-pushover
+        with:
+          status: success
+          token: ${{ secrets.PUSHOVER_TOKEN }}
+          user: ${{ secrets.PUSHOVER_USER }}
+          title: Weekly Metrics
+          message: ${{ steps.summary.outputs.output }}
+
+      - name: Save metrics to SSM
+        run: |
+          aws ssm put-parameter \
+            --name "$METRICS_SSM_PATH" \
+            --value "${{ steps.metrics.outputs.output }}" \
+            --type String \
+            --overwrite
+
+      - name: Close SSH for this runner
+        if: always()
+        run: |
+          aws lightsail close-instance-public-ports \
+            --no-cli-pager \
+            --instance-name "${{ secrets.LIGHTSAIL_INSTANCE_NAME }}" \
+            --port-info fromPort=22,toPort=22,protocol=TCP,cidrs="[\"${{ steps.ssh_access.outputs.runner_ip }}/32\"]"

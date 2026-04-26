@@ -271,6 +271,17 @@ jobs:
             check_version "frontend" "https://$FRONTEND_DOMAIN/version.json";
           fi
 
+      # ── Notify ───────────────────────────────────────────────────────────────
+
+      - name: Notify Pushover
+        if: always()
+        uses: ./.github/actions/notify-pushover
+        with:
+          status: ${{ job.status }}
+          token: ${{ secrets.PUSHOVER_TOKEN }}
+          user: ${{ secrets.PUSHOVER_USER }}
+          title: Deploy
+
       # ── Cleanup ──────────────────────────────────────────────────────────────
 
       - name: Close SSH for this runner

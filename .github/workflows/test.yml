@@ -1,30 +1,16 @@
-# Lint GitHub Actions workflows, YAML files, shell scripts, and TypeScript/TSX.
-# actionlint validates workflow syntax, expressions, and shell scripts in run: blocks.
-# yamllint checks general YAML formatting.
-# ESLint + tsc check backend and frontend TypeScript (each workspace uses its own ESLint version).
-# Each job only runs when its relevant paths changed.
-
-name: Lint
+name: Test
 
 on:
   push:
     branches:
       - main
     paths:
-      - '.github/workflows/**'
-      - '*.yml'
-      - '*.yaml'
       - 'backend/**'
       - 'frontend/**'
-      - 'scripts/**'
   pull_request:
     paths:
-      - '.github/workflows/**'
-      - '*.yml'
-      - '*.yaml'
       - 'backend/**'
       - 'frontend/**'
-      - 'scripts/**'
   workflow_dispatch:
 
 jobs:
@@ -33,7 +19,6 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
-      workflows: ${{ steps.filter.outputs.workflows }}
     steps:
       - uses: actions/checkout@v5
       - uses: dorny/paths-filter@v3
@@ -44,31 +29,8 @@ jobs:
               - 'backend/**'
             frontend:
               - 'frontend/**'
-            workflows:
-              - '.github/workflows/**'
-              - '*.yml'
-              - '*.yaml'
-              - 'scripts/**'
 
-  lint-workflows:
-    needs: changes
-    if: needs.changes.outputs.workflows == 'true' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: shellcheck (scripts)
-        run: shellcheck -x --severity=warning scripts/**/*.sh scripts/deploy/*.sh
-
-      - name: actionlint
-        uses: rhysd/actionlint@v1.7.12
-
-      - name: yamllint
-        run: |
-          pip install --quiet yamllint
-          yamllint .github/workflows/
-
-  lint-backend:
+  test-backend:
     needs: changes
     if: needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -82,13 +44,10 @@ jobs:
       - name: Install deps
         run: cd backend && npm ci
 
-      - name: ESLint
-        run: cd backend && npm run lint
+      - name: Run tests
+        run: cd backend && npm test
 
-      - name: typecheck
-        run: cd backend && npx tsc --noEmit
-
-  lint-frontend:
+  test-frontend:
     needs: changes
     if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -97,20 +56,17 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Install deps
         run: cd frontend && npm ci
 
-      - name: ESLint
-        run: cd frontend && npm run lint
-
-      - name: typecheck
-        run: cd frontend && npx tsc -b
+      - name: Run tests
+        run: cd frontend && npm test
 
   notify:
-    needs: [lint-workflows, lint-backend, lint-frontend]
-    if: always() && (needs.lint-workflows.result != 'skipped' || needs.lint-backend.result != 'skipped' || needs.lint-frontend.result != 'skipped')
+    needs: [test-backend, test-frontend]
+    if: always() && (needs.test-backend.result != 'skipped' || needs.test-frontend.result != 'skipped')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -129,4 +85,4 @@ jobs:
           status: ${{ steps.result.outputs.status }}
           token: ${{ secrets.PUSHOVER_TOKEN }}
           user: ${{ secrets.PUSHOVER_USER }}
-          title: Lint
+          title: Test
