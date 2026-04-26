@@ -13,7 +13,7 @@ interface GearPopoverProps {
   onMuteToggle: () => void;
 }
 
-const GearPopover = ({ savingsMode, onToggleSavingsMode, audioSettings, onMuteToggle }: GearPopoverProps) => {
+export const GearPopover = ({ savingsMode, onToggleSavingsMode, audioSettings, onMuteToggle }: GearPopoverProps) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -145,55 +145,20 @@ const GearPopover = ({ savingsMode, onToggleSavingsMode, audioSettings, onMuteTo
 interface SessionHudProps {
   session: Session;
   onCharacterClick: (c: Character) => void;
-  savingsMode: boolean;
-  onToggleSavingsMode: () => void;
-  audioSettings: AudioSettings;
-  onMuteToggle: () => void;
-  onExitClick: () => void;
 }
 
 export const SessionHud = ({
   session,
   onCharacterClick,
-  savingsMode,
-  onToggleSavingsMode,
-  audioSettings,
-  onMuteToggle,
-  onExitClick,
 }: SessionHudProps) => (
-  <header className="sticky top-0 z-[60] flex-shrink-0 flex justify-between items-center gap-4 px-4 py-3 border-b border-white/10 bg-slate-950/90 backdrop-blur-sm">
-    <div className="flex items-center gap-3 md:gap-5 min-w-0 flex-1">
-      <h1 className="text-amber-500 text-lg md:text-2xl xl:text-3xl font-display font-black italic tracking-tight truncate min-w-[80px]">
-        {session.displayName}
-      </h1>
-      <PartyBox
-        party={session.party}
-        activeCharacterId={session.activeCharacterId}
-        onCharacterClick={onCharacterClick}
-      />
-    </div>
-
-    <div className="flex items-center gap-2 shrink-0">
-      <GearPopover
-        savingsMode={savingsMode}
-        onToggleSavingsMode={onToggleSavingsMode}
-        audioSettings={audioSettings}
-        onMuteToggle={onMuteToggle}
-      />
-
-      {/* Exit */}
-      <div className="relative group">
-        <button
-          onClick={onExitClick}
-          className="w-9 h-9 xl:w-11 xl:h-11 flex items-center justify-center rounded-xl border border-rose-900/60 text-rose-500 hover:bg-rose-900/20 hover:border-rose-700 hover:text-rose-300 font-black text-sm xl:text-base transition-all"
-        >
-          ✕
-        </button>
-        <div className="absolute top-full right-0 mt-2 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-          Exit realm [q]
-          <div className="absolute bottom-full right-3 border-4 border-transparent border-b-slate-700" />
-        </div>
-      </div>
-    </div>
+  <header className="fixed top-0 left-0 right-0 z-[60] flex items-center gap-4 px-4 py-3">
+    <h1 className="text-amber-500 text-lg md:text-2xl xl:text-3xl font-display font-black italic tracking-tight shrink-0 bg-slate-950/60 backdrop-blur-md ml-4 px-4 py-2 rounded-2xl">
+      {session.displayName}
+    </h1>
+    <PartyBox
+      party={session.party}
+      activeCharacterId={session.activeCharacterId}
+      onCharacterClick={onCharacterClick}
+    />
   </header>
 );

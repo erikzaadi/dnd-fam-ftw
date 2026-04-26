@@ -62,18 +62,18 @@ describe('ChronicleDrawer keyboard navigation', () => {
     expect(onSelectTurn).toHaveBeenCalledWith(1);
   });
 
-  it('calls onSelectTurn with previous index on ArrowUp', () => {
+  it('calls onSelectTurn with next index on ArrowUp', () => {
     const onSelectTurn = vi.fn();
-    renderDrawer(2, onSelectTurn);
+    renderDrawer(1, onSelectTurn);
     fireEvent.keyDown(window, { key: 'ArrowUp' });
-    expect(onSelectTurn).toHaveBeenCalledWith(1);
+    expect(onSelectTurn).toHaveBeenCalledWith(2);
   });
 
-  it('calls onSelectTurn with previous index on vim k', () => {
+  it('calls onSelectTurn with next index on vim k', () => {
     const onSelectTurn = vi.fn();
-    renderDrawer(2, onSelectTurn);
+    renderDrawer(1, onSelectTurn);
     fireEvent.keyDown(window, { key: 'k' });
-    expect(onSelectTurn).toHaveBeenCalledWith(1);
+    expect(onSelectTurn).toHaveBeenCalledWith(2);
   });
 
   it('calls onSelectTurn with previous index on vim h', () => {
@@ -90,18 +90,18 @@ describe('ChronicleDrawer keyboard navigation', () => {
     expect(onSelectTurn).toHaveBeenCalledWith(2);
   });
 
-  it('calls onSelectTurn with next index on ArrowDown', () => {
+  it('calls onSelectTurn with previous index on ArrowDown', () => {
     const onSelectTurn = vi.fn();
     renderDrawer(1, onSelectTurn);
     fireEvent.keyDown(window, { key: 'ArrowDown' });
-    expect(onSelectTurn).toHaveBeenCalledWith(2);
+    expect(onSelectTurn).toHaveBeenCalledWith(0);
   });
 
-  it('calls onSelectTurn with next index on vim j', () => {
+  it('calls onSelectTurn with previous index on vim j', () => {
     const onSelectTurn = vi.fn();
     renderDrawer(1, onSelectTurn);
     fireEvent.keyDown(window, { key: 'j' });
-    expect(onSelectTurn).toHaveBeenCalledWith(2);
+    expect(onSelectTurn).toHaveBeenCalledWith(0);
   });
 
   it('calls onSelectTurn with next index on vim l', () => {

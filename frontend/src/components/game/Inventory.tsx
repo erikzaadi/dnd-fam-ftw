@@ -192,8 +192,8 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
               <div key={char.id}>
                 {!filterCharId && (
                   <div className="flex items-center gap-2 mb-2">
-                    <img src={imgSrc(char.avatarUrl)} className={`w-5 h-5 rounded-full object-cover border border-slate-600 ${char.status === 'downed' ? 'grayscale opacity-40' : ''}`} alt={char.name} />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{char.name}{char.status === 'downed' ? ' · downed' : ''}{isActive ? ' · active' : ''}</span>
+                    <img src={imgSrc(char.avatarUrl)} className={`w-5 h-5 rounded-full object-cover border ${isActive ? 'border-amber-500' : 'border-slate-600'} ${char.status === 'downed' ? 'grayscale opacity-40' : ''}`} alt={char.name} />
+                    <span className={`text-[10px] font-black uppercase tracking-widest ${isActive ? 'text-amber-500' : 'text-slate-500'}`}>{char.name}{char.status === 'downed' ? ' · downed' : ''}{isActive ? ' · active' : ''}</span>
                   </div>
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

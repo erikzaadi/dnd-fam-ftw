@@ -25,7 +25,7 @@ const hpBorderClass = (c: Character): string => {
 };
 
 export const PartyBox = ({ party, activeCharacterId, onCharacterClick }: PartyBoxProps) => (
-  <div className="flex items-center gap-3 bg-slate-900/50 px-4 py-2 rounded-full border border-slate-800 shadow-xl">
+  <div className="flex items-center gap-3 bg-slate-950/60 backdrop-blur-md px-7 py-5 rounded-full border border-slate-800 shadow-xl">
     <div className="flex gap-3 items-center">
       {party.map(c => {
         const isActive = c.id === activeCharacterId && c.status !== 'downed';

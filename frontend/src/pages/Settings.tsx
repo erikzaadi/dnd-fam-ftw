@@ -36,6 +36,8 @@ import { useTtsSettings } from '../tts/useTtsSettings';
 import { useAvailableVoices } from '../tts/useAvailableVoices';
 import { browserTtsService } from '../tts/browserTtsService';
 import { TEST_VOICE_SAMPLE } from '../tts/ttsVoiceCatalog';
+import { useSttSettings } from '../stt/useSttSettings';
+import { getSpeechRecognitionCtor } from '../stt/browserSpeechRecognitionService';
 
 type Tab = 'game' | 'music' | 'sfx' | 'narration';
 
@@ -85,9 +87,14 @@ export const Settings = () => {
     setPreferredStyle,
     setPreferredGenderHint,
   } = useTtsSettings();
+  const {
+    settings: sttSettings,
+    setEnabled: setSttEnabled,
+  } = useSttSettings();
 
   const availableVoices = useAvailableVoices();
   const ttsSupported = browserTtsService.isSupported();
+  const sttSupported = getSpeechRecognitionCtor() !== null;
 
   const savedVoiceUnavailable =
     ttsSettings.preferredVoiceURI !== null &&
@@ -419,6 +426,16 @@ export const Settings = () => {
                       )}
                     </>
                   )}
+                  <h2 className="text-lg font-black uppercase tracking-tight text-amber-500 pt-4">Voice Input</h2>
+                  {!sttSupported && (
+                    <p className="text-sm text-slate-500 px-2">Speech input is not supported in this browser.</p>
+                  )}
+                  <Toggle
+                    checked={sttSettings.enabled}
+                    onChange={setSttEnabled}
+                    label="Voice Actions"
+                    description="Show the voice action button and enable the V shortcut for speaking actions."
+                  />
                 </>
               )}
 

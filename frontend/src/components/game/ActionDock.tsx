@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import type { ReactNode } from 'react';
 import type { TurnResult, Character, InventoryItem } from '../../types';
 import { apiFetch, imgSrc, pulseSyncDelay } from '../../lib/api';
 import { beatTarget } from '../../lib/game';
@@ -8,6 +9,11 @@ import { TargetPicker } from './TargetPicker';
 import { getHpColors } from '../../lib/hpColors';
 import { useTtsSettings } from '../../tts/useTtsSettings';
 import { browserTtsService } from '../../tts/browserTtsService';
+import { useSttSettings } from '../../stt/useSttSettings';
+import { useSpeechRecognition } from '../../stt/useSpeechRecognition';
+import { parseSpeechIntent } from '../../stt/speechIntent';
+import { SpeechActionButton } from './SpeechActionButton';
+import { SpeechConfirmDialog } from './SpeechConfirmDialog';
 
 interface ActionDockProps {
   turn: TurnResult | null;
@@ -19,11 +25,12 @@ interface ActionDockProps {
   customAction: string;
   setCustomAction: (v: string) => void;
   error: string | null;
-  onSubmit: (label: string, stat: string, diff: string, difficultyValue?: number) => void;
+  onSubmit: (label: string, stat: string, diff: string, difficultyValue?: number) => Promise<void> | void;
   onUseItem: (ownerCharId: string, itemId: string, targetCharId: string) => void;
   onGiveItem: (ownerCharId: string, itemId: string, targetCharId: string) => void;
   onShowPartyGear: () => void;
   partyItemCount: number;
+  controls?: ReactNode;
 }
 
 const RISK_MAP: Record<string, { label: string; color: string }> = {
@@ -74,7 +81,7 @@ const ItemsSection = ({
   const otherPartyMembers = party.filter(c => c.id !== char.id);
 
   return (
-    <div className="relative flex flex-col gap-1.5 p-3 bg-slate-800/50 rounded-2xl border border-slate-700/50">
+    <div className="relative flex flex-col gap-1.5 p-3 pr-20 bg-slate-800/50 rounded-2xl border border-slate-700/50">
       <img src={imgSrc('/images/icon_inventory.png')} alt="" className="absolute top-2 right-2 w-18 h-18 rounded-lg object-contain mix-blend-screen pointer-events-none" />
       <div className="mb-1">
         <span className="text-base font-black uppercase tracking-wide text-slate-400">Items</span>
@@ -170,11 +177,81 @@ export const ActionDock = ({
   onGiveItem,
   onShowPartyGear,
   partyItemCount,
+  controls,
 }: ActionDockProps) => {
   const [statThinking, setStatThinking] = useState(false);
   const choiceButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { settings: ttsSettings } = useTtsSettings();
+  const { settings: sttSettings } = useSttSettings();
+  const ttsEnabled = ttsSettings.enabled && browserTtsService.isSupported();
+
+  const submitSuggestedChoice = useCallback(async (index: 0 | 1 | 2) => {
+    const choice = turn?.choices[index];
+    if (!choice || loading) {
+      return;
+    }
+    await onSubmit(choice.label, choice.stat, choice.difficulty, choice.difficultyValue);
+  }, [loading, onSubmit, turn]);
+
+  const submitCustomText = useCallback(async (actionText: string) => {
+    const trimmed = actionText.trim();
+    if (!trimmed || loading) {
+      return;
+    }
+    setStatThinking(true);
+    let stat = 'mischief';
+    try {
+      const res = await apiFetch(`/session/${sessionId}/suggest-stat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: trimmed,
+          characterClass: activeCharacter?.class,
+          characterQuirk: activeCharacter?.quirk,
+        }),
+      });
+      if (res.ok) {
+        ({ stat } = await res.json());
+      }
+    } catch { /* fallback to mischief */ }
+    setStatThinking(false);
+    await onSubmit(trimmed, stat, 'normal');
+  }, [activeCharacter, loading, onSubmit, sessionId]);
+
+  const confirmSpeechTranscript = useCallback(async (transcript: string) => {
+    const intent = parseSpeechIntent(transcript);
+    if (intent.type === 'choice' && turn?.choices[intent.index]) {
+      await submitSuggestedChoice(intent.index);
+      return;
+    }
+
+    const text = intent.type === 'custom' ? intent.text : transcript.trim();
+    setCustomAction(text);
+    await submitCustomText(text);
+  }, [setCustomAction, submitCustomText, submitSuggestedChoice, turn]);
+
+  const speech = useSpeechRecognition({
+    onConfirmTranscript: confirmSpeechTranscript,
+  });
+
+  const speechIntent = useMemo(() => {
+    if (speech.state.status !== 'confirming' && speech.state.status !== 'submitting') {
+      return null;
+    }
+    return parseSpeechIntent(speech.state.transcript);
+  }, [speech.state]);
+
+  const speechActive = speech.state.status === 'listening' || speech.state.status === 'processing';
+  const speechBusy = speechActive || speech.state.status === 'confirming' || speech.state.status === 'submitting';
+  const canStartSpeech = sttSettings.enabled && speech.isSupported && !loading && !statThinking && !isDown && !speechBusy;
+  const startSpeech = useCallback(() => {
+    if (!canStartSpeech) {
+      return;
+    }
+    browserTtsService.stop();
+    speech.startListening();
+  }, [canStartSpeech, speech]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -204,36 +281,18 @@ export const ActionDock = ({
         textareaRef.current?.focus();
       } else if (e.key === 'i') {
         onShowPartyGear();
+      } else if (e.key.toLowerCase() === 'v') {
+        e.preventDefault();
+        startSpeech();
       }
     };
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [loading, isDown, turn, onShowPartyGear]);
-  const ttsEnabled = ttsSettings.enabled && browserTtsService.isSupported();
+  }, [loading, isDown, turn, onShowPartyGear, startSpeech]);
 
   const submitCustom = async () => {
-    if (!customAction.trim() || loading) {
-      return;
-    }
-    setStatThinking(true);
-    let stat = 'mischief';
-    try {
-      const res = await apiFetch(`/session/${sessionId}/suggest-stat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: customAction,
-          characterClass: activeCharacter?.class,
-          characterQuirk: activeCharacter?.quirk,
-        }),
-      });
-      if (res.ok) {
-        ({ stat } = await res.json());
-      }
-    } catch { /* fallback to mischief */ }
-    setStatThinking(false);
-    onSubmit(customAction, stat, 'normal');
+    await submitCustomText(customAction);
   };
 
   const activeItems = activeCharacter?.inventory ?? [];
@@ -249,12 +308,6 @@ export const ActionDock = ({
       {/* Active hero panel */}
       {activeCharacter && (
         <div className="flex items-start gap-3 p-3 bg-slate-800/50 rounded-2xl border border-slate-700/50">
-          <img
-            src={imgSrc(activeCharacter.avatarUrl)}
-            className="w-16 h-16 rounded-2xl object-cover border-2 border-amber-500 animate-border-pulse shrink-0"
-            style={{ animationDelay: pulseSyncDelay() }}
-            alt={activeCharacter.name}
-          />
           <div className="flex flex-col gap-1 min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-black text-base uppercase tracking-wide truncate">{activeCharacter.name}</span>
@@ -285,6 +338,15 @@ export const ActionDock = ({
                 />
               ))}
             </div>
+          </div>
+          <div className="flex flex-col items-center gap-2 shrink-0">
+            {controls && <div className="flex items-center gap-1.5">{controls}</div>}
+            <img
+              src={imgSrc(activeCharacter.avatarUrl)}
+              className="w-14 h-14 rounded-2xl object-cover border-2 border-amber-500 animate-border-pulse"
+              style={{ animationDelay: pulseSyncDelay() }}
+              alt={activeCharacter.name}
+            />
           </div>
         </div>
       )}
@@ -339,10 +401,15 @@ export const ActionDock = ({
                     ref={el => {
                       choiceButtonRefs.current[i] = el;
                     }}
-                    onClick={() => onSubmit(choice.label, choice.stat, choice.difficulty, choice.difficultyValue)}
+                    onClick={() => {
+                      void submitSuggestedChoice(i as 0 | 1 | 2);
+                    }}
                     disabled={loading}
-                    className={`w-full p-3 rounded-2xl border-2 text-left transition-all hover:brightness-110 disabled:opacity-50 ${STAT_COLORS[choice.stat]}`}
+                    className={`relative w-full p-3 rounded-2xl border-2 text-left transition-all hover:brightness-110 disabled:opacity-50 ${STAT_COLORS[choice.stat]}`}
                   >
+                    <span className="absolute -top-2.5 -left-2.5 w-5 h-5 flex items-center justify-center rounded-full bg-slate-900 border border-slate-700 text-[10px] font-black text-slate-400 z-10">
+                      {i + 1}
+                    </span>
                     <div className="flex items-start justify-between gap-2">
                       <div className="font-black text-base xl:text-lg uppercase leading-tight flex-1">{choice.label}</div>
                       {ttsEnabled && (
@@ -378,21 +445,34 @@ export const ActionDock = ({
 
           {/* Command bar + UNLEASH */}
           <div className="flex flex-col gap-2 pt-1">
-            <textarea
-              ref={textareaRef}
-              value={customAction}
-              onChange={e => setCustomAction(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  submitCustom();
-                }
-              }}
-              rows={2}
-              placeholder="Describe a different action..."
-              disabled={loading || statThinking}
-              className="w-full p-3 bg-slate-800 rounded-xl resize-none text-sm border border-slate-700 focus:border-amber-500/40 outline-none transition-colors placeholder-slate-600"
-            />
+            <div className="relative">
+              <span className="absolute -top-2.5 -left-2.5 w-5 h-5 flex items-center justify-center rounded-full bg-slate-900 border border-slate-700 text-[10px] font-black text-slate-400 z-10">
+                4
+              </span>
+              <textarea
+                ref={textareaRef}
+                value={customAction}
+                onChange={e => setCustomAction(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    submitCustom();
+                  }
+                }}
+                rows={2}
+                placeholder="Describe a different action..."
+                disabled={loading || statThinking}
+                className="w-full p-3 bg-slate-800 rounded-xl resize-none text-sm border border-slate-700 focus:border-amber-500/40 outline-none transition-colors placeholder-slate-600"
+              />
+              <SpeechActionButton
+                enabled={sttSettings.enabled}
+                supported={speech.isSupported}
+                active={speechActive}
+                disabled={!canStartSpeech}
+                errorMessage={speech.errorMessage}
+                onClick={startSpeech}
+              />
+            </div>
             <button
               onClick={submitCustom}
               disabled={loading || statThinking || !customAction.trim()}
@@ -403,6 +483,16 @@ export const ActionDock = ({
           </div>
         </>
       )}
+      <SpeechConfirmDialog
+        intent={speechIntent}
+        turn={turn}
+        submitting={speech.state.status === 'submitting'}
+        onConfirm={() => {
+          void speech.confirmTranscript();
+        }}
+        onRetry={speech.retryListening}
+        onCancel={speech.cancel}
+      />
     </div>
   );
 };

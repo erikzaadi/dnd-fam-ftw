@@ -50,7 +50,7 @@ export const RollBreakdown = ({
         <span className={success ? 'text-emerald-400' : 'text-rose-400'}>{total}</span>
       </div>
       {difficultyTarget != null && (
-        <span className="text-slate-500 uppercase tracking-widest">≥ {difficultyTarget}</span>
+        <span className="text-slate-400 text-sm uppercase tracking-widest font-black">Need ≥ {difficultyTarget}</span>
       )}
     </div>
   );

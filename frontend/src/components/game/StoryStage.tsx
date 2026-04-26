@@ -117,7 +117,7 @@ export const StoryStage = ({
         )}
         <button
           onClick={onOpenChronicle}
-          className="inline-flex items-center gap-1 text-xs font-black uppercase tracking-widest text-amber-600 hover:text-amber-400 transition-colors shrink-0 whitespace-nowrap"
+          className="inline-flex items-center gap-1.5 text-sm font-black uppercase tracking-widest text-amber-600 hover:text-amber-400 transition-colors shrink-0 whitespace-nowrap"
         >
           <img src={imgSrc('/images/icon_scroll.png')} alt="" className="w-4 h-4 object-contain mix-blend-screen" />
           Open Chronicle →

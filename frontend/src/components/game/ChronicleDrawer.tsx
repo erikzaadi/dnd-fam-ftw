@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import type { TurnResult, Character, HpChange } from '../../types';
 import { imgSrc } from '../../lib/api';
 import { StatImg } from './StatIcon';
@@ -16,6 +17,7 @@ interface ChronicleDrawerProps {
   onSelectTurn: (idx: number) => void;
   viewedTurnIdx: number;
   ttsSettings: TtsSettings;
+  controls?: ReactNode;
 }
 
 const HpChangeBadges = ({ hpChanges }: { hpChanges: HpChange[] }) => (
@@ -152,6 +154,7 @@ export const ChronicleDrawer = ({
   onClose,
   onSelectTurn,
   viewedTurnIdx,
+  controls,
 }: ChronicleDrawerProps) => {
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
 
@@ -159,10 +162,10 @@ export const ChronicleDrawer = ({
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
-      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'h' || e.key === 'k') {
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'h' || e.key === 'j') {
         e.preventDefault();
         onSelectTurn(Math.max(0, viewedTurnIdx - 1));
-      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'l' || e.key === 'j') {
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'l' || e.key === 'k') {
         e.preventDefault();
         onSelectTurn(Math.min(history.length - 1, viewedTurnIdx + 1));
       } else if (e.key === 'Enter') {
@@ -182,17 +185,19 @@ export const ChronicleDrawer = ({
   return (
     <div className="flex flex-col min-h-[55vh] lg:h-full bg-slate-900 rounded-[32px] border border-slate-800">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 flex-shrink-0">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 font-black text-lg transition-all"
+            aria-label="Close chronicle"
+          >
+            ‹
+          </button>
           <img src={imgSrc('/images/icon_scroll.png')} alt="" className="w-8 h-8 object-contain mix-blend-screen" />
           <h2 className="font-display font-black uppercase tracking-widest text-amber-500 text-base">Chronicle</h2>
         </div>
-        <button
-          onClick={onClose}
-          className="w-8 h-8 flex items-center justify-center rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 font-black text-sm transition-all"
-        >
-          ✕
-        </button>
+        {controls && <div className="flex items-center gap-2">{controls}</div>}
       </div>
 
       {/* Turn list */}

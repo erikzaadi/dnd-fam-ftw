@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { Character } from '../../types';
 import { imgSrc } from '../../lib/api';
 import { beatTarget } from '../../lib/game';
@@ -17,9 +18,10 @@ interface LastSubmittedAction {
 interface DmDecisionRecapPanelProps {
   lastSubmittedAction: LastSubmittedAction | null;
   ttsSettings: TtsSettings;
+  controls?: ReactNode;
 }
 
-export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings }: DmDecisionRecapPanelProps) => {
+export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings, controls }: DmDecisionRecapPanelProps) => {
   const char = lastSubmittedAction?.char ?? null;
   const stat = lastSubmittedAction?.stat ?? 'none';
 
@@ -38,6 +40,9 @@ export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings }: DmDec
 
   return (
     <div className="relative flex flex-col items-center justify-center min-h-[55vh] lg:h-full rounded-[32px] overflow-hidden animate-in fade-in zoom-in-95 duration-500">
+      {controls && (
+        <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5">{controls}</div>
+      )}
       {/* Background */}
       <img
         src={imgSrc('/images/dm_thinking.png')}
@@ -89,7 +94,7 @@ export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings }: DmDec
                   <StatImg stat={stat} size="6" />
                   {stat}
                 </span>
-                <div className="flex items-center gap-3 text-sm font-black">
+                <div className="flex items-center gap-3 text-base font-black">
                   <span className="text-slate-300">
                     {statBase}{statBonus !== 0 && (
                       <span className={statBonus > 0 ? 'text-amber-400' : 'text-rose-400'}>
