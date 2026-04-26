@@ -595,30 +595,30 @@ export const SessionPage = () => {
           onClick={() => setFullscreenNarration(null)}
         >
           <div className="min-h-full flex items-center justify-center p-8 md:p-16">
-          <div className="max-w-4xl ultrawide:max-w-7xl w-full text-center">
-            <p className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl 2xl:text-7xl 3xl:text-8xl 4xl:text-8xl ultrawide:text-8xl font-serif leading-snug text-slate-100 font-medium italic">
-              {fullscreenNarration}
-            </p>
-            {ttsSettings.enabled && browserTtsService.isSupported() && (
-              <div className="flex items-center justify-center gap-4 mt-10" onClick={e => e.stopPropagation()}>
-                <button
-                  onClick={() => browserTtsService.speakNarration(fullscreenNarration, ttsSettings)}
-                  className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-amber-400 hover:border-amber-500/40 text-xs font-black uppercase tracking-widest transition-all"
-                >
-                  Replay
-                </button>
-                {ttsPlaying && (
+            <div className="max-w-4xl ultrawide:max-w-7xl w-full text-center">
+              <p className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl 2xl:text-7xl 3xl:text-8xl 4xl:text-8xl ultrawide:text-8xl font-serif leading-snug text-slate-100 font-medium italic">
+                {fullscreenNarration}
+              </p>
+              {ttsSettings.enabled && browserTtsService.isSupported() && (
+                <div className="flex items-center justify-center gap-4 mt-10" onClick={e => e.stopPropagation()}>
                   <button
-                    onClick={() => browserTtsService.stop()}
-                    className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 text-xs font-black uppercase tracking-widest transition-all"
+                    onClick={() => browserTtsService.speakNarration(fullscreenNarration, ttsSettings)}
+                    className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-amber-400 hover:border-amber-500/40 text-xs font-black uppercase tracking-widest transition-all"
                   >
-                    Stop
+                  Replay
                   </button>
-                )}
-              </div>
-            )}
-            <span className="text-xs uppercase tracking-widest text-slate-600 mt-8 block">tap to dismiss</span>
-          </div>
+                  {ttsPlaying && (
+                    <button
+                      onClick={() => browserTtsService.stop()}
+                      className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 text-xs font-black uppercase tracking-widest transition-all"
+                    >
+                    Stop
+                    </button>
+                  )}
+                </div>
+              )}
+              <span className="text-xs uppercase tracking-widest text-slate-600 mt-8 block">tap to dismiss</span>
+            </div>
           </div>
         </div>
       )}
