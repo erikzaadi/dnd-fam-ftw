@@ -121,27 +121,21 @@ jobs:
       - name: Build backend
         if: steps.changes.outputs.deploy_backend == 'true'
         working-directory: backend
-        run: npm ci && npm run build
+        run: npm ci && npm run build && npm prune --omit=dev
 
       - name: Sync backend to instance
         if: steps.changes.outputs.deploy_backend == 'true'
         run: |
-          rsync -avz --delete --exclude='node_modules/' \
+          rsync -avz --delete \
             backend/dist/ "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}:$CURRENT_DIR/dist/"
           rsync -avz --delete \
             backend/public/ "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}:$CURRENT_DIR/public/"
+          rsync -avz --delete \
+            backend/node_modules/ "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}:$CURRENT_DIR/node_modules/"
           rsync -avz \
             backend/package.json \
             backend/package-lock.json \
             "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}:$CURRENT_DIR/"
-
-      - name: Install production deps on instance
-        if: steps.changes.outputs.deploy_backend == 'true'
-        run: |
-          # shellcheck disable=SC2029
-          ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
-            "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}" \
-            "bash -lc 'cd $CURRENT_DIR && npm ci --omit=dev --no-audit --no-fund'"
 
       - name: Write app.env and restart service
         if: steps.changes.outputs.deploy_backend == 'true'
