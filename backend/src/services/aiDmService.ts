@@ -6,6 +6,15 @@ import { NARRATION_FALLBACK } from '../providers/ai/narration/narrationSchemas.j
 export function toNarrationInput(input: AIInput): NarrationInput {
   const actingChar = input.party.find(c => c.id === input.characterId);
   const nextChar = input.party.find(c => c.id === input.activeCharacterId);
+  const roll = input.actionResult.roll;
+  const statBonus = input.actionResult.statBonus ?? 0;
+  const itemBonus = input.actionResult.itemBonus ?? 0;
+  const total = typeof roll === 'number' && input.actionResult.statUsed !== 'none'
+    ? roll + statBonus + itemBonus
+    : undefined;
+  const margin = total !== undefined && input.actionResult.difficultyTarget !== undefined
+    ? total - input.actionResult.difficultyTarget
+    : undefined;
 
   return {
     scene: input.scene,
@@ -40,6 +49,8 @@ export function toNarrationInput(input: AIInput): NarrationInput {
       statUsed: input.actionResult.statUsed === 'none' ? undefined : input.actionResult.statUsed,
       statBonus: input.actionResult.statBonus,
       itemBonus: input.actionResult.itemBonus,
+      total,
+      margin,
       difficultyTarget: input.actionResult.difficultyTarget,
       impact: input.actionResult.statUsed === 'none' ? undefined : input.actionResult.impact,
       difficulty: actingChar ? input.difficulty : undefined,

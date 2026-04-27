@@ -140,7 +140,27 @@ describe('toNarrationInput', () => {
     expect(out.actionResult.impact).toBe('strong');
     expect(out.actionResult.statBonus).toBe(4);
     expect(out.actionResult.itemBonus).toBe(2);
+    expect(out.actionResult.total).toBe(25);
+    expect(out.actionResult.margin).toBe(11);
     expect(out.actionResult.difficultyTarget).toBe(14);
+    expect(out.actionResult.summary).toBe('The action succeeded with strong impact.');
+  });
+
+  it('passes a high total and positive margin when a low die succeeds through bonuses', () => {
+    const out = toNarrationInput(makeAIInput({
+      actionResult: {
+        success: true,
+        roll: 4,
+        statUsed: 'magic',
+        statBonus: 4,
+        itemBonus: 11,
+        difficultyTarget: 8,
+        impact: 'strong',
+      },
+    }));
+
+    expect(out.actionResult.total).toBe(19);
+    expect(out.actionResult.margin).toBe(11);
     expect(out.actionResult.summary).toBe('The action succeeded with strong impact.');
   });
 

@@ -38,6 +38,8 @@ export type NarrationInput = {
     statUsed?: Stat;
     statBonus?: number;
     itemBonus?: number;
+    total?: number;
+    margin?: number;
     difficultyTarget?: number;
     impact?: Impact;
     difficulty?: string;

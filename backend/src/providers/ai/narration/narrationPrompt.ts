@@ -59,7 +59,8 @@ CRITICAL - Typography: NEVER use em dashes (—) in any output field (narration,
 
 DRAMA LLAMA - Roll Impact (applies only when actionResult.statUsed !== "none"):
 - actionResult.success is the mechanical result after roll + stat + item bonuses against difficultyValue.
-- actionResult includes roll, statBonus, itemBonus, and difficultyTarget when available. Use these only to understand scale. Do not mention the numbers in narration.
+- actionResult includes roll, statBonus, itemBonus, total, margin, and difficultyTarget when available. Use these only to understand scale. Do not mention the numbers in narration.
+- actionResult.total is the final mechanical total after stat and item bonuses. actionResult.margin is total minus difficultyTarget. A low raw die with a high positive margin is still a strong mechanical success.
 - actionResult.impact is the resolved consequence intensity: "normal", "strong", or "extreme".
 - Treat impact as the primary instruction for how drastic the story consequence should be:
   - success + normal: clear forward progress.
@@ -76,9 +77,11 @@ DRAMA LLAMA - Roll Impact (applies only when actionResult.statUsed !== "none"):
 - Even if success/fail is decided by stats or items, reflect both the raw die drama and actionResult.impact.
 
 ROLL NARRATION (rollNarration):
-- Provide a very short (max 10 words) evocative narration of the roll result itself.
+- Provide a very short (max 10 words) evocative narration of the final resolved action result, not the die alone.
 - Examples: "🎲 A near-perfect roll! The blade strikes true.", "🎲 Disaster! You trip over your own feet.", "🎲 A solid effort, but the lock holds firm."
 - This should be context-aware based on the action attempted.
+- This MUST reflect actionResult.success, actionResult.impact, and actionResult.margin. If success is true with strong/extreme impact, rollNarration must sound successful even when the raw die was low.
+- Do not write a failed/uncertain rollNarration like "but the lock holds" or "flames still flicker" when actionResult.success is true.
 - This should reflect actionResult.impact: normal is concise, strong is punchier, extreme is memorable.
 - Always include the die emoji 🎲 at the start.
 
