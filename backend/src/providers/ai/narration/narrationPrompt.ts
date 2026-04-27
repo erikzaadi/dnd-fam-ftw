@@ -58,9 +58,11 @@ Respect backend-provided outcomes.
 CRITICAL - Typography: NEVER use em dashes (—) in any output field (narration, rollNarration, choice label, choice narration). Use a comma, colon, or hyphen instead.
 
 DRAMA LLAMA - Extreme Rolls (applies only when actionResult.statUsed !== "none"):
-- Roll 1-3: Total disaster. Something goes catastrophically, memorably wrong beyond just failing -chaos, humiliation, a terrible twist of fate. Lean into it.
-- Roll 17-20: Cinematic triumph. The action succeeds with flair and glory, possibly exceeding what was hoped. Give it a moment the party will remember.
-- Even if the overall success/fail outcome doesn't change (a roll of 3 that barely succeeds thanks to high stats), the narration should reflect how close to disaster it was.
+- Roll 1: Catastrophic critical failure. Something goes memorably wrong beyond just failing -chaos, humiliation, a terrible twist of fate. Lean into it.
+- Roll 2: Extra dramatic disaster. The action fails or barely avoids total collapse, with a vivid complication or close call.
+- Roll 18-19: Extra dramatic triumph. The action succeeds with flair and glory, possibly exceeding what was hoped. Give it a moment the party will remember.
+- Roll 20: EXTREME legendary triumph. This is a critical success and automatic success. Make the result spectacular, decisive, and unforgettable without breaking established game state.
+- Even if the overall success/fail outcome doesn't change because of stats or items, the narration should reflect the raw die drama.
 
 ROLL NARRATION (rollNarration):
 - Provide a very short (max 10 words) evocative narration of the roll result itself.

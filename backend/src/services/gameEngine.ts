@@ -255,8 +255,8 @@ export class GameEngine {
     const itemBonus = character.inventory.reduce((sum, item) => sum + (item.statBonuses?.[statName] ?? 0), 0);
     const { roll, total } = this.rollDice(statValue);
     const target = difficultyValue ?? this.DIFFICULTIES[difficulty] ?? 12;
-    const success = roll !== 1 && this.checkSuccess(total + itemBonus, target);
     const isCritical = roll === 20;
+    const success = isCritical || (roll !== 1 && this.checkSuccess(total + itemBonus, target));
 
     return {
       actionAttempt: action,

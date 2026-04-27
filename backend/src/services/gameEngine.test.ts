@@ -149,6 +149,19 @@ describe('GameEngine.resolveAction - edge cases', () => {
     }
     void sawCritical; // statistical - not always asserted
   });
+
+  it('natural 20 succeeds even when total is below the target', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.999);
+    const weakChar = makeChar({ stats: { might: 1, magic: 1, mischief: 1 } });
+
+    const result = GameEngine.resolveAction(weakChar, 'Leap the impossible chasm', 'might', 'hard', 30);
+    vi.restoreAllMocks();
+
+    expect(result.actionResult.roll).toBe(20);
+    expect(result.actionResult.isCritical).toBe(true);
+    expect(result.actionResult.difficultyTarget).toBe(30);
+    expect(result.actionResult.success).toBe(true);
+  });
 });
 
 describe('GameEngine.checkSuccess', () => {

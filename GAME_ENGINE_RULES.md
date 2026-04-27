@@ -48,7 +48,22 @@ This allows the AI to say "picking this lock in the dark is a 14, not a standard
 
 The resolved `actionDifficultyTarget` is stored in turn history so it can be displayed in the history panel.
 
-A natural 1 on the d20 is a **Critical Failure** and always fails, even if stat and item bonuses would otherwise meet the target (see damage below). There is no critical success mechanic : rolling high just means you succeed by more, which the AI may flavor but has no mechanical bonus.
+A natural 1 on the d20 is a **Critical Failure** and always fails, even if stat and item bonuses would otherwise meet the target (see damage below).
+
+A natural 20 on the d20 is a **Critical Success** and always succeeds, even if the total would otherwise miss the difficulty target. The backend marks this result as `isCritical: true`.
+
+### DRAMA LLAMA roll flavor
+
+The AI receives the resolved roll and must flavor unusually low and high rolls accordingly:
+
+| Natural roll | Narrative treatment |
+|--------------|---------------------|
+| 1 | Catastrophic critical failure : memorable disaster beyond ordinary failure |
+| 2 | Extra dramatic disaster : vivid complication or close call |
+| 18-19 | Extra dramatic triumph : succeeds with flair and glory |
+| 20 | EXTREME legendary triumph : spectacular, decisive, unforgettable critical success |
+
+These narrative tiers affect the story and `rollNarration`; only natural 1 and natural 20 have deterministic backend mechanics.
 
 ### Fail forward
 
