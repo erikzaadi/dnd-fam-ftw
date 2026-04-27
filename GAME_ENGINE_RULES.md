@@ -156,8 +156,8 @@ On a successful trade action:
 | `description` | string | Flavor text |
 | `statBonuses` | `{ might?, magic?, mischief? }` | Passive stat bonuses while in inventory |
 | `healValue` | number | HP restored when used (0 = no healing) |
-| `consumable` | boolean | Removed from inventory after use |
-| `transferable` | boolean | Can be given to another character |
+| `consumable` | boolean | Removed from inventory after use. Default: `false`. Set `true` only for single-use items (potions, scrolls, food). |
+| `transferable` | boolean | Can be given to another character. Default: `true`. Set `false` only for quest items or soul-bound gear. |
 
 Items with `statBonuses` provide a **passive** benefit : they are always active while in the character's inventory, no action required. There is no equip/unequip mechanic.
 
@@ -224,7 +224,9 @@ The AI is a narrator, not an authority. It:
 
 All of the above are backend-owned. The AI receives a snapshot of the current state (including outcomes already resolved by the backend) and returns structured JSON. The backend validates and applies only the fields it trusts.
 
-AI-suggested inventory items are granted only if the narrative earns it (found in a chest, rewarded, looted). The backend assigns the `id`; the AI should never invent IDs.
+AI-suggested inventory items are granted by the backend when the narrative earns it. The backend assigns the `id`; the AI should never invent IDs.
+
+**Combat loot**: Every combat victory (defeating any foe, enemy group, or creature) must produce loot thematically tied to the defeated enemy. A goblin drops a crude blade or coin purse; a wolf drops a pelt or fang; a boss drops something unique and memorable. Loot always goes to `actingCharacterName` (the character who struck the finishing blow) - `targetCharacterName` is omitted on combat loot grants.
 
 ### Character context
 
@@ -252,7 +254,7 @@ Game mode is set at realm creation alongside difficulty. It controls the **pacin
 
 | Mode | Pacing |
 |------|--------|
-| **Fast** | Narration under 3 sentences. Immediate action, frequent conflict, skip slow descriptions. Tension escalates quickly. Prioritises combat, traps, and danger. |
+| **Fast** | Narration under 3 sentences. Immediate action, frequent conflict, skip slow descriptions. Tension escalates quickly. Prioritises combat, traps, and danger. After each combat victory (when no DM Prep is set), a portal NPC appears and whisks the party to the next challenge, eliminating downtime between encounters. |
 | **Balanced** | Mix of exploration and action. Moderate pacing. Tension escalates at a natural rate. |
 | **Cinematic** | Rich descriptions, character moments, slower pacing. Tension builds deliberately. |
 | **ZUG-MA-GEDDON** | Straight to battle. Every turn is chaos. Maximum tension always. The AI is instructed to generate non-stop combat encounters and escalate without mercy. Not for the faint of heart. |
