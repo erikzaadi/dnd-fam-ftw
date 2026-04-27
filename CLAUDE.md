@@ -96,7 +96,7 @@ When making changes, check whether any of these need updating:
 - **`README.md`** - setup, stack, feature overview. Update if adding a new major feature or changing dev/deploy steps.
 - **`MANAGE.md`** - CLI reference and production operations. Update if adding/changing CLI commands, deploy scripts, or env vars.
 - **`GAME_ENGINE_RULES.md`** - dice mechanics, stats, damage, turn flow, special turns. Update if changing `gameEngine.ts` logic, difficulty, or turn types.
-- **`frontend/src/pages/HowToPlay.tsx`** - the in-game help page shown to players. Update if gameplay rules or flow visible to players changes.
+- **`frontend/src/pages/HowToPlay.tsx`** - the in-game help page shown to players. Update when gameplay rules, AI prompt behavior, recovery flow, inventory behavior, or any other player-visible game flow changes.
 
 `github-secrets.md` and `how-it-all-started.md` are not user-facing and rarely change.
 

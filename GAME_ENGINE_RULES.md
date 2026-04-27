@@ -50,6 +50,12 @@ The resolved `actionDifficultyTarget` is stored in turn history so it can be dis
 
 A natural 1 on the d20 is a **Critical Failure** and always fails, even if stat and item bonuses would otherwise meet the target (see damage below). There is no critical success mechanic : rolling high just means you succeed by more, which the AI may flavor but has no mechanical bonus.
 
+### Fail forward
+
+Failed rolls should still move the story. The AI should avoid "nothing happens" outcomes and instead narrate a consequence such as lost time, a worse position, attention drawn, a new obstacle, a clue with a complication, minor damage, or a stolen/lost item.
+
+Essential campaign progress should not be locked behind one failed roll. If the party misses a clue, the AI should reveal a different clue or reveal the original clue at a cost.
+
 ### Roll narration
 
 After resolving the roll, the AI returns a short `rollNarration` : a one-line flavour comment tied to the die result (e.g. *"🎲 A focused eye! You spot the mechanism."*). This is displayed inside the D20 result popup and stored in turn history. It is separate from the main narration paragraph.
@@ -145,6 +151,18 @@ On a successful trade action:
 - Backend removes the named item from the acting character's inventory, then grants the new item.
 - The AI must not suggest acquiring items the party already carries, including the item being granted in the same turn.
 
+### Rest and recovery
+
+Rest is represented as normal `perform` actions or special party-wipe recovery events, not as a separate action type.
+
+When a rest, meal, sleep, healer visit, sanctuary, or camp scene narratively restores the party:
+- The AI returns `suggestedHeal` for active characters who recover HP.
+- The AI returns `suggestedRevive` if a downed character wakes or returns to action.
+- The AI may add a gentle complication, such as a clue, a dream, an NPC visit, tracks outside camp, or a missing non-essential item.
+- If the narration says an item was stolen, lost, sacrificed, broken beyond use, or taken by an NPC, the AI must return `suggestedInventoryRemove`.
+
+Quest-critical or non-transferable items should not be removed as random rest complications.
+
 ---
 
 ## Item Properties
@@ -227,6 +245,10 @@ All of the above are backend-owned. The AI receives a snapshot of the current st
 AI-suggested inventory items are granted by the backend when the narrative earns it. The backend assigns the `id`; the AI should never invent IDs.
 
 **Combat loot**: Every combat victory (defeating any foe, enemy group, or creature) must produce loot thematically tied to the defeated enemy. A goblin drops a crude blade or coin purse; a wolf drops a pelt or fang; a boss drops something unique and memorable. Loot always goes to `actingCharacterName` (the character who struck the finishing blow) - `targetCharacterName` is omitted on combat loot grants.
+
+**Morale and surrender**: Enemies can flee, bargain, surrender, reveal clues, or hand over loot instead of fighting to the last breath. Surrender and retreat can still yield rewards. If the party receives an item, key, badge, map, coin purse, clue-object, weapon, or reward through surrender, the AI must return `suggestedInventoryAdd`.
+
+**Cute conditions**: The AI may use short-lived narrative conditions such as Brave, Scared, Slowed, Hidden, Sparkling with Magic, Covered in Goo, Dizzy, Inspired, or Jinxed. These are flavor only unless expressed through existing mechanical fields like HP, inventory, choices, `difficultyValue`, `suggestedDamage`, `suggestedHeal`, or `suggestedRevive`.
 
 ### Character context
 

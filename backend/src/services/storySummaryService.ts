@@ -85,13 +85,19 @@ Focus only on the current situation and the essential journey, ignoring defeated
       const prompt = `/no_think Generate a structured DM campaign brief for a family fantasy adventure.${nameContext}${descContext}${difficultyNote}${gameModeNote}
 
 Use this format exactly:
-PREMISE: (1-2 sentences - the core threat or quest and what is at stake)
-VILLAIN: (name + one sentence on motivation and one tell or behaviour the DM can use)
-LOCATIONS: (2-3 key locations, each with a one-line description and a notable NPC or obstacle)
+PREMISE: (1-2 sentences - the core quest, what is at stake, and why the party matters)
+TONE: (family-friendly tone guidance: wonder, danger level, humor style, and one thing to avoid)
+VILLAIN: (name + motivation + sympathetic detail + one tell or behaviour the DM can reuse)
+RECURRING NPCS: (2 NPCs with names, roles, quirks, and how they can help or complicate things)
+FACTIONS: (2 groups with simple goals, one potential ally and one source of trouble)
+LOCATIONS: (3 key locations, each with a one-line description, obstacle, and notable NPC or clue)
+SECRETS: (3 hidden truths or reveals to uncover over time)
+ENCOUNTERS: (one combat, one exploration challenge, one social challenge, one magical/weird challenge)
+TREASURE: (2-3 thematic rewards or items that feel tied to the world)
 STAGES: Early - | Mid - | Climax -
-DM NOTE: (one pitfall to avoid or one rule about pacing)
+DM NOTE: (one pacing rule and one fail-forward rule for this campaign)
 
-Be specific: invent names, places, and details. This guides the AI Dungeon Master turn by turn.`;
+Be specific: invent names, places, visual details, clues, and recurring motifs. This guides the AI Dungeon Master turn by turn. Keep it playful, adventurous, and safe for a family table.`;
 
       const brief = await this.callSummarize(prompt, useLocalAI);
       if (brief) {
@@ -111,7 +117,7 @@ Be specific: invent names, places, and details. This guides the AI Dungeon Maste
     const response = await client.chat.completions.create({
       model,
       messages: [{ role: 'user', content: `/no_think ${prompt}` }],
-      max_tokens: 500,
+      max_tokens: 900,
     }, { signal: AbortSignal.timeout(20_000) });
     const msg = response.choices[0].message;
     const raw = msg.content || (msg as unknown as Record<string, string>)['reasoning_content'] || '';
