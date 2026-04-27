@@ -27,6 +27,24 @@
   50%       { box-shadow: 0 0 18px 4px rgba(245, 158, 11, 0.9); }
 }
 
+.critical-roll-popup {
+  --critical-roll-glow: rgba(245, 158, 11, 0.72);
+  animation: critical-roll-glow 1.35s ease-in-out infinite;
+}
+
+@keyframes critical-roll-glow {
+  0%, 100% {
+    box-shadow:
+      0 20px 50px rgba(0, 0, 0, 0.45),
+      0 0 12px 1px var(--critical-roll-glow);
+  }
+  50% {
+    box-shadow:
+      0 24px 60px rgba(0, 0, 0, 0.5),
+      0 0 30px 6px var(--critical-roll-glow);
+  }
+}
+
 @keyframes ken-burns {
   0%   { transform: scale(1.08) translate(0%, 0%); }
   25%  { transform: scale(1.13) translate(-2%, -1.5%); }
@@ -59,4 +77,3 @@
   /* size (not inline-size) enables both cqw and cqh units on children */
   container-type: size;
 }
-

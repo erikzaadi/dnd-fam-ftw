@@ -46,6 +46,7 @@ export interface ActionAttempt {
     statUsed: 'might' | 'magic' | 'mischief' | 'none';
     statBonus?: number;
     itemBonus?: number;
+    impact?: 'normal' | 'strong' | 'extreme';
     isCritical?: boolean;
     difficultyTarget?: number;
   };

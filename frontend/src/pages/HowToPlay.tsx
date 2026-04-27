@@ -51,7 +51,10 @@ export const HowToPlay = () => {
                 These are baselines, not rules. The AI adjusts the exact target per action based on context - picking a lock in complete darkness is harder than in daylight, even if both are labeled <em>normal</em>. The precise number is shown on the die before you roll.
               </p>
               <p className="text-slate-500 text-base mt-3 italic">
-                Roll a natural 1? You fail no matter how stacked your bonuses are, then take +1 extra damage on top of the difficulty penalty.
+                Big wins and big misses have impact. Strong results add extra story weight; extreme results are legendary or catastrophic.
+              </p>
+              <p className="text-slate-500 text-base mt-3 italic">
+                Natural 1 always fails with extreme impact. Natural 20 always succeeds with extreme impact.
               </p>
             </Section>
 
@@ -66,6 +69,8 @@ export const HowToPlay = () => {
               <Row label="Fail an easy action" value="-1 HP" color="text-amber-400" />
               <Row label="Fail a normal action" value="-2 HP" color="text-amber-500" />
               <Row label="Fail a hard action" value="-3 HP" color="text-rose-400" />
+              <Row label="Strong failure impact" value="+1 HP damage" color="text-orange-400" />
+              <Row label="Extreme failure impact" value="+2 HP damage" color="text-rose-400" />
               <p className="text-slate-500 text-base mt-3">Only the acting character takes damage. HP can't go below 0.</p>
             </Section>
 

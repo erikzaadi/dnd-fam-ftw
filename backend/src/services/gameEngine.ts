@@ -255,8 +255,14 @@ export class GameEngine {
     const itemBonus = character.inventory.reduce((sum, item) => sum + (item.statBonuses?.[statName] ?? 0), 0);
     const { roll, total } = this.rollDice(statValue);
     const target = difficultyValue ?? this.DIFFICULTIES[difficulty] ?? 12;
-    const isCritical = roll === 20;
-    const success = isCritical || (roll !== 1 && this.checkSuccess(total + itemBonus, target));
+    const totalWithItems = total + itemBonus;
+    const success = roll === 20 || (roll !== 1 && this.checkSuccess(totalWithItems, target));
+    const margin = success ? totalWithItems - target : target - totalWithItems;
+    const impact = roll === 1 || roll === 20 || margin >= 12
+      ? 'extreme'
+      : margin >= 8
+        ? 'strong'
+        : 'normal';
 
     return {
       actionAttempt: action,
@@ -265,9 +271,9 @@ export class GameEngine {
         roll,
         statUsed: statName,
         statBonus: statValue,
+        impact,
         difficultyTarget: target,
         ...(itemBonus > 0 && { itemBonus }),
-        ...(isCritical && { isCritical: true }),
       }
     };
   }
@@ -307,9 +313,10 @@ export class GameEngine {
           const relevantChoice = lastTurnChoices.find(c => c.label === actionAttempt.actionAttempt);
           const difficultyLabel = relevantChoice ? relevantChoice.difficulty : 'normal';
           damage = this.DAMAGE_BY_DIFFICULTY[difficultyLabel as keyof typeof this.DAMAGE_BY_DIFFICULTY] || 2;
-          // Critical Failure: Natural 1 means +1 extra damage
-          if (actionAttempt.actionResult.roll === 1) {
+          if (actionAttempt.actionResult.impact === 'strong') {
             damage += 1;
+          } else if (actionAttempt.actionResult.impact === 'extreme') {
+            damage += 2;
           }
         }
 

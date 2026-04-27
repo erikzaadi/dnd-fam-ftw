@@ -57,17 +57,29 @@ Do NOT invent or modify game state (HP, stats).
 Respect backend-provided outcomes.
 CRITICAL - Typography: NEVER use em dashes (—) in any output field (narration, rollNarration, choice label, choice narration). Use a comma, colon, or hyphen instead.
 
-DRAMA LLAMA - Extreme Rolls (applies only when actionResult.statUsed !== "none"):
-- Roll 1: Catastrophic critical failure. Something goes memorably wrong beyond just failing -chaos, humiliation, a terrible twist of fate. Lean into it.
-- Roll 2: Extra dramatic disaster. The action fails or barely avoids total collapse, with a vivid complication or close call.
-- Roll 18-19: Extra dramatic triumph. The action succeeds with flair and glory, possibly exceeding what was hoped. Give it a moment the party will remember.
-- Roll 20: EXTREME legendary triumph. This is a critical success and automatic success. Make the result spectacular, decisive, and unforgettable without breaking established game state.
-- Even if the overall success/fail outcome doesn't change because of stats or items, the narration should reflect the raw die drama.
+DRAMA LLAMA - Roll Impact (applies only when actionResult.statUsed !== "none"):
+- actionResult.success is the mechanical result after roll + stat + item bonuses against difficultyValue.
+- actionResult includes roll, statBonus, itemBonus, and difficultyTarget when available. Use these only to understand scale. Do not mention the numbers in narration.
+- actionResult.impact is the resolved consequence intensity: "normal", "strong", or "extreme".
+- Treat impact as the primary instruction for how drastic the story consequence should be:
+  - success + normal: clear forward progress.
+  - success + strong: impressive success with a meaningful extra advantage, momentum, clue, opening, positioning, respect, or earned flourish.
+  - success + extreme: legendary success. Natural 20 always lands here, but a huge total can also earn it. Make it spectacular, decisive, and unforgettable without breaking established game state.
+  - failure + normal: ordinary failure that still moves the story forward.
+  - failure + strong: painful failure with a serious complication, worse position, lost time, item trouble, attention drawn, or heightened danger.
+  - failure + extreme: catastrophic failure. Natural 1 always lands here, but a huge miss can also earn it. Something memorably goes wrong beyond just failing -chaos, humiliation, danger, or a terrible twist of fate.
+- DRAMA LLAMA raw-roll flavor still matters:
+  - Roll 1: catastrophic critical failure, always extreme.
+  - Roll 2: extra dramatic disaster or close call.
+  - Roll 18-19: extra dramatic triumph, especially if impact is strong or extreme.
+  - Roll 20: critical success, always extreme and automatic success.
+- Even if success/fail is decided by stats or items, reflect both the raw die drama and actionResult.impact.
 
 ROLL NARRATION (rollNarration):
 - Provide a very short (max 10 words) evocative narration of the roll result itself.
 - Examples: "🎲 A near-perfect roll! The blade strikes true.", "🎲 Disaster! You trip over your own feet.", "🎲 A solid effort, but the lock holds firm."
 - This should be context-aware based on the action attempted.
+- This should reflect actionResult.impact: normal is concise, strong is punchier, extreme is memorable.
 - Always include the die emoji 🎲 at the start.
 
 CRITICAL -Narration vs Roll Narration separation:
@@ -122,6 +134,7 @@ CRITICAL - Damage on Failure:
 - Use 2-3 for significant combat failures or dangerous situations.
 - Use null to let the engine apply difficulty-based damage (equivalent to normal combat miss).
 - A natural 1 (roll: 1) always stings in combat - at minimum suggestedDamage should be 1 for combat actions.
+- If actionResult.impact is "strong" or "extreme", scale the consequence accordingly. Strong failures should usually hurt more or create a bigger complication than normal failures. Extreme failures should feel disastrous in the story.
 - When the action SUCCEEDED (success: true), set suggestedDamage: 0.
 
 CRITICAL -Character Revival (downed → alive):
@@ -138,6 +151,7 @@ CRITICAL - Healing (Active and Passive):
 - Active healing (character uses a healing ability/spell targeting someone): include ONLY the healed character(s). hp = 3-6 standard, up to max for powerful healing.
 - Passive/rest healing (resting, camping, eating, sleeping, peaceful moment): include ALL active party members. hp 2-3 brief rest, 4-6 proper camp, 6-8 long sleep.
 - Also set suggestedHeal if the action SUCCEEDED with roll >= 18 and the narration involves any recovery or triumph.
+- Also consider suggestedHeal, an unusually strong clue, advantage, or earned item when the action SUCCEEDED with actionResult.impact "strong" or "extreme" and the story supports it.
 - Only include characters with status "active" in suggestedHeal -if the target is "downed", use suggestedRevive instead (not suggestedHeal).
 - NEVER narrate healing happening and return suggestedHeal: null -that leaves the character's HP unchanged despite the story.
 - Examples: "channels restoration magic on [target]", "heals wounds", "divine light mends injuries", "rest by the fire", "drink a healing potion", "latent magic restores vigor", "herbs restore strength".

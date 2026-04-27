@@ -12,6 +12,9 @@ export type Difficulty = typeof DIFFICULTY_VALUES[number];
 export const TENSION_LEVEL_VALUES = ['low', 'medium', 'high'] as const;
 export type TensionLevel = typeof TENSION_LEVEL_VALUES[number];
 
+export const IMPACT_VALUES = ['normal', 'strong', 'extreme'] as const;
+export type Impact = typeof IMPACT_VALUES[number];
+
 export interface InventoryItem {
   id: string;
   name: string;
@@ -126,6 +129,7 @@ export interface ActionAttempt {
     statUsed: Stat | 'none';
     statBonus?: number;
     itemBonus?: number;
+    impact?: Impact;
     isCritical?: boolean;
     difficultyTarget?: number;
   };

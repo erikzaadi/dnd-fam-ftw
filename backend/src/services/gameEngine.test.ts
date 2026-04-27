@@ -114,6 +114,7 @@ describe('GameEngine.resolveAction - edge cases', () => {
     expect(result.actionResult.roll).toBe(1);
     expect(result.actionResult.difficultyTarget).toBe(1);
     expect(result.actionResult.success).toBe(false);
+    expect(result.actionResult.impact).toBe('extreme');
   });
 
   it('item stat bonus is applied to the roll total', () => {
@@ -131,23 +132,31 @@ describe('GameEngine.resolveAction - edge cases', () => {
     vi.restoreAllMocks();
   });
 
-  it('critical hit sets isCritical when roll is 20', () => {
-    // We cannot force a roll of 20 without mocking, but we can verify the flag
-    // is never set when roll is not 20 by checking a full run
-    let sawCritical = false;
-    for (let i = 0; i < 100; i++) {
-      const result = GameEngine.resolveAction(makeChar(), 'Attack', 'might');
-      if (result.actionResult.isCritical) {
-        sawCritical = true;
-        expect(result.actionResult.roll).toBe(20);
-      }
-    }
-    // isCritical must be absent (not false) when roll is not 20
-    const result = GameEngine.resolveAction(makeChar(), 'Attack', 'might');
-    if (!result.actionResult.isCritical) {
-      expect('isCritical' in result.actionResult).toBe(false);
-    }
-    void sawCritical; // statistical - not always asserted
+  it('strong impact is set when the result beats the target by a lot', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const strongChar = makeChar({ stats: { might: 8, magic: 1, mischief: 1 } });
+
+    const result = GameEngine.resolveAction(strongChar, 'Smash the door', 'might', 'easy', 8);
+    vi.restoreAllMocks();
+
+    expect(result.actionResult.roll).toBe(11);
+    expect(result.actionResult.success).toBe(true);
+    expect(result.actionResult.impact).toBe('strong');
+  });
+
+  it('extreme impact is set when the result beats the target massively', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const strongChar = makeChar({
+      stats: { might: 10, magic: 1, mischief: 1 },
+      inventory: [{ id: 'hammer', name: 'Power Hammer', description: '', consumable: false, transferable: true, statBonuses: { might: 3 } }],
+    });
+
+    const result = GameEngine.resolveAction(strongChar, 'Smash the gate', 'might', 'easy', 8);
+    vi.restoreAllMocks();
+
+    expect(result.actionResult.roll).toBe(11);
+    expect(result.actionResult.success).toBe(true);
+    expect(result.actionResult.impact).toBe('extreme');
   });
 
   it('natural 20 succeeds even when total is below the target', () => {
@@ -158,7 +167,8 @@ describe('GameEngine.resolveAction - edge cases', () => {
     vi.restoreAllMocks();
 
     expect(result.actionResult.roll).toBe(20);
-    expect(result.actionResult.isCritical).toBe(true);
+    expect(result.actionResult.impact).toBe('extreme');
+    expect('isCritical' in result.actionResult).toBe(false);
     expect(result.actionResult.difficultyTarget).toBe(30);
     expect(result.actionResult.success).toBe(true);
   });

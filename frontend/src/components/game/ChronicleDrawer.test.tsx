@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ChronicleDrawer } from './ChronicleDrawer';
-import type { TurnResult } from '../../types';
+import type { Character, TurnResult } from '../../types';
 import type { TtsSettings } from '../../tts/ttsTypes';
 
 vi.mock('../../lib/api', () => ({
@@ -37,11 +37,17 @@ const TTS_SETTINGS: TtsSettings = {
   preferredGenderHint: 'any',
 };
 
-const renderDrawer = (viewedTurnIdx: number, onSelectTurn = vi.fn(), onClose = vi.fn()) =>
+const renderDrawer = (
+  viewedTurnIdx: number,
+  onSelectTurn = vi.fn(),
+  onClose = vi.fn(),
+  history: TurnResult[] = HISTORY,
+  party: Character[] = []
+) =>
   render(
     <ChronicleDrawer
-      history={HISTORY}
-      party={[]}
+      history={history}
+      party={party}
       onClose={onClose}
       onSelectTurn={onSelectTurn}
       viewedTurnIdx={viewedTurnIdx}
@@ -149,5 +155,40 @@ describe('ChronicleDrawer keyboard navigation', () => {
     expect(screen.getByText('Turn 1 narration')).toBeInTheDocument();
     expect(screen.getByText('Turn 2 narration')).toBeInTheDocument();
     expect(screen.getByText('Turn 3 narration')).toBeInTheDocument();
+  });
+
+  it('uses the same next-turn roll in compact and expanded chronicle views', () => {
+    const history: TurnResult[] = [
+      { ...makeTurn(1), choices: [{ label: 'Open the chest', difficulty: 'easy', stat: 'mischief' }] },
+      {
+        ...makeTurn(2),
+        characterId: 'char-1',
+        lastAction: {
+          actionAttempt: 'Open the chest',
+          actionResult: { success: true, roll: 20, statUsed: 'mischief', statBonus: 3, impact: 'extreme' },
+        },
+        inventoryChanges: [{ characterName: 'Pip', itemName: 'Moon Key', type: 'added' }],
+      },
+    ];
+    const party: Character[] = [{
+      id: 'char-1',
+      name: 'Pip',
+      class: 'Rogue',
+      species: 'Halfling',
+      quirk: 'Sneaky',
+      hp: 10,
+      max_hp: 10,
+      status: 'active',
+      stats: { might: 1, magic: 1, mischief: 3 },
+      inventory: [],
+    }];
+
+    renderDrawer(0, vi.fn(), vi.fn(), history, party);
+
+    expect(screen.getByLabelText('Legendary Success, Natural 20')).toHaveTextContent('20');
+    fireEvent.click(screen.getByText('Turn 1 narration'));
+    expect(screen.getByText('Legendary Success')).toBeInTheDocument();
+    expect(screen.getByText('Natural 20')).toBeInTheDocument();
+    expect(screen.getByText('Moon Key')).toBeInTheDocument();
   });
 });

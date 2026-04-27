@@ -38,8 +38,14 @@ export function toNarrationInput(input: AIInput): NarrationInput {
       success: input.actionResult.success,
       roll: input.actionResult.roll,
       statUsed: input.actionResult.statUsed === 'none' ? undefined : input.actionResult.statUsed,
+      statBonus: input.actionResult.statBonus,
+      itemBonus: input.actionResult.itemBonus,
+      difficultyTarget: input.actionResult.difficultyTarget,
+      impact: input.actionResult.statUsed === 'none' ? undefined : input.actionResult.impact,
       difficulty: actingChar ? input.difficulty : undefined,
-      summary: input.actionResult.success ? 'The action succeeded.' : 'The action failed.',
+      summary: input.actionResult.success
+        ? `The action succeeded${input.actionResult.impact && input.actionResult.impact !== 'normal' ? ` with ${input.actionResult.impact} impact` : ''}.`
+        : `The action failed${input.actionResult.impact && input.actionResult.impact !== 'normal' ? ` with ${input.actionResult.impact} impact` : ''}.`,
     },
     recentHistory: input.recentHistory ?? [],
     tone: input.tone,

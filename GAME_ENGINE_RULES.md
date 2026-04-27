@@ -32,6 +32,16 @@ When a `perform` action is taken, the backend rolls:
 roll (d20) + effective stat  ≥  difficulty target  →  success
 ```
 
+The backend also assigns an `impact` to rolled actions:
+
+| Impact | Meaning |
+| --- | --- |
+| `normal` | Ordinary success or failure. |
+| `strong` | The result beat or missed the target by a wide margin. The story should add a meaningful extra advantage or consequence. |
+| `extreme` | Natural 1, natural 20, or a massive margin. The story should make the result memorable and drastic without breaking game state. |
+
+Natural 1 and natural 20 are derived from the raw d20 `roll`; no separate critical flag is required for new results.
+
 ### Base thresholds
 
 | Difficulty | Base target |
@@ -50,7 +60,7 @@ The resolved `actionDifficultyTarget` is stored in turn history so it can be dis
 
 A natural 1 on the d20 is a **Critical Failure** and always fails, even if stat and item bonuses would otherwise meet the target (see damage below).
 
-A natural 20 on the d20 is a **Critical Success** and always succeeds, even if the total would otherwise miss the difficulty target. The backend marks this result as `isCritical: true`.
+A natural 20 on the d20 is a **Critical Success** and always succeeds, even if the total would otherwise miss the difficulty target. The backend marks this result as `impact: "extreme"`.
 
 ### DRAMA LLAMA roll flavor
 
@@ -63,7 +73,7 @@ The AI receives the resolved roll and must flavor unusually low and high rolls a
 | 18-19 | Extra dramatic triumph : succeeds with flair and glory |
 | 20 | EXTREME legendary triumph : spectacular, decisive, unforgettable critical success |
 
-These narrative tiers affect the story and `rollNarration`; only natural 1 and natural 20 have deterministic backend mechanics.
+These narrative tiers affect the story, `rollNarration`, and the resolved `impact`; only natural 1 and natural 20 have deterministic backend mechanics.
 
 ### Fail forward
 
@@ -87,7 +97,7 @@ Damage only applies on a **failed** `perform` roll (not on `use_item` or `give_i
 | normal | 2 HP |
 | hard | 3 HP |
 
-**Critical Failure bonus:** If the d20 roll is a natural 1, add +1 damage on top of the difficulty damage.
+**Impact damage bonus:** If a failed roll has `impact: "strong"`, add +1 damage on top of the difficulty damage. If it has `impact: "extreme"` (including natural 1), add +2 damage.
 
 Damage is dealt to the **acting character** (the one whose turn it is). HP cannot drop below 0.
 

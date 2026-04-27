@@ -135,6 +135,15 @@ describe('toNarrationInput', () => {
     expect(out.actionResult.summary).toBe('The action failed.');
   });
 
+  it('passes impact through for rolled actions and includes it in summary', () => {
+    const out = toNarrationInput(makeAIInput({ actionResult: { success: true, roll: 19, statUsed: 'might', statBonus: 4, itemBonus: 2, difficultyTarget: 14, impact: 'strong' } }));
+    expect(out.actionResult.impact).toBe('strong');
+    expect(out.actionResult.statBonus).toBe(4);
+    expect(out.actionResult.itemBonus).toBe(2);
+    expect(out.actionResult.difficultyTarget).toBe(14);
+    expect(out.actionResult.summary).toBe('The action succeeded with strong impact.');
+  });
+
   it('passes sanctuaryRecovery flag through', () => {
     const out = toNarrationInput({ ...makeAIInput(), sanctuaryRecovery: true });
     expect(out.sanctuaryRecovery).toBe(true);

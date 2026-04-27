@@ -9,6 +9,7 @@ import type { TtsSettings } from '../../tts/ttsTypes';
 import { NarrationTtsButton } from '../NarrationTtsButton';
 import { STAT_COLORS } from '../../lib/statColors';
 import { SPECIAL_TURNS } from '../../lib/specialTurns';
+import { getRollImpactOutcome } from '../../lib/rollOutcome';
 
 interface ChronicleDrawerProps {
   history: TurnResult[];
@@ -73,6 +74,7 @@ const TurnDetail = ({
   const special = turn.turnType && turn.turnType !== 'normal' ? SPECIAL_TURNS[turn.turnType] : null;
   const roll = takenAction?.actionResult;
   const hasRoll = roll && roll.statUsed !== 'none';
+  const rollOutcome = getRollImpactOutcome(roll?.roll, roll?.success, roll?.impact);
   const takenLabel = takenAction?.actionAttempt ?? '';
   const isCustom = takenLabel && !turn.choices.some(c => c.label === takenLabel);
 
@@ -107,9 +109,14 @@ const TurnDetail = ({
           {hasRoll && (
             <div className="flex flex-col items-center gap-1 shrink-0">
               <D20 roll={roll.roll} success={roll.success} size={64} />
-              <span className={`text-xs font-black uppercase tracking-widest ${roll.success ? 'text-amber-500' : 'text-rose-400'}`}>
-                {roll.success ? 'success' : 'fail'}
+              <span className={`text-xs font-black uppercase tracking-widest ${rollOutcome?.textClass ?? (roll.success ? 'text-amber-500' : 'text-rose-400')}`}>
+                {rollOutcome?.label ?? (roll.success ? 'success' : 'fail')}
               </span>
+              {rollOutcome && (
+                <span className={`px-2 py-0.5 rounded-full border text-[10px] font-black uppercase tracking-widest ${rollOutcome.badgeClass}`}>
+                  {rollOutcome.detail}
+                </span>
+              )}
               <RollBreakdown
                 roll={roll.roll}
                 statBonus={roll.statBonus}
@@ -243,11 +250,12 @@ export const ChronicleDrawer = ({
             const actor = turn.characterId ? party.find(c => c.id === turn.characterId) : null;
             const isSelected = viewedTurnIdx === i;
             const isExpanded = expandedIdx === i;
-            const roll = turn.lastAction?.actionResult;
-            const hasRoll = roll && roll.statUsed !== 'none';
             const nextTurn = history[i + 1] ?? null;
             const takenAction = nextTurn?.lastAction ?? null;
             const takenChar = nextTurn?.characterId ? party.find(c => c.id === nextTurn.characterId) ?? null : null;
+            const roll = takenAction?.actionResult;
+            const hasRoll = roll && roll.statUsed !== 'none';
+            const rollOutcome = getRollImpactOutcome(roll?.roll, roll?.success, roll?.impact);
 
             return (
               <div key={i} className={`border-b border-slate-800/60 last:border-0 ${isSelected ? 'bg-amber-500/5' : ''}`}>
@@ -268,7 +276,16 @@ export const ChronicleDrawer = ({
                     {turn.narration}
                   </p>
                   {hasRoll && (
-                    <span className={`shrink-0 text-xs font-black px-1.5 py-0.5 rounded-full ${roll.success ? 'bg-emerald-900/60 text-emerald-400' : 'bg-rose-900/60 text-rose-400'}`}>
+                    <span
+                      className={`shrink-0 text-xs font-black px-1.5 py-0.5 rounded-full border ${
+                        rollOutcome
+                          ? rollOutcome.badgeClass
+                          : roll.success
+                            ? 'border-emerald-800/60 bg-emerald-900/60 text-emerald-400'
+                            : 'border-rose-800/60 bg-rose-900/60 text-rose-400'
+                      }`}
+                      aria-label={rollOutcome ? `${rollOutcome.label}, ${rollOutcome.detail}` : undefined}
+                    >
                       {roll.roll}
                     </span>
                   )}

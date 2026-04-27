@@ -526,8 +526,8 @@ case 'sessions': {
         for (const turn of (session.turnHistory as Record<string, unknown>[]) ?? []) {
           const mappedCharId = turn.characterId ? (charIdMap.get(turn.characterId as string) ?? null) : null;
           const result = db.prepare(`
-            INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, image_storage_key, image_storage_provider, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionIsCritical, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, image_storage_key, image_storage_provider, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
             newSessionId, mappedCharId,
             turn.narration, turn.rollNarration ?? null,
@@ -536,9 +536,9 @@ case 'sessions': {
             turn.actionAttempt ?? null, turn.actionStat ?? null,
             turn.actionSuccess ?? null, turn.actionRoll ?? null,
             turn.actionStatBonus ?? null, turn.actionItemBonus ?? null,
-            turn.actionIsCritical ?? null, turn.actionDifficultyTarget ?? null,
+            turn.actionIsCritical ?? null, turn.actionImpact ?? null, turn.actionDifficultyTarget ?? null,
             turn.turnType ?? 'normal',
-            turn.currentTensionLevel ?? null, turn.hpChanges ?? null,
+            turn.currentTensionLevel ?? null, turn.hpChanges ?? null, turn.inventoryChanges ?? null,
           );
 
           const newTurnId = result.lastInsertRowid;

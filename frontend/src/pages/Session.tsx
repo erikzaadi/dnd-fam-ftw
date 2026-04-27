@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import type { CSSProperties } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Session, Character, TurnResult, HpChange, InventoryChange } from '../types';
 import { apiFetch, imgSrc } from '../lib/api';
@@ -22,6 +23,7 @@ import { narrationTtsService } from '../tts/narrationTtsService';
 import { useCapabilities } from '../hooks/useCapabilities';
 import { NarrationTtsButton } from '../components/NarrationTtsButton';
 import { KeybindingsHelp } from '../components/KeybindingsHelp';
+import { getRollImpactOutcome } from '../lib/rollOutcome';
 
 interface LastSubmittedAction {
   label: string;
@@ -50,7 +52,7 @@ export const SessionPage = () => {
   const [confirmDialog, setConfirmDialog] = useState<{message: string; confirmLabel?: string; onConfirm: () => void} | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
-  const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; isCritical?: boolean; difficultyTarget?: number; rollNarration?: string; hpChanges?: HpChange[]; inventoryChanges?: InventoryChange[] } | null>(null);
+  const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; impact?: 'normal' | 'strong' | 'extreme'; isCritical?: boolean; difficultyTarget?: number; rollNarration?: string; hpChanges?: HpChange[]; inventoryChanges?: InventoryChange[] } | null>(null);
   const [dieExiting, setDieExiting] = useState(false);
   const [interventionBanner, setInterventionBanner] = useState<string | null>(null);
   const [sanctuaryBanner, setSanctuaryBanner] = useState<string | null>(null);
@@ -231,6 +233,7 @@ export const SessionPage = () => {
           stat: roll.statUsed,
           statBonus: roll.statBonus,
           itemBonus: roll.itemBonus,
+          impact: roll.impact,
           isCritical: roll.isCritical,
           difficultyTarget: roll.difficultyTarget,
           rollNarration: turnResult?.rollNarration,
@@ -402,6 +405,8 @@ export const SessionPage = () => {
   const activeChar = session.party.find(c => c.id === session.activeCharacterId) || null;
   const isDown = activeChar?.status === 'downed';
   const partyItemCount = session.party.reduce((s, c) => s + c.inventory.length, 0);
+  const lastRollOutcome = getRollImpactOutcome(lastRoll?.roll, lastRoll?.success, lastRoll?.impact);
+  const animateRollGlow = lastRollOutcome && (lastRoll?.impact === 'extreme' || lastRoll?.roll === 1 || lastRoll?.roll === 20);
 
   const handleExitClick = () => {
     setConfirmDialog({
@@ -552,7 +557,20 @@ export const SessionPage = () => {
             setDieExiting(false);
           }}
         >
-          <div className={`bg-slate-900 border-2 border-slate-700 p-8 rounded-[40px] shadow-2xl text-center flex flex-col items-center animate-in zoom-in-95 ${dieExiting ? 'animate-out fade-out zoom-out-95' : ''}`}>
+          <div
+            className={`relative overflow-hidden bg-slate-900 border-2 ${lastRollOutcome?.containerClass ?? 'border-slate-700'} ${animateRollGlow ? 'critical-roll-popup' : ''} p-8 rounded-[40px] shadow-2xl text-center flex flex-col items-center animate-in zoom-in-95 ${dieExiting ? 'animate-out fade-out zoom-out-95' : ''}`}
+            style={lastRollOutcome ? { '--critical-roll-glow': lastRollOutcome.popupGlow } as CSSProperties : undefined}
+          >
+            {lastRollOutcome && (
+              <>
+                <div className={`absolute inset-x-10 -top-20 h-40 blur-3xl ${lastRollOutcome.glowClass}`} />
+                <div className={`relative z-10 mb-3 px-4 py-2 rounded-full border text-xs font-black uppercase tracking-[0.22em] ${lastRollOutcome.badgeClass}`}>
+                  <span>{lastRollOutcome.label}</span>
+                  <span className="mx-2 opacity-50">/</span>
+                  <span className="opacity-80">{lastRollOutcome.detail}</span>
+                </div>
+              </>
+            )}
             <D20 roll={lastRoll.roll} success={lastRoll.success} size={180} />
             <RollBreakdown
               roll={lastRoll.roll}

@@ -118,8 +118,9 @@ describe('StateService - Session CRUD', () => {
       ],
       lastAction: {
         actionAttempt: 'Strike the goblin',
-        actionResult: { success: true, roll: 15, statUsed: 'might', statBonus: 2, difficultyTarget: 12 },
+        actionResult: { success: true, roll: 15, statUsed: 'might', statBonus: 2, impact: 'strong', difficultyTarget: 12 },
       },
+      inventoryChanges: [{ characterName: 'Archer', itemName: 'Goblin Key', type: 'added' }],
       turnType: 'normal',
     }, 'char-t1');
     expect(turnId).toBeTruthy();
@@ -130,6 +131,8 @@ describe('StateService - Session CRUD', () => {
     expect(history[0].choices).toHaveLength(2);
     expect(history[0].choices.find(c => c.label === 'Retreat')?.difficultyValue).toBe(10);
     expect(history[0].lastAction?.actionResult.statBonus).toBe(2);
+    expect(history[0].lastAction?.actionResult.impact).toBe('strong');
+    expect(history[0].inventoryChanges).toEqual([{ characterName: 'Archer', itemName: 'Goblin Key', type: 'added' }]);
   });
 
   it('deleteSession cascades to turn history', async () => {

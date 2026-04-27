@@ -1,4 +1,4 @@
-import type { Difficulty, GameMode, Stat, TensionLevel } from '../../../types.js';
+import type { Difficulty, GameMode, Impact, Stat, TensionLevel } from '../../../types.js';
 
 export type NarrationChoice = {
   label: string;
@@ -36,6 +36,10 @@ export type NarrationInput = {
     success: boolean;
     roll?: number;
     statUsed?: Stat;
+    statBonus?: number;
+    itemBonus?: number;
+    difficultyTarget?: number;
+    impact?: Impact;
     difficulty?: string;
     summary: string;
   };

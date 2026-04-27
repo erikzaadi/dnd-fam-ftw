@@ -1,5 +1,5 @@
 import Database, { Database as DB } from 'libsql';
-import { SessionState, Character, TurnResult, InventoryItem, type Stat, type Difficulty, type GameMode } from '../types.js';
+import { SessionState, Character, TurnResult, InventoryItem, type Stat, type Difficulty, type GameMode, type Impact } from '../types.js';
 import { createChatClient } from '../providers/ai/AiProviderFactory.js';
 import { getConfig } from '../config/env.js';
 import { getImageStorageProvider } from '../providers/storage/storageProviderFactory.js';
@@ -104,6 +104,9 @@ export class StateService {
     if (!turnCols.includes('actionDifficultyTarget')) {
       db.prepare("ALTER TABLE turn_history ADD COLUMN actionDifficultyTarget INTEGER").run();
     }
+    if (!turnCols.includes('actionImpact')) {
+      db.prepare("ALTER TABLE turn_history ADD COLUMN actionImpact TEXT").run();
+    }
     if (!turnCols.includes('image_storage_key')) {
       db.prepare("ALTER TABLE turn_history ADD COLUMN image_storage_key TEXT").run();
       db.prepare("ALTER TABLE turn_history ADD COLUMN image_storage_provider TEXT").run();
@@ -177,6 +180,9 @@ export class StateService {
     }
     if (!turnCols.includes('hpChanges')) {
       db.prepare("ALTER TABLE turn_history ADD COLUMN hpChanges TEXT").run();
+    }
+    if (!turnCols.includes('inventoryChanges')) {
+      db.prepare("ALTER TABLE turn_history ADD COLUMN inventoryChanges TEXT").run();
     }
 
     if (!choiceCols.includes('narration')) {
@@ -598,10 +604,12 @@ export class StateService {
       actionStatBonus: number | null;
       actionItemBonus: number | null;
       actionIsCritical: number | null;
+      actionImpact: string | null;
       actionDifficultyTarget: number | null;
       turnType: string | null;
       currentTensionLevel: string | null;
       hpChanges: string | null;
+      inventoryChanges: string | null;
     }[];
 
     return rows.map(r => {
@@ -612,6 +620,15 @@ export class StateService {
             difficultyValue: number | null;
             narration: string | null;
         }[];
+      const rollTotal = (r.actionRoll ?? 0) + (r.actionStatBonus ?? 0) + (r.actionItemBonus ?? 0);
+      const margin = r.actionDifficultyTarget != null
+        ? (r.actionSuccess ? rollTotal - r.actionDifficultyTarget : r.actionDifficultyTarget - rollTotal)
+        : 0;
+      const derivedImpact: Impact = r.actionRoll === 1 || r.actionIsCritical || r.actionRoll === 20 || margin >= 12
+        ? 'extreme'
+        : margin >= 8
+          ? 'strong'
+          : 'normal';
       const lastAction = r.actionAttempt ? {
         actionAttempt: r.actionAttempt,
         actionResult: {
@@ -620,6 +637,7 @@ export class StateService {
           statUsed: (r.actionStat ?? 'none') as Stat | 'none',
           ...(r.actionStatBonus != null && { statBonus: r.actionStatBonus }),
           ...(r.actionItemBonus != null && r.actionItemBonus > 0 && { itemBonus: r.actionItemBonus }),
+          impact: (r.actionImpact ?? derivedImpact) as Impact,
           ...(r.actionIsCritical && { isCritical: true }),
           ...(r.actionDifficultyTarget != null && { difficultyTarget: r.actionDifficultyTarget }),
         }
@@ -648,6 +666,7 @@ export class StateService {
         turnType: (r.turnType as TurnResult['turnType']) ?? 'normal',
         ...(r.currentTensionLevel && { currentTensionLevel: r.currentTensionLevel as TurnResult['currentTensionLevel'] }),
         ...(r.hpChanges && { hpChanges: JSON.parse(r.hpChanges) }),
+        ...(r.inventoryChanges && { inventoryChanges: JSON.parse(r.inventoryChanges) }),
       };
     });
   }
@@ -666,7 +685,7 @@ export class StateService {
   public static async addTurnResult(id: string, turn: TurnResult, characterId: string | null): Promise<number> {
     const db = this.getDb();
     const action = turn.lastAction ?? null;
-    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionIsCritical, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(
         id, characterId || null, turn.narration, turn.rollNarration || null, turn.imagePrompt, turn.imageSuggested ? 1 : 0, turn.imageUrl || null,
         action?.actionAttempt ?? null,
@@ -676,10 +695,12 @@ export class StateService {
         action?.actionResult?.statBonus ?? null,
         action?.actionResult?.itemBonus ?? null,
         action?.actionResult?.isCritical ? 1 : null,
+        action?.actionResult?.impact ?? null,
         action?.actionResult?.difficultyTarget ?? null,
         turn.turnType ?? 'normal',
         turn.currentTensionLevel ?? null,
-        turn.hpChanges && turn.hpChanges.length > 0 ? JSON.stringify(turn.hpChanges) : null
+        turn.hpChanges && turn.hpChanges.length > 0 ? JSON.stringify(turn.hpChanges) : null,
+        turn.inventoryChanges && turn.inventoryChanges.length > 0 ? JSON.stringify(turn.inventoryChanges) : null
       );
 
     const turnId = info.lastInsertRowid;
