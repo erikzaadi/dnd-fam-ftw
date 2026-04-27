@@ -8,6 +8,7 @@ backend/*.sqlite.temp
 backend/public/generated/*
 !backend/public/generated/.gitkeep
 backend/dist
+*.tsbuildinfo
 backend/data
 **/.claude_session
 .claude_session
