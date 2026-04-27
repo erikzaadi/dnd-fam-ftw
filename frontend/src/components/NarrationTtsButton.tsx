@@ -70,10 +70,16 @@ export const NarrationTtsButton = ({
         <button
           disabled={loading}
           onClick={speak}
-          className="text-xl text-slate-500 hover:text-amber-400 transition-colors leading-none disabled:opacity-50 disabled:cursor-wait"
+          className="inline-flex items-center justify-center w-7 h-7 text-xl text-slate-500 hover:text-amber-400 transition-colors leading-none disabled:opacity-80 disabled:cursor-wait"
           aria-label={loading ? 'Generating narration' : 'Replay narration'}
+          aria-busy={loading}
         >
-          {loading ? '…' : '🔁'}
+          {loading ? (
+            <span
+              className="w-4 h-4 rounded-full border-2 border-slate-600 border-t-amber-400 animate-spin"
+              aria-hidden="true"
+            />
+          ) : '🔁'}
         </button>
       )}
       {playing && (

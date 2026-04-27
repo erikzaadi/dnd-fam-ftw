@@ -6,8 +6,8 @@ import { FullscreenImage } from '../components/FullscreenImage';
 import { DmFooter } from '../components/DmFooter';
 import { SiteHeader } from '../components/SiteHeader';
 import { useTtsSettings } from '../tts/useTtsSettings';
-import { browserTtsService } from '../tts/browserTtsService';
-import { TtsButton } from '../components/TtsButton';
+import { narrationTtsService } from '../tts/narrationTtsService';
+import { NarrationTtsButton } from '../components/NarrationTtsButton';
 import { D20 } from '../components/game/D20';
 import { StatImg } from '../components/game/StatIcon';
 import { RollBreakdown } from '../components/game/RollBreakdown';
@@ -16,6 +16,7 @@ import { SceneBackground } from '../components/game/SceneBackground';
 import { STAT_COLORS } from '../lib/statColors';
 import { PageLoader } from '../components/PageLoader';
 import { KeybindingsHelp } from '../components/KeybindingsHelp';
+import { useCapabilities } from '../hooks/useCapabilities';
 
 type Mode = 'choose' | 'tldr' | 'movie';
 
@@ -23,7 +24,7 @@ const MOVIE_INTERVAL_MS = 5000;
 
 // ── TLDR ────────────────────────────────────────────────────────────────────
 
-const TldrView = ({ sessionId, onEnter }: { sessionId: string; onEnter: () => void }) => {
+const TldrView = ({ sessionId, onEnter, hasTts }: { sessionId: string; onEnter: () => void; hasTts: boolean }) => {
   const [summary, setSummary] = useState<string | null>(null);
   const { settings: ttsSettings } = useTtsSettings();
 
@@ -34,14 +35,20 @@ const TldrView = ({ sessionId, onEnter }: { sessionId: string; onEnter: () => vo
   }, [sessionId]);
 
   useEffect(() => {
-    if (!summary || !ttsSettings.enabled || !browserTtsService.isSupported()) {
+    if (!summary || !narrationTtsService.isNarrationAvailable(ttsSettings, hasTts, true)) {
       return;
     }
-    browserTtsService.speakNarration(summary, ttsSettings);
+    narrationTtsService.speakNarration({
+      text: summary,
+      settings: ttsSettings,
+      hasTts,
+      turnId: `summary:${sessionId}`,
+      mainNarration: true,
+    });
     return () => {
-      browserTtsService.stop();
+      narrationTtsService.stopNarration();
     };
-  }, [summary, ttsSettings]);
+  }, [summary, ttsSettings, hasTts, sessionId]);
 
   return (
     <div className="flex-1 flex flex-col items-center gap-8 w-full max-w-4xl mx-auto px-4 md:px-8 pt-6 pb-24 animate-in fade-in duration-500 relative z-[10]">
@@ -49,7 +56,7 @@ const TldrView = ({ sessionId, onEnter }: { sessionId: string; onEnter: () => vo
       {summary ? (
         <>
           <p className="font-narrative text-2xl text-slate-200 leading-relaxed italic text-center">{summary}</p>
-          <TtsButton text={summary} ttsSettings={ttsSettings} className="justify-center" />
+          <NarrationTtsButton text={summary} ttsSettings={ttsSettings} hasTts={hasTts} turnId={`summary:${sessionId}`} className="justify-center" />
           <button onClick={onEnter} className="px-12 py-5 bg-amber-600 hover:bg-amber-500 rounded-[28px] font-black uppercase italic tracking-tighter text-2xl shadow-[0_8px_0_rgb(146,64,14)] transition-all animate-in fade-in duration-500">
             Enter Realm
           </button>
@@ -63,7 +70,7 @@ const TldrView = ({ sessionId, onEnter }: { sessionId: string; onEnter: () => vo
 
 // ── MOVIE ───────────────────────────────────────────────────────────────────
 
-const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: Character[]; onEnter: () => void }) => {
+const MovieView = ({ history, party, onEnter, hasTts }: { history: TurnResult[]; party: Character[]; onEnter: () => void; hasTts: boolean }) => {
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [fullscreenUrl, setFullscreenUrl] = useState<string | null>(null);
@@ -100,8 +107,14 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
     let advanceTimer: ReturnType<typeof setTimeout> | null = null;
 
     const run = async () => {
-      if (ttsSettings.enabled && browserTtsService.isSupported()) {
-        await browserTtsService.speakNarration(turn.narration, ttsSettings);
+      if (playing && narrationTtsService.isNarrationAvailable(ttsSettings, hasTts, true)) {
+        await narrationTtsService.speakNarration({
+          text: turn.narration,
+          settings: ttsSettings,
+          hasTts,
+          turnId: turn.id,
+          mainNarration: true,
+        });
       }
       if (cancelled || !playing || isLast) {
         return;
@@ -121,9 +134,9 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
       if (advanceTimer !== null) {
         clearTimeout(advanceTimer);
       }
-      browserTtsService.stop();
+      narrationTtsService.stopNarration();
     };
-  }, [idx, playing, isLast, ttsSettings, turn.narration]);
+  }, [idx, playing, isLast, ttsSettings, turn.id, turn.narration, hasTts]);
 
   const imageUrl = turn.imageUrl ? imgSrc(turn.imageUrl) : null;
   const defaultImageUrl = imgSrc('/images/default_scene.png');
@@ -155,7 +168,7 @@ const MovieView = ({ history, party, onEnter }: { history: TurnResult[]; party: 
               {turn.narration}
             </p>
             <div className="mt-4">
-              <TtsButton text={turn.narration} ttsSettings={ttsSettings} />
+              <NarrationTtsButton text={turn.narration} ttsSettings={ttsSettings} hasTts={hasTts} turnId={turn.id} />
             </div>
           </div>
         </div>
@@ -293,6 +306,7 @@ export const SessionRecap = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [history, setHistory] = useState<TurnResult[]>([]);
   const [showKeybindingsHelp, setShowKeybindingsHelp] = useState(false);
+  const { capabilities } = useCapabilities();
 
   const enter = useCallback(() => navigate(`/session/${id}`), [id, navigate]);
 
@@ -412,8 +426,8 @@ export const SessionRecap = () => {
           </div>
         )}
 
-        {mode === 'tldr' && <TldrView sessionId={id!} onEnter={enter} />}
-        {mode === 'movie' && history.length > 0 && <MovieView history={history} party={session.party} onEnter={enter} />}
+        {mode === 'tldr' && <TldrView sessionId={id!} onEnter={enter} hasTts={capabilities.hasTts} />}
+        {mode === 'movie' && history.length > 0 && <MovieView history={history} party={session.party} onEnter={enter} hasTts={capabilities.hasTts} />}
       </div>
 
       <DmFooter />

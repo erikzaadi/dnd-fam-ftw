@@ -414,6 +414,15 @@ export const SessionPage = () => {
     });
   };
 
+  const handleChronicleSelectTurn = (idx: number) => {
+    setViewedTurnIdx(prev => {
+      if (prev !== idx) {
+        narrationTtsService.stopNarration();
+      }
+      return idx;
+    });
+  };
+
   return (
     <div className="bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-slate-100 overflow-x-hidden lg:h-dvh lg:overflow-hidden">
       {showBanner && (
@@ -506,7 +515,7 @@ export const SessionPage = () => {
                 setShowChronicle(false);
                 setViewedTurnIdx(history.length - 1);
               }}
-              onSelectTurn={setViewedTurnIdx}
+              onSelectTurn={handleChronicleSelectTurn}
               viewedTurnIdx={viewedTurnIdx}
               ttsSettings={ttsSettings}
               hasTts={capabilities.hasTts}
