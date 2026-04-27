@@ -81,6 +81,28 @@ describe('GameEngine', () => {
     const newState = GameEngine.updateState(session, attempt, {});
     expect(newState.party[0].inventory).toHaveLength(0);
   });
+
+  it('applyGiveItem moves the item and names the selected target in the action attempt', () => {
+    const giver = makeChar({
+      id: 'giver',
+      name: 'Pip',
+      inventory: [{ id: 'moon-key', name: 'Moon Key', description: 'Silver key', transferable: true, consumable: false }],
+    });
+    const nextInTurn = makeChar({ id: 'next', name: 'Barnaby' });
+    const chosenTarget = makeChar({ id: 'target', name: 'Zara' });
+    const session = makeSession({
+      activeCharacterId: 'giver',
+      party: [giver, nextInTurn, chosenTarget],
+    });
+
+    const result = GameEngine.applyGiveItem(session, 'giver', 'moon-key', 'target');
+
+    expect(result.error).toBeUndefined();
+    expect(result.actionAttempt.actionAttempt).toBe('Pip gave Moon Key to Zara');
+    expect(result.newState.party.find(c => c.id === 'giver')!.inventory).toHaveLength(0);
+    expect(result.newState.party.find(c => c.id === 'next')!.inventory).toHaveLength(0);
+    expect(result.newState.party.find(c => c.id === 'target')!.inventory[0].name).toBe('Moon Key');
+  });
 });
 
 describe('GameEngine.resolveAction - edge cases', () => {

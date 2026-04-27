@@ -324,8 +324,20 @@ export const SessionPage = () => {
   };
 
   const submitAction = async (action: string, statUsed: string = 'none', difficulty: string = 'normal', difficultyValue: number | null = null, ownerCharId: string | null = null, itemId: string | null = null, targetCharId: string | null = null) => {
+    if (!session) {
+      return;
+    }
     setActionError(null);
-    setLastSubmittedAction({ label: action, stat: statUsed, char: activeChar, difficulty, difficultyValue: difficultyValue ?? undefined });
+    const itemOwner = ownerCharId ? session.party.find(c => c.id === ownerCharId) ?? null : activeChar;
+    const itemTarget = targetCharId ? session.party.find(c => c.id === targetCharId) ?? null : null;
+    const item = itemOwner && itemId ? itemOwner.inventory.find(i => i.id === itemId) ?? null : null;
+    const actionType = itemId ? (action === 'use item' ? 'use_item' : 'give_item') : undefined;
+    const displayAction = actionType === 'give_item' && item && itemTarget
+      ? `${itemOwner?.name ?? 'Someone'} gave ${item.name} to ${itemTarget.name}`
+      : actionType === 'use_item' && item && itemTarget
+        ? `${itemOwner?.name ?? 'Someone'} used ${item.name} on ${itemTarget.name}`
+        : action;
+    setLastSubmittedAction({ label: displayAction, stat: statUsed, char: itemOwner, difficulty, difficultyValue: difficultyValue ?? undefined });
     setLoading(true);
     audioManager.stopNarrating();
     narrationTtsService.stopNarration();
@@ -333,7 +345,16 @@ export const SessionPage = () => {
       const res = await apiFetch(`/session/${id}/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, statUsed, difficulty, difficultyValue, ownerCharId, itemId, targetCharId }),
+        body: JSON.stringify({
+          action,
+          statUsed,
+          difficulty,
+          difficultyValue,
+          characterId: ownerCharId ?? undefined,
+          actionType,
+          itemId: itemId ?? undefined,
+          targetCharacterId: targetCharId ?? undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {

@@ -641,7 +641,20 @@ app.get('/session/:id/summary', asyncHandler(async (req, res) => {
 }));
 
 app.post('/session/:id/action', asyncHandler(async (req, res) => {
-  const { action, statUsed, difficulty, difficultyValue, characterId, actionType, itemId, targetCharacterId } = req.body;
+  const {
+    action,
+    statUsed,
+    difficulty,
+    difficultyValue,
+    itemId,
+  } = req.body;
+  const characterId = req.body.characterId ?? req.body.ownerCharId;
+  const targetCharacterId = req.body.targetCharacterId ?? req.body.targetCharId;
+  const actionType = req.body.actionType ?? (itemId && action === 'use item'
+    ? 'use_item'
+    : itemId && action === 'give item'
+      ? 'give_item'
+      : undefined);
   const sessionId = req.params.id as string;
   const session = await StateService.getSession(sessionId);
   if (!session) {
