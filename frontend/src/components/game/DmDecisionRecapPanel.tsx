@@ -31,10 +31,9 @@ export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings }: DmDec
     : 0;
   const statTotal = statBase + statBonus;
 
-  const target = lastSubmittedAction
+  const minNeeded = lastSubmittedAction
     ? beatTarget(lastSubmittedAction.difficultyValue, lastSubmittedAction.difficulty)
     : 0;
-  const minNeeded = Math.max(1, Math.min(20, target - statTotal));
 
   return (
     <div className="relative flex flex-col items-center justify-center min-h-[55vh] lg:h-full rounded-[32px] overflow-hidden animate-in fade-in zoom-in-95 duration-500">

@@ -64,16 +64,28 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
               {(canUse || canGive) && !isPendingThis && (
                 <>
                   {canUse && (
-                    <button
-                      onClick={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'use' })}
-                      className="px-1.5 py-0.5 rounded text-[8px] xl:text-[10px] font-black uppercase tracking-widest bg-emerald-900/60 text-emerald-400 hover:bg-emerald-800/60 border border-emerald-700/40"
-                    >Use</button>
+                    <span className="relative group/use">
+                      <button
+                        onClick={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'use' })}
+                        className="px-1.5 py-0.5 rounded text-[8px] xl:text-[10px] font-black uppercase tracking-widest bg-emerald-900/60 text-emerald-400 hover:bg-emerald-800/60 border border-emerald-700/40"
+                      >Use</button>
+                      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-slate-800 border border-slate-600 rounded-lg text-[9px] text-slate-300 whitespace-nowrap opacity-0 group-hover/use:opacity-100 transition-opacity pointer-events-none z-50">
+                        Use this item
+                        <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600" />
+                      </span>
+                    </span>
                   )}
                   {canGive && (
-                    <button
-                      onClick={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'give' })}
-                      className="px-1.5 py-0.5 rounded text-[8px] xl:text-[10px] font-black uppercase tracking-widest bg-blue-900/60 text-blue-400 hover:bg-blue-800/60 border border-blue-700/40"
-                    >Give</button>
+                    <span className="relative group/give">
+                      <button
+                        onClick={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'give' })}
+                        className="px-1.5 py-0.5 rounded text-[8px] xl:text-[10px] font-black uppercase tracking-widest bg-blue-900/60 text-blue-400 hover:bg-blue-800/60 border border-blue-700/40"
+                      >Give</button>
+                      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-slate-800 border border-slate-600 rounded-lg text-[9px] text-slate-300 whitespace-nowrap opacity-0 group-hover/give:opacity-100 transition-opacity pointer-events-none z-50">
+                        Give to another character
+                        <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600" />
+                      </span>
+                    </span>
                   )}
                 </>
               )}
@@ -131,16 +143,28 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
             {(canUse || canGive) && !isPendingThis && (
               <div className="flex gap-1 shrink-0">
                 {canUse && (
-                  <button
-                    onClick={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'use' })}
-                    className="px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-emerald-900/60 text-emerald-400 hover:bg-emerald-800/60 border border-emerald-700/40"
-                  >Use</button>
+                  <span className="relative group/use">
+                    <button
+                      onClick={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'use' })}
+                      className="px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-emerald-900/60 text-emerald-400 hover:bg-emerald-800/60 border border-emerald-700/40"
+                    >Use</button>
+                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-slate-800 border border-slate-600 rounded-lg text-[9px] text-slate-300 whitespace-nowrap opacity-0 group-hover/use:opacity-100 transition-opacity pointer-events-none z-50">
+                      Use this item
+                      <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600" />
+                    </span>
+                  </span>
                 )}
                 {canGive && (
-                  <button
-                    onClick={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'give' })}
-                    className="px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-blue-900/60 text-blue-400 hover:bg-blue-800/60 border border-blue-700/40"
-                  >Give</button>
+                  <span className="relative group/give">
+                    <button
+                      onClick={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'give' })}
+                      className="px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-blue-900/60 text-blue-400 hover:bg-blue-800/60 border border-blue-700/40"
+                    >Give</button>
+                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-slate-800 border border-slate-600 rounded-lg text-[9px] text-slate-300 whitespace-nowrap opacity-0 group-hover/give:opacity-100 transition-opacity pointer-events-none z-50">
+                      Give to another character
+                      <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600" />
+                    </span>
+                  </span>
                 )}
               </div>
             )}
