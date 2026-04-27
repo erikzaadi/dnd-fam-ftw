@@ -5,7 +5,7 @@ const choiceSchema = z.object({
   label: z.string().min(1),
   difficulty: z.enum(DIFFICULTY_VALUES),
   stat: z.enum(STAT_VALUES),
-  difficultyValue: z.number().int().min(2).max(20).optional(),
+  difficultyValue: z.number().int().min(1).max(20).optional(),
   narration: z.string().optional(),
 });
 

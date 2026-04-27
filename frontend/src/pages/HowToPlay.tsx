@@ -51,7 +51,7 @@ export const HowToPlay = () => {
                 These are baselines, not rules. The AI adjusts the exact target per action based on context - picking a lock in complete darkness is harder than in daylight, even if both are labeled <em>normal</em>. The precise number is shown on the die before you roll.
               </p>
               <p className="text-slate-500 text-base mt-3 italic">
-                Roll a natural 1? You <em>die</em>... <em>harder</em>. +1 extra damage on top of the difficulty penalty. The dice are merciless.
+                Roll a natural 1? You fail no matter how stacked your bonuses are, then take +1 extra damage on top of the difficulty penalty.
               </p>
             </Section>
 

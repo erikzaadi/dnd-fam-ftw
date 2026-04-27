@@ -48,7 +48,7 @@ export const HowToPlay = ({ onClose }: Props) => (
           <Row label="Normal" value="Beat 12" color="text-amber-400" />
           <Row label="Hard" value="Beat 16" color="text-rose-400" />
           <p className="text-slate-500 text-xs mt-2 italic">
-            Roll a natural 1? You <em>die</em>... <em>harder</em>. +1 extra damage on top of the difficulty penalty. The dice are merciless.
+            Roll a natural 1? You fail no matter how stacked your bonuses are, then take +1 extra damage on top of the difficulty penalty.
           </p>
         </Section>
 

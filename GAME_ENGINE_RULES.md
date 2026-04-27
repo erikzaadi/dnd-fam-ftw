@@ -48,7 +48,7 @@ This allows the AI to say "picking this lock in the dark is a 14, not a standard
 
 The resolved `actionDifficultyTarget` is stored in turn history so it can be displayed in the history panel.
 
-A natural 1 on the d20 is a **Critical Failure** (see damage below). There is no critical success mechanic : rolling high just means you succeed by more, which the AI may flavor but has no mechanical bonus.
+A natural 1 on the d20 is a **Critical Failure** and always fails, even if stat and item bonuses would otherwise meet the target (see damage below). There is no critical success mechanic : rolling high just means you succeed by more, which the AI may flavor but has no mechanical bonus.
 
 ### Roll narration
 

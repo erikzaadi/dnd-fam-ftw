@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { GameEngine } from './gameEngine.js';
 import type { Character, SessionState } from '../types.js';
 
@@ -93,14 +93,32 @@ describe('GameEngine.resolveAction - edge cases', () => {
 
   it('difficultyValue override is used instead of difficulty label', () => {
     // Stat 5 + max roll 20 = 25, always beats any target <= 25
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
     const strongChar = makeChar({ stats: { might: 5, magic: 5, mischief: 5 } });
     const result = GameEngine.resolveAction(strongChar, 'Lift the boulder', 'might', 'normal', 1);
+    vi.restoreAllMocks();
     expect(result.actionResult.difficultyTarget).toBe(1);
     expect(result.actionResult.success).toBe(true);
   });
 
+  it('natural 1 fails even when stat and item bonuses meet the target', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const charWithBonus = makeChar({
+      stats: { might: 5, magic: 5, mischief: 5 },
+      inventory: [{ id: 'sword', name: 'Power Sword', description: '', consumable: false, transferable: true, statBonuses: { might: 10 } }],
+    });
+
+    const result = GameEngine.resolveAction(charWithBonus, 'Step through the portal', 'might', 'easy', 1);
+    vi.restoreAllMocks();
+
+    expect(result.actionResult.roll).toBe(1);
+    expect(result.actionResult.difficultyTarget).toBe(1);
+    expect(result.actionResult.success).toBe(false);
+  });
+
   it('item stat bonus is applied to the roll total', () => {
     // Stat 1, but item gives +10 bonus — should always beat difficulty 8
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
     const charWithBonus = makeChar({
       stats: { might: 1, magic: 1, mischief: 1 },
       inventory: [{ id: 'sword', name: 'Power Sword', description: '', consumable: false, transferable: true, statBonuses: { might: 10 } }],
@@ -110,6 +128,7 @@ describe('GameEngine.resolveAction - edge cases', () => {
       const result = GameEngine.resolveAction(charWithBonus, 'Strike', 'might', 'easy');
       expect(result.actionResult.success).toBe(true);
     }
+    vi.restoreAllMocks();
   });
 
   it('critical hit sets isCritical when roll is 20', () => {
