@@ -6,6 +6,7 @@ import { beatTarget } from '../../lib/game';
 import { D20 } from './D20';
 import { RollBreakdown } from './RollBreakdown';
 import type { TtsSettings } from '../../tts/ttsTypes';
+import { NarrationTtsButton } from '../NarrationTtsButton';
 import { STAT_COLORS } from '../../lib/statColors';
 import { SPECIAL_TURNS } from '../../lib/specialTurns';
 
@@ -16,6 +17,7 @@ interface ChronicleDrawerProps {
   onSelectTurn: (idx: number) => void;
   viewedTurnIdx: number;
   ttsSettings: TtsSettings;
+  hasTts: boolean;
 }
 
 const HpChangeBadges = ({ hpChanges }: { hpChanges: HpChange[] }) => (
@@ -56,6 +58,8 @@ const TurnDetail = ({
   takenChar,
   nextTurnHpChanges,
   nextTurnInventoryChanges,
+  ttsSettings,
+  hasTts,
 }: {
   turn: TurnResult;
   actor: Character | null;
@@ -63,6 +67,8 @@ const TurnDetail = ({
   takenChar: Character | null;
   nextTurnHpChanges?: HpChange[];
   nextTurnInventoryChanges?: InventoryChange[];
+  ttsSettings: TtsSettings;
+  hasTts: boolean;
 }) => {
   const special = turn.turnType && turn.turnType !== 'normal' ? SPECIAL_TURNS[turn.turnType] : null;
   const roll = takenAction?.actionResult;
@@ -140,6 +146,13 @@ const TurnDetail = ({
         </div>
       )}
 
+      <NarrationTtsButton
+        text={turn.narration}
+        ttsSettings={ttsSettings}
+        hasTts={hasTts}
+        turnId={turn.id}
+      />
+
       {/* Choices - vertical stack, chosen highlighted */}
       {turn.choices.length > 0 && (
         <div className="flex flex-col gap-1.5">
@@ -172,6 +185,8 @@ export const ChronicleDrawer = ({
   onClose,
   onSelectTurn,
   viewedTurnIdx,
+  ttsSettings,
+  hasTts,
 }: ChronicleDrawerProps) => {
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
 
@@ -269,6 +284,8 @@ export const ChronicleDrawer = ({
                       takenChar={takenChar}
                       nextTurnHpChanges={nextTurn?.hpChanges}
                       nextTurnInventoryChanges={nextTurn?.inventoryChanges}
+                      ttsSettings={ttsSettings}
+                      hasTts={hasTts}
                     />
                   </div>
                 )}

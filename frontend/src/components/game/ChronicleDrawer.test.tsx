@@ -11,6 +11,7 @@ vi.mock('./StatIcon', () => ({ StatImg: () => null }));
 vi.mock('./D20', () => ({ D20: () => null }));
 vi.mock('./RollBreakdown', () => ({ RollBreakdown: () => null }));
 vi.mock('../../lib/game', () => ({ beatTarget: () => '10' }));
+vi.mock('../NarrationTtsButton', () => ({ NarrationTtsButton: () => null }));
 
 const makeTurn = (id: number): TurnResult => ({
   id,
@@ -25,6 +26,7 @@ const HISTORY = [makeTurn(1), makeTurn(2), makeTurn(3)];
 const TTS_SETTINGS: TtsSettings = {
   enabled: false,
   autoSpeakNarration: false,
+  provider: 'browser',
   rate: 1,
   pitch: 1,
   volume: 1,
@@ -44,6 +46,7 @@ const renderDrawer = (viewedTurnIdx: number, onSelectTurn = vi.fn(), onClose = v
       onSelectTurn={onSelectTurn}
       viewedTurnIdx={viewedTurnIdx}
       ttsSettings={TTS_SETTINGS}
+      hasTts={false}
     />
   );
 

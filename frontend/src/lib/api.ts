@@ -33,6 +33,10 @@ export const imgSrc = (url: string | null | undefined) => {
   return apiUrl(src);
 };
 
+/** Resolve a static asset from frontend/public using Vite's base path. */
+export const publicAssetUrl = (path: string) =>
+  `${BASE}${path.replace(/^\//, '')}`;
+
 /** Returns an animationDelay that phases an element into the global pulse cycle,
  *  so elements rendered at different times stay visually in sync. */
 export const pulseSyncDelay = (durationMs = 2500) =>

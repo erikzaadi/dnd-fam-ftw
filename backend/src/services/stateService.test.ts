@@ -284,6 +284,21 @@ describe('StateService - Namespace limits', () => {
   });
 });
 
+describe('StateService - TTS usage', () => {
+  it('records TTS request count and character usage by namespace', () => {
+    const { namespaceId } = StateService.createNamespace('Audio Realm');
+    StateService.recordTtsUsage(namespaceId, 'fable', 120);
+    StateService.recordTtsUsage(namespaceId, 'sage', 80);
+    StateService.recordTtsUsage('local', 'fable', 50);
+
+    expect(StateService.getTtsUsage(namespaceId)).toEqual({
+      requestCount: 2,
+      characterCount: 200,
+    });
+    expect(StateService.getTtsUsage('local').requestCount).toBeGreaterThanOrEqual(1);
+  });
+});
+
 describe('StateService - Invite requests', () => {
   it('addInviteRequest + hasInviteRequest, duplicate ignored', () => {
     expect(StateService.hasInviteRequest('newbie@example.com')).toBe(false);

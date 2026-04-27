@@ -15,6 +15,7 @@ import { createChatClient } from './providers/ai/AiProviderFactory.js';
 import { SettingsService } from './services/settingsService.js';
 import { StorySummaryService } from './services/storySummaryService.js';
 import { parseSuggestedStats, STAT_FALLBACK } from './services/statSuggestionService.js';
+import { generateSpeech, normalizeTextForSpeech, TTS_MAX_INPUT_CHARS, type TtsGender } from './services/ttsService.js';
 import { Character, type AIInput, type HpChange, type InventoryChange, type GameMode } from './types.js';
 import { getConfig, isAuthEnabled } from './config/env.js';
 import { getImageStorageProvider } from './providers/storage/storageProviderFactory.js';
@@ -65,8 +66,50 @@ app.get('/health', (_req, res) => {
 });
 
 app.get('/capabilities', (_req, res) => {
-  res.json({ hasLocalAI: _hasLocalAI, hasCloudAI: _hasCloudAI });
+  res.json({ hasLocalAI: _hasLocalAI, hasCloudAI: _hasCloudAI, hasTts: !!process.env.OPENAI_API_KEY });
 });
+
+app.post('/tts', authMiddleware, asyncHandler(async (req, res) => {
+  if (!process.env.OPENAI_API_KEY) {
+    res.status(503).json({ error: 'tts_not_configured', message: 'OpenAI TTS is not configured' });
+    return;
+  }
+
+  const { text, gender } = req.body as { text?: unknown; gender?: unknown };
+  if (typeof text !== 'string') {
+    res.status(400).json({ error: 'invalid_request', message: 'text must be a string' });
+    return;
+  }
+  if (gender !== undefined && gender !== 'male' && gender !== 'female') {
+    res.status(400).json({ error: 'invalid_request', message: 'gender must be male or female' });
+    return;
+  }
+
+  const normalized = normalizeTextForSpeech(text);
+  if (!normalized) {
+    res.status(400).json({ error: 'invalid_request', message: 'text is empty' });
+    return;
+  }
+  if (normalized.length > TTS_MAX_INPUT_CHARS) {
+    res.status(413).json({ error: 'text_too_long', message: `text must be ${TTS_MAX_INPUT_CHARS} characters or fewer` });
+    return;
+  }
+
+  const ttsGender = gender as TtsGender | undefined;
+  const audio = await generateSpeech(normalized, ttsGender);
+  const namespaceId = req.namespaceId;
+  const voice = ttsGender === 'female' ? 'sage' : 'fable';
+  setImmediate(() => {
+    try {
+      StateService.recordTtsUsage(namespaceId, voice, normalized.length);
+    } catch (error) {
+      console.warn('[TTS] Failed to record usage:', error);
+    }
+  });
+  res.setHeader('Content-Type', 'audio/mpeg');
+  res.setHeader('Cache-Control', 'no-store');
+  res.send(audio);
+}));
 
 // --- Auth routes (public - no auth middleware) ---
 

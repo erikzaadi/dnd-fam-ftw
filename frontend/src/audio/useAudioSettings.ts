@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { AudioSettings } from './audioTypes';
 import { audioManager } from './audioManager';
-import { browserTtsService } from '../tts/browserTtsService';
+import { narrationTtsService } from '../tts/narrationTtsService';
 
 const STORAGE_KEY = 'dnd-audio-settings';
 
@@ -40,7 +40,7 @@ export function useAudioSettings() {
     updateSetting('enabled', value);
     audioManager.updateSettings({ ...settings, enabled: value });
     if (!value) {
-      browserTtsService.stop();
+      narrationTtsService.stopNarration();
     }
   }, [updateSetting, settings]);
 
@@ -48,7 +48,7 @@ export function useAudioSettings() {
     updateSetting('masterMuted', value);
     audioManager.updateSettings({ ...settings, masterMuted: value });
     if (value) {
-      browserTtsService.stop();
+      narrationTtsService.stopNarration();
     }
   }, [updateSetting, settings]);
 

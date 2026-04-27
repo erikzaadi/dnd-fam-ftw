@@ -1,7 +1,7 @@
 import type { TurnResult } from '../../types';
 import { imgSrc } from '../../lib/api';
 import type { TtsSettings } from '../../tts/ttsTypes';
-import { TtsButton } from '../TtsButton';
+import { NarrationTtsButton } from '../NarrationTtsButton';
 import { SceneBackground } from './SceneBackground';
 
 const TENSION_CONFIG = {
@@ -15,6 +15,7 @@ interface StoryStageProps {
   viewedTurnIdx: number;
   imageLoading: boolean;
   ttsSettings: TtsSettings;
+  hasTts: boolean;
   chronicleOpen: boolean;
   currentTensionLevel?: 'low' | 'medium' | 'high' | null;
   onOpenChronicle: () => void;
@@ -27,6 +28,7 @@ export const StoryStage = ({
   viewedTurnIdx,
   imageLoading,
   ttsSettings,
+  hasTts,
   chronicleOpen,
   currentTensionLevel,
   onOpenChronicle,
@@ -97,7 +99,13 @@ export const StoryStage = ({
               {narration}
             </p>
             <div className="mt-6" onClick={e => e.stopPropagation()}>
-              <TtsButton text={narration} ttsSettings={ttsSettings} className="justify-center" />
+              <NarrationTtsButton
+                text={narration}
+                ttsSettings={ttsSettings}
+                hasTts={hasTts}
+                turnId={displayTurn?.id}
+                className="justify-center"
+              />
             </div>
           </div>
         ) : null}

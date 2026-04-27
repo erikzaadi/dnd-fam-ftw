@@ -18,7 +18,9 @@ import { ChronicleDrawer } from '../components/game/ChronicleDrawer';
 import { audioManager } from '../audio/audioManager';
 import { useAudioSettings } from '../audio/useAudioSettings';
 import { useTtsSettings } from '../tts/useTtsSettings';
-import { browserTtsService } from '../tts/browserTtsService';
+import { narrationTtsService } from '../tts/narrationTtsService';
+import { useCapabilities } from '../hooks/useCapabilities';
+import { NarrationTtsButton } from '../components/NarrationTtsButton';
 import { KeybindingsHelp } from '../components/KeybindingsHelp';
 
 interface LastSubmittedAction {
@@ -32,6 +34,7 @@ interface LastSubmittedAction {
 export const SessionPage = () => {
   const { settings, setMasterMuted } = useAudioSettings();
   const { settings: ttsSettings } = useTtsSettings();
+  const { capabilities } = useCapabilities();
   const lastSpokenTurnIdRef = useRef<number | null>(null);
   const imageLoadingRef = useRef(false);
   const { id } = useParams<{ id: string }>();
@@ -55,7 +58,6 @@ export const SessionPage = () => {
   const [showChronicle, setShowChronicle] = useState(false);
   const [showKeybindingsHelp, setShowKeybindingsHelp] = useState(false);
   const [lastSubmittedAction, setLastSubmittedAction] = useState<LastSubmittedAction | null>(null);
-  const [ttsPlaying, setTtsPlaying] = useState(false);
   const [currentTensionLevel, setCurrentTensionLevel] = useState<'low' | 'medium' | 'high' | null>(null);
   const [showBanner, setShowBanner] = useState(true);
   const displayTurnRef = useRef<TurnResult | null>(null);
@@ -108,7 +110,7 @@ export const SessionPage = () => {
     if (!ttsSettings.enabled || !ttsSettings.autoSpeakNarration) {
       return;
     }
-    if (!browserTtsService.isSupported()) {
+    if (!narrationTtsService.isNarrationAvailable(ttsSettings, capabilities.hasTts, true)) {
       return;
     }
     const latestTurn = history[history.length - 1];
@@ -119,29 +121,21 @@ export const SessionPage = () => {
       return;
     }
     lastSpokenTurnIdRef.current = latestTurn.id;
-    browserTtsService.speakNarration(latestTurn.narration, ttsSettings);
-  }, [history, loading, lastRoll, ttsSettings]);
+    narrationTtsService.speakNarration({
+      text: latestTurn.narration,
+      settings: ttsSettings,
+      hasTts: capabilities.hasTts,
+      turnId: latestTurn.id,
+      mainNarration: true,
+    });
+  }, [history, loading, lastRoll, ttsSettings, capabilities.hasTts]);
 
   // Stop TTS when leaving session
   useEffect(() => {
     return () => {
-      browserTtsService.stop();
+      narrationTtsService.stopNarration();
     };
   }, []);
-
-  // Poll TTS playing state for fullscreen narration Stop button
-  useEffect(() => {
-    if (!ttsSettings.enabled || !browserTtsService.isSupported()) {
-      return;
-    }
-    const interval = setInterval(() => {
-      setTtsPlaying(prev => {
-        const speaking = browserTtsService.isSpeaking();
-        return prev === speaking ? prev : speaking;
-      });
-    }, 200);
-    return () => clearInterval(interval);
-  }, [ttsSettings.enabled]);
 
   useEffect(() => {
     if (!lastRoll) {
@@ -196,7 +190,7 @@ export const SessionPage = () => {
           confirmLabel: 'Exit',
           onConfirm: () => {
             audioManager.stopMusic();
-            browserTtsService.stop();
+            narrationTtsService.stopNarration();
             navigate('/');
           },
         });
@@ -331,7 +325,7 @@ export const SessionPage = () => {
     setLastSubmittedAction({ label: action, stat: statUsed, char: activeChar, difficulty, difficultyValue: difficultyValue ?? undefined });
     setLoading(true);
     audioManager.stopNarrating();
-    browserTtsService.stop();
+    narrationTtsService.stopNarration();
     try {
       const res = await apiFetch(`/session/${id}/action`, {
         method: 'POST',
@@ -414,7 +408,7 @@ export const SessionPage = () => {
       message: 'Exit this realm and return home?',
       onConfirm: () => {
         audioManager.stopMusic();
-        browserTtsService.stop();
+        narrationTtsService.stopNarration();
         navigate('/');
       },
     });
@@ -452,7 +446,7 @@ export const SessionPage = () => {
             onMuteToggle={() => {
               setMasterMuted(!settings.masterMuted);
               if (!settings.masterMuted) {
-                browserTtsService.stop();
+                narrationTtsService.stopNarration();
               }
             }}
           />
@@ -493,6 +487,7 @@ export const SessionPage = () => {
             viewedTurnIdx={viewedTurnIdx}
             imageLoading={imageLoading}
             ttsSettings={ttsSettings}
+            hasTts={capabilities.hasTts}
             chronicleOpen={showChronicle}
             currentTensionLevel={currentTensionLevel}
             onOpenChronicle={() => setShowChronicle(true)}
@@ -514,6 +509,7 @@ export const SessionPage = () => {
               onSelectTurn={setViewedTurnIdx}
               viewedTurnIdx={viewedTurnIdx}
               ttsSettings={ttsSettings}
+              hasTts={capabilities.hasTts}
             />
           ) : loading ? (
             <DmDecisionRecapPanel lastSubmittedAction={lastSubmittedAction} ttsSettings={ttsSettings} />
@@ -634,22 +630,15 @@ export const SessionPage = () => {
               <p className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl 2xl:text-7xl 3xl:text-8xl 4xl:text-8xl ultrawide:text-8xl font-serif leading-snug text-slate-100 font-medium italic">
                 {fullscreenNarration}
               </p>
-              {ttsSettings.enabled && browserTtsService.isSupported() && (
+              {narrationTtsService.isNarrationAvailable(ttsSettings, capabilities.hasTts, true) && (
                 <div className="flex items-center justify-center gap-4 mt-10" onClick={e => e.stopPropagation()}>
-                  <button
-                    onClick={() => browserTtsService.speakNarration(fullscreenNarration, ttsSettings)}
-                    className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-amber-400 hover:border-amber-500/40 text-xs font-black uppercase tracking-widest transition-all"
-                  >
-                  Replay
-                  </button>
-                  {ttsPlaying && (
-                    <button
-                      onClick={() => browserTtsService.stop()}
-                      className="px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 text-xs font-black uppercase tracking-widest transition-all"
-                    >
-                    Stop
-                    </button>
-                  )}
+                  <NarrationTtsButton
+                    text={fullscreenNarration}
+                    ttsSettings={ttsSettings}
+                    hasTts={capabilities.hasTts}
+                    turnId={displayTurn?.id}
+                    className="justify-center"
+                  />
                 </div>
               )}
               <span className="text-xs uppercase tracking-widest text-slate-600 mt-8 block">tap to dismiss</span>

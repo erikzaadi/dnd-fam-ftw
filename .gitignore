@@ -19,3 +19,4 @@ terraform/*.tfstate
 terraform/*.tfstate.backup
 terraform/crash.log
 terraform/.terraform.lock.hcl
+backend/tts-sampl*

@@ -582,6 +582,8 @@ case 'metrics': {
     total_turns: number;
     images_generated: number;
     avatars_generated: number;
+    tts_requests: number;
+    tts_characters: number;
     local_ai_sessions: number;
     savings_mode_sessions: number;
     max_sessions: number | null;
@@ -607,6 +609,14 @@ case 'metrics': {
         JOIN sessions ts ON ts.id = c.sessionId
         WHERE ts.namespace_id = n.id AND c.avatar_storage_key IS NOT NULL
       ), 0) AS avatars_generated,
+      COALESCE((
+        SELECT COUNT(*) FROM tts_usage tu
+        WHERE tu.namespace_id = n.id AND tu.provider = 'openai'
+      ), 0) AS tts_requests,
+      COALESCE((
+        SELECT SUM(tu.character_count) FROM tts_usage tu
+        WHERE tu.namespace_id = n.id AND tu.provider = 'openai'
+      ), 0) AS tts_characters,
       COUNT(DISTINCT CASE WHEN s.useLocalAI = 1 THEN s.id END) AS local_ai_sessions,
       COUNT(DISTINCT CASE WHEN s.savingsMode = 1 THEN s.id END) AS savings_mode_sessions
     FROM namespaces n
@@ -622,7 +632,7 @@ case 'metrics': {
     const col = (s: string | number, w: number) => String(s).padEnd(w);
     console.log(
       col('Namespace', 20) + col('Sessions', 10) + col('Turns', 8) +
-      col('Images', 8) + col('Avatars', 9) + col('LocalAI', 9) +
+      col('Images', 8) + col('Avatars', 9) + col('TTS', 7) + col('TTS Chars', 11) + col('LocalAI', 9) +
       col('SavingsMode', 13) + 'Limits'
     );
     console.log('-'.repeat(90));
@@ -633,7 +643,7 @@ case 'metrics': {
       ].filter(Boolean).join(', ') || 'unlimited';
       console.log(
         col(r.namespace_name, 20) + col(r.session_count, 10) + col(r.total_turns, 8) +
-        col(r.images_generated, 8) + col(r.avatars_generated, 9) + col(r.local_ai_sessions, 9) +
+        col(r.images_generated, 8) + col(r.avatars_generated, 9) + col(r.tts_requests, 7) + col(r.tts_characters, 11) + col(r.local_ai_sessions, 9) +
         col(r.savings_mode_sessions, 13) + limits
       );
     }
@@ -710,4 +720,3 @@ Examples:
 `);
 
 }
-

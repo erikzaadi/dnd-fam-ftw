@@ -7,6 +7,7 @@ const STORAGE_KEY = 'dnd-tts-settings';
 const DEFAULT_SETTINGS: TtsSettings = {
   enabled: false,
   autoSpeakNarration: true,
+  provider: 'browser',
   volume: 1.0,
   rate: 1.0,
   pitch: 1.0,
@@ -45,6 +46,10 @@ export function useTtsSettings() {
     setSettings(prev => ({ ...prev, autoSpeakNarration: value }));
   }, []);
 
+  const setProvider = useCallback((value: TtsSettings['provider']) => {
+    setSettings(prev => ({ ...prev, provider: value }));
+  }, []);
+
   const setVolume = useCallback((value: number) => {
     setSettings(prev => ({ ...prev, volume: value }));
   }, []);
@@ -73,6 +78,7 @@ export function useTtsSettings() {
     settings,
     setEnabled,
     setAutoSpeakNarration,
+    setProvider,
     setVolume,
     setRate,
     setPitch,

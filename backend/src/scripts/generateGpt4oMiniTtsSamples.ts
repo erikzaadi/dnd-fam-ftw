@@ -1,18 +1,20 @@
 /**
- * Temporary script to compare OpenAI TTS voices for game narration.
+ * Temporary script to compare OpenAI gpt-4o-mini-tts voices/instructions
+ * for fantasy game narration.
  *
  * Run from repo root:
- *   cd backend && npx tsx --env-file=../.env src/scripts/generateTtsSamples.ts
+ *   cd backend && npx tsx --env-file=../.env src/scripts/generateGpt4oMiniTtsSamples.ts
  *
- * Output: tts-samples/ directory with 6 MP3 files (3 turns x 2 voices).
- * Delete this script once you've picked a voice.
+ * Output: tts-samples-gpt4o-mini/ directory.
+ * Delete this script once you've picked a voice/instruction combo.
  */
 
 import fs from 'fs';
 import path from 'path';
 import OpenAI from 'openai';
 
-// Three sample narrations at different tension levels.
+const MODEL = 'gpt-4o-mini-tts' as const;
+
 const SAMPLE_TURNS: Array<{ label: string; narration: string }> = [
   {
     label: 'low-tension',
@@ -37,16 +39,48 @@ const SAMPLE_TURNS: Array<{ label: string; narration: string }> = [
   },
 ];
 
-// Two voice configurations to compare.
-const VOICE_CONFIGS: Array<{ voice: OpenAI.Audio.Speech.SpeechCreateParams['voice']; gender: string, speed?: number }> = [
-  { voice: 'nova', gender: 'male' },
-  { voice: 'alloy', gender: 'male' },
-  { voice: 'onyx', gender: 'male', speed: 0.92 },
-  { voice: 'sage', gender: 'female', speed: 0.94 },
+const VOICE_CONFIGS: Array<{
+  voice: OpenAI.Audio.Speech.SpeechCreateParams['voice'];
+  gender: string;
+}> = [
+  { voice: 'onyx', gender: 'male' },
   { voice: 'echo', gender: 'male' },
-  { voice: 'coral', gender: 'male' },
   { voice: 'ash', gender: 'male' },
+  { voice: 'fable', gender: 'storyteller' },
+  { voice: 'sage', gender: 'female' },
+  { voice: 'coral', gender: 'female' },
 ];
+
+const INSTRUCTION_PRESETS: Array<{ label: string; instructions: string }> = [
+  {
+    label: 'uk-fantasy-narrator',
+    instructions:
+      'Speak as a refined British fantasy audiobook narrator. Calm, immersive, measured, and elegant. ' +
+      'Use clear pronunciation, restrained drama, and natural pauses. Do not sound like an assistant or announcer.',
+  },
+  {
+    label: 'low-warm-storybook',
+    instructions:
+      'Speak with a warm British storyteller tone, gentle and wondrous, like narrating a fantasy novel by candlelight. ' +
+      'Slow, soft pacing. Let descriptive details breathe.',
+  },
+  {
+    label: 'medium-hushed-suspense',
+    instructions:
+      'Speak with a controlled British narrator tone, quiet and suspenseful. Slightly hushed, tense, and deliberate. ' +
+      'Build unease without becoming theatrical.',
+  },
+  {
+    label: 'high-epic-restrained',
+    instructions:
+      'Speak with serious British epic-fantasy narration. Intense but restrained. Add urgency without shouting. ' +
+      'Keep the words clear and cinematic.',
+  },
+];
+
+function safeName(value: string) {
+  return value.replace(/[^a-z0-9_-]+/gi, '-').toLowerCase();
+}
 
 async function main() {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -56,35 +90,45 @@ async function main() {
   }
 
   const client = new OpenAI({ apiKey });
-  const outDir = path.join(process.cwd(), 'tts-samples');
+  const outDir = path.join(process.cwd(), 'tts-samples-gpt4o-mini');
+
   if (!fs.existsSync(outDir)) {
     fs.mkdirSync(outDir, { recursive: true });
   }
 
+  let generated = 0;
+
   for (const voiceCfg of VOICE_CONFIGS) {
     for (const turn of SAMPLE_TURNS) {
-      for (const model of ['tts-1', 'tts-1-hd']) {
-        const filename = `${turn.label}__${voiceCfg.voice}-${model}.mp3`;
+      for (const preset of INSTRUCTION_PRESETS) {
+        const filename = `${turn.label}__${voiceCfg.voice}__${safeName(preset.label)}__${MODEL}.mp3`;
         const outPath = path.join(outDir, filename);
+
         if (fs.existsSync(outPath)) {
           console.log(`Skipping: ${filename} since it exists...`);
+          continue;
         }
+
         console.log(`Generating: ${filename} ...`);
+
         const response = await client.audio.speech.create({
-          model: model,
+          model: MODEL,
           voice: voiceCfg.voice,
           input: turn.narration,
+          instructions: preset.instructions,
           response_format: 'mp3',
-          speed: voiceCfg.speed ?? 1,
         });
+
         const buffer = Buffer.from(await response.arrayBuffer());
         fs.writeFileSync(outPath, buffer);
+
+        generated += 1;
         console.log(`  -> saved ${outPath} (${(buffer.length / 1024).toFixed(1)} KB)`);
       }
     }
   }
 
-  console.log(`\nDone. ${SAMPLE_TURNS.length * VOICE_CONFIGS.length} files in ${outDir}`);
+  console.log(`\nDone. Generated ${generated} files in ${outDir}`);
 }
 
 main().catch(err => {

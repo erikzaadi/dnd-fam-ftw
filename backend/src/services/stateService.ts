@@ -210,6 +210,15 @@ export class StateService {
         message TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS tts_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        namespace_id TEXT NOT NULL REFERENCES namespaces(id),
+        provider TEXT NOT NULL,
+        voice TEXT NOT NULL,
+        character_count INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
     `);
 
     // Always ensure the local (no-auth) namespace exists
@@ -891,6 +900,19 @@ export class StateService {
     const db = this.getDb();
     const row = db.prepare('SELECT COUNT(*) as count FROM sessions WHERE namespace_id = ?').get(namespaceId) as { count: number };
     return row.count;
+  }
+
+  public static recordTtsUsage(namespaceId: string, voice: string, characterCount: number, provider: string = 'openai'): void {
+    const db = this.getDb();
+    db.prepare('INSERT INTO tts_usage (namespace_id, provider, voice, character_count) VALUES (?, ?, ?, ?)')
+      .run(namespaceId, provider, voice, characterCount);
+  }
+
+  public static getTtsUsage(namespaceId: string): { requestCount: number; characterCount: number } {
+    const db = this.getDb();
+    const row = db.prepare('SELECT COUNT(*) as requestCount, COALESCE(SUM(character_count), 0) as characterCount FROM tts_usage WHERE namespace_id = ?')
+      .get(namespaceId) as { requestCount: number; characterCount: number };
+    return { requestCount: row.requestCount, characterCount: row.characterCount };
   }
 
   // --- Character history ---

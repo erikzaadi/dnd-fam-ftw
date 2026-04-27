@@ -8,6 +8,7 @@ import { TargetPicker } from './TargetPicker';
 import { getHpColors } from '../../lib/hpColors';
 import { useTtsSettings } from '../../tts/useTtsSettings';
 import { browserTtsService } from '../../tts/browserTtsService';
+import { narrationTtsService } from '../../tts/narrationTtsService';
 import { useSttSettings } from '../../stt/useSttSettings';
 import { useSpeechRecognition } from '../../stt/useSpeechRecognition';
 import { parseSpeechIntent } from '../../stt/speechIntent';
@@ -246,7 +247,7 @@ export const ActionDock = ({
     if (!canStartSpeech) {
       return;
     }
-    browserTtsService.stop();
+    narrationTtsService.stopNarration();
     speech.startListening();
   }, [canStartSpeech, speech]);
 
