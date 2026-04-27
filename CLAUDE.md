@@ -84,6 +84,7 @@ frontend/src/
   pages/                           # Home, Session, CreateSession, CharacterAssembly, NamespacePicker, RequestInvite, etc.
   components/SiteHeader.tsx        # Banner + back button + logout button
   lib/api.ts                       # apiFetch() and imgSrc() URL helpers - use these everywhere
+  stt/                             # Speech-to-text: Web Speech API wrapper, intent parsing, settings hook
 
 terraform/                         # AWS infrastructure (see Terraform section below)
 ```
