@@ -330,6 +330,26 @@ const broadcastUpdate = (sessionId: string, type: string, payload: Record<string
   eventEmitter.emit('update', { sessionId, type, ...payload });
 };
 
+const triggerPreviewRegen = (sessionId: string, useLocalAI: boolean) => {
+  StateService.getSession(sessionId).then(session => {
+    if (!session) {
+      console.warn(`[Preview] Skipping generation for missing session ${sessionId}`);
+      return;
+    }
+    if (session.savingsMode) {
+      console.log(`[Preview] Skipping generation for ${sessionId}; savings mode is enabled`);
+      return;
+    }
+    console.log(`[Preview] Generating preview for ${sessionId}`);
+    ImageService.generateSessionPreview(session, useLocalAI).then(result => {
+      if (result) {
+        StateService.updateSessionPreviewImage(sessionId, result.url);
+        console.log(`[Preview] Updated preview for ${sessionId}: ${result.url}`);
+      }
+    }).catch(err => console.warn('[Preview] Generation failed:', err));
+  }).catch(err => console.warn('[Preview] Session fetch failed:', err));
+};
+
 // Compute per-character HP changes between two party snapshots
 const computeHpChanges = (before: Character[], after: Character[]): HpChange[] => {
   const changes: HpChange[] = [];
@@ -390,6 +410,7 @@ app.post('/session/create', asyncHandler(async (req, res) => {
         console.warn('[Campaign] Brief generation failed silently:', err);
       });
     }
+    triggerPreviewRegen(session.id, session.useLocalAI);
     res.json(session);
   } catch (error: unknown) {
     const status = (error as { status?: number })?.status;
@@ -416,8 +437,8 @@ app.patch('/session/:id', asyncHandler(async (req, res) => {
     res.status(404).json({ error: 'Session not found' });
     return;
   }
-  const { difficulty, gameMode, dmPrep } = req.body as { difficulty?: string; gameMode?: string; dmPrep?: string };
-  const patch: { difficulty?: string; gameMode?: string; dmPrep?: string | null } = {};
+  const { difficulty, gameMode, dmPrep, worldDescription } = req.body as { difficulty?: string; gameMode?: string; dmPrep?: string; worldDescription?: string };
+  const patch: { difficulty?: string; gameMode?: string; dmPrep?: string | null; worldDescription?: string | null } = {};
   if (difficulty !== undefined) {
     patch.difficulty = difficulty;
   }
@@ -427,13 +448,35 @@ app.patch('/session/:id', asyncHandler(async (req, res) => {
   if (dmPrep !== undefined) {
     patch.dmPrep = dmPrep || null;
   }
+  if (worldDescription !== undefined) {
+    patch.worldDescription = worldDescription || null;
+  }
   await StateService.patchSession(req.params.id as string, patch);
+  triggerPreviewRegen(req.params.id as string, session.useLocalAI);
   res.json({
     id: session.id,
     difficulty: patch.difficulty ?? session.difficulty,
     gameMode: patch.gameMode ?? session.gameMode,
     dmPrep: patch.dmPrep !== undefined ? patch.dmPrep : session.dmPrep,
+    worldDescription: patch.worldDescription !== undefined ? (patch.worldDescription ?? undefined) : session.worldDescription,
   });
+}));
+
+app.post('/session/:id/preview-image', asyncHandler(async (req, res) => {
+  const session = await StateService.getSession(req.params.id as string);
+  if (!session) {
+    res.status(404).json({ error: 'Session not found' });
+    return;
+  }
+  if (session.savingsMode) {
+    res.json({ previewImageUrl: null });
+    return;
+  }
+  const result = await ImageService.generateSessionPreview(session, session.useLocalAI);
+  if (result) {
+    StateService.updateSessionPreviewImage(session.id, result.url);
+  }
+  res.json({ previewImageUrl: result?.url ?? null });
 }));
 
 app.post('/session/:id/regenerate-dm-prep', asyncHandler(async (req, res) => {
@@ -534,6 +577,7 @@ app.post('/character/create', asyncHandler(async (req, res) => {
   }
   await StateService.updateSession(sessionId, session);
   broadcastUpdate(sessionId, 'party_update', { session });
+  triggerPreviewRegen(sessionId, session.useLocalAI);
   res.json(character);
 }));
 
@@ -568,6 +612,7 @@ app.put('/character/:charId', asyncHandler(async (req, res) => {
   session.party[charIndex] = updatedChar;
   await StateService.updateSession(sessionId, session);
   broadcastUpdate(sessionId, 'party_update', { session });
+  triggerPreviewRegen(sessionId, session.useLocalAI);
   res.json(updatedChar);
 }));
 
@@ -606,8 +651,8 @@ app.delete('/session/:sessionId/character/:charId', asyncHandler(async (req, res
   }
 
   StateService.deleteCharacter(charId as string);
-
   broadcastUpdate(sessionId as string, 'party_update', { session });
+  triggerPreviewRegen(sessionId as string, session.useLocalAI);
   res.json({ success: true });
 }));
 

@@ -90,7 +90,7 @@ export const Settings = () => {
     setEnabled: setSttEnabled,
   } = useSttSettings();
 
-  const availableVoices = useAvailableVoices();
+  const { voices: availableVoices, timedOut: voicesTimedOut } = useAvailableVoices();
   const ttsSupported = browserTtsService.isSupported();
   const ttsAvailable = ttsSupported || capabilities.hasTts;
   const activeTtsProvider = ttsSettings.provider === 'openai' && !capabilities.hasTts ? 'browser' : ttsSettings.provider;
@@ -348,7 +348,12 @@ export const Settings = () => {
                                 {savedVoiceUnavailable && (
                                   <p className="text-xs text-amber-400">Saved voice is unavailable on this device - using best match.</p>
                                 )}
-                                {availableVoices.length === 0 ? (
+                                {availableVoices.length === 0 && voicesTimedOut ? (
+                                  <div className="flex flex-col gap-2">
+                                    <p className="text-sm text-rose-400">Could not load voices on this device.</p>
+                                    <p className="text-xs text-slate-400">Try switching to <span className="text-amber-400 font-black">AI Narrator</span> above for reliable narration.</p>
+                                  </div>
+                                ) : availableVoices.length === 0 ? (
                                   <p className="text-sm text-slate-500">Loading available voices...</p>
                                 ) : (
                                   <select

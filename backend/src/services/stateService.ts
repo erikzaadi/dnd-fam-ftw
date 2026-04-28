@@ -253,6 +253,9 @@ export class StateService {
     if (!sessionColsFull.includes('game_over')) {
       db.prepare("ALTER TABLE sessions ADD COLUMN game_over INTEGER NOT NULL DEFAULT 0").run();
     }
+    if (!sessionColsFull.includes('preview_image_url')) {
+      db.prepare("ALTER TABLE sessions ADD COLUMN preview_image_url TEXT").run();
+    }
   }
 
   // Ensures the DB is open and migrations have run. Safe to call multiple times.
@@ -341,6 +344,7 @@ export class StateService {
       rescues_used: number;
       game_over: number;
       storySummary: string;
+      preview_image_url: string | null;
     } | undefined;
     if (!row) {
       return undefined;
@@ -430,6 +434,7 @@ export class StateService {
       interventionState: { rescuesUsed: row.rescues_used ?? (row.interventionUsed ? 1 : 0) },
       storySummary: row.storySummary ?? '',
       gameOver: !!row.game_over,
+      previewImageUrl: row.preview_image_url || undefined,
     };
   }
 
@@ -508,9 +513,14 @@ export class StateService {
     }
   }
 
-  public static async patchSession(id: string, fields: { difficulty?: string; gameMode?: string; dmPrep?: string | null }): Promise<void> {
+  public static updateSessionPreviewImage(id: string, url: string): void {
     const db = this.getDb();
-    const colMap: Record<string, string> = { difficulty: 'difficulty', gameMode: 'gameMode', dmPrep: 'dm_prep' };
+    db.prepare('UPDATE sessions SET preview_image_url = ? WHERE id = ?').run(url, id);
+  }
+
+  public static async patchSession(id: string, fields: { difficulty?: string; gameMode?: string; dmPrep?: string | null; worldDescription?: string | null }): Promise<void> {
+    const db = this.getDb();
+    const colMap: Record<string, string> = { difficulty: 'difficulty', gameMode: 'gameMode', dmPrep: 'dm_prep', worldDescription: 'worldDescription' };
     const sets: string[] = [];
     const values: unknown[] = [];
     for (const [key, col] of Object.entries(colMap)) {
@@ -525,9 +535,9 @@ export class StateService {
     db.prepare(`UPDATE sessions SET ${sets.join(', ')} WHERE id = ?`).run(...values, id);
   }
 
-  public static async listSessions(namespaceId: string = 'local'): Promise<{ id: string; displayName: string; worldDescription?: string; storySummary?: string; dmPrep?: string; difficulty: string; gameMode: string; gameOver?: boolean; party: { id: string; name: string; class: string; species: string; avatarUrl?: string; hp: number; max_hp: number }[] }[]> {
+  public static async listSessions(namespaceId: string = 'local'): Promise<{ id: string; displayName: string; worldDescription?: string; storySummary?: string; dmPrep?: string; difficulty: string; gameMode: string; gameOver?: boolean; previewImageUrl?: string; party: { id: string; name: string; class: string; species: string; avatarUrl?: string; hp: number; max_hp: number }[] }[]> {
     const db = this.getDb();
-    const rows = db.prepare('SELECT id, displayName, worldDescription, storySummary, dm_prep, difficulty, gameMode, game_over FROM sessions WHERE namespace_id = ? ORDER BY createdAt DESC').all(namespaceId) as { id: string; displayName: string; worldDescription: string | null; storySummary: string | null; dm_prep: string | null; difficulty: string; gameMode: string; game_over: number }[];
+    const rows = db.prepare('SELECT id, displayName, worldDescription, storySummary, dm_prep, difficulty, gameMode, game_over, preview_image_url FROM sessions WHERE namespace_id = ? ORDER BY createdAt DESC').all(namespaceId) as { id: string; displayName: string; worldDescription: string | null; storySummary: string | null; dm_prep: string | null; difficulty: string; gameMode: string; game_over: number; preview_image_url: string | null }[];
     return rows.map(row => {
       const chars = db.prepare('SELECT id, name, class, species, avatarUrl, hp, max_hp FROM characters WHERE sessionId = ?').all(row.id) as { id: string; name: string; class: string; species: string; avatarUrl: string | null; hp: number; max_hp: number }[];
       return {
@@ -539,6 +549,7 @@ export class StateService {
         difficulty: row.difficulty,
         gameMode: row.gameMode,
         gameOver: !!row.game_over || undefined,
+        previewImageUrl: row.preview_image_url || undefined,
         party: chars.map(c => ({ ...c, avatarUrl: c.avatarUrl || undefined })),
       };
     });

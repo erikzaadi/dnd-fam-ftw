@@ -74,6 +74,7 @@ export interface SessionState {
   interventionState: InterventionState;
   storySummary: string;
   gameOver?: boolean;
+  previewImageUrl?: string;
 }
 
 export interface Choice {

@@ -82,7 +82,7 @@ export const HowToPlay = () => {
 
             <Section title="Items">
               <p className="text-slate-300 text-lg leading-relaxed mb-3">
-                Defeating enemies always drops loot - a goblin leaves a blade or coin purse, a wolf drops a pelt, a boss leaves something unique. Loot goes to the hero who struck the finishing blow. The AI may also reward items through exploration and story moments. From the inventory panel you can:
+                Defeating enemies can drop loot - easy realms are generous, normal realms usually reward real fights, hard realms save loot for notable threats, and zug-ma-geddon is stingy unless something big falls. Loot goes to the hero who struck the finishing blow. The AI may also reward items through exploration and story moments. From the inventory panel you can:
               </p>
               <Row
                 label={

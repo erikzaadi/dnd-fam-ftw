@@ -320,6 +320,9 @@ export const SessionPage = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled }),
     });
+    if (enabled) {
+      setImageLoading(false);
+    }
     setSession({ ...session, savingsMode: enabled });
   };
 
@@ -450,7 +453,7 @@ export const SessionPage = () => {
   };
 
   return (
-    <div className="bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-slate-100 overflow-x-hidden lg:h-dvh lg:overflow-hidden">
+    <div className="bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-slate-100 overflow-x-hidden [@media(orientation:landscape)]:h-dvh [@media(orientation:landscape)]:overflow-hidden">
       {showBanner && (
         <SessionHud
           session={session}
@@ -514,13 +517,13 @@ export const SessionPage = () => {
         </div>
       )}
 
-      <div className={`flex flex-col lg:flex-row gap-4 px-4 pb-4 h-dvh overflow-hidden ${showBanner ? 'pt-36 sm:pt-24' : 'pt-3'}`}>
+      <div className={`flex flex-col [@media(orientation:landscape)]:flex-row gap-4 px-4 pb-4 h-dvh overflow-hidden ${showBanner ? 'pt-36 [@media(orientation:landscape)]:pt-12' : 'pt-3'}`}>
         {/* Top / Left: Story Stage */}
-        <div className="flex-shrink-0 h-[40vh] lg:h-auto lg:flex-1 lg:min-w-0 lg:min-h-0">
+        <div className="flex-shrink-0 h-[40vh] [@media(orientation:landscape)]:h-auto [@media(orientation:landscape)]:flex-1 [@media(orientation:landscape)]:min-w-0 [@media(orientation:landscape)]:min-h-0">
           <StoryStage
             history={history}
             viewedTurnIdx={viewedTurnIdx}
-            imageLoading={imageLoading}
+            imageLoading={imageLoading && !session.savingsMode}
             ttsSettings={ttsSettings}
             hasTts={capabilities.hasTts}
             chronicleOpen={showChronicle}
@@ -532,7 +535,7 @@ export const SessionPage = () => {
         </div>
 
         {/* Bottom / Right: Chronicle / Action area */}
-        <div className="flex-1 min-h-0 lg:flex-none lg:flex-shrink-0 lg:w-[380px] xl:w-[440px] 2xl:w-[500px] lg:min-h-0">
+        <div className="flex-1 min-h-0 [@media(orientation:landscape)]:flex-none [@media(orientation:landscape)]:flex-shrink-0 [@media(orientation:landscape)]:w-[380px] xl:w-[440px] 2xl:w-[500px] [@media(orientation:landscape)]:min-h-0">
           {showChronicle ? (
             <ChronicleDrawer
               history={history}

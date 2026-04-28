@@ -22,7 +22,18 @@ rsync -avz --force --delete \
     --exclude='frontend/node_modules/' \
     --exclude='backend/node_modules/' \
     --exclude='*.sqlite' \
+    --exclude='*.DS_Store' \
     --exclude='*.sqlite-journal' \
+    --exclude='/images/' \
+    --exclude='backend/public/generated/' \
+    --exclude='backend/data/generated-images/' \
+    --exclude='tts-sample*/' \
+    --filter='+ /backend/***' \
+    --filter='+ /frontend/***' \
+    --filter='+ /scripts/***' \
+    --filter='+ /package.json' \
+    --filter='+ /package-lock.json' \
+    --filter='- *' \
     "$ROOT_DIR/" "${TARGET_USER}@${TARGET_IP}:${TARGET_DIR}/"
 
 echo "✅ Sync complete."

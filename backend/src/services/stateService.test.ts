@@ -161,6 +161,17 @@ describe('StateService - Session CRUD', () => {
     expect(history[history.length - 1].imageUrl).toBe('http://example.com/img.png');
     expect(history[0].imageUrl).toBeNull();
   });
+
+  it('persists preview image URLs for getSession and listSessions', async () => {
+    insertTestSession('sess-preview', 'local', 'Preview World');
+    StateService.updateSessionPreviewImage('sess-preview', '/test-images/preview_sess-preview.png');
+
+    const session = await StateService.getSession('sess-preview');
+    expect(session!.previewImageUrl).toBe('/test-images/preview_sess-preview.png');
+
+    const listed = await StateService.listSessions('local');
+    expect(listed.find(s => s.id === 'sess-preview')?.previewImageUrl).toBe('/test-images/preview_sess-preview.png');
+  });
 });
 
 describe('StateService - User / Namespace management', () => {

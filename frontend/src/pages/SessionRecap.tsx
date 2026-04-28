@@ -70,7 +70,7 @@ const TldrView = ({ sessionId, onEnter, hasTts }: { sessionId: string; onEnter: 
 
 // ── MOVIE ───────────────────────────────────────────────────────────────────
 
-const MovieView = ({ history, party, onEnter, hasTts }: { history: TurnResult[]; party: Character[]; onEnter: () => void; hasTts: boolean }) => {
+const MovieView = ({ history, party, previewImageUrl, onEnter, hasTts }: { history: TurnResult[]; party: Character[]; previewImageUrl: string | null; onEnter: () => void; hasTts: boolean }) => {
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [fullscreenUrl, setFullscreenUrl] = useState<string | null>(null);
@@ -139,7 +139,7 @@ const MovieView = ({ history, party, onEnter, hasTts }: { history: TurnResult[];
   }, [idx, playing, isLast, ttsSettings, turn.id, turn.narration, hasTts]);
 
   const imageUrl = turn.imageUrl ? imgSrc(turn.imageUrl) : null;
-  const defaultImageUrl = imgSrc('/images/default_scene.png');
+  const defaultImageUrl = previewImageUrl ?? imgSrc('/images/default_scene.png');
 
   return (
     <div className="flex-1 flex min-h-0 w-full animate-in fade-in duration-500 relative z-[10]">
@@ -305,6 +305,7 @@ export const SessionRecap = () => {
   const [mode, setMode] = useState<Mode>('choose');
   const [session, setSession] = useState<Session | null>(null);
   const [history, setHistory] = useState<TurnResult[]>([]);
+  const [fullscreenUrl, setFullscreenUrl] = useState<string | null>(null);
   const [showKeybindingsHelp, setShowKeybindingsHelp] = useState(false);
   const { capabilities } = useCapabilities();
 
@@ -370,8 +371,12 @@ export const SessionRecap = () => {
     return <PageLoader />;
   }
 
+  const previewImageUrl = session.previewImageUrl ? imgSrc(session.previewImageUrl) : null;
+  const chooserPreviewUrl = previewImageUrl ?? imgSrc('/images/default_scene.png');
+
   return (
     <div className="h-screen bg-slate-950 text-white flex flex-col overflow-hidden">
+      {fullscreenUrl && <FullscreenImage url={fullscreenUrl} onClose={() => setFullscreenUrl(null)} />}
       <SiteHeader />
 
       {/* Persistent top bar with session name + controls */}
@@ -403,31 +408,48 @@ export const SessionRecap = () => {
       {/* Mode chooser or content */}
       <div className="flex-1 flex flex-col min-h-0 relative">
         {mode === 'choose' && (
-          <div className="flex-1 flex flex-col items-center justify-center gap-6 animate-in fade-in zoom-in duration-500 relative z-[10] px-4">
-            <p className="text-lg md:text-2xl font-black uppercase tracking-widest text-amber-400">How would you like to catch up?</p>
-            <div className="flex gap-4 md:gap-6">
-              <button onClick={() => setMode('tldr')} className="relative flex flex-col items-center gap-3 p-6 md:p-8 bg-slate-900 hover:bg-slate-800 rounded-[32px] border border-slate-700 hover:border-amber-500/50 transition-all w-36 md:w-44">
-                <span className="absolute top-2 right-3 text-[9px] font-black text-slate-600 tracking-widest">[1]</span>
-                <img src={imgSrc('/images/icon_scroll.png')} alt="scroll" className="w-12 h-12 object-contain mix-blend-screen" />
-                <span className="font-black uppercase tracking-widest text-sm">TLDR</span>
-                <span className="text-xs text-slate-500 text-center">AI summary of the adventure</span>
-              </button>
-              <button onClick={() => setMode('movie')} className="relative flex flex-col items-center gap-3 p-6 md:p-8 bg-slate-900 hover:bg-slate-800 rounded-[32px] border border-slate-700 hover:border-amber-500/50 transition-all w-36 md:w-44">
-                <span className="absolute top-2 right-3 text-[9px] font-black text-slate-600 tracking-widest">[2]</span>
-                <span className="text-4xl">🎬</span>
-                <span className="font-black uppercase tracking-widest text-sm">Movie</span>
-                <span className="text-xs text-slate-500 text-center">Relive each turn with scenes</span>
+          <div className="flex-1 flex items-center justify-center animate-in fade-in zoom-in duration-500 relative z-[10] px-4 py-8">
+            <div
+              className="relative w-full max-w-5xl min-h-[26rem] flex flex-col items-center justify-center gap-6 overflow-hidden rounded-[32px] border border-slate-800 bg-slate-950/80 px-4 py-10 cursor-zoom-in"
+              onClick={() => setFullscreenUrl(chooserPreviewUrl)}
+            >
+              <img
+                src={chooserPreviewUrl}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover animate-ken-burns opacity-45"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/65 to-slate-950/20" />
+              <p className="relative text-lg md:text-2xl font-black uppercase tracking-widest text-amber-400 text-center">How would you like to catch up?</p>
+              <div className="relative flex gap-4 md:gap-6">
+                <button onClick={e => {
+                  e.stopPropagation(); setMode('tldr');
+                }} className="relative flex flex-col items-center gap-3 p-6 md:p-8 bg-slate-900/90 hover:bg-slate-800 rounded-[32px] border border-slate-700 hover:border-amber-500/50 transition-all w-36 md:w-44">
+                  <span className="absolute top-2 right-3 text-[9px] font-black text-slate-600 tracking-widest">[1]</span>
+                  <img src={imgSrc('/images/icon_scroll.png')} alt="scroll" className="w-12 h-12 object-contain mix-blend-screen" />
+                  <span className="font-black uppercase tracking-widest text-sm">TLDR</span>
+                  <span className="text-xs text-slate-500 text-center">AI summary of the adventure</span>
+                </button>
+                <button onClick={e => {
+                  e.stopPropagation(); setMode('movie');
+                }} className="relative flex flex-col items-center gap-3 p-6 md:p-8 bg-slate-900/90 hover:bg-slate-800 rounded-[32px] border border-slate-700 hover:border-amber-500/50 transition-all w-36 md:w-44">
+                  <span className="absolute top-2 right-3 text-[9px] font-black text-slate-600 tracking-widest">[2]</span>
+                  <span className="text-4xl">🎬</span>
+                  <span className="font-black uppercase tracking-widest text-sm">Movie</span>
+                  <span className="text-xs text-slate-500 text-center">Relive each turn with scenes</span>
+                </button>
+              </div>
+              <button onClick={e => {
+                e.stopPropagation(); enter();
+              }} className="relative text-slate-500 hover:text-slate-300 font-black uppercase text-xs tracking-widest transition-colors">
+                <span className="absolute -top-1 -right-5 text-[9px] font-black text-slate-700 tracking-widest">[3]</span>
+                Skip - Jump straight in
               </button>
             </div>
-            <button onClick={enter} className="relative text-slate-500 hover:text-slate-300 font-black uppercase text-xs tracking-widest transition-colors">
-              <span className="absolute -top-1 -right-5 text-[9px] font-black text-slate-700 tracking-widest">[3]</span>
-              Skip - Jump straight in
-            </button>
           </div>
         )}
 
         {mode === 'tldr' && <TldrView sessionId={id!} onEnter={enter} hasTts={capabilities.hasTts} />}
-        {mode === 'movie' && history.length > 0 && <MovieView history={history} party={session.party} onEnter={enter} hasTts={capabilities.hasTts} />}
+        {mode === 'movie' && history.length > 0 && <MovieView history={history} party={session.party} previewImageUrl={previewImageUrl} onEnter={enter} hasTts={capabilities.hasTts} />}
       </div>
 
       <DmFooter />

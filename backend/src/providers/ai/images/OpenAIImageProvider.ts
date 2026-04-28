@@ -10,7 +10,7 @@ const openai = () => (_openai ??= new OpenAI({
 export class OpenAIImageProvider implements ImageProvider {
   async generateImage(input: ImageGenerationInput): Promise<ImageGenerationOutput> {
     // DALL-E does not support negative prompts — we bake the no-text requirement into the positive prompt
-    const prompt = `NO TEXT. NO WORDS. NO LETTERS. NO WRITING OF ANY KIND. Fantasy style, vibrant colors, purely graphical illustration: ${input.prompt}`;
+    const prompt = `Pure fantasy illustration only. Do not include any text, words, letters, numbers, captions, labels, signs, plaques, banners, maps, book pages, scroll writing, carved inscriptions, logos, UI, or watermark. If the scene contains books, signs, stones, maps, or banners, they must be blank or purely decorative with no readable or pseudo-readable marks. ${input.prompt}`;
 
     const response = await openai().images.generate({
       model: process.env.OPENAI_IMAGE_MODEL ?? 'dall-e-3',

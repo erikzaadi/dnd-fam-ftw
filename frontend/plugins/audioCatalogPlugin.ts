@@ -37,14 +37,14 @@ function listDirs(dir: string): string[] {
   }
 }
 
-function generateModule(publicDir: string): string {
+function generateModule(publicDir: string, base: string): string {
   const soundDir = join(publicDir, 'sound');
 
   // Music: sound/music/<category>/*.mp3
   const musicDir = join(soundDir, 'music');
   const music: Record<string, string[]> = {};
   for (const cat of listDirs(musicDir)) {
-    music[cat] = listFiles(join(musicDir, cat)).map(f => `/sound/music/${cat}/${f}`);
+    music[cat] = listFiles(join(musicDir, cat)).map(f => `${base}sound/music/${cat}/${f}`);
   }
 
   // SFX: sound/sfx/<event>/*.mp3 (normal) + sound/sfx/<event>/silly/*.mp3 (silly)
@@ -53,15 +53,15 @@ function generateModule(publicDir: string): string {
   for (const event of listDirs(sfxDir)) {
     const eventDir = join(sfxDir, event);
     const key = kebabToCamel(event);
-    const normal = listFiles(eventDir).map(f => `/sound/sfx/${event}/${f}`);
-    const silly = listFiles(join(eventDir, 'silly')).map(f => `/sound/sfx/${event}/silly/${f}`);
+    const normal = listFiles(eventDir).map(f => `${base}sound/sfx/${event}/${f}`);
+    const silly = listFiles(join(eventDir, 'silly')).map(f => `${base}sound/sfx/${event}/silly/${f}`);
     sfx[key] = { normal, silly };
   }
 
   return `export const audioCatalog = ${JSON.stringify({ music, sfx }, null, 2)};`;
 }
 
-export function audioCatalogPlugin(publicDir: string): Plugin {
+export function audioCatalogPlugin(publicDir: string, base = '/'): Plugin {
   return {
     name: 'audio-catalog',
 
@@ -73,7 +73,7 @@ export function audioCatalogPlugin(publicDir: string): Plugin {
 
     load(id) {
       if (id === RESOLVED_ID) {
-        return generateModule(publicDir);
+        return generateModule(publicDir, base);
       }
     },
 

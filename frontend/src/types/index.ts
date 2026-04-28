@@ -61,6 +61,7 @@ export interface SessionPreview {
   difficulty: string;
   gameMode: string;
   gameOver?: boolean;
+  previewImageUrl?: string;
   party: { id: string; name: string; class: string; species: string; avatarUrl?: string; hp: number; max_hp: number }[];
 }
 
@@ -76,6 +77,7 @@ export interface Session {
   gameMode?: 'cinematic' | 'balanced' | 'fast';
   interventionState: { rescuesUsed: number };
   gameOver?: boolean;
+  previewImageUrl?: string;
 }
 
 export type TurnType = 'normal' | 'intervention' | 'sanctuary';

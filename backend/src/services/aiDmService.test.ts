@@ -69,6 +69,12 @@ describe('toNarrationInput', () => {
     expect(out.party[0].status).toBe('active');
   });
 
+  it('passes party species through', () => {
+    const out = toNarrationInput(makeAIInput());
+    expect(out.party[0].species).toBe('Halfling');
+    expect(out.party[1].species).toBe('Elf');
+  });
+
   it('passes downed status through', () => {
     const out = toNarrationInput(makeAIInput({
       party: [{ ...makeAIInput().party[0], status: 'downed', hp: 0 }],

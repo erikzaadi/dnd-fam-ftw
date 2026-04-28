@@ -132,6 +132,10 @@ describe('ImageService.generateAvatar', () => {
     const result = await ImageService.generateAvatar(char, 'sess-avatar-1', false, provider, storage);
     expect(result.url).toBeTruthy();
     expect(result.prompt).toContain('Halfling Rogue');
+    expect(result.prompt).toContain('Pip');
+    expect(result.prompt).toContain('Talks to plants');
+    expect(result.prompt).toContain('one subject only');
+    expect(result.prompt).toContain('no split screen');
     expect(provider.calls).toHaveLength(1);
     expect(storage.stored.size).toBe(1);
   });
@@ -139,7 +143,7 @@ describe('ImageService.generateAvatar', () => {
   it('cache hit: skips provider', async () => {
     const provider = makeMockImageProvider();
     const char = { name: 'Pip', class: 'Rogue', species: 'Halfling', quirk: 'Talks to plants' };
-    const prompt = `fantasy character portrait, ${char.species} ${char.class}, detailed face, plain dark background, vibrant colors, cinematic lighting, digital illustration`;
+    const prompt = `single finished fantasy character portrait of one ${char.species} ${char.class}, visual personality inspired by the character name "${char.name}" but do not write the name, subtle visual personality cue: ${char.quirk}, one subject only, one face only, single uninterrupted image, no split screen, no side-by-side panels, no duplicate portrait, detailed face, centered head-and-shoulders composition, plain dark background, vibrant colors, cinematic lighting, painterly storybook art, no interface, no editor controls, no crop guides, no grid lines, no color palettes, no overlays, no text or writing`;
     const hash = crypto.createHash('md5').update(prompt).digest('hex');
     const cachedKey = `avatar_sess-avatar-cached_${char.name}_${hash}.png`;
     const storage = makeMockStorage(new Set([cachedKey]));
@@ -168,6 +172,31 @@ describe('ImageService.generateAvatar', () => {
     const char = { name: 'Aria', class: 'Mage', species: 'Elf', quirk: 'Loves riddles', gender: 'female' };
     const result = await ImageService.generateAvatar(char, 'sess-avatar-gender', false, provider, storage);
     expect(result.prompt).toContain('female');
+  });
+});
+
+describe('ImageService.generateSessionPreview', () => {
+  it('includes party species, class, gender, and quirk without character names', async () => {
+    const storage = makeMockStorage();
+    const provider = makeMockImageProvider();
+    const result = await ImageService.generateSessionPreview({
+      id: 'sess-preview-1',
+      displayName: 'The Punny Realm',
+      worldDescription: 'A moonlit mushroom cave',
+      dmPrep: 'A goblin king hoards glowing cheese.',
+      party: [
+        { name: 'Pip', class: 'Rogue', species: 'Halfling', quirk: 'talks to plants', gender: 'female' },
+        { name: 'Zara', class: 'Wizard', species: 'Elf', quirk: 'collects cursed spoons' },
+      ],
+    }, false, provider, storage);
+
+    expect(result).not.toBeNull();
+    expect(provider.calls).toHaveLength(1);
+    expect(provider.calls[0]).toContain('female Halfling Rogue with talks to plants');
+    expect(provider.calls[0]).toContain('Elf Wizard with collects cursed spoons');
+    expect(provider.calls[0]).not.toContain('Pip');
+    expect(provider.calls[0]).not.toContain('Zara');
+    expect(provider.calls[0]).not.toContain('The Punny Realm');
   });
 });
 

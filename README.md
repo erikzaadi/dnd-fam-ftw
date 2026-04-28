@@ -23,7 +23,7 @@ No prep required. No DM experience required. Just vibes and a d20.
 ![Scene image with savings toggle](docs/scene-image-gameplay.png)
 
 - **AI Dungeon Master** : GPT-4o narrates your story in real-time
-- **DALL-E 3 scene images** : every major moment gets illustrated, with a slow Ken Burns pan across the scene
+- **DALL-E 3 scene and realm images** : every major moment gets illustrated, and each realm gets a generated preview image for home and recap screens
 - **Three stats** : Might, Magic, and Mischief (it's a family game)
 - **d20 rolls** : classic dice mechanics, displayed with a satisfying SVG die; the exact target needed is shown per action
 - **Dynamic difficulty (DRAMA LLAMA)** : the AI tunes the specific roll target per action based on the current situation, within the spirit of the chosen difficulty
@@ -62,7 +62,7 @@ Every hero gets a generated portrait and carries their quirk into the story:
 ![Recap mode selection](docs/recap-mode-select.png)
 
 - **TLDR mode** : AI summarises the whole adventure in 3 sentences for latecomers
-- **Movie mode** : animated slideshow of every scene, with Ken Burns effect and pause/play controls. Click any image for fullscreen.
+- **Movie mode** : animated slideshow of every scene, with Ken Burns effect and pause/play controls. Click any image for fullscreen. If a turn has no scene image, the realm preview is used as the fallback.
 
 ### Audio
 
@@ -75,10 +75,10 @@ Every hero gets a generated portrait and carries their quirk into the story:
 ### Quality of Life
 - **DM Prep** : add campaign notes (lore, villains, locations, plot hooks) when creating or editing a realm; the AI weaves them naturally into the story
 - **Chronicle** : tap "Open Chronicle" in-game to review every past turn with expanded details, rolls, and HP changes; click any turn to jump back and view that scene
-- **Edit realm** : change difficulty, game pacing, or DM Prep at any time from the home screen
+- **Edit realm** : change difficulty, game pacing, realm description, or DM Prep at any time from the home screen
 - **Savings mode** : toggle off image generation per-session (or globally in Settings); session toggle always wins
 - **Session persistence** : SQLite, so your adventure survives a server restart
-- **Realm details on home screen** : tap ✎ on any active realm to see the party roster, realm description, and the last story summary before jumping in
+- **Realm details on home screen** : expand any active realm to see its generated preview image, party roster, realm description, and the last story summary before jumping in
 - **Mobile & tablet friendly** : playable on the couch
 
 ---
@@ -275,12 +275,13 @@ See **[MANAGE.md](MANAGE.md)** for the full command reference.
 
 ## AI Usage
 
-There are six distinct AI calls in the app, each with a different purpose and cost profile:
+There are seven distinct AI calls in the app, each with a different purpose and cost profile:
 
 | Call | Where | Cloud model | Local alternative | When |
 |---|---|---|---|---|
 | **Turn narration** | `aiDmService.ts` | gpt-4o | LocalAI (Qwen3 etc.) | Every action : the core DM loop |
 | **Scene image** | `imageService.ts` | dall-e-3 | LocalAI (SD 3.5 Large) | Every turn, async via SSE, cached by prompt hash |
+| **Realm preview image** | `imageService.ts` | dall-e-3 | LocalAI (SD 3.5 Large) | On realm creation and when realm details or party composition change, cached by prompt hash |
 | **Avatar generation** | `imageService.ts` | dall-e-3 | LocalAI (SD 3.5 Large) | Once per character creation, cached permanently |
 | **TLDR summary** | `index.ts` (route) | gpt-4o-mini | - | On demand in recap screen |
 | **Session naming** | `stateService.ts` | gpt-4o-mini | LocalAI | Once at realm creation |
@@ -288,7 +289,7 @@ There are six distinct AI calls in the app, each with a different purpose and co
 
 Use `npm run cli -- metrics` (or `./dnd-fam-ftw-prod-cli metrics` on production) to see per-namespace counts for sessions, turns, images, and avatars generated.
 
-Turn narration is the only call that blocks the player response. Scene images are generated asynchronously after the turn : the story text appears immediately, and the image arrives via SSE a few seconds later.
+Turn narration is the only call that blocks the player response. Scene images are generated asynchronously after the turn : the story text appears immediately, and the image arrives via SSE a few seconds later. Realm preview images are also generated asynchronously and are skipped when the session is in savings mode.
 
 ---
 

@@ -21,7 +21,9 @@ export class ImageService {
     overrideStorageProvider?: ImageStorageProvider,
   ): Promise<{ url: string; prompt: string; storageKey: string; storageProvider: string }> {
     const genderDesc = char.gender ? `${char.gender} ` : '';
-    const prompt = `fantasy character portrait, ${genderDesc}${char.species} ${char.class}, detailed face, plain dark background, vibrant colors, cinematic lighting, digital illustration`;
+    const nameDesc = char.name ? `, visual personality inspired by the character name "${char.name}" but do not write the name` : '';
+    const quirkDesc = char.quirk ? `, subtle visual personality cue: ${char.quirk}` : '';
+    const prompt = `single finished fantasy character portrait of one ${genderDesc}${char.species} ${char.class}${nameDesc}${quirkDesc}, one subject only, one face only, single uninterrupted image, no split screen, no side-by-side panels, no duplicate portrait, detailed face, centered head-and-shoulders composition, plain dark background, vibrant colors, cinematic lighting, painterly storybook art, no interface, no editor controls, no crop guides, no grid lines, no color palettes, no overlays, no text or writing`;
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
     const fileName = `avatar_${sessionId}_${char.name}_${promptHash}.png`;
     const storage = overrideStorageProvider ?? getImageStorageProvider();
@@ -174,6 +176,63 @@ export class ImageService {
     const fileName = `avatar_initials_${sessionId}_${name.replace(/\s+/g, '_')}.svg`;
     fs.writeFileSync(path.join(storageDir, fileName), svg, 'utf8');
     return `${config.LOCAL_IMAGE_PUBLIC_BASE_URL}/${fileName}`;
+  }
+
+  public static async generateSessionPreview(
+    session: {
+      id: string;
+      displayName: string;
+      worldDescription?: string;
+      dmPrep?: string;
+      party: { name: string; class: string; species: string; quirk?: string; gender?: string }[];
+    },
+    useLocalAI?: boolean,
+    overrideImageProvider?: ImageProvider,
+    overrideStorageProvider?: ImageStorageProvider,
+  ): Promise<ImageResult | null> {
+    const heroList = session.party.length > 0
+      ? session.party.map(c => {
+        const genderPart = c.gender ? `${c.gender} ` : '';
+        const quirkPart = c.quirk ? ` with ${c.quirk}` : '';
+        return `${genderPart}${c.species} ${c.class}${quirkPart}`;
+      }).join(', ')
+      : 'a lone adventurer';
+    const worldPart = session.worldDescription ? ` ${session.worldDescription}.` : '';
+    const villainHint = session.dmPrep
+      ? ' ' + session.dmPrep.slice(0, 120).replace(/\n/g, ' ').trim() + '.'
+      : '';
+    const prompt = `Fantasy adventure establishing scene for a realm.${worldPart} Adventuring party: ${heroList}.${villainHint} Purely visual artwork with no text, no signs, no plaques, no banners, no maps, no books, no scrolls, and no inscriptions. Wide establishing shot, cinematic lighting, storybook art, detailed environment`;
+
+    const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
+    const fileName = `preview_${session.id}_${promptHash}.png`;
+    const storage = overrideStorageProvider ?? getImageStorageProvider();
+    const config = getConfig();
+
+    if (await storage.exists(fileName)) {
+      return { url: storage.getPublicUrl(fileName), storageKey: fileName, storageProvider: config.IMAGE_STORAGE_PROVIDER };
+    }
+
+    try {
+      console.log(`[ImageService] Generating session preview for ${session.displayName}`);
+      const imageProvider = overrideImageProvider ?? createImageProvider(useLocalAI);
+      const result = await imageProvider.generateImage({
+        prompt,
+        negativePrompt: DEFAULT_NEGATIVE_PROMPT,
+        width: 1024,
+        height: 1024,
+      });
+      const buffer = await this.fetchImageBuffer(result.url);
+      const stored = await storage.putImage({ key: fileName, contentType: 'image/png', body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
+      return { url: stored.publicUrl, storageKey: stored.key, storageProvider: config.IMAGE_STORAGE_PROVIDER };
+    } catch (error: unknown) {
+      const code = (error as { code?: string })?.code;
+      if (code === 'content_policy_violation') {
+        const sanitizedPrompt = this.sanitizePrompt(prompt);
+        return this.generateImage(sanitizedPrompt, session.id, 0, useLocalAI, overrideImageProvider, overrideStorageProvider);
+      }
+      console.error('[ImageService] Session preview generation failed:', error);
+      return null;
+    }
   }
 
   public static getDefaultImage(): string {

@@ -15,6 +15,7 @@ export type NarrationInput = {
   party: Array<{
     name: string;
     class: string;
+    species: string;
     hp: number;
     maxHp: number;
     status: 'active' | 'downed';

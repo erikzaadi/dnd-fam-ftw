@@ -64,6 +64,7 @@ const ItemsSection = ({
   partyItemCount: number;
 }) => {
   const [pending, setPending] = useState<{ itemId: string; action: 'use' | 'give' } | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   const confirm = (targetCharId: string) => {
     if (!pending) {
@@ -78,84 +79,98 @@ const ItemsSection = ({
   };
 
   const otherPartyMembers = party.filter(c => c.id !== char.id);
+  const hasItems = items.length > 0;
+  const hasPartyItems = partyItemCount > items.length;
+
+  if (!hasItems && !hasPartyItems) {
+    return null;
+  }
 
   return (
-    <div className="relative flex flex-col gap-1.5 p-3 pr-20 bg-slate-800/50 rounded-2xl border border-slate-700/50">
-      <img src={imgSrc('/images/icon_inventory.png')} alt="" className="absolute top-2 right-2 w-18 h-18 rounded-lg object-contain mix-blend-screen pointer-events-none" />
-      <div className="mb-1">
-        <span className="text-base font-black uppercase tracking-wide text-slate-400">Items</span>
-      </div>
+    <div className="flex flex-col bg-slate-800/50 rounded-2xl border border-slate-700/50 overflow-hidden">
+      {/* Collapsed header - always visible */}
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="flex items-center gap-2 px-3 py-2 w-full text-left hover:bg-slate-700/30 transition-colors"
+      >
+        <img src={imgSrc('/images/icon_inventory.png')} alt="" className="w-5 h-5 object-contain mix-blend-screen" />
+        <span className="text-sm font-black uppercase tracking-wide text-slate-400 flex-1">
+          Items{hasItems ? ` (${items.length})` : ''}
+          {hasPartyItems ? <span className="text-slate-600 font-normal normal-case tracking-normal text-xs ml-1">+ party gear</span> : ''}
+        </span>
+        <span className="text-slate-500 text-xs">{expanded ? '▲' : '▼'}</span>
+      </button>
 
-      {items.map(item => {
-        const canUse = (item.healValue ?? 0) > 0;
-        const canGive = item.transferable !== false && otherPartyMembers.length > 0;
-        const isPending = pending?.itemId === item.id;
-        const bonuses = item.statBonuses ? Object.entries(item.statBonuses).filter(([, v]) => v && v > 0) : [];
+      {expanded && (
+        <div className="flex flex-col gap-1.5 px-3 pb-3">
+          {items.map(item => {
+            const canUse = (item.healValue ?? 0) > 0;
+            const canGive = item.transferable !== false && otherPartyMembers.length > 0;
+            const isPending = pending?.itemId === item.id;
+            const bonuses = item.statBonuses ? Object.entries(item.statBonuses).filter(([, v]) => v && v > 0) : [];
 
-        return (
-          <div key={item.id} className={`flex flex-col gap-1.5 px-3 py-2 rounded-xl border transition-colors ${isPending ? 'border-amber-500/40 bg-amber-950/10' : 'border-slate-700/40 bg-slate-900/40'}`}>
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <div className="font-black text-xs uppercase tracking-wide text-slate-200 truncate">{item.name}</div>
-                <div className="text-xs text-slate-500 mt-0.5 leading-snug line-clamp-1">{item.description}</div>
+            return (
+              <div key={item.id} className={`flex flex-col gap-1.5 px-3 py-2 rounded-xl border transition-colors ${isPending ? 'border-amber-500/40 bg-amber-950/10' : 'border-slate-700/40 bg-slate-900/40'}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-black text-xs uppercase tracking-wide text-slate-200 truncate">{item.name}</div>
+                    <div className="text-xs text-slate-500 mt-0.5 leading-snug line-clamp-1">{item.description}</div>
+                  </div>
+                  {((item.healValue ?? 0) > 0 || bonuses.length > 0) && (
+                    <div className="flex gap-1 shrink-0">
+                      {(item.healValue ?? 0) > 0 && (
+                        <span className="text-xs font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">+{item.healValue} hp</span>
+                      )}
+                      {bonuses.map(([stat, val]) => (
+                        <span key={stat} className="text-xs font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400">+{val} {stat}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {isPending ? (
+                  <TargetPicker
+                    compact
+                    party={party}
+                    action={pending.action}
+                    ownerCharId={char.id}
+                    onConfirm={confirm}
+                    onCancel={() => setPending(null)}
+                  />
+                ) : (
+                  (canUse || canGive) && !disabled && (
+                    <div className="flex items-center gap-1.5">
+                      {canUse && (
+                        <button
+                          onClick={() => setPending({ itemId: item.id, action: 'use' })}
+                          className="px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-widest bg-emerald-900/60 text-emerald-400 hover:bg-emerald-800/60 border border-emerald-700/40 transition-all"
+                        >
+                          Use
+                        </button>
+                      )}
+                      {canGive && (
+                        <button
+                          onClick={() => setPending({ itemId: item.id, action: 'give' })}
+                          className="px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-widest bg-blue-900/60 text-blue-400 hover:bg-blue-800/60 border border-blue-700/40 transition-all"
+                        >
+                          Give
+                        </button>
+                      )}
+                    </div>
+                  )
+                )}
               </div>
-              {((item.healValue ?? 0) > 0 || bonuses.length > 0) && (
-                <div className="flex gap-1 shrink-0">
-                  {(item.healValue ?? 0) > 0 && (
-                    <span className="text-xs font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">+{item.healValue} hp</span>
-                  )}
-                  {bonuses.map(([stat, val]) => (
-                    <span key={stat} className="text-xs font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400">+{val} {stat}</span>
-                  ))}
-                </div>
-              )}
-            </div>
+            );
+          })}
 
-            {isPending ? (
-              <TargetPicker
-                compact
-                party={party}
-                action={pending.action}
-                ownerCharId={char.id}
-                onConfirm={confirm}
-                onCancel={() => setPending(null)}
-              />
-            ) : (
-              (canUse || canGive) && !disabled && (
-                <div className="flex items-center gap-1.5">
-                  {canUse && (
-                    <button
-                      onClick={() => setPending({ itemId: item.id, action: 'use' })}
-                      className="px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-widest bg-emerald-900/60 text-emerald-400 hover:bg-emerald-800/60 border border-emerald-700/40 transition-all"
-                    >
-                      Use
-                    </button>
-                  )}
-                  {canGive && (
-                    <button
-                      onClick={() => setPending({ itemId: item.id, action: 'give' })}
-                      className="px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-widest bg-blue-900/60 text-blue-400 hover:bg-blue-800/60 border border-blue-700/40 transition-all"
-                    >
-                      Give
-                    </button>
-                  )}
-                </div>
-              )
-            )}
-          </div>
-        );
-      })}
-
-      {/* Party gear access */}
-      {partyItemCount > items.length && (
-        <button
-          onClick={onShowPartyGear}
-          className="mt-0.5 text-left"
-        >
-          <span className="inline-block px-3 py-1.5 rounded-xl border border-slate-700 text-slate-400 hover:text-amber-400 hover:border-amber-500/40 text-xs font-black uppercase tracking-widest transition-all">
-            Party Gear ({partyItemCount - items.length} more)
-          </span>
-        </button>
+          {hasPartyItems && (
+            <button onClick={onShowPartyGear} className="mt-0.5 text-left">
+              <span className="inline-block px-3 py-1.5 rounded-xl border border-slate-700 text-slate-400 hover:text-amber-400 hover:border-amber-500/40 text-xs font-black uppercase tracking-widest transition-all">
+                Party Gear ({partyItemCount - items.length} more)
+              </span>
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -296,198 +311,205 @@ export const ActionDock = ({
   const activeItems = activeCharacter?.inventory ?? [];
 
   return (
-    <div className="flex flex-col gap-3 h-full p-4 bg-slate-900 rounded-[32px] border border-slate-800 overflow-y-auto scrollbar-hide">
-      {error && (
-        <div className="px-4 py-2 bg-rose-950/60 border border-rose-700 rounded-xl text-rose-300 text-xs font-black uppercase tracking-widest">
-          {error}
-        </div>
-      )}
+    <div className="flex flex-col h-full bg-slate-900 rounded-[32px] border border-slate-800 overflow-hidden">
+      {/* Fixed top section: error + active character info */}
+      <div className="flex flex-col gap-3 p-4 flex-shrink-0">
+        {error && (
+          <div className="px-4 py-2 bg-rose-950/60 border border-rose-700 rounded-xl text-rose-300 text-xs font-black uppercase tracking-widest">
+            {error}
+          </div>
+        )}
 
-      {/* Active hero panel */}
-      {activeCharacter && (
-        <div className="flex items-start gap-3 p-3 bg-slate-800/50 rounded-2xl border border-slate-700/50">
-          <img
-            src={imgSrc(activeCharacter.avatarUrl)}
-            className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-500 animate-border-pulse shrink-0"
-            style={{ animationDelay: pulseSyncDelay() }}
-            alt={activeCharacter.name}
-          />
-          <div className="flex flex-col gap-1 min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-black text-base uppercase tracking-wide truncate">{activeCharacter.name}</span>
-              <span className={`text-xs font-black shrink-0 ${getHpColors(activeCharacter.hp, activeCharacter.max_hp).text}`}>
-                {activeCharacter.hp}/{activeCharacter.max_hp} HP
-              </span>
-            </div>
-            <div className="text-sm text-slate-400 uppercase tracking-wide truncate">
-              {activeCharacter.class} · {activeCharacter.species}
-            </div>
-            {/* HP bar */}
-            <div className="h-1 rounded-full bg-slate-700 w-full mt-0.5">
-              <div
-                className={`h-1 rounded-full transition-all ${getHpColors(activeCharacter.hp, activeCharacter.max_hp).bar}`}
-                style={{ width: `${Math.max(0, (activeCharacter.hp / activeCharacter.max_hp) * 100)}%` }}
-              />
-            </div>
-            {/* Stats */}
-            <div className="flex gap-4 mt-1">
-              {(['might', 'magic', 'mischief'] as const).map(stat => (
-                <StatIcon
-                  key={stat}
-                  stat={stat}
-                  base={activeCharacter.stats[stat]}
-                  bonus={activeCharacter.inventory.reduce((s, item) => s + (item.statBonuses?.[stat] ?? 0), 0)}
-                  className="text-sm"
-                  iconSize="12"
+        {/* Active hero panel */}
+        {activeCharacter && (
+          <div className="flex items-start gap-3 p-3 bg-slate-800/50 rounded-2xl border border-slate-700/50">
+            <img
+              src={imgSrc(activeCharacter.avatarUrl)}
+              className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-500 animate-border-pulse shrink-0"
+              style={{ animationDelay: pulseSyncDelay() }}
+              alt={activeCharacter.name}
+            />
+            <div className="flex flex-col gap-1 min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-black text-base uppercase tracking-wide truncate">{activeCharacter.name}</span>
+                <span className={`text-xs font-black shrink-0 ${getHpColors(activeCharacter.hp, activeCharacter.max_hp).text}`}>
+                  {activeCharacter.hp}/{activeCharacter.max_hp} HP
+                </span>
+              </div>
+              <div className="text-sm text-slate-400 uppercase tracking-wide truncate">
+                {activeCharacter.class} · {activeCharacter.species}
+              </div>
+              {/* HP bar */}
+              <div className="h-1 rounded-full bg-slate-700 w-full mt-0.5">
+                <div
+                  className={`h-1 rounded-full transition-all ${getHpColors(activeCharacter.hp, activeCharacter.max_hp).bar}`}
+                  style={{ width: `${Math.max(0, (activeCharacter.hp / activeCharacter.max_hp) * 100)}%` }}
                 />
-              ))}
+              </div>
+              {/* Stats */}
+              <div className="flex gap-4 mt-1">
+                {(['might', 'magic', 'mischief'] as const).map(stat => (
+                  <StatIcon
+                    key={stat}
+                    stat={stat}
+                    base={activeCharacter.stats[stat]}
+                    bonus={activeCharacter.inventory.reduce((s, item) => s + (item.statBonuses?.[stat] ?? 0), 0)}
+                    className="text-sm"
+                    iconSize="12"
+                  />
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Items panel - all active character items */}
-      {(activeItems.length > 0 || partyItemCount > 0) && activeCharacter && (
-        <ItemsSection
-          items={activeItems}
-          char={activeCharacter}
-          party={party}
-          disabled={loading}
-          onUseItem={onUseItem}
-          onGiveItem={onGiveItem}
-          onShowPartyGear={onShowPartyGear}
-          partyItemCount={partyItemCount}
-        />
-      )}
+        {/* Items panel - pinned here so it's always visible when scrolling actions */}
+        {(activeItems.length > 0 || partyItemCount > 0) && activeCharacter && (
+          <ItemsSection
+            items={activeItems}
+            char={activeCharacter}
+            party={party}
+            disabled={loading}
+            onUseItem={onUseItem}
+            onGiveItem={onGiveItem}
+            onShowPartyGear={onShowPartyGear}
+            partyItemCount={partyItemCount}
+          />
+        )}
+      </div>
 
-      {/* Downed state OR action area */}
-      {isDown ? (
-        <div className="flex flex-col items-center justify-center gap-3 py-8 px-6 bg-slate-800/30 rounded-2xl border border-slate-700/50 text-center">
-          {activeCharacter && (
-            <img src={imgSrc(activeCharacter.avatarUrl)} className="w-12 h-12 rounded-full object-cover grayscale opacity-50 border-2 border-slate-700" alt="" />
-          )}
-          <div className="font-black text-sm uppercase tracking-widest text-slate-400">
-            {activeCharacter?.name} is downed
+      {/* Scrollable area: actions only */}
+      <div className="flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto scrollbar-hide px-4 pb-4">
+
+        {/* Downed state OR action area */}
+        {isDown ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-8 px-6 bg-slate-800/30 rounded-2xl border border-slate-700/50 text-center">
+            {activeCharacter && (
+              <img src={imgSrc(activeCharacter.avatarUrl)} className="w-12 h-12 rounded-full object-cover grayscale opacity-50 border-2 border-slate-700" alt="" />
+            )}
+            <div className="font-black text-sm uppercase tracking-widest text-slate-400">
+              {activeCharacter?.name} is downed
+            </div>
+            <p className="text-slate-500 text-xs">
+              {party.every(c => c.status === 'downed')
+                ? 'The whole party is down...'
+                : 'Another party member needs to use a healing item.'}
+            </p>
           </div>
-          <p className="text-slate-500 text-xs">
-            {party.every(c => c.status === 'downed')
-              ? 'The whole party is down...'
-              : 'Another party member needs to use a healing item.'}
-          </p>
-        </div>
-      ) : (
-        <>
-          {/* Action cards */}
-          {turn?.choices && turn.choices.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <div className="text-xs font-black uppercase tracking-widest text-slate-500 px-1">Choose an Action</div>
-              {turn.choices.map((choice, i) => {
-                const risk = RISK_MAP[choice.difficulty] ?? RISK_MAP.normal;
-                const statTotal = activeCharacter
-                  ? activeCharacter.stats[choice.stat as keyof typeof activeCharacter.stats] +
+        ) : (
+          <>
+            {/* Action cards */}
+            {turn?.choices && turn.choices.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <div className="text-xs font-black uppercase tracking-widest text-slate-500 px-1">Choose an Action</div>
+                {turn.choices.map((choice, i) => {
+                  const risk = RISK_MAP[choice.difficulty] ?? RISK_MAP.normal;
+                  const statTotal = activeCharacter
+                    ? activeCharacter.stats[choice.stat as keyof typeof activeCharacter.stats] +
                     activeCharacter.inventory.reduce((s, item) => s + (item.statBonuses?.[choice.stat as keyof typeof item.statBonuses] ?? 0), 0)
-                  : 0;
-                const target = beatTarget(choice.difficultyValue, choice.difficulty);
-                const prob = calcProb(statTotal, target);
+                    : 0;
+                  const target = beatTarget(choice.difficultyValue, choice.difficulty);
+                  const prob = calcProb(statTotal, target);
 
-                return (
-                  <button
-                    key={i}
-                    ref={el => {
-                      choiceButtonRefs.current[i] = el;
-                    }}
-                    onClick={() => {
-                      void submitSuggestedChoice(i as 0 | 1 | 2);
-                    }}
-                    disabled={loading}
-                    className={`relative w-full p-3 rounded-2xl border-2 text-left transition-all hover:brightness-110 disabled:opacity-50 ${STAT_COLORS[choice.stat]}`}
-                  >
-                    <span className="absolute -top-2.5 -left-2.5 w-5 h-5 flex items-center justify-center rounded-full bg-slate-900 border border-slate-700 text-[10px] font-black text-slate-400 z-10">
-                      {i + 1}
-                    </span>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="font-black text-base xl:text-lg uppercase leading-tight flex-1">{choice.label}</div>
-                      {ttsEnabled && (
-                        <button
-                          onClick={e => {
-                            e.stopPropagation();
-                            const text = choice.narration ? `${choice.label}. ${choice.narration}` : choice.label;
-                            browserTtsService.speakNarration(text, ttsSettings);
-                          }}
-                          className="shrink-0 w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 text-sm transition-colors"
-                          aria-label="Read aloud"
-                        >
-                          🔊
-                        </button>
-                      )}
-                    </div>
-                    {choice.narration && (
-                      <div className="text-xs italic text-slate-300/70 mt-0.5 leading-snug">{choice.narration}</div>
-                    )}
-                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      <StatImg stat={choice.stat} size="12" tooltip className="rounded-xl" />
-                      <span className="text-xs text-slate-400 font-black">
-                        {statTotal} vs {target}
+                  return (
+                    <button
+                      key={i}
+                      ref={el => {
+                        choiceButtonRefs.current[i] = el;
+                      }}
+                      onClick={() => {
+                        void submitSuggestedChoice(i as 0 | 1 | 2);
+                      }}
+                      disabled={loading}
+                      className={`relative w-full p-3 rounded-2xl border-2 text-left transition-all hover:brightness-110 disabled:opacity-50 ${STAT_COLORS[choice.stat]}`}
+                    >
+                      <span className="absolute -top-2.5 -left-2.5 w-5 h-5 flex items-center justify-center rounded-full bg-slate-900 border border-slate-700 text-[10px] font-black text-slate-400 z-10">
+                        {i + 1}
                       </span>
-                      <span className={`text-xs font-black uppercase tracking-widest ${risk.color}`}>{risk.label}</span>
-                      <span className="text-xs text-slate-500 font-black ml-auto">{prob}%</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="font-black text-base xl:text-lg uppercase leading-tight flex-1">{choice.label}</div>
+                        {ttsEnabled && (
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              const text = choice.narration ? `${choice.label}. ${choice.narration}` : choice.label;
+                              browserTtsService.speakNarration(text, ttsSettings);
+                            }}
+                            className="shrink-0 w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 text-sm transition-colors"
+                            aria-label="Read aloud"
+                          >
+                          🔊
+                          </button>
+                        )}
+                      </div>
+                      {choice.narration && (
+                        <div className="text-xs italic text-slate-300/70 mt-0.5 leading-snug">{choice.narration}</div>
+                      )}
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        <StatImg stat={choice.stat} size="12" tooltip className="rounded-xl" />
+                        <span className="text-xs text-slate-400 font-black">
+                          {statTotal} vs {target}
+                        </span>
+                        <span className={`text-xs font-black uppercase tracking-widest ${risk.color}`}>{risk.label}</span>
+                        <span className="text-xs text-slate-500 font-black ml-auto">{prob}%</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
-          {/* Command bar + UNLEASH */}
-          <div className="flex flex-col gap-2 pt-1">
-            <div className="relative">
-              <span className="absolute -top-2.5 -left-2.5 w-5 h-5 flex items-center justify-center rounded-full bg-slate-900 border border-slate-700 text-[10px] font-black text-slate-400 z-10">
+            {/* Command bar + UNLEASH */}
+            <div className="flex flex-col gap-2 pt-1">
+              <div className="relative">
+                <span className="absolute -top-2.5 -left-2.5 w-5 h-5 flex items-center justify-center rounded-full bg-slate-900 border border-slate-700 text-[10px] font-black text-slate-400 z-10">
                 4
-              </span>
-              <textarea
-                ref={textareaRef}
-                value={customAction}
-                onChange={e => setCustomAction(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    submitCustom();
-                  }
-                }}
-                rows={2}
-                placeholder="Describe a different action..."
-                disabled={loading || statThinking}
-                className="w-full p-3 bg-slate-800 rounded-xl resize-none text-sm border border-slate-700 focus:border-amber-500/40 outline-none transition-colors placeholder-slate-600"
-              />
-              <SpeechActionButton
-                enabled={sttSettings.enabled}
-                supported={speech.isSupported}
-                active={speechActive}
-                disabled={!canStartSpeech}
-                errorMessage={speech.errorMessage}
-                onClick={startSpeech}
-              />
+                </span>
+                <textarea
+                  ref={textareaRef}
+                  value={customAction}
+                  onChange={e => setCustomAction(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      submitCustom();
+                    }
+                  }}
+                  rows={2}
+                  placeholder="Describe a different action..."
+                  disabled={loading || statThinking}
+                  className="w-full p-3 bg-slate-800 rounded-xl resize-none text-sm border border-slate-700 focus:border-amber-500/40 outline-none transition-colors placeholder-slate-600"
+                />
+                <SpeechActionButton
+                  enabled={sttSettings.enabled}
+                  supported={speech.isSupported}
+                  active={speechActive}
+                  disabled={!canStartSpeech}
+                  errorMessage={speech.errorMessage}
+                  onClick={startSpeech}
+                />
+              </div>
+              <button
+                onClick={submitCustom}
+                disabled={loading || statThinking || !customAction.trim()}
+                className="w-full py-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 rounded-2xl font-black uppercase tracking-tighter text-xl xl:text-2xl shadow-[0_6px_0_rgb(146,64,14)] transition-all italic"
+              >
+                {statThinking ? '...' : 'UNLEASH'}
+              </button>
             </div>
-            <button
-              onClick={submitCustom}
-              disabled={loading || statThinking || !customAction.trim()}
-              className="w-full py-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 rounded-2xl font-black uppercase tracking-tighter text-xl xl:text-2xl shadow-[0_6px_0_rgb(146,64,14)] transition-all italic"
-            >
-              {statThinking ? '...' : 'UNLEASH'}
-            </button>
-          </div>
-        </>
-      )}
-      <SpeechConfirmDialog
-        intent={speechIntent}
-        turn={turn}
-        submitting={speech.state.status === 'submitting'}
-        onConfirm={() => {
-          void speech.confirmTranscript();
-        }}
-        onRetry={speech.retryListening}
-        onCancel={speech.cancel}
-      />
+          </>
+        )}
+        <SpeechConfirmDialog
+          intent={speechIntent}
+          turn={turn}
+          submitting={speech.state.status === 'submitting'}
+          onConfirm={() => {
+            void speech.confirmTranscript();
+          }}
+          onRetry={speech.retryListening}
+          onCancel={speech.cancel}
+        />
+      </div>
     </div>
   );
 };

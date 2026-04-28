@@ -269,7 +269,14 @@ All of the above are backend-owned. The AI receives a snapshot of the current st
 
 AI-suggested inventory items are granted by the backend when the narrative earns it. The backend assigns the `id`; the AI should never invent IDs.
 
-**Combat loot**: Every combat victory (defeating any foe, enemy group, or creature) must produce loot thematically tied to the defeated enemy. A goblin drops a crude blade or coin purse; a wolf drops a pelt or fang; a boss drops something unique and memorable. Loot always goes to `actingCharacterName` (the character who struck the finishing blow) - `targetCharacterName` is omitted on combat loot grants.
+**Combat loot**: Combat victories may produce loot thematically tied to the defeated enemy. Loot always goes to `actingCharacterName` (the character who struck the finishing blow) - `targetCharacterName` is omitted on combat loot grants. Drop frequency depends on difficulty:
+
+| Difficulty | Combat loot expectation |
+|------------|-------------------------|
+| easy | Always drop useful loot. |
+| normal | Usually drop loot; trivial mobs can drop nothing. |
+| hard | Only notable enemies, named foes, bosses, or story-weight threats drop loot. |
+| zug-ma-geddon | Rare drops only; common kills yield nothing. |
 
 **Morale and surrender**: Enemies can flee, bargain, surrender, reveal clues, or hand over loot instead of fighting to the last breath. Surrender and retreat can still yield rewards. If the party receives an item, key, badge, map, coin purse, clue-object, weapon, or reward through surrender, the AI must return `suggestedInventoryAdd`.
 
@@ -301,7 +308,7 @@ Game mode is set at realm creation alongside difficulty. It controls the **pacin
 
 | Mode | Pacing |
 |------|--------|
-| **Fast** | Narration under 3 sentences. Immediate action, frequent conflict, skip slow descriptions. Tension escalates quickly. Prioritises combat, traps, and danger. After each combat victory (when no DM Prep is set), a portal NPC appears and whisks the party to the next challenge, eliminating downtime between encounters. |
+| **Fast** | Narration under 3 sentences. Immediate action, frequent conflict, skip slow descriptions. Tension escalates quickly. Prioritises combat, traps, and danger. After a combat victory (when no DM Prep is set), a brief NPC may appear in the narration and offer or activate a portal/shortcut toward the next challenge. Portal choices are valid only on turns where that NPC explicitly appears in the narration. |
 | **Balanced** | Mix of exploration and action. Moderate pacing. Tension escalates at a natural rate. |
 | **Cinematic** | Rich descriptions, character moments, slower pacing. Tension builds deliberately. |
 | **ZUG-MA-GEDDON** | Straight to battle. Every turn is chaos. Maximum tension always. The AI is instructed to generate non-stop combat encounters and escalate without mercy. Not for the faint of heart. |
@@ -341,7 +348,7 @@ DM Prep is the DM's creative brief. It does not change dice mechanics, turn stru
 
 ## Image Generation
 
-Scene images and character avatars are generated asynchronously and are optional.
+Scene images, realm preview images, and character avatars are generated asynchronously and are optional.
 
 ### Global vs. per-session toggle
 
@@ -350,7 +357,9 @@ Scene images and character avatars are generated asynchronously and are optional
 
 This means: turning images on in a session works even if the global setting has images disabled, and vice versa.
 
-When `savingsMode` is `true`, no scene images or new character avatars are generated; existing cached images remain visible.
+When `savingsMode` is `true`, no scene images, realm preview images, or new character avatars are generated; existing cached images remain visible.
+
+Realm preview images are generated on realm creation and regenerated when editable realm details or party composition change. The home screen and recap screen use the saved preview image as a visual anchor, and movie recap uses it as the fallback when a turn has no scene image.
 
 ---
 

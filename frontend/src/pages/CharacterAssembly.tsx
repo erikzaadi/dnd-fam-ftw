@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Character, Session } from '../types';
 import { apiFetch, imgSrc } from '../lib/api';
@@ -24,6 +24,7 @@ export const CharacterAssembly = () => {
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
   const [editingChar, setEditingChar] = useState<Character | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const partyChangedRef = useRef(false);
 
   const toggleSavingsMode = async () => {
     if (!session) {
@@ -105,6 +106,7 @@ export const CharacterAssembly = () => {
         setLoading(true);
         try {
           await apiFetch(`/session/${session.id}/character/${charId}`, { method: 'DELETE' });
+          partyChangedRef.current = true;
           await Promise.all([loadSession(), loadAllCharacters()]);
         } catch (err) {
           console.error("Failed to delete character:", err);
@@ -168,12 +170,28 @@ export const CharacterAssembly = () => {
     setLoading(false);
     setIsCreating(false);
     setEditingChar(null);
+    partyChangedRef.current = true;
     loadSession();
   };
+
+  const triggerPreviewRegen = useCallback(() => {
+    if (!id || !partyChangedRef.current) {
+      return;
+    }
+    partyChangedRef.current = false;
+    apiFetch(`/session/${id}/preview-image`, { method: 'POST' }).catch(() => {});
+  }, [id]);
+
+  useEffect(() => {
+    return () => {
+      triggerPreviewRegen();
+    };
+  }, [triggerPreviewRegen]);
 
   const startJourney = async () => {
     setIsStarting(true);
     setError(null);
+    triggerPreviewRegen();
     const res = await apiFetch(`/session/${id}/start`, { method: 'POST' });
     setIsStarting(false);
     if (res.status === 429) {

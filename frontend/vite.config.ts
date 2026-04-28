@@ -15,7 +15,7 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    audioCatalogPlugin(join(__dirname, 'public')),
+    audioCatalogPlugin(join(__dirname, 'public'), BASE),
   ],
   server: {
     proxy: {

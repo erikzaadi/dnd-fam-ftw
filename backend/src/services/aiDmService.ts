@@ -24,6 +24,7 @@ export function toNarrationInput(input: AIInput): NarrationInput {
     party: input.party.map(c => ({
       name: c.name,
       class: c.class,
+      species: c.species,
       hp: c.hp,
       maxHp: c.max_hp,
       status: c.status ?? 'active',
