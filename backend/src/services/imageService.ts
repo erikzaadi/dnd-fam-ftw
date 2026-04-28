@@ -184,6 +184,7 @@ export class ImageService {
       displayName: string;
       worldDescription?: string;
       dmPrep?: string;
+      dmPrepImageBrief?: string;
       party: { name: string; class: string; species: string; quirk?: string; gender?: string }[];
     },
     useLocalAI?: boolean,
@@ -193,15 +194,16 @@ export class ImageService {
     const heroList = session.party.length > 0
       ? session.party.map(c => {
         const genderPart = c.gender ? `${c.gender} ` : '';
-        const quirkPart = c.quirk ? ` with ${c.quirk}` : '';
+        const visualQuirk = this.getSessionPreviewVisualQuirk(c.quirk);
+        const quirkPart = visualQuirk ? ` with ${visualQuirk}` : '';
         return `${genderPart}${c.species} ${c.class}${quirkPart}`;
       }).join(', ')
       : 'a lone adventurer';
     const worldPart = session.worldDescription ? ` ${session.worldDescription}.` : '';
-    const villainHint = session.dmPrep
-      ? ' ' + session.dmPrep.slice(0, 120).replace(/\n/g, ' ').trim() + '.'
+    const villainHint = session.dmPrepImageBrief
+      ? ` Visual story cues: ${session.dmPrepImageBrief}.`
       : '';
-    const prompt = `Fantasy adventure establishing scene for a realm.${worldPart} Adventuring party: ${heroList}.${villainHint} Purely visual artwork with no text, no signs, no plaques, no banners, no maps, no books, no scrolls, and no inscriptions. Wide establishing shot, cinematic lighting, storybook art, detailed environment`;
+    const prompt = `Single full-bleed fantasy adventure landscape painting for a realm.${worldPart} Adventuring party: ${heroList}.${villainHint} Fill the entire square canvas with scenery and characters. No blank margins, no caption bands, no page layout, no poster layout, no title area, no typography. Wide establishing shot, cinematic lighting, detailed environment, painterly fantasy illustration`;
 
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
     const fileName = `preview_${session.id}_${promptHash}.png`;
@@ -237,5 +239,40 @@ export class ImageService {
 
   public static getDefaultImage(): string {
     return this.DEFAULT_IMAGE;
+  }
+
+  private static getSessionPreviewVisualQuirk(quirk?: string): string | null {
+    if (!quirk?.trim()) {
+      return null;
+    }
+
+    const q = quirk.trim();
+    const lower = q.toLowerCase();
+    const cues: string[] = [];
+
+    if (/\b(books?|journals?|diar(?:y|ies)|letters?|scrolls?|maps?|signs?|banners?|labels?|inscriptions?|words?|text|writing|writes?|reads?|reading)\b/.test(lower)) {
+      cues.push('a curious scholarly aura');
+    }
+    if (/\b(talks?|speaks?|says?|whispers?|conversation|conversations|riddles?|songs?|sings?|singing|hymns?|voice|voices|names?)\b/.test(lower)) {
+      cues.push('expressive theatrical posture');
+    }
+    if (/\b(shiny|collects?|collecting|steals?|stealing|coins?|spoons?|trinkets?|relics?|artifacts?|gems?|treasure)\b/.test(lower)) {
+      cues.push('small gleaming trinkets');
+    }
+    if (/\b(shadows?|lies?|lying|fire|sparks?|glows?|glowing|magic|curses?|cursed|aura)\b/.test(lower)) {
+      cues.push('subtle magical aura');
+    }
+    if (/\b(axes?|swords?|weapons?|battle|headbutts?|doors?|strong|loud|screams?|screaming|whispers?)\b/.test(lower)) {
+      cues.push('bold physical confidence');
+    }
+    if (/\b(noble|royal|titles?|proud|formal|respect)\b/.test(lower)) {
+      cues.push('overdressed noble confidence');
+    }
+
+    if (cues.length > 0) {
+      return Array.from(new Set(cues)).slice(0, 2).join(' and ');
+    }
+
+    return q.slice(0, 80);
   }
 }

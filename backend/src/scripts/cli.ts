@@ -479,11 +479,12 @@ case 'sessions': {
         const nsId = targetNsId ?? (session.namespace_id as string) ?? 'local';
 
         db.prepare(`
-          INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, turn, activeCharacterId, tone, displayName, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, storySummary, namespace_id, createdAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, turn, activeCharacterId, tone, displayName, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, storySummary, namespace_id, createdAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           newSessionId,
           session.scene, session.sceneId, session.worldDescription ?? null, session.dm_prep ?? null,
+          session.dm_prep_image_brief ?? null,
           session.turn, session.activeCharacterId, session.tone, session.displayName,
           session.difficulty, session.gameMode ?? 'balanced',
           session.savingsMode ?? 0, session.useLocalAI ?? 0, session.interventionUsed ?? 0,

@@ -174,6 +174,9 @@ export class StateService {
     if (!sessionCols.includes('dm_prep')) {
       db.prepare("ALTER TABLE sessions ADD COLUMN dm_prep TEXT").run();
     }
+    if (!sessionCols.includes('dm_prep_image_brief')) {
+      db.prepare("ALTER TABLE sessions ADD COLUMN dm_prep_image_brief TEXT").run();
+    }
 
     if (!turnCols.includes('currentTensionLevel')) {
       db.prepare("ALTER TABLE turn_history ADD COLUMN currentTensionLevel TEXT").run();
@@ -296,8 +299,8 @@ export class StateService {
       console.warn(`[Session] Display name generation failed or timed out (${Date.now() - nameStart}ms), using fallback:`, err);
     }
 
-    db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, turn, tone, displayName, difficulty, gameMode, useLocalAI, savingsMode, namespace_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, "A New Realm", "start-1", worldDescription || null, dmPrep || null, 1, "thrilling adventure", displayName, difficulty, gameMode, useLocalAI ? 1 : 0, savingsMode ? 1 : 0, namespaceId);
+    db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, turn, tone, displayName, difficulty, gameMode, useLocalAI, savingsMode, namespace_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, "A New Realm", "start-1", worldDescription || null, dmPrep || null, null, 1, "thrilling adventure", displayName, difficulty, gameMode, useLocalAI ? 1 : 0, savingsMode ? 1 : 0, namespaceId);
 
     return {
       id,
@@ -305,6 +308,7 @@ export class StateService {
       sceneId: "start-1",
       worldDescription,
       dmPrep,
+      dmPrepImageBrief: undefined,
       turn: 1,
       party: [],
       activeCharacterId: "",
@@ -332,6 +336,7 @@ export class StateService {
       sceneId: string;
       worldDescription: string | null;
       dm_prep: string | null;
+      dm_prep_image_brief: string | null;
       turn: number;
       activeCharacterId: string;
       tone: string;
@@ -398,6 +403,7 @@ export class StateService {
       sceneId: row.sceneId,
       worldDescription: row.worldDescription || undefined,
       dmPrep: row.dm_prep || undefined,
+      dmPrepImageBrief: row.dm_prep_image_brief || undefined,
       turn: row.turn,
       party: characters.map(c => ({
         id: c.id,
@@ -436,6 +442,12 @@ export class StateService {
       gameOver: !!row.game_over,
       previewImageUrl: row.preview_image_url || undefined,
     };
+  }
+
+  public static getSessionNamespaceId(id: string): string | undefined {
+    const db = this.getDb();
+    const row = db.prepare('SELECT namespace_id FROM sessions WHERE id = ?').get(id) as { namespace_id: string } | undefined;
+    return row?.namespace_id;
   }
 
   public static async setSavingsMode(id: string, enabled: boolean): Promise<void> {
@@ -518,9 +530,9 @@ export class StateService {
     db.prepare('UPDATE sessions SET preview_image_url = ? WHERE id = ?').run(url, id);
   }
 
-  public static async patchSession(id: string, fields: { difficulty?: string; gameMode?: string; dmPrep?: string | null; worldDescription?: string | null }): Promise<void> {
+  public static async patchSession(id: string, fields: { difficulty?: string; gameMode?: string; dmPrep?: string | null; dmPrepImageBrief?: string | null; worldDescription?: string | null }): Promise<void> {
     const db = this.getDb();
-    const colMap: Record<string, string> = { difficulty: 'difficulty', gameMode: 'gameMode', dmPrep: 'dm_prep', worldDescription: 'worldDescription' };
+    const colMap: Record<string, string> = { difficulty: 'difficulty', gameMode: 'gameMode', dmPrep: 'dm_prep', dmPrepImageBrief: 'dm_prep_image_brief', worldDescription: 'worldDescription' };
     const sets: string[] = [];
     const values: unknown[] = [];
     for (const [key, col] of Object.entries(colMap)) {

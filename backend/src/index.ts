@@ -294,6 +294,27 @@ app.get('/session/:id/events', (req, res) => {
   });
 });
 
+app.get('/sessions/events', (req, res) => {
+  const namespaceId = req.namespaceId;
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
+
+  const onUpdate = (data: Record<string, unknown>) => {
+    if (data.namespaceId === namespaceId) {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    }
+  };
+
+  eventEmitter.on('session-list-update', onUpdate);
+
+  req.on('close', () => {
+    eventEmitter.off('session-list-update', onUpdate);
+  });
+});
+
 app.get('/sessions', asyncHandler(async (req, res) => {
   const sessions = await StateService.listSessions(req.namespaceId);
   res.json(sessions);
@@ -312,7 +333,10 @@ app.get('/characters/all', asyncHandler(async (_req, res) => {
 }));
 
 app.delete('/session/:id', asyncHandler(async (req, res) => {
-  await StateService.deleteSession(req.params.id as string);
+  const sessionId = req.params.id as string;
+  const namespaceId = StateService.getSessionNamespaceId(sessionId) ?? req.namespaceId;
+  await StateService.deleteSession(sessionId);
+  broadcastSessionChanged(namespaceId, sessionId, 'deleted');
   res.json({ success: true });
 }));
 
@@ -330,7 +354,18 @@ const broadcastUpdate = (sessionId: string, type: string, payload: Record<string
   eventEmitter.emit('update', { sessionId, type, ...payload });
 };
 
-const triggerPreviewRegen = (sessionId: string, useLocalAI: boolean) => {
+const broadcastSessionListUpdate = (namespaceId: string | undefined, type: string, payload: Record<string, unknown>) => {
+  if (!namespaceId) {
+    return;
+  }
+  eventEmitter.emit('session-list-update', { namespaceId, type, ...payload });
+};
+
+const broadcastSessionChanged = (namespaceId: string | undefined, sessionId: string, action: 'created' | 'updated' | 'deleted') => {
+  broadcastSessionListUpdate(namespaceId, 'session_changed', { sessionId, action });
+};
+
+const triggerPreviewRegen = (sessionId: string, useLocalAI: boolean, namespaceId?: string) => {
   StateService.getSession(sessionId).then(session => {
     if (!session) {
       console.warn(`[Preview] Skipping generation for missing session ${sessionId}`);
@@ -344,10 +379,23 @@ const triggerPreviewRegen = (sessionId: string, useLocalAI: boolean) => {
     ImageService.generateSessionPreview(session, useLocalAI).then(result => {
       if (result) {
         StateService.updateSessionPreviewImage(sessionId, result.url);
+        const eventNamespaceId = namespaceId ?? StateService.getSessionNamespaceId(sessionId);
+        broadcastUpdate(sessionId, 'preview_image_available', { previewImageUrl: result.url });
+        broadcastSessionListUpdate(eventNamespaceId, 'preview_image_available', { sessionId, previewImageUrl: result.url });
         console.log(`[Preview] Updated preview for ${sessionId}: ${result.url}`);
       }
     }).catch(err => console.warn('[Preview] Generation failed:', err));
   }).catch(err => console.warn('[Preview] Session fetch failed:', err));
+};
+
+const refreshDmPrepImageBriefAndPreview = (sessionId: string, dmPrep: string | null | undefined, useLocalAI: boolean, namespaceId?: string) => {
+  StorySummaryService.generateDmPrepImageBrief(dmPrep, useLocalAI).then(async brief => {
+    await StateService.patchSession(sessionId, { dmPrepImageBrief: brief });
+    triggerPreviewRegen(sessionId, useLocalAI, namespaceId);
+  }).catch(err => {
+    console.warn('[Preview] DM prep visual brief refresh failed:', err);
+    triggerPreviewRegen(sessionId, useLocalAI, namespaceId);
+  });
 };
 
 // Compute per-character HP changes between two party snapshots
@@ -405,12 +453,19 @@ app.post('/session/create', asyncHandler(async (req, res) => {
     }
     const savingsMode = !SettingsService.get().imagesEnabled;
     const session = await StateService.createSession(worldDescription, difficulty, !!useLocalAI, savingsMode, req.namespaceId, gameMode, dmPrep || undefined);
-    if (!dmPrep) {
-      StorySummaryService.generateCampaignBrief(session.id, worldDescription, !!useLocalAI, session.displayName, difficulty, gameMode).catch(err => {
+    broadcastSessionChanged(req.namespaceId, session.id, 'created');
+    if (dmPrep) {
+      refreshDmPrepImageBriefAndPreview(session.id, dmPrep, session.useLocalAI, req.namespaceId);
+    } else {
+      StorySummaryService.generateCampaignBrief(session.id, worldDescription, !!useLocalAI, session.displayName, difficulty, gameMode).then(brief => {
+        if (brief) {
+          triggerPreviewRegen(session.id, session.useLocalAI, req.namespaceId);
+        }
+      }).catch(err => {
         console.warn('[Campaign] Brief generation failed silently:', err);
       });
+      triggerPreviewRegen(session.id, session.useLocalAI, req.namespaceId);
     }
-    triggerPreviewRegen(session.id, session.useLocalAI);
     res.json(session);
   } catch (error: unknown) {
     const status = (error as { status?: number })?.status;
@@ -452,7 +507,12 @@ app.patch('/session/:id', asyncHandler(async (req, res) => {
     patch.worldDescription = worldDescription || null;
   }
   await StateService.patchSession(req.params.id as string, patch);
-  triggerPreviewRegen(req.params.id as string, session.useLocalAI);
+  broadcastSessionChanged(req.namespaceId, req.params.id as string, 'updated');
+  if (dmPrep !== undefined) {
+    refreshDmPrepImageBriefAndPreview(req.params.id as string, dmPrep || null, session.useLocalAI, req.namespaceId);
+  } else {
+    triggerPreviewRegen(req.params.id as string, session.useLocalAI, req.namespaceId);
+  }
   res.json({
     id: session.id,
     difficulty: patch.difficulty ?? session.difficulty,
@@ -475,6 +535,8 @@ app.post('/session/:id/preview-image', asyncHandler(async (req, res) => {
   const result = await ImageService.generateSessionPreview(session, session.useLocalAI);
   if (result) {
     StateService.updateSessionPreviewImage(session.id, result.url);
+    broadcastUpdate(session.id, 'preview_image_available', { previewImageUrl: result.url });
+    broadcastSessionListUpdate(req.namespaceId, 'preview_image_available', { sessionId: session.id, previewImageUrl: result.url });
   }
   res.json({ previewImageUrl: result?.url ?? null });
 }));
@@ -577,7 +639,8 @@ app.post('/character/create', asyncHandler(async (req, res) => {
   }
   await StateService.updateSession(sessionId, session);
   broadcastUpdate(sessionId, 'party_update', { session });
-  triggerPreviewRegen(sessionId, session.useLocalAI);
+  broadcastSessionChanged(req.namespaceId, sessionId, 'updated');
+  triggerPreviewRegen(sessionId, session.useLocalAI, req.namespaceId);
   res.json(character);
 }));
 
@@ -612,7 +675,8 @@ app.put('/character/:charId', asyncHandler(async (req, res) => {
   session.party[charIndex] = updatedChar;
   await StateService.updateSession(sessionId, session);
   broadcastUpdate(sessionId, 'party_update', { session });
-  triggerPreviewRegen(sessionId, session.useLocalAI);
+  broadcastSessionChanged(req.namespaceId, sessionId, 'updated');
+  triggerPreviewRegen(sessionId, session.useLocalAI, req.namespaceId);
   res.json(updatedChar);
 }));
 
@@ -652,7 +716,8 @@ app.delete('/session/:sessionId/character/:charId', asyncHandler(async (req, res
 
   StateService.deleteCharacter(charId as string);
   broadcastUpdate(sessionId as string, 'party_update', { session });
-  triggerPreviewRegen(sessionId as string, session.useLocalAI);
+  broadcastSessionChanged(req.namespaceId, sessionId as string, 'updated');
+  triggerPreviewRegen(sessionId as string, session.useLocalAI, req.namespaceId);
   res.json({ success: true });
 }));
 
@@ -749,6 +814,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
     turnResult.inventoryChanges = computeInventoryChanges(itemState.party, newState.party);
     turnResult.id = await StateService.addTurnResult(sessionId, turnResult, actingCharId);
     broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
+    broadcastSessionChanged(req.namespaceId, sessionId, 'updated');
     res.json({ actionAttempt: itemAttempt, turnResult, session: newState });
     return;
   }
@@ -790,6 +856,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
 
   turnResult.id = await StateService.addTurnResult(sessionId, turnResult, actingCharId);
   broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
+  broadcastSessionChanged(req.namespaceId, sessionId, 'updated');
   res.json({ actionAttempt, turnResult, session: newState });
 
   setImmediate(() => void StorySummaryService.maybeUpdate(sessionId, newState.turn, session.useLocalAI));
@@ -805,6 +872,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
           const gameOverState = { ...newState, gameOver: true };
           await StateService.updateSession(sessionId, gameOverState);
           broadcastUpdate(sessionId, 'game_over', { session: gameOverState });
+          broadcastSessionChanged(req.namespaceId, sessionId, 'updated');
           console.log('[GameOver] State saved and broadcast');
         } catch (err) {
           console.error('[GameOver] Failed:', err);
@@ -832,6 +900,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
           await StateService.updateSession(sessionId, postState);
           interventionTurn.id = await StateService.addTurnResult(sessionId, interventionTurn, null);
           broadcastUpdate(sessionId, 'intervention', { session: postState, turnResult: interventionTurn });
+          broadcastSessionChanged(req.namespaceId, sessionId, 'updated');
           setImmediate(() => void StorySummaryService.updateAfterIntervention(sessionId, interventionTurn.narration, session.useLocalAI));
           console.log('[Intervention] Dragon rescue complete');
         } catch (err) {
@@ -860,6 +929,7 @@ app.post('/session/:id/action', asyncHandler(async (req, res) => {
           await StateService.updateSession(sessionId, postState);
           sanctuaryTurn.id = await StateService.addTurnResult(sessionId, sanctuaryTurn, null);
           broadcastUpdate(sessionId, 'sanctuary_recovery', { session: postState, turnResult: sanctuaryTurn });
+          broadcastSessionChanged(req.namespaceId, sessionId, 'updated');
           setImmediate(() => void StorySummaryService.updateAfterIntervention(sessionId, sanctuaryTurn.narration, session.useLocalAI));
           console.log('[Sanctuary] Recovery complete');
         } catch (err) {

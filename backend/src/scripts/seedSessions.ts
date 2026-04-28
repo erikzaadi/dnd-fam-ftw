@@ -210,11 +210,14 @@ PITFALLS:
 - The Druids are not wrong about the curse. If the party ignores the corruption angle, the crown reunion should have a cost.
 - Nix the broker will sell info about the party to Vane if given the chance. Let this happen once for drama.`;
 
-db.prepare(`INSERT INTO sessions (id, scene, sceneId, displayName, turn, activeCharacterId, tone, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, rescues_used, game_over, storySummary, dm_prep)
-  VALUES (?, 'The Shattered Throne Room', 'throne-1', 'The Shattered Crown', 4, 'seed-s5-c1', 'political intrigue and rising danger', 'normal', 'balanced', 0, 0, 0, 0, 0, ?, ?)`)
+const S5_DM_PREP_IMAGE_BRIEF = 'charming royal spymaster, three glowing crown shards, tense throne room, proud knights, sea merchants, stern forest druids, masked riders, cursed relic magic';
+
+db.prepare(`INSERT INTO sessions (id, scene, sceneId, displayName, turn, activeCharacterId, tone, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, rescues_used, game_over, storySummary, dm_prep, dm_prep_image_brief)
+  VALUES (?, 'The Shattered Throne Room', 'throne-1', 'The Shattered Crown', 4, 'seed-s5-c1', 'political intrigue and rising danger', 'normal', 'balanced', 0, 0, 0, 0, 0, ?, ?, ?)`)
   .run(S5,
     'The king was found dead at dawn. His crown - the symbol of peace between three rival factions - was shattered. The party was caught near the scene and pressed into service by the royal guard: find the three crown shards before the new moon, or face the noose.',
-    S5_DM_PREP);
+    S5_DM_PREP,
+    S5_DM_PREP_IMAGE_BRIEF);
 
 seedChar(S5, 'seed-s5-c1', 'Lira Dawnveil', 'Ranger', 'Half-Elf', 'Cannot resist investigating anything suspicious', 3, 2, 3, 9, 10);
 seedChar(S5, 'seed-s5-c2', 'Brother Cask', 'Cleric', 'Dwarf', 'Keeps a journal of every person he meets', 1, 5, 1, 8, 10);

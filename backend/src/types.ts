@@ -58,6 +58,7 @@ export interface SessionState {
   sceneId: string;
   worldDescription?: string;
   dmPrep?: string;
+  dmPrepImageBrief?: string;
   turn: number;
   party: Character[];
   activeCharacterId: string;

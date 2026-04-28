@@ -101,7 +101,8 @@ Be specific: invent names, places, visual details, clues, and recurring motifs. 
 
       const brief = await this.callSummarize(prompt, useLocalAI);
       if (brief) {
-        await StateService.patchSession(sessionId, { dmPrep: brief });
+        const imageBrief = await this.generateDmPrepImageBrief(brief, useLocalAI);
+        await StateService.patchSession(sessionId, { dmPrep: brief, dmPrepImageBrief: imageBrief });
         console.log(`[Campaign] Brief generated for session ${sessionId}`);
         return brief;
       }
@@ -112,13 +113,43 @@ Be specific: invent names, places, visual details, clues, and recurring motifs. 
     }
   }
 
-  private static async callSummarize(prompt: string, useLocalAI: boolean): Promise<string> {
+  static async generateDmPrepImageBrief(dmPrep: string | undefined | null, useLocalAI: boolean): Promise<string | null> {
+    if (!dmPrep?.trim()) {
+      return null;
+    }
+
+    try {
+      const prompt = `Summarize this D&D campaign prep into visual-only cues for an image prompt.
+
+Focus only on things that should be visible in a single realm preview image:
+- main boss or main threat
+- mini-bosses
+- recurring NPC archetypes
+- iconic story items or artifacts
+- signature locations, factions, symbols, creatures, and motifs
+
+Omit plot instructions, secrets, pacing notes, mechanics, long lore, and anything not visually renderable.
+Avoid wording that implies text, signs, labels, books, maps, scrolls, plaques, or inscriptions.
+Return one compact comma-separated phrase, max 45 words.
+
+DM PREP:
+${dmPrep}`;
+
+      const brief = await this.callSummarize(prompt, useLocalAI, 120, 12_000);
+      return brief || null;
+    } catch (err) {
+      console.warn('[Campaign] DM prep image brief generation failed:', err);
+      return null;
+    }
+  }
+
+  private static async callSummarize(prompt: string, useLocalAI: boolean, maxTokens = 900, timeoutMs = 20_000): Promise<string> {
     const { client, model } = createChatClient(useLocalAI);
     const response = await client.chat.completions.create({
       model,
       messages: [{ role: 'user', content: `/no_think ${prompt}` }],
-      max_tokens: 900,
-    }, { signal: AbortSignal.timeout(20_000) });
+      max_tokens: maxTokens,
+    }, { signal: AbortSignal.timeout(timeoutMs) });
     const msg = response.choices[0].message;
     const raw = msg.content || (msg as unknown as Record<string, string>)['reasoning_content'] || '';
     return raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();

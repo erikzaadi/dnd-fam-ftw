@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DmFooter } from '../components/DmFooter';
 import { FullscreenImage } from '../components/FullscreenImage';
 import { SiteHeader } from '../components/SiteHeader';
-import { apiFetch, imgSrc } from '../lib/api';
+import { apiFetch, apiUrl, imgSrc } from '../lib/api';
 import { getSessionEntryPath } from '../lib/sessionRoute';
 import type { SessionPreview } from '../types';
 
@@ -368,13 +368,13 @@ export const Home = () => {
   const navigate = useNavigate();
   const cardRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  const loadSessions = () => {
+  const loadSessions = useCallback(() => {
     apiFetch('/sessions')
       .then(res => res.json())
       .then(data => setActiveSessions(data as SessionPreview[]));
-  };
+  }, []);
 
-  const loadLimits = () => {
+  const loadLimits = useCallback(() => {
     apiFetch('/namespace/limits')
       .then(res => res.json())
       .then((data: { maxSessions: number | null; sessionCount: number }) => {
@@ -383,12 +383,42 @@ export const Home = () => {
         }
       })
       .catch(() => { /* limits unavailable, proceed without */ });
-  };
+  }, []);
 
   useEffect(() => {
     loadSessions();
     loadLimits();
-  }, []);
+  }, [loadLimits, loadSessions]);
+
+  useEffect(() => {
+    let es: EventSource;
+    let reconnectTimer: ReturnType<typeof setTimeout>;
+
+    const refresh = () => {
+      loadSessions();
+      loadLimits();
+    };
+
+    const connect = () => {
+      es = new EventSource(apiUrl('/sessions/events'), { withCredentials: true });
+      es.onmessage = (e: MessageEvent) => {
+        const data = JSON.parse(e.data) as { type?: string };
+        if (data.type === 'session_changed' || data.type === 'preview_image_available') {
+          refresh();
+        }
+      };
+      es.onerror = () => {
+        es.close();
+        reconnectTimer = setTimeout(connect, 3000);
+      };
+    };
+
+    connect();
+    return () => {
+      es?.close();
+      clearTimeout(reconnectTimer);
+    };
+  }, [loadLimits, loadSessions]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

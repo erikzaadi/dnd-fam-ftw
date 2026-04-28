@@ -176,7 +176,7 @@ describe('ImageService.generateAvatar', () => {
 });
 
 describe('ImageService.generateSessionPreview', () => {
-  it('includes party species, class, gender, and quirk without character names', async () => {
+  it('includes party species, class, gender, and sanitized visual quirks without character names', async () => {
     const storage = makeMockStorage();
     const provider = makeMockImageProvider();
     const result = await ImageService.generateSessionPreview({
@@ -184,16 +184,22 @@ describe('ImageService.generateSessionPreview', () => {
       displayName: 'The Punny Realm',
       worldDescription: 'A moonlit mushroom cave',
       dmPrep: 'A goblin king hoards glowing cheese.',
+      dmPrepImageBrief: 'goblin king, glowing cheese artifact, mushroom cave throne',
       party: [
-        { name: 'Pip', class: 'Rogue', species: 'Halfling', quirk: 'talks to plants', gender: 'female' },
+        { name: 'Pip', class: 'Rogue', species: 'Halfling', quirk: 'talks to books', gender: 'female' },
         { name: 'Zara', class: 'Wizard', species: 'Elf', quirk: 'collects cursed spoons' },
       ],
     }, false, provider, storage);
 
     expect(result).not.toBeNull();
     expect(provider.calls).toHaveLength(1);
-    expect(provider.calls[0]).toContain('female Halfling Rogue with talks to plants');
-    expect(provider.calls[0]).toContain('Elf Wizard with collects cursed spoons');
+    expect(provider.calls[0]).toContain('female Halfling Rogue with a curious scholarly aura and expressive theatrical posture');
+    expect(provider.calls[0]).toContain('Elf Wizard with small gleaming trinkets and subtle magical aura');
+    expect(provider.calls[0]).toContain('goblin king, glowing cheese artifact, mushroom cave throne');
+    expect(provider.calls[0]).toContain('full-bleed');
+    expect(provider.calls[0]).not.toContain('talks to books');
+    expect(provider.calls[0]).not.toContain('collects cursed spoons');
+    expect(provider.calls[0]).not.toContain('storybook');
     expect(provider.calls[0]).not.toContain('Pip');
     expect(provider.calls[0]).not.toContain('Zara');
     expect(provider.calls[0]).not.toContain('The Punny Realm');

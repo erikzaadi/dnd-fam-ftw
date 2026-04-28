@@ -205,8 +205,23 @@ describe('CLI sessions export/import', () => {
       // Seed a session directly via DB so we have something to export
       const db = (StateService as unknown as { db: import('libsql').Database }).db;
       db.prepare(
-        'INSERT INTO sessions (id, scene, sceneId, worldDescription, turn, tone, displayName, difficulty, gameMode, useLocalAI, savingsMode, namespace_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      ).run('export-test-sess', 'A Cave', 'cave-1', 'Export world', 1, 'thrilling', 'Export Test World', 'normal', 'balanced', 0, 0, 'local');
+        'INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, turn, tone, displayName, difficulty, gameMode, useLocalAI, savingsMode, namespace_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(
+        'export-test-sess',
+        'A Cave',
+        'cave-1',
+        'Export world',
+        'Verbose prep for export',
+        'visual cave brief',
+        1,
+        'thrilling',
+        'Export Test World',
+        'normal',
+        'balanced',
+        0,
+        0,
+        'local',
+      );
 
       cli('sessions', 'export', '--session', 'export-test-sess', '--output', exportFile);
       expect(fs.existsSync(exportFile)).toBe(true);
@@ -218,6 +233,8 @@ describe('CLI sessions export/import', () => {
       expect(status).toBe(0);
       expect(stdout).toContain('Export Test World');
       expect(stdout).toContain('Imported 1 session');
+      const imported = db.prepare('SELECT dm_prep_image_brief FROM sessions WHERE id = ?').get('export-test-sess') as { dm_prep_image_brief: string };
+      expect(imported.dm_prep_image_brief).toBe('visual cave brief');
     } finally {
       try {
         fs.unlinkSync(exportFile);

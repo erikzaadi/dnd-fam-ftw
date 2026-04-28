@@ -359,7 +359,7 @@ This means: turning images on in a session works even if the global setting has 
 
 When `savingsMode` is `true`, no scene images, realm preview images, or new character avatars are generated; existing cached images remain visible.
 
-Realm preview images are generated on realm creation and regenerated when editable realm details or party composition change. The home screen and recap screen use the saved preview image as a visual anchor, and movie recap uses it as the fallback when a turn has no scene image.
+Realm preview images are generated on realm creation and regenerated when editable realm details or party composition change. When DM Prep is created or explicitly saved, the backend first stores a short visual-only brief for image prompting (bosses, NPCs, artifacts, locations, factions, motifs) and preview generation reuses that brief instead of raw long-form prep. The home screen and recap screen use the saved preview image as a visual anchor, and movie recap uses it as the fallback when a turn has no scene image.
 
 ---
 
