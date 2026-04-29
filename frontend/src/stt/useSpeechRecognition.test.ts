@@ -6,7 +6,7 @@ import type { BrowserSpeechRecognitionConstructor, BrowserSpeechRecognitionServi
 const FakeCtor = class {} as BrowserSpeechRecognitionConstructor;
 
 describe('useSpeechRecognition', () => {
-  it('moves final transcript into confirming state', () => {
+  it('moves final transcript into confirming state', async () => {
     let callbacks: SpeechRecognitionCallbacks | null = null;
     const service: BrowserSpeechRecognitionService = {
       isSupported: () => true,
@@ -25,7 +25,7 @@ describe('useSpeechRecognition', () => {
       recognitionCtor: FakeCtor,
     }));
 
-    act(() => result.current.startListening());
+    await act(async () => { await result.current.startListening(); });
     act(() => callbacks?.onResult?.('open the door', true));
 
     expect(result.current.state).toEqual({ status: 'confirming', transcript: 'open the door' });
@@ -50,7 +50,7 @@ describe('useSpeechRecognition', () => {
       recognitionCtor: FakeCtor,
     }));
 
-    act(() => result.current.startListening());
+    await act(async () => { await result.current.startListening(); });
     act(() => callbacks?.onResult?.('cast shield', true));
     await act(async () => {
       await result.current.confirmTranscript();
@@ -61,7 +61,7 @@ describe('useSpeechRecognition', () => {
     expect(result.current.state).toEqual({ status: 'idle' });
   });
 
-  it('re-say discards the old transcript and starts a fresh recognition session', () => {
+  it('re-say discards the old transcript and starts a fresh recognition session', async () => {
     let callbacks: SpeechRecognitionCallbacks | null = null;
     const start = vi.fn();
     const abort = vi.fn();
@@ -80,18 +80,18 @@ describe('useSpeechRecognition', () => {
       recognitionCtor: FakeCtor,
     }));
 
-    act(() => result.current.startListening());
+    await act(async () => { await result.current.startListening(); });
     act(() => callbacks?.onResult?.('old action', true));
     expect(result.current.state).toEqual({ status: 'confirming', transcript: 'old action' });
 
-    act(() => result.current.retryListening());
+    await act(async () => { result.current.retryListening(); });
 
     expect(abort).toHaveBeenCalledTimes(1);
     expect(start).toHaveBeenCalledTimes(2);
     expect(result.current.state).toEqual({ status: 'listening', transcript: '' });
   });
 
-  it('aborts recognition on unmount', () => {
+  it('aborts recognition on unmount', async () => {
     const abort = vi.fn();
     const { result, unmount } = renderHook(() => useSpeechRecognition({
       onConfirmTranscript: vi.fn(),
@@ -104,7 +104,7 @@ describe('useSpeechRecognition', () => {
       recognitionCtor: FakeCtor,
     }));
 
-    act(() => result.current.startListening());
+    await act(async () => { await result.current.startListening(); });
     unmount();
 
     expect(abort).toHaveBeenCalled();
