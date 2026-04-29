@@ -12,6 +12,8 @@ import { userRepository, type UserListItem, type UserRecord } from '../repositor
 import fs from 'fs';
 import path from 'path';
 
+// Compatibility facade retained for stable callers. Persistence should live in
+// repositories; keep only cross-repository or side-effect orchestration here.
 export class StateService {
   // Ensures the DB is open and migrations have run. Safe to call multiple times.
   public static initialize(): void {
