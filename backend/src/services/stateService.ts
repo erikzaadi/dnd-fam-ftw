@@ -1,8 +1,9 @@
-import { SessionState, Character, TurnResult, type Stat, type Difficulty, type Impact } from '../types.js';
+import { SessionState, Character, TurnResult } from '../types.js';
 import { getConfig } from '../config/env.js';
 import { getImageStorageProvider } from '../providers/storage/storageProviderFactory.js';
 import { getDb, initializeDatabase } from '../persistence/database.js';
 import { sessionRepository, type SessionListItem, type SessionPatch } from '../repositories/sessionRepository.js';
+import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { createId } from '../lib/ids.js';
 import fs from 'fs';
 import path from 'path';
@@ -138,89 +139,7 @@ export class StateService {
   }
 
   public static async getTurnHistory(id: string): Promise<TurnResult[]> {
-    const db = getDb();
-    const rows = db.prepare('SELECT * FROM turn_history WHERE sessionId = ?').all(id) as {
-      id: number;
-      narration: string;
-      rollNarration: string | null;
-      imagePrompt: string | null;
-      imageSuggested: number;
-      imageUrl: string | null;
-      image_storage_key: string | null;
-      image_storage_provider: string | null;
-      characterId: string | null;
-      actionAttempt: string | null;
-      actionStat: string | null;
-      actionSuccess: number | null;
-      actionRoll: number | null;
-      actionStatBonus: number | null;
-      actionItemBonus: number | null;
-      actionIsCritical: number | null;
-      actionImpact: string | null;
-      actionDifficultyTarget: number | null;
-      turnType: string | null;
-      currentTensionLevel: string | null;
-      hpChanges: string | null;
-      inventoryChanges: string | null;
-    }[];
-
-    return rows.map(r => {
-      const choices = db.prepare('SELECT * FROM turn_choices WHERE turnId = ?').all(r.id) as {
-            label: string;
-            difficulty: Difficulty;
-            stat: Stat;
-            difficultyValue: number | null;
-            narration: string | null;
-        }[];
-      const rollTotal = (r.actionRoll ?? 0) + (r.actionStatBonus ?? 0) + (r.actionItemBonus ?? 0);
-      const margin = r.actionDifficultyTarget != null
-        ? (r.actionSuccess ? rollTotal - r.actionDifficultyTarget : r.actionDifficultyTarget - rollTotal)
-        : 0;
-      const derivedImpact: Impact = r.actionRoll === 1 || r.actionIsCritical || r.actionRoll === 20 || margin >= 12
-        ? 'extreme'
-        : margin >= 8
-          ? 'strong'
-          : 'normal';
-      const lastAction = r.actionAttempt ? {
-        actionAttempt: r.actionAttempt,
-        actionResult: {
-          success: !!r.actionSuccess,
-          roll: r.actionRoll ?? 0,
-          statUsed: (r.actionStat ?? 'none') as Stat | 'none',
-          ...(r.actionStatBonus != null && { statBonus: r.actionStatBonus }),
-          ...(r.actionItemBonus != null && r.actionItemBonus > 0 && { itemBonus: r.actionItemBonus }),
-          impact: (r.actionImpact ?? derivedImpact) as Impact,
-          ...(r.actionIsCritical && { isCritical: true }),
-          ...(r.actionDifficultyTarget != null && { difficultyTarget: r.actionDifficultyTarget }),
-        }
-      } : null;
-      // Recompute image URL from storage key so URLs always reflect current config.
-      // Heals rows that were written before S3_IMAGE_PUBLIC_BASE_URL was set.
-      let imageUrl = r.imageUrl;
-      if (r.image_storage_key && r.image_storage_provider === 's3') {
-        const storage = getImageStorageProvider();
-        imageUrl = storage.getPublicUrl(r.image_storage_key);
-      }
-      return {
-        id: r.id,
-        narration: r.narration,
-        rollNarration: r.rollNarration || undefined,
-        imagePrompt: r.imagePrompt,
-        imageSuggested: !!r.imageSuggested,
-        imageUrl,
-        characterId: r.characterId || undefined,
-        choices: choices.map(({ difficultyValue, narration, ...c }) => ({
-          ...c,
-          ...(difficultyValue != null && { difficultyValue }),
-          ...(narration != null && { narration }),
-        })),
-        lastAction,
-        turnType: (r.turnType as TurnResult['turnType']) ?? 'normal',
-        ...(r.currentTensionLevel && { currentTensionLevel: r.currentTensionLevel as TurnResult['currentTensionLevel'] }),
-        ...(r.hpChanges && { hpChanges: JSON.parse(r.hpChanges) }),
-        ...(r.inventoryChanges && { inventoryChanges: JSON.parse(r.inventoryChanges) }),
-      };
-    });
+    return turnHistoryRepository.getTurnHistory(id);
   }
 
   public static async updateStorySummary(sessionId: string, summary: string): Promise<void> {
@@ -228,38 +147,11 @@ export class StateService {
   }
 
   public static async updateLatestTurnImage(sessionId: string, imageUrl: string, storageKey: string, storageProvider: string): Promise<void> {
-    const db = getDb();
-    db.prepare('UPDATE turn_history SET imageUrl = ?, image_storage_key = ?, image_storage_provider = ? WHERE id = (SELECT MAX(id) FROM turn_history WHERE sessionId = ?)')
-      .run(imageUrl, storageKey || null, storageProvider || null, sessionId);
+    return turnHistoryRepository.updateLatestTurnImage(sessionId, imageUrl, storageKey, storageProvider);
   }
 
   public static async addTurnResult(id: string, turn: TurnResult, characterId: string | null): Promise<number> {
-    const db = getDb();
-    const action = turn.lastAction ?? null;
-    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(
-        id, characterId || null, turn.narration, turn.rollNarration || null, turn.imagePrompt, turn.imageSuggested ? 1 : 0, turn.imageUrl || null,
-        action?.actionAttempt ?? null,
-        action?.actionResult?.statUsed ?? null,
-        action?.actionResult?.success ? 1 : 0,
-        action?.actionResult?.roll ?? null,
-        action?.actionResult?.statBonus ?? null,
-        action?.actionResult?.itemBonus ?? null,
-        action?.actionResult?.isCritical ? 1 : null,
-        action?.actionResult?.impact ?? null,
-        action?.actionResult?.difficultyTarget ?? null,
-        turn.turnType ?? 'normal',
-        turn.currentTensionLevel ?? null,
-        turn.hpChanges && turn.hpChanges.length > 0 ? JSON.stringify(turn.hpChanges) : null,
-        turn.inventoryChanges && turn.inventoryChanges.length > 0 ? JSON.stringify(turn.inventoryChanges) : null
-      );
-
-    const turnId = info.lastInsertRowid;
-    for (const choice of (turn.choices ?? [])) {
-      db.prepare('INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue, narration) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(turnId, choice.label, choice.difficulty, choice.stat, choice.difficultyValue ?? null, choice.narration ?? null);
-    }
-    return Number(turnId);
+    return turnHistoryRepository.addTurnResult(id, turn, characterId);
   }
 
   public static deleteCharacter(charId: string): void {
@@ -485,8 +377,7 @@ export class StateService {
   // --- Character history ---
 
   public static getCharacterTurnHistory(charId: string): { narration: string; actionAttempt: string | null }[] {
-    const db = getDb();
-    return db.prepare('SELECT narration, actionAttempt FROM turn_history WHERE characterId = ? ORDER BY id').all(charId) as { narration: string; actionAttempt: string | null }[];
+    return turnHistoryRepository.getCharacterTurnHistory(charId);
   }
 
   // --- Invite requests ---
