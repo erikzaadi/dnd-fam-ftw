@@ -5,3 +5,10 @@ export const STAT_COLORS: Record<string, string> = {
   mischief: 'border-purple-500/50 bg-purple-950/20 text-purple-300',
   none: 'border-slate-600 bg-slate-900 text-slate-300',
 };
+
+/** Text-only color per stat for inline labels and numbers. */
+export const STAT_TEXT_COLORS: Record<string, string> = {
+  might: 'text-rose-400',
+  magic: 'text-blue-400',
+  mischief: 'text-purple-400',
+};

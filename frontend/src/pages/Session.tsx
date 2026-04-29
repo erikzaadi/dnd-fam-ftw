@@ -16,7 +16,6 @@ import { StoryStage } from '../components/game/StoryStage';
 import { ActionDock } from '../components/game/ActionDock';
 import { DmDecisionRecapPanel } from '../components/game/DmDecisionRecapPanel';
 import { ChronicleDrawer } from '../components/game/ChronicleDrawer';
-import { StatsPanel } from '../components/game/StatsPanel';
 import { audioManager } from '../audio/audioManager';
 import { useAudioSettings } from '../audio/useAudioSettings';
 import { useTtsSettings } from '../tts/useTtsSettings';
@@ -63,7 +62,6 @@ export const SessionPage = () => {
   const [lastSubmittedAction, setLastSubmittedAction] = useState<LastSubmittedAction | null>(null);
   const [currentTensionLevel, setCurrentTensionLevel] = useState<'low' | 'medium' | 'high' | null>(null);
   const [showBanner, setShowBanner] = useState(true);
-  const [activeStatKey, setActiveStatKey] = useState<string | null>(null);
   const displayTurnRef = useRef<TurnResult | null>(null);
 
   const joinSession = useCallback(async (sessionId: string) => {
@@ -519,9 +517,9 @@ export const SessionPage = () => {
         </div>
       )}
 
-      <div className={`grid gap-4 px-4 pb-4 h-dvh overflow-hidden grid-cols-1 md:grid-cols-[1fr_280px] md:grid-rows-[minmax(0,2fr)_minmax(0,3fr)] xl:grid-cols-[minmax(280px,0.9fr)_minmax(420px,1.4fr)_minmax(240px,0.7fr)] xl:grid-rows-[minmax(0,1fr)] ${showBanner ? 'pt-36 md:pt-12' : 'pt-3'}`}>
-        {/* Story Stage: full width on mobile, top row spanning both cols on md, left col on xl */}
-        <div className="min-h-0 h-[40vh] md:h-auto md:col-span-2 xl:col-span-1">
+      <div className={`grid gap-4 px-4 pb-4 h-dvh overflow-hidden grid-cols-1 grid-rows-[minmax(0,2fr)_minmax(0,3fr)] xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-rows-[1fr] ${showBanner ? 'pt-36 md:pt-12' : 'pt-3'}`}>
+        {/* Story Stage */}
+        <div className="min-h-0">
           <StoryStage
             history={history}
             viewedTurnIdx={viewedTurnIdx}
@@ -566,21 +564,10 @@ export const SessionPage = () => {
               error={actionError}
               onSubmit={submitAction}
               onShowPartyGear={() => setShowFullInventory(true)}
-              onActiveStatChange={setActiveStatKey}
             />
           )}
         </div>
 
-        {/* Stats panel: hidden during chronicle and loading, right col on xl / bottom-right on md */}
-        {!showChronicle && !loading && activeChar && (
-          <div className="hidden md:block min-h-0">
-            <StatsPanel
-              character={activeChar}
-              onShowPartyGear={() => setShowFullInventory(true)}
-              activeStatKey={activeStatKey}
-            />
-          </div>
-        )}
       </div>
 
       {/* Roll popup */}

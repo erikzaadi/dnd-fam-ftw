@@ -3,7 +3,7 @@ import type { TurnResult, Character } from '../../types';
 import { apiFetch, imgSrc, pulseSyncDelay } from '../../lib/api';
 import { beatTarget } from '../../lib/game';
 import { StatImg } from './StatIcon';
-import { STAT_COLORS } from '../../lib/statColors';
+import { STAT_COLORS, STAT_TEXT_COLORS } from '../../lib/statColors';
 import { getHpColors } from '../../lib/hpColors';
 import { useTtsSettings } from '../../tts/useTtsSettings';
 import { browserTtsService } from '../../tts/browserTtsService';
@@ -14,7 +14,6 @@ import { parseSpeechIntent } from '../../stt/speechIntent';
 import { SpeechActionButton } from './SpeechActionButton';
 import { SpeechConfirmDialog } from './SpeechConfirmDialog';
 import { Tooltip } from '../Tooltip';
-
 interface ActionDockProps {
   turn: TurnResult | null;
   loading: boolean;
@@ -27,7 +26,6 @@ interface ActionDockProps {
   error: string | null;
   onSubmit: (label: string, stat: string, diff: string, difficultyValue?: number) => Promise<void> | void;
   onShowPartyGear: () => void;
-  onActiveStatChange?: (statKey: string | null) => void;
 }
 
 const RISK_MAP: Record<string, { label: string; color: string }> = {
@@ -54,9 +52,9 @@ export const ActionDock = ({
   error,
   onSubmit,
   onShowPartyGear,
-  onActiveStatChange,
 }: ActionDockProps) => {
   const [statThinking, setStatThinking] = useState(false);
+  const [expandedStat, setExpandedStat] = useState<string | null>(null);
   const choiceButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { settings: ttsSettings } = useTtsSettings();
@@ -179,9 +177,10 @@ export const ActionDock = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-900 rounded-[32px] border border-slate-800 overflow-hidden">
-      {/* Fixed top section: error + active character info */}
-      <div className="flex flex-col gap-3 p-4 flex-shrink-0">
+    <div className="flex flex-col h-full bg-slate-900 rounded-[32px] border border-slate-800 overflow-y-auto scrollbar-hide">
+
+      {/* Error + character header */}
+      <div className="flex flex-col gap-3 p-4">
         {error && (
           <div className="px-4 py-2 bg-rose-950/60 border border-rose-700 rounded-xl text-rose-300 text-xs font-black uppercase tracking-widest">
             {error}
@@ -214,13 +213,79 @@ export const ActionDock = ({
                   style={{ width: `${Math.max(0, (activeCharacter.hp / activeCharacter.max_hp) * 100)}%` }}
                 />
               </div>
+              {/* Inline stats row */}
+              <div className="flex flex-col gap-1 mt-1">
+                <div className="flex items-center gap-3">
+                  {(['might', 'magic', 'mischief'] as const).map(stat => {
+                    const base = activeCharacter.stats[stat];
+                    const bonusItems = activeCharacter.inventory.filter(item => (item.statBonuses?.[stat] ?? 0) > 0);
+                    const bonus = bonusItems.reduce((s, item) => s + (item.statBonuses![stat]!), 0);
+                    const total = base + bonus;
+                    const hasBonus = bonus > 0;
+                    const isOpen = expandedStat === stat;
+
+                    const inner = (
+                      <>
+                        <StatImg stat={stat} size="5" tooltip className="rounded" />
+                        <span className={`text-sm font-black tabular-nums ${hasBonus ? 'text-amber-400' : STAT_TEXT_COLORS[stat]}`}>{total}</span>
+                        {hasBonus && (
+                          <span className={`text-[9px] text-amber-500/70 leading-none transition-transform duration-150 inline-block ${isOpen ? 'rotate-180' : ''}`}>▾</span>
+                        )}
+                      </>
+                    );
+
+                    if (!hasBonus) {
+                      return <div key={stat} className="flex items-center gap-1">{inner}</div>;
+                    }
+
+                    return (
+                      <button
+                        key={stat}
+                        type="button"
+                        onClick={() => setExpandedStat(s => s === stat ? null : stat)}
+                        className="flex items-center gap-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-300 rounded"
+                        aria-expanded={isOpen}
+                      >
+                        {inner}
+                      </button>
+                    );
+                  })}
+                  <Tooltip content="Gear [i]" position="top" portal wrapperClassName="inline-flex ml-auto">
+                    <button
+                      type="button"
+                      onClick={onShowPartyGear}
+                      className="flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-300 rounded"
+                      aria-label="Show party gear"
+                    >
+                      <img
+                        src={imgSrc('/images/icon_inventory.png')}
+                        alt="gear"
+                        className="w-5 h-5 object-contain mix-blend-screen"
+                      />
+                    </button>
+                  </Tooltip>
+                </div>
+                {expandedStat && (() => {
+                  const key = expandedStat as 'might' | 'magic' | 'mischief';
+                  const bonusItems = activeCharacter.inventory.filter(item => (item.statBonuses?.[key] ?? 0) > 0);
+                  const base = activeCharacter.stats[key];
+                  return bonusItems.length > 0 ? (
+                    <div className="flex flex-col gap-0.5 px-1 py-1.5 rounded-lg bg-slate-700/30 text-xs border border-slate-700/50">
+                      <div className="text-slate-400">{base} base</div>
+                      {bonusItems.map(item => (
+                        <div key={item.id} className="text-amber-400">+{item.statBonuses![key]} {item.name}</div>
+                      ))}
+                    </div>
+                  ) : null;
+                })()}
+              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Scrollable area: actions only */}
-      <div className="flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto scrollbar-hide px-4 pb-4">
+      {/* Actions */}
+      <div className="flex flex-col gap-3 px-4 pb-4">
 
         {/* Downed state OR action area */}
         {isDown ? (
@@ -245,10 +310,9 @@ export const ActionDock = ({
                 <div className="text-xs font-black uppercase tracking-widest text-slate-500 px-1">Choose an Action</div>
                 {turn.choices.map((choice, i) => {
                   const risk = RISK_MAP[choice.difficulty] ?? RISK_MAP.normal;
-                  const statTotal = activeCharacter
-                    ? activeCharacter.stats[choice.stat as keyof typeof activeCharacter.stats] +
-                    activeCharacter.inventory.reduce((s, item) => s + (item.statBonuses?.[choice.stat as keyof typeof item.statBonuses] ?? 0), 0)
-                    : 0;
+                  const statBase = activeCharacter?.stats[choice.stat as keyof typeof activeCharacter.stats] ?? 0;
+                  const statBonus = activeCharacter?.inventory.reduce((s, item) => s + (item.statBonuses?.[choice.stat as keyof typeof item.statBonuses] ?? 0), 0) ?? 0;
+                  const statTotal = statBase + statBonus;
                   const target = beatTarget(choice.difficultyValue, choice.difficulty);
                   const prob = calcProb(statTotal, target);
 
@@ -269,39 +333,40 @@ export const ActionDock = ({
                         onClick={() => {
                           void submitSuggestedChoice(i as 0 | 1 | 2);
                         }}
-                        onMouseEnter={() => onActiveStatChange?.(choice.stat)}
-                        onMouseLeave={() => onActiveStatChange?.(null)}
-                        onFocus={() => onActiveStatChange?.(choice.stat)}
-                        onBlur={() => onActiveStatChange?.(null)}
                         disabled={loading}
-                        className={`relative w-full p-3 ${ttsEnabled ? 'pr-10' : ''} rounded-2xl border-2 text-left transition-all hover:brightness-110 disabled:opacity-50 ${STAT_COLORS[choice.stat]}`}
+                        className={`relative w-full p-3 rounded-2xl border-2 text-left transition-all hover:brightness-110 disabled:opacity-50 ${STAT_COLORS[choice.stat]}`}
                       >
                         <div className="font-black text-base xl:text-lg uppercase leading-tight">{choice.label}</div>
                         {choice.narration && (
                           <div className="text-xs italic text-slate-300/70 mt-0.5 leading-snug">{choice.narration}</div>
                         )}
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                          <StatImg stat={choice.stat} size="12" tooltip className="rounded-xl" />
-                          <span className="text-xs text-slate-400 font-black">
-                            {statTotal} vs {target}
+                          <StatImg stat={choice.stat} size="4" tooltip className="rounded-xl" />
+                          <span className="text-xs font-black">
+                            <span className={statBonus > 0 ? 'text-amber-400' : (STAT_TEXT_COLORS[choice.stat] ?? 'text-slate-300')}>{statTotal}</span>
+                            <span className="text-slate-400"> vs {target}</span>
                           </span>
                           <span className={`text-xs font-black uppercase tracking-widest ${risk.color}`}>{risk.label}</span>
                           <span className="text-xs text-slate-500 font-black ml-auto">{prob}%</span>
                         </div>
                       </button>
                       {ttsEnabled && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const text = choice.narration ? `${choice.label}. ${choice.narration}` : choice.label;
-                            browserTtsService.speakNarration(text, ttsSettings);
-                          }}
-                          disabled={loading}
-                          className="absolute top-3 right-3 z-10 w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 text-sm transition-colors disabled:opacity-40"
-                          aria-label="Read aloud"
-                        >
-                          🔊
-                        </button>
+                        <div className="absolute -top-2.5 -right-2.5 z-20">
+                          <Tooltip content="Read aloud" position="bottom" portal wrapperClassName="inline-flex">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const text = choice.narration ? `${choice.label}. ${choice.narration}` : choice.label;
+                                browserTtsService.speakNarration(text, ttsSettings);
+                              }}
+                              disabled={loading}
+                              className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-900 border border-slate-700 text-[10px] text-slate-400 hover:text-amber-400 hover:border-amber-500/50 transition-colors disabled:opacity-40"
+                              aria-label="Read aloud"
+                            >
+                              🔊
+                            </button>
+                          </Tooltip>
+                        </div>
                       )}
                     </div>
                   );
