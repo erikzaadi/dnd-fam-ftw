@@ -3,9 +3,10 @@ import { getConfig } from '../config/env.js';
 import { getImageStorageProvider } from '../providers/storage/storageProviderFactory.js';
 import { getDb, initializeDatabase } from '../persistence/database.js';
 import { characterRepository } from '../repositories/characterRepository.js';
+import { namespaceRepository, type NamespaceListItem } from '../repositories/namespaceRepository.js';
 import { sessionRepository, type SessionListItem, type SessionPatch } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
-import { createId } from '../lib/ids.js';
+import { userRepository, type UserListItem, type UserRecord } from '../repositories/userRepository.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -128,68 +129,27 @@ export class StateService {
 
   // --- Namespace / User management ---
 
-  public static getUserByEmail(email: string): { id: string; email: string; namespace_id: string; role: string } | null {
-    const db = getDb();
-    return (db.prepare('SELECT id, email, namespace_id, role FROM users WHERE email = ?').get(email) as { id: string; email: string; namespace_id: string; role: string }) ?? null;
+  public static getUserByEmail(email: string): UserRecord | null {
+    return userRepository.getUserByEmail(email);
   }
 
   public static createUser(email: string, namespaceName?: string, role: string = 'member'): { userId: string; namespaceId: string } {
-    const db = getDb();
-    const namespaceId = createId();
-    const userId = createId();
-    const nsName = namespaceName ?? email.split('@')[0];
-    db.prepare('INSERT INTO namespaces (id, name) VALUES (?, ?)').run(namespaceId, nsName);
-    db.prepare('INSERT INTO users (id, email, namespace_id, role) VALUES (?, ?, ?, ?)').run(userId, email, namespaceId, role);
-    db.prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(userId, namespaceId);
-    return { userId, namespaceId };
+    return userRepository.createUser(email, namespaceName, role);
   }
 
   public static ensureAdminUser(email: string): void {
-    const existing = this.getUserByEmail(email);
-    if (existing) {
-      console.log(`[Auth] Admin user already exists: ${email} (namespace: ${existing.namespace_id})`);
-      return;
-    }
-    const { userId, namespaceId } = this.createUser(email, 'Admin', 'admin');
-    console.log(`[Auth] Created admin user: ${email} userId=${userId} namespaceId=${namespaceId}`);
+    userRepository.ensureAdminUser(email);
   }
 
-  public static listUsers(): { id: string; email: string; namespace_id: string; namespace_name: string; namespaces: { id: string; name: string }[]; role: string; created_at: string }[] {
-    const db = getDb();
-    const users = db.prepare(`
-      SELECT u.id, u.email, u.namespace_id, n.name as namespace_name, u.role, u.created_at
-      FROM users u JOIN namespaces n ON u.namespace_id = n.id
-      ORDER BY u.created_at
-    `).all() as { id: string; email: string; namespace_id: string; namespace_name: string; role: string; created_at: string }[];
-    const userNamespaces = db.prepare(`
-      SELECT un.user_id, n.id, n.name
-      FROM user_namespaces un JOIN namespaces n ON n.id = un.namespace_id
-    `).all() as { user_id: string; id: string; name: string }[];
-    return users.map(u => ({
-      ...u,
-      namespaces: userNamespaces.filter(un => un.user_id === u.id).map(un => ({ id: un.id, name: un.name })),
-    }));
+  public static listUsers(): UserListItem[] {
+    return userRepository.listUsers();
   }
 
   public static deleteUser(email: string): boolean {
-    const db = getDb();
-    const user = this.getUserByEmail(email);
-    if (!user) {
-      return false;
-    }
-    db.prepare('DELETE FROM users WHERE email = ?').run(email);
-    // Remove namespace if no other users reference it (and it's not 'local')
-    if (user.namespace_id !== 'local') {
-      const otherUsers = db.prepare('SELECT COUNT(*) as count FROM users WHERE namespace_id = ?').get(user.namespace_id) as { count: number };
-      if (otherUsers.count === 0) {
-        db.prepare('DELETE FROM namespaces WHERE id = ?').run(user.namespace_id);
-      }
-    }
-    return true;
+    return userRepository.deleteUser(email);
   }
 
   public static setPrimaryNamespace(email: string, namespaceId: string): { ok: boolean; reason?: string } {
-    const db = getDb();
     const user = this.getUserByEmail(email);
     if (!user) {
       return { ok: false, reason: `User not found: ${email}` };
@@ -198,64 +158,28 @@ export class StateService {
     if (!ns) {
       return { ok: false, reason: `Namespace not found: ${namespaceId}` };
     }
-    
-    // Update users table
-    db.prepare('UPDATE users SET namespace_id = ? WHERE id = ?').run(namespaceId, user.id);
-    
-    // Ensure they also have access to it in user_namespaces (it might already be there, OR IGNORE)
-    db.prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(user.id, namespaceId);
-    
+    userRepository.setPrimaryNamespace(user.id, namespaceId);
     return { ok: true };
   }
 
-  public static listNamespaces(): { id: string; name: string; user_count: number; session_count: number; max_sessions: number | null; max_turns: number | null; created_at: string }[] {
-    const db = getDb();
-    return db.prepare(`
-      SELECT
-        n.id, n.name, n.created_at, n.max_sessions, n.max_turns,
-        COUNT(DISTINCT un.user_id) as user_count,
-        COUNT(DISTINCT s.id) as session_count
-      FROM namespaces n
-      LEFT JOIN user_namespaces un ON un.namespace_id = n.id
-      LEFT JOIN sessions s ON s.namespace_id = n.id
-      GROUP BY n.id
-      ORDER BY n.created_at
-    `).all() as { id: string; name: string; user_count: number; session_count: number; max_sessions: number | null; max_turns: number | null; created_at: string }[];
+  public static listNamespaces(): NamespaceListItem[] {
+    return namespaceRepository.listNamespaces();
   }
 
   public static getNamespaceById(id: string): { id: string; name: string } | null {
-    const db = getDb();
-    return (db.prepare('SELECT id, name FROM namespaces WHERE id = ?').get(id) as { id: string; name: string }) ?? null;
+    return namespaceRepository.getNamespaceById(id);
   }
 
   public static createNamespace(name: string): { namespaceId: string } {
-    const db = getDb();
-    const namespaceId = createId();
-    db.prepare('INSERT INTO namespaces (id, name) VALUES (?, ?)').run(namespaceId, name);
-    return { namespaceId };
+    return namespaceRepository.createNamespace(name);
   }
 
   public static renameNamespace(id: string, newName: string): boolean {
-    const db = getDb();
-    const result = db.prepare('UPDATE namespaces SET name = ? WHERE id = ?').run(newName, id);
-    return result.changes > 0;
+    return namespaceRepository.renameNamespace(id, newName);
   }
 
   public static deleteNamespace(id: string): { ok: boolean; reason?: string } {
-    const db = getDb();
-    if (id === 'local') {
-      return { ok: false, reason: 'Cannot delete the local namespace' };
-    }
-    const users = db.prepare('SELECT COUNT(*) as count FROM users WHERE namespace_id = ?').get(id) as { count: number };
-    if (users.count > 0) {
-      return { ok: false, reason: `Namespace has ${users.count} user(s) - remove them first` };
-    }
-    const sessions = db.prepare('SELECT COUNT(*) as count FROM sessions WHERE namespace_id = ?').get(id) as { count: number };
-    if (sessions.count > 0) {
-      return { ok: false, reason: `Namespace has ${sessions.count} session(s) - delete them first` };
-    }
-    db.prepare('DELETE FROM namespaces WHERE id = ?').run(id);
-    return { ok: true };
+    return namespaceRepository.deleteNamespace(id);
   }
 
   public static assignSessionToNamespace(sessionId: string, namespaceId: string): boolean {
@@ -269,15 +193,7 @@ export class StateService {
   // --- Multi-namespace user access ---
 
   public static getUserNamespaces(email: string): { id: string; name: string }[] {
-    const db = getDb();
-    return db.prepare(`
-      SELECT n.id, n.name
-      FROM namespaces n
-      JOIN user_namespaces un ON un.namespace_id = n.id
-      JOIN users u ON u.id = un.user_id
-      WHERE u.email = ?
-      ORDER BY n.created_at
-    `).all(email) as { id: string; name: string }[];
+    return userRepository.getUserNamespaces(email);
   }
 
   public static addUserToNamespace(email: string, namespaceId: string): { ok: boolean; reason?: string } {
@@ -289,7 +205,7 @@ export class StateService {
     if (!ns) {
       return { ok: false, reason: `Namespace not found: ${namespaceId}` };
     }
-    getDb().prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(user.id, namespaceId);
+    userRepository.addUserToNamespace(user.id, namespaceId);
     return { ok: true };
   }
 
@@ -301,8 +217,7 @@ export class StateService {
     if (user.namespace_id === namespaceId) {
       return { ok: false, reason: `Cannot remove user from their primary namespace: ${namespaceId}` };
     }
-    const result = getDb().prepare('DELETE FROM user_namespaces WHERE user_id = ? AND namespace_id = ?').run(user.id, namespaceId);
-    if (result.changes > 0) {
+    if (userRepository.removeUserFromNamespace(user.id, namespaceId)) {
       return { ok: true };
     } else {
       return { ok: false, reason: `User ${email} did not have access to namespace ${namespaceId}` };
@@ -312,15 +227,11 @@ export class StateService {
   // --- Namespace limits ---
 
   public static getNamespaceLimits(namespaceId: string): { maxSessions: number | null; maxTurns: number | null } {
-    const db = getDb();
-    const row = db.prepare('SELECT max_sessions, max_turns FROM namespaces WHERE id = ?').get(namespaceId) as { max_sessions: number | null; max_turns: number | null } | undefined;
-    return { maxSessions: row?.max_sessions ?? null, maxTurns: row?.max_turns ?? null };
+    return namespaceRepository.getNamespaceLimits(namespaceId);
   }
 
   public static setNamespaceLimits(namespaceId: string, maxSessions: number | null, maxTurns: number | null): boolean {
-    const db = getDb();
-    const result = db.prepare('UPDATE namespaces SET max_sessions = ?, max_turns = ? WHERE id = ?').run(maxSessions, maxTurns, namespaceId);
-    return result.changes > 0;
+    return namespaceRepository.setNamespaceLimits(namespaceId, maxSessions, maxTurns);
   }
 
   public static countSessionsInNamespace(namespaceId: string): number {
