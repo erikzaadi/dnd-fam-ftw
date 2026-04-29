@@ -4,6 +4,7 @@ import fs from 'fs';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { getDb } from '../persistence/database.js';
 import { StateService } from '../services/stateService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -203,7 +204,7 @@ describe('CLI sessions export/import', () => {
     const exportFile = path.join(os.tmpdir(), `cli-roundtrip-${Date.now()}.json`);
     try {
       // Seed a session directly via DB so we have something to export
-      const db = (StateService as unknown as { db: import('libsql').Database }).db;
+      const db = getDb();
       db.prepare(
         'INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, turn, tone, displayName, difficulty, gameMode, useLocalAI, savingsMode, namespace_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       ).run(

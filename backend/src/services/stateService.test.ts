@@ -2,6 +2,7 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { getDb } from '../persistence/database.js';
 import { StateService } from './stateService.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-test-${Date.now()}.sqlite`);
@@ -25,7 +26,7 @@ afterAll(() => {
 });
 
 function getTestDb() {
-  return (StateService as unknown as { db: import('libsql').Database }).db;
+  return getDb();
 }
 
 function insertTestSession(id: string, namespaceId: string = 'local', displayName: string = 'Test World') {

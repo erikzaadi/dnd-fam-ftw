@@ -1,274 +1,20 @@
-import Database, { Database as DB } from 'libsql';
 import { SessionState, Character, TurnResult, InventoryItem, type Stat, type Difficulty, type GameMode, type Impact } from '../types.js';
 import { getConfig } from '../config/env.js';
 import { getImageStorageProvider } from '../providers/storage/storageProviderFactory.js';
+import { getDb, initializeDatabase } from '../persistence/database.js';
 import { createId } from '../lib/ids.js';
 import { generateSessionDisplayName } from './sessionNameService.js';
 import fs from 'fs';
 import path from 'path';
 
 export class StateService {
-  private static db: DB | null = null;
-
-  private static getDb() {
-    if (!this.db) {
-      const config = getConfig();
-      const dbPath = path.resolve(config.SQLITE_DB_PATH);
-      fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-      this.db = new Database(dbPath);
-      this.migrate(this.db);
-    }
-    return this.db;
-  }
-
-  private static migrate(db: DB) {
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS sessions (
-        id TEXT PRIMARY KEY,
-        scene TEXT NOT NULL,
-        sceneId TEXT NOT NULL,
-        worldDescription TEXT,
-        turn INTEGER NOT NULL DEFAULT 1,
-        activeCharacterId TEXT NOT NULL DEFAULT '',
-        tone TEXT NOT NULL DEFAULT 'thrilling adventure',
-        displayName TEXT NOT NULL DEFAULT '',
-        difficulty TEXT NOT NULL DEFAULT 'normal',
-        gameMode TEXT NOT NULL DEFAULT 'balanced',
-        savingsMode INTEGER NOT NULL DEFAULT 0,
-        useLocalAI INTEGER NOT NULL DEFAULT 0,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS characters (
-        id TEXT PRIMARY KEY,
-        sessionId TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-        name TEXT NOT NULL,
-        class TEXT NOT NULL,
-        species TEXT NOT NULL,
-        quirk TEXT NOT NULL,
-        hp INTEGER NOT NULL DEFAULT 10,
-        max_hp INTEGER NOT NULL DEFAULT 10,
-        might INTEGER NOT NULL DEFAULT 1,
-        magic INTEGER NOT NULL DEFAULT 1,
-        mischief INTEGER NOT NULL DEFAULT 1,
-        avatarUrl TEXT,
-        avatarPrompt TEXT
-      );
-
-      CREATE TABLE IF NOT EXISTS inventory (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        characterId TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
-        name TEXT NOT NULL,
-        description TEXT NOT NULL DEFAULT '',
-        statBonuses TEXT
-      );
-
-      CREATE TABLE IF NOT EXISTS turn_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        sessionId TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-        characterId TEXT REFERENCES characters(id),
-        narration TEXT NOT NULL,
-        rollNarration TEXT,
-        imagePrompt TEXT,
-        imageSuggested INTEGER NOT NULL DEFAULT 0,
-        imageUrl TEXT,
-        actionAttempt TEXT,
-        actionStat TEXT,
-        actionSuccess INTEGER,
-        actionRoll INTEGER
-      );
-
-      CREATE TABLE IF NOT EXISTS turn_choices (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        turnId INTEGER NOT NULL REFERENCES turn_history(id) ON DELETE CASCADE,
-        label TEXT NOT NULL,
-        difficulty TEXT NOT NULL,
-        stat TEXT NOT NULL
-      );
-    `);
-
-    const turnCols = (db.prepare("PRAGMA table_info(turn_history)").all() as { name: string }[]).map(r => r.name);
-    if (!turnCols.includes('actionAttempt')) {
-      db.prepare("ALTER TABLE turn_history ADD COLUMN actionAttempt TEXT").run();
-      db.prepare("ALTER TABLE turn_history ADD COLUMN actionStat TEXT").run();
-      db.prepare("ALTER TABLE turn_history ADD COLUMN actionSuccess INTEGER").run();
-      db.prepare("ALTER TABLE turn_history ADD COLUMN actionRoll INTEGER").run();
-    }
-    if (!turnCols.includes('turnType')) {
-      db.prepare("ALTER TABLE turn_history ADD COLUMN turnType TEXT NOT NULL DEFAULT 'normal'").run();
-    }
-    if (!turnCols.includes('actionStatBonus')) {
-      db.prepare("ALTER TABLE turn_history ADD COLUMN actionStatBonus INTEGER").run();
-      db.prepare("ALTER TABLE turn_history ADD COLUMN actionItemBonus INTEGER").run();
-      db.prepare("ALTER TABLE turn_history ADD COLUMN actionIsCritical INTEGER").run();
-    }
-    if (!turnCols.includes('actionDifficultyTarget')) {
-      db.prepare("ALTER TABLE turn_history ADD COLUMN actionDifficultyTarget INTEGER").run();
-    }
-    if (!turnCols.includes('actionImpact')) {
-      db.prepare("ALTER TABLE turn_history ADD COLUMN actionImpact TEXT").run();
-    }
-    if (!turnCols.includes('image_storage_key')) {
-      db.prepare("ALTER TABLE turn_history ADD COLUMN image_storage_key TEXT").run();
-      db.prepare("ALTER TABLE turn_history ADD COLUMN image_storage_provider TEXT").run();
-    }
-    if (!turnCols.includes('rollNarration')) {
-      db.prepare("ALTER TABLE turn_history ADD COLUMN rollNarration TEXT").run();
-    }
-
-    const choiceCols = (db.prepare("PRAGMA table_info(turn_choices)").all() as { name: string }[]).map(r => r.name);
-    if (!choiceCols.includes('difficultyValue')) {
-      db.prepare("ALTER TABLE turn_choices ADD COLUMN difficultyValue INTEGER").run();
-    }
-
-    const charCols = (db.prepare("PRAGMA table_info(characters)").all() as { name: string }[]).map(r => r.name);
-    if (!charCols.includes('avatarPrompt')) {
-      db.prepare("ALTER TABLE characters ADD COLUMN avatarPrompt TEXT").run();
-    }
-    if (!charCols.includes('gender')) {
-      db.prepare("ALTER TABLE characters ADD COLUMN gender TEXT").run();
-    }
-    if (!charCols.includes('status')) {
-      db.prepare("ALTER TABLE characters ADD COLUMN status TEXT NOT NULL DEFAULT 'active'").run();
-    }
-    if (!charCols.includes('avatar_storage_key')) {
-      db.prepare("ALTER TABLE characters ADD COLUMN avatar_storage_key TEXT").run();
-      db.prepare("ALTER TABLE characters ADD COLUMN avatar_storage_provider TEXT").run();
-    }
-
-    const invCols = (db.prepare("PRAGMA table_info(inventory)").all() as { name: string }[]).map(r => r.name);
-    if (!invCols.includes('statBonuses')) {
-      db.prepare("ALTER TABLE inventory ADD COLUMN statBonuses TEXT").run();
-    }
-    if (!invCols.includes('itemId')) {
-      db.prepare("ALTER TABLE inventory ADD COLUMN itemId TEXT").run();
-    }
-    if (!invCols.includes('healValue')) {
-      db.prepare("ALTER TABLE inventory ADD COLUMN healValue INTEGER").run();
-    }
-    if (!invCols.includes('transferable')) {
-      db.prepare("ALTER TABLE inventory ADD COLUMN transferable INTEGER").run();
-    }
-    if (!invCols.includes('consumable')) {
-      db.prepare("ALTER TABLE inventory ADD COLUMN consumable INTEGER").run();
-    }
-
-    const sessionCols = (db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[]).map(r => r.name);
-    if (!sessionCols.includes('savingsMode')) {
-      db.prepare("ALTER TABLE sessions ADD COLUMN savingsMode INTEGER NOT NULL DEFAULT 0").run();
-    }
-    if (!sessionCols.includes('useLocalAI')) {
-      db.prepare("ALTER TABLE sessions ADD COLUMN useLocalAI INTEGER NOT NULL DEFAULT 0").run();
-    }
-    if (!sessionCols.includes('interventionUsed')) {
-      db.prepare("ALTER TABLE sessions ADD COLUMN interventionUsed INTEGER NOT NULL DEFAULT 0").run();
-    }
-    if (!sessionCols.includes('storySummary')) {
-      db.prepare("ALTER TABLE sessions ADD COLUMN storySummary TEXT NOT NULL DEFAULT ''").run();
-    }
-    if (!sessionCols.includes('namespace_id')) {
-      db.prepare("ALTER TABLE sessions ADD COLUMN namespace_id TEXT NOT NULL DEFAULT 'local'").run();
-    }
-    if (!sessionCols.includes('gameMode')) {
-      db.prepare("ALTER TABLE sessions ADD COLUMN gameMode TEXT NOT NULL DEFAULT 'balanced'").run();
-    }
-    if (!sessionCols.includes('dm_prep')) {
-      db.prepare("ALTER TABLE sessions ADD COLUMN dm_prep TEXT").run();
-    }
-    if (!sessionCols.includes('dm_prep_image_brief')) {
-      db.prepare("ALTER TABLE sessions ADD COLUMN dm_prep_image_brief TEXT").run();
-    }
-
-    if (!turnCols.includes('currentTensionLevel')) {
-      db.prepare("ALTER TABLE turn_history ADD COLUMN currentTensionLevel TEXT").run();
-    }
-    if (!turnCols.includes('hpChanges')) {
-      db.prepare("ALTER TABLE turn_history ADD COLUMN hpChanges TEXT").run();
-    }
-    if (!turnCols.includes('inventoryChanges')) {
-      db.prepare("ALTER TABLE turn_history ADD COLUMN inventoryChanges TEXT").run();
-    }
-
-    if (!choiceCols.includes('narration')) {
-      db.prepare("ALTER TABLE turn_choices ADD COLUMN narration TEXT").run();
-    }
-
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS namespaces (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        email TEXT NOT NULL UNIQUE,
-        namespace_id TEXT NOT NULL REFERENCES namespaces(id),
-        role TEXT NOT NULL DEFAULT 'member',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS user_namespaces (
-        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        namespace_id TEXT NOT NULL REFERENCES namespaces(id) ON DELETE CASCADE,
-        PRIMARY KEY (user_id, namespace_id)
-      );
-
-      CREATE TABLE IF NOT EXISTS invite_requests (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT NOT NULL UNIQUE,
-        message TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS tts_usage (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        namespace_id TEXT NOT NULL REFERENCES namespaces(id),
-        provider TEXT NOT NULL,
-        voice TEXT NOT NULL,
-        character_count INTEGER NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    // Always ensure the local (no-auth) namespace exists
-    db.prepare("INSERT OR IGNORE INTO namespaces (id, name) VALUES ('local', 'Local')").run();
-
-    // Backfill user_namespaces from existing users.namespace_id
-    db.prepare("INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) SELECT id, namespace_id FROM users").run();
-
-    const namespaceCols = (db.prepare("PRAGMA table_info(namespaces)").all() as { name: string }[]).map(r => r.name);
-    if (!namespaceCols.includes('max_sessions')) {
-      db.prepare("ALTER TABLE namespaces ADD COLUMN max_sessions INTEGER").run();
-      db.prepare("ALTER TABLE namespaces ADD COLUMN max_turns INTEGER").run();
-    }
-
-    const charColsFull = (db.prepare("PRAGMA table_info(characters)").all() as { name: string }[]).map(r => r.name);
-    if (!charColsFull.includes('history')) {
-      db.prepare("ALTER TABLE characters ADD COLUMN history TEXT").run();
-    }
-
-    const sessionColsFull = (db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[]).map(r => r.name);
-    if (!sessionColsFull.includes('rescues_used')) {
-      db.prepare("ALTER TABLE sessions ADD COLUMN rescues_used INTEGER NOT NULL DEFAULT 0").run();
-      // Backfill: old sessions with interventionUsed=1 have had 1 rescue
-      db.prepare("UPDATE sessions SET rescues_used = 1 WHERE interventionUsed = 1").run();
-    }
-    if (!sessionColsFull.includes('game_over')) {
-      db.prepare("ALTER TABLE sessions ADD COLUMN game_over INTEGER NOT NULL DEFAULT 0").run();
-    }
-    if (!sessionColsFull.includes('preview_image_url')) {
-      db.prepare("ALTER TABLE sessions ADD COLUMN preview_image_url TEXT").run();
-    }
-  }
-
   // Ensures the DB is open and migrations have run. Safe to call multiple times.
   public static initialize(): void {
-    this.getDb();
+    initializeDatabase();
   }
 
   public static async createSession(worldDescription?: string, difficulty: string = 'normal', useLocalAI: boolean = false, savingsMode: boolean = false, namespaceId: string = 'local', gameMode: 'cinematic' | 'balanced' | 'fast' = 'balanced', dmPrep?: string): Promise<SessionState> {
-    const db = this.getDb();
+    const db = getDb();
     const id = createId();
     const displayName = await generateSessionDisplayName(worldDescription, useLocalAI);
 
@@ -302,7 +48,7 @@ export class StateService {
   }
 
   public static async getSession(id: string): Promise<SessionState | undefined> {
-    const db = this.getDb();
+    const db = getDb();
     const row = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as {
       id: string;
       scene: string;
@@ -418,23 +164,23 @@ export class StateService {
   }
 
   public static getSessionNamespaceId(id: string): string | undefined {
-    const db = this.getDb();
+    const db = getDb();
     const row = db.prepare('SELECT namespace_id FROM sessions WHERE id = ?').get(id) as { namespace_id: string } | undefined;
     return row?.namespace_id;
   }
 
   public static async setSavingsMode(id: string, enabled: boolean): Promise<void> {
-    const db = this.getDb();
+    const db = getDb();
     db.prepare('UPDATE sessions SET savingsMode = ? WHERE id = ?').run(enabled ? 1 : 0, id);
   }
 
   public static async setUseLocalAI(id: string, enabled: boolean): Promise<void> {
-    const db = this.getDb();
+    const db = getDb();
     db.prepare('UPDATE sessions SET useLocalAI = ? WHERE id = ?').run(enabled ? 1 : 0, id);
   }
 
   public static async deleteSession(id: string): Promise<void> {
-    const db = this.getDb();
+    const db = getDb();
     const config = getConfig();
     const storage = getImageStorageProvider();
 
@@ -481,7 +227,7 @@ export class StateService {
   }
 
   public static async updateSession(id: string, state: SessionState): Promise<void> {
-    const db = this.getDb();
+    const db = getDb();
     const rescuesUsed = state.interventionState?.rescuesUsed ?? 0;
     db.prepare('UPDATE sessions SET scene = ?, sceneId = ?, turn = ?, activeCharacterId = ?, tone = ?, interventionUsed = ?, rescues_used = ?, game_over = ?, storySummary = ?, difficulty = ?, gameMode = ? WHERE id = ?')
       .run(state.scene, state.sceneId, state.turn, state.activeCharacterId, state.tone, rescuesUsed > 0 ? 1 : 0, rescuesUsed, state.gameOver ? 1 : 0, state.storySummary ?? '', state.difficulty, state.gameMode ?? 'balanced', id);
@@ -499,12 +245,12 @@ export class StateService {
   }
 
   public static updateSessionPreviewImage(id: string, url: string): void {
-    const db = this.getDb();
+    const db = getDb();
     db.prepare('UPDATE sessions SET preview_image_url = ? WHERE id = ?').run(url, id);
   }
 
   public static async patchSession(id: string, fields: { difficulty?: string; gameMode?: string; dmPrep?: string | null; dmPrepImageBrief?: string | null; worldDescription?: string | null }): Promise<void> {
-    const db = this.getDb();
+    const db = getDb();
     const colMap: Record<string, string> = { difficulty: 'difficulty', gameMode: 'gameMode', dmPrep: 'dm_prep', dmPrepImageBrief: 'dm_prep_image_brief', worldDescription: 'worldDescription' };
     const sets: string[] = [];
     const values: unknown[] = [];
@@ -521,7 +267,7 @@ export class StateService {
   }
 
   public static async listSessions(namespaceId: string = 'local'): Promise<{ id: string; displayName: string; worldDescription?: string; storySummary?: string; dmPrep?: string; difficulty: string; gameMode: string; gameOver?: boolean; previewImageUrl?: string; party: { id: string; name: string; class: string; species: string; avatarUrl?: string; hp: number; max_hp: number }[] }[]> {
-    const db = this.getDb();
+    const db = getDb();
     const rows = db.prepare('SELECT id, displayName, worldDescription, storySummary, dm_prep, difficulty, gameMode, game_over, preview_image_url FROM sessions WHERE namespace_id = ? ORDER BY createdAt DESC').all(namespaceId) as { id: string; displayName: string; worldDescription: string | null; storySummary: string | null; dm_prep: string | null; difficulty: string; gameMode: string; game_over: number; preview_image_url: string | null }[];
     return rows.map(row => {
       const chars = db.prepare('SELECT id, name, class, species, avatarUrl, hp, max_hp FROM characters WHERE sessionId = ?').all(row.id) as { id: string; name: string; class: string; species: string; avatarUrl: string | null; hp: number; max_hp: number }[];
@@ -541,13 +287,13 @@ export class StateService {
   }
 
   public static async getSessionIdForCharacter(charId: string): Promise<string | null> {
-    const db = this.getDb();
+    const db = getDb();
     const row = db.prepare('SELECT sessionId FROM characters WHERE id = ?').get(charId) as { sessionId: string } | undefined;
     return row ? row.sessionId : null;
   }
 
   public static async listAllCharacters(): Promise<Character[]> {
-    const db = this.getDb();
+    const db = getDb();
     const rows = db.prepare('SELECT * FROM characters').all() as {
         id: string;
         name: string;
@@ -582,7 +328,7 @@ export class StateService {
   }
 
   public static async getTurnHistory(id: string): Promise<TurnResult[]> {
-    const db = this.getDb();
+    const db = getDb();
     const rows = db.prepare('SELECT * FROM turn_history WHERE sessionId = ?').all(id) as {
       id: number;
       narration: string;
@@ -668,18 +414,18 @@ export class StateService {
   }
 
   public static async updateStorySummary(sessionId: string, summary: string): Promise<void> {
-    const db = this.getDb();
+    const db = getDb();
     db.prepare('UPDATE sessions SET storySummary = ? WHERE id = ?').run(summary, sessionId);
   }
 
   public static async updateLatestTurnImage(sessionId: string, imageUrl: string, storageKey: string, storageProvider: string): Promise<void> {
-    const db = this.getDb();
+    const db = getDb();
     db.prepare('UPDATE turn_history SET imageUrl = ?, image_storage_key = ?, image_storage_provider = ? WHERE id = (SELECT MAX(id) FROM turn_history WHERE sessionId = ?)')
       .run(imageUrl, storageKey || null, storageProvider || null, sessionId);
   }
 
   public static async addTurnResult(id: string, turn: TurnResult, characterId: string | null): Promise<number> {
-    const db = this.getDb();
+    const db = getDb();
     const action = turn.lastAction ?? null;
     const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(
@@ -708,7 +454,7 @@ export class StateService {
   }
 
   public static deleteCharacter(charId: string): void {
-    const db = this.getDb();
+    const db = getDb();
     db.prepare('DELETE FROM inventory WHERE characterId = ?').run(charId);
     db.prepare('DELETE FROM characters WHERE id = ?').run(charId);
   }
@@ -716,12 +462,12 @@ export class StateService {
   // --- Namespace / User management ---
 
   public static getUserByEmail(email: string): { id: string; email: string; namespace_id: string; role: string } | null {
-    const db = this.getDb();
+    const db = getDb();
     return (db.prepare('SELECT id, email, namespace_id, role FROM users WHERE email = ?').get(email) as { id: string; email: string; namespace_id: string; role: string }) ?? null;
   }
 
   public static createUser(email: string, namespaceName?: string, role: string = 'member'): { userId: string; namespaceId: string } {
-    const db = this.getDb();
+    const db = getDb();
     const namespaceId = createId();
     const userId = createId();
     const nsName = namespaceName ?? email.split('@')[0];
@@ -742,7 +488,7 @@ export class StateService {
   }
 
   public static listUsers(): { id: string; email: string; namespace_id: string; namespace_name: string; namespaces: { id: string; name: string }[]; role: string; created_at: string }[] {
-    const db = this.getDb();
+    const db = getDb();
     const users = db.prepare(`
       SELECT u.id, u.email, u.namespace_id, n.name as namespace_name, u.role, u.created_at
       FROM users u JOIN namespaces n ON u.namespace_id = n.id
@@ -759,7 +505,7 @@ export class StateService {
   }
 
   public static deleteUser(email: string): boolean {
-    const db = this.getDb();
+    const db = getDb();
     const user = this.getUserByEmail(email);
     if (!user) {
       return false;
@@ -776,7 +522,7 @@ export class StateService {
   }
 
   public static setPrimaryNamespace(email: string, namespaceId: string): { ok: boolean; reason?: string } {
-    const db = this.getDb();
+    const db = getDb();
     const user = this.getUserByEmail(email);
     if (!user) {
       return { ok: false, reason: `User not found: ${email}` };
@@ -796,7 +542,7 @@ export class StateService {
   }
 
   public static listNamespaces(): { id: string; name: string; user_count: number; session_count: number; max_sessions: number | null; max_turns: number | null; created_at: string }[] {
-    const db = this.getDb();
+    const db = getDb();
     return db.prepare(`
       SELECT
         n.id, n.name, n.created_at, n.max_sessions, n.max_turns,
@@ -811,25 +557,25 @@ export class StateService {
   }
 
   public static getNamespaceById(id: string): { id: string; name: string } | null {
-    const db = this.getDb();
+    const db = getDb();
     return (db.prepare('SELECT id, name FROM namespaces WHERE id = ?').get(id) as { id: string; name: string }) ?? null;
   }
 
   public static createNamespace(name: string): { namespaceId: string } {
-    const db = this.getDb();
+    const db = getDb();
     const namespaceId = createId();
     db.prepare('INSERT INTO namespaces (id, name) VALUES (?, ?)').run(namespaceId, name);
     return { namespaceId };
   }
 
   public static renameNamespace(id: string, newName: string): boolean {
-    const db = this.getDb();
+    const db = getDb();
     const result = db.prepare('UPDATE namespaces SET name = ? WHERE id = ?').run(newName, id);
     return result.changes > 0;
   }
 
   public static deleteNamespace(id: string): { ok: boolean; reason?: string } {
-    const db = this.getDb();
+    const db = getDb();
     if (id === 'local') {
       return { ok: false, reason: 'Cannot delete the local namespace' };
     }
@@ -846,20 +592,20 @@ export class StateService {
   }
 
   public static assignSessionToNamespace(sessionId: string, namespaceId: string): boolean {
-    const db = this.getDb();
+    const db = getDb();
     const result = db.prepare('UPDATE sessions SET namespace_id = ? WHERE id = ?').run(namespaceId, sessionId);
     return result.changes > 0;
   }
 
   public static listSessionsInNamespace(namespaceId: string): { id: string; displayName: string; turn: number; createdAt: string }[] {
-    const db = this.getDb();
+    const db = getDb();
     return db.prepare('SELECT id, displayName, turn, createdAt FROM sessions WHERE namespace_id = ? ORDER BY createdAt DESC').all(namespaceId) as { id: string; displayName: string; turn: number; createdAt: string }[];
   }
 
   // --- Multi-namespace user access ---
 
   public static getUserNamespaces(email: string): { id: string; name: string }[] {
-    const db = this.getDb();
+    const db = getDb();
     return db.prepare(`
       SELECT n.id, n.name
       FROM namespaces n
@@ -879,7 +625,7 @@ export class StateService {
     if (!ns) {
       return { ok: false, reason: `Namespace not found: ${namespaceId}` };
     }
-    this.getDb().prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(user.id, namespaceId);
+    getDb().prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(user.id, namespaceId);
     return { ok: true };
   }
 
@@ -891,7 +637,7 @@ export class StateService {
     if (user.namespace_id === namespaceId) {
       return { ok: false, reason: `Cannot remove user from their primary namespace: ${namespaceId}` };
     }
-    const result = this.getDb().prepare('DELETE FROM user_namespaces WHERE user_id = ? AND namespace_id = ?').run(user.id, namespaceId);
+    const result = getDb().prepare('DELETE FROM user_namespaces WHERE user_id = ? AND namespace_id = ?').run(user.id, namespaceId);
     if (result.changes > 0) {
       return { ok: true };
     } else {
@@ -902,31 +648,31 @@ export class StateService {
   // --- Namespace limits ---
 
   public static getNamespaceLimits(namespaceId: string): { maxSessions: number | null; maxTurns: number | null } {
-    const db = this.getDb();
+    const db = getDb();
     const row = db.prepare('SELECT max_sessions, max_turns FROM namespaces WHERE id = ?').get(namespaceId) as { max_sessions: number | null; max_turns: number | null } | undefined;
     return { maxSessions: row?.max_sessions ?? null, maxTurns: row?.max_turns ?? null };
   }
 
   public static setNamespaceLimits(namespaceId: string, maxSessions: number | null, maxTurns: number | null): boolean {
-    const db = this.getDb();
+    const db = getDb();
     const result = db.prepare('UPDATE namespaces SET max_sessions = ?, max_turns = ? WHERE id = ?').run(maxSessions, maxTurns, namespaceId);
     return result.changes > 0;
   }
 
   public static countSessionsInNamespace(namespaceId: string): number {
-    const db = this.getDb();
+    const db = getDb();
     const row = db.prepare('SELECT COUNT(*) as count FROM sessions WHERE namespace_id = ?').get(namespaceId) as { count: number };
     return row.count;
   }
 
   public static recordTtsUsage(namespaceId: string, voice: string, characterCount: number, provider: string = 'openai'): void {
-    const db = this.getDb();
+    const db = getDb();
     db.prepare('INSERT INTO tts_usage (namespace_id, provider, voice, character_count) VALUES (?, ?, ?, ?)')
       .run(namespaceId, provider, voice, characterCount);
   }
 
   public static getTtsUsage(namespaceId: string): { requestCount: number; characterCount: number } {
-    const db = this.getDb();
+    const db = getDb();
     const row = db.prepare('SELECT COUNT(*) as requestCount, COALESCE(SUM(character_count), 0) as characterCount FROM tts_usage WHERE namespace_id = ?')
       .get(namespaceId) as { requestCount: number; characterCount: number };
     return { requestCount: row.requestCount, characterCount: row.characterCount };
@@ -935,30 +681,30 @@ export class StateService {
   // --- Character history ---
 
   public static getCharacterTurnHistory(charId: string): { narration: string; actionAttempt: string | null }[] {
-    const db = this.getDb();
+    const db = getDb();
     return db.prepare('SELECT narration, actionAttempt FROM turn_history WHERE characterId = ? ORDER BY id').all(charId) as { narration: string; actionAttempt: string | null }[];
   }
 
   // --- Invite requests ---
 
   public static hasInviteRequest(email: string): boolean {
-    const db = this.getDb();
+    const db = getDb();
     const row = db.prepare('SELECT id FROM invite_requests WHERE email = ?').get(email) as { id: number } | undefined;
     return !!row;
   }
 
   public static addInviteRequest(email: string, message?: string): void {
-    const db = this.getDb();
+    const db = getDb();
     db.prepare('INSERT OR IGNORE INTO invite_requests (email, message) VALUES (?, ?)').run(email, message ?? null);
   }
 
   public static listInviteRequests(): { id: number; email: string; message: string | null; created_at: string }[] {
-    const db = this.getDb();
+    const db = getDb();
     return db.prepare('SELECT id, email, message, created_at FROM invite_requests ORDER BY created_at DESC').all() as { id: number; email: string; message: string | null; created_at: string }[];
   }
 
   public static clearInviteRequests(): number {
-    const db = this.getDb();
+    const db = getDb();
     const result = db.prepare('DELETE FROM invite_requests').run();
     return result.changes;
   }
