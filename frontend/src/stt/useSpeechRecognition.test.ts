@@ -25,7 +25,9 @@ describe('useSpeechRecognition', () => {
       recognitionCtor: FakeCtor,
     }));
 
-    await act(async () => { await result.current.startListening(); });
+    await act(async () => {
+      await result.current.startListening(); 
+    });
     act(() => callbacks?.onResult?.('open the door', true));
 
     expect(result.current.state).toEqual({ status: 'confirming', transcript: 'open the door' });
@@ -50,7 +52,9 @@ describe('useSpeechRecognition', () => {
       recognitionCtor: FakeCtor,
     }));
 
-    await act(async () => { await result.current.startListening(); });
+    await act(async () => {
+      await result.current.startListening(); 
+    });
     act(() => callbacks?.onResult?.('cast shield', true));
     await act(async () => {
       await result.current.confirmTranscript();
@@ -80,11 +84,15 @@ describe('useSpeechRecognition', () => {
       recognitionCtor: FakeCtor,
     }));
 
-    await act(async () => { await result.current.startListening(); });
+    await act(async () => {
+      await result.current.startListening(); 
+    });
     act(() => callbacks?.onResult?.('old action', true));
     expect(result.current.state).toEqual({ status: 'confirming', transcript: 'old action' });
 
-    await act(async () => { result.current.retryListening(); });
+    await act(async () => {
+      result.current.retryListening(); 
+    });
 
     expect(abort).toHaveBeenCalledTimes(1);
     expect(start).toHaveBeenCalledTimes(2);
@@ -104,7 +112,9 @@ describe('useSpeechRecognition', () => {
       recognitionCtor: FakeCtor,
     }));
 
-    await act(async () => { await result.current.startListening(); });
+    await act(async () => {
+      await result.current.startListening(); 
+    });
     unmount();
 
     expect(abort).toHaveBeenCalled();

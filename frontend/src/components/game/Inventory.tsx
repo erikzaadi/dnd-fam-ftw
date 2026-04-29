@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import type { Character, InventoryItem } from '../../types';
 import { imgSrc } from '../../lib/api';
 import { TargetPicker } from './TargetPicker';
+import { Tooltip } from '../Tooltip';
+import { ItemBonusBadge } from '../ItemBonusBadge';
+import { ActionButton } from '../ActionButton';
 
 interface InventoryProps {
   party: Character[];
@@ -64,28 +67,14 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
               {(canUse || canGive) && !isPendingThis && (
                 <>
                   {canUse && (
-                    <span className="relative group/use">
-                      <button
-                        onClick={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'use' })}
-                        className="px-1.5 py-0.5 rounded text-[8px] xl:text-[10px] font-black uppercase tracking-widest bg-emerald-900/60 text-emerald-400 hover:bg-emerald-800/60 border border-emerald-700/40"
-                      >Use</button>
-                      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-slate-800 border border-slate-600 rounded-lg text-[9px] text-slate-300 whitespace-nowrap opacity-0 group-hover/use:opacity-100 transition-opacity pointer-events-none z-50">
-                        Use this item
-                        <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600" />
-                      </span>
-                    </span>
+                    <Tooltip content="Use this item" position="top" groupName="use">
+                      <ActionButton compact action="use" onClick={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'use' })} />
+                    </Tooltip>
                   )}
                   {canGive && (
-                    <span className="relative group/give">
-                      <button
-                        onClick={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'give' })}
-                        className="px-1.5 py-0.5 rounded text-[8px] xl:text-[10px] font-black uppercase tracking-widest bg-blue-900/60 text-blue-400 hover:bg-blue-800/60 border border-blue-700/40"
-                      >Give</button>
-                      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-slate-800 border border-slate-600 rounded-lg text-[9px] text-slate-300 whitespace-nowrap opacity-0 group-hover/give:opacity-100 transition-opacity pointer-events-none z-50">
-                        Give to another character
-                        <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600" />
-                      </span>
-                    </span>
+                    <Tooltip content="Give to another character" position="top" groupName="give">
+                      <ActionButton compact action="give" onClick={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'give' })} />
+                    </Tooltip>
                   )}
                 </>
               )}
@@ -94,10 +83,10 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
             {((item.healValue ?? 0) > 0 || bonuses.length > 0) && (
               <div className="flex gap-1 flex-wrap justify-end">
                 {(item.healValue ?? 0) > 0 && (
-                  <span className="text-[8px] xl:text-[10px] font-black uppercase tracking-widest px-1 xl:px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">+{item.healValue} hp</span>
+                  <ItemBonusBadge compact type="hp" value={item.healValue!} label="hp" />
                 )}
                 {bonuses.map(([stat, val]) => (
-                  <span key={stat} className="text-[8px] xl:text-[10px] font-black uppercase tracking-widest px-1 xl:px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400">+{val} {stat}</span>
+                  <ItemBonusBadge compact key={stat} type="stat" value={val!} label={stat} />
                 ))}
               </div>
             )}
@@ -115,9 +104,9 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
           </div>
           {/* Tooltip - appears to the left since items are right-aligned */}
           {item.description && !isPendingThis && (
-            <div className="absolute right-full top-0 mr-2 w-48 px-3 py-2 bg-slate-800 border border-slate-600 rounded-xl text-xs text-slate-300 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 whitespace-normal">
+            <div className="absolute right-full top-0 mr-2 w-48 px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-300 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-normal">
               {item.description}
-              <div className="absolute top-3 left-full border-4 border-transparent border-l-slate-600" />
+              <div className="absolute top-3 left-full border-4 border-transparent border-l-slate-700" />
             </div>
           )}
         </div>
@@ -133,38 +122,24 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
               <p className="font-black text-sm text-slate-200 truncate">{item.name}</p>
               <div className="flex gap-1 mt-1 flex-wrap">
                 {(item.healValue ?? 0) > 0 && (
-                  <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">+{item.healValue} hp</span>
+                  <ItemBonusBadge type="hp" value={item.healValue!} label="hp" />
                 )}
                 {bonuses.map(([stat, val]) => (
-                  <span key={stat} className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400">+{val} {stat}</span>
+                  <ItemBonusBadge key={stat} type="stat" value={val!} label={stat} />
                 ))}
               </div>
             </div>
             {(canUse || canGive) && !isPendingThis && (
               <div className="flex gap-1 shrink-0">
                 {canUse && (
-                  <span className="relative group/use">
-                    <button
-                      onClick={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'use' })}
-                      className="px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-emerald-900/60 text-emerald-400 hover:bg-emerald-800/60 border border-emerald-700/40"
-                    >Use</button>
-                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-slate-800 border border-slate-600 rounded-lg text-[9px] text-slate-300 whitespace-nowrap opacity-0 group-hover/use:opacity-100 transition-opacity pointer-events-none z-50">
-                      Use this item
-                      <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600" />
-                    </span>
-                  </span>
+                  <Tooltip content="Use this item" position="top" groupName="use">
+                    <ActionButton action="use" onClick={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'use' })} />
+                  </Tooltip>
                 )}
                 {canGive && (
-                  <span className="relative group/give">
-                    <button
-                      onClick={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'give' })}
-                      className="px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-blue-900/60 text-blue-400 hover:bg-blue-800/60 border border-blue-700/40"
-                    >Give</button>
-                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-slate-800 border border-slate-600 rounded-lg text-[9px] text-slate-300 whitespace-nowrap opacity-0 group-hover/give:opacity-100 transition-opacity pointer-events-none z-50">
-                      Give to another character
-                      <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-600" />
-                    </span>
-                  </span>
+                  <Tooltip content="Give to another character" position="top" groupName="give">
+                    <ActionButton action="give" onClick={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'give' })} />
+                  </Tooltip>
                 )}
               </div>
             )}
@@ -179,9 +154,9 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
             />
           )}
           {item.description && !isPendingThis && (
-            <div className="absolute bottom-full left-0 mb-2 w-56 px-3 py-2 bg-slate-800 border border-slate-600 rounded-xl text-xs text-slate-300 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+            <div className="absolute bottom-full left-0 mb-2 w-56 px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-300 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
               {item.description}
-              <div className="absolute top-full left-6 border-4 border-transparent border-t-slate-600" />
+              <div className="absolute top-full left-6 border-4 border-transparent border-t-slate-700" />
             </div>
           )}
         </div>

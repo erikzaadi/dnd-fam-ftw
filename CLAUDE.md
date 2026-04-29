@@ -106,7 +106,7 @@ When making changes, check whether any of these need updating:
 - **All `if` statements must have braces** on a new line. ESLint enforces this (`curly` rule).
 - Run `npm run lint` from root after changes.
 - TypeScript strict mode is on in both workspaces.
-- **Tooltips**: always use custom non-native tooltips. Use `PartyBox.tsx` as the reference pattern: `relative group` container, `absolute top-full ... opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50` tooltip div, caret arrow via `absolute bottom-full ... border-b-slate-700`. Never use the native `title` attribute.
+- **Tooltips**: always use custom non-native tooltips via `frontend/src/components/Tooltip.tsx`. Use `frontend/src/components/game/ActionDock.tsx` as the reference pattern, including `portal` tooltips when the trigger lives inside an overflow or scroll container. Never use the native `title` attribute.
 
 ## Auth
 

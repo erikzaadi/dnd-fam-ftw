@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import type { TurnResult, Character, InventoryItem } from '../../types';
 import { apiFetch, imgSrc, pulseSyncDelay } from '../../lib/api';
+import { ItemBonusBadge } from '../ItemBonusBadge';
+import { ActionButton } from '../ActionButton';
 import { beatTarget } from '../../lib/game';
 import { StatIcon, StatImg } from './StatIcon';
 import { STAT_COLORS } from '../../lib/statColors';
@@ -14,6 +16,7 @@ import { useSpeechRecognition } from '../../stt/useSpeechRecognition';
 import { parseSpeechIntent } from '../../stt/speechIntent';
 import { SpeechActionButton } from './SpeechActionButton';
 import { SpeechConfirmDialog } from './SpeechConfirmDialog';
+import { Tooltip } from '../Tooltip';
 
 interface ActionDockProps {
   turn: TurnResult | null;
@@ -119,10 +122,10 @@ const ItemsSection = ({
                   {((item.healValue ?? 0) > 0 || bonuses.length > 0) && (
                     <div className="flex gap-1 shrink-0">
                       {(item.healValue ?? 0) > 0 && (
-                        <span className="text-xs font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">+{item.healValue} hp</span>
+                        <ItemBonusBadge type="hp" value={item.healValue!} label="hp" />
                       )}
                       {bonuses.map(([stat, val]) => (
-                        <span key={stat} className="text-xs font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400">+{val} {stat}</span>
+                        <ItemBonusBadge key={stat} type="stat" value={val!} label={stat} />
                       ))}
                     </div>
                   )}
@@ -141,20 +144,10 @@ const ItemsSection = ({
                   (canUse || canGive) && !disabled && (
                     <div className="flex items-center gap-1.5">
                       {canUse && (
-                        <button
-                          onClick={() => setPending({ itemId: item.id, action: 'use' })}
-                          className="px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-widest bg-emerald-900/60 text-emerald-400 hover:bg-emerald-800/60 border border-emerald-700/40 transition-all"
-                        >
-                          Use
-                        </button>
+                        <ActionButton action="use" onClick={() => setPending({ itemId: item.id, action: 'use' })} />
                       )}
                       {canGive && (
-                        <button
-                          onClick={() => setPending({ itemId: item.id, action: 'give' })}
-                          className="px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-widest bg-blue-900/60 text-blue-400 hover:bg-blue-800/60 border border-blue-700/40 transition-all"
-                        >
-                          Give
-                        </button>
+                        <ActionButton action="give" onClick={() => setPending({ itemId: item.id, action: 'give' })} />
                       )}
                     </div>
                   )
@@ -418,48 +411,53 @@ export const ActionDock = ({
                   const prob = calcProb(statTotal, target);
 
                   return (
-                    <button
-                      key={i}
-                      ref={el => {
-                        choiceButtonRefs.current[i] = el;
-                      }}
-                      onClick={() => {
-                        void submitSuggestedChoice(i as 0 | 1 | 2);
-                      }}
-                      disabled={loading}
-                      className={`relative w-full p-3 rounded-2xl border-2 text-left transition-all hover:brightness-110 disabled:opacity-50 ${STAT_COLORS[choice.stat]}`}
-                    >
-                      <span className="absolute -top-2.5 -left-2.5 w-5 h-5 flex items-center justify-center rounded-full bg-slate-900 border border-slate-700 text-[10px] font-black text-slate-400 z-10">
-                        {i + 1}
-                      </span>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="font-black text-base xl:text-lg uppercase leading-tight flex-1">{choice.label}</div>
-                        {ttsEnabled && (
-                          <button
-                            onClick={e => {
-                              e.stopPropagation();
-                              const text = choice.narration ? `${choice.label}. ${choice.narration}` : choice.label;
-                              browserTtsService.speakNarration(text, ttsSettings);
-                            }}
-                            className="shrink-0 w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 text-sm transition-colors"
-                            aria-label="Read aloud"
-                          >
-                          🔊
-                          </button>
+                    <div key={i} className="relative">
+                      <div className="absolute -top-2.5 -left-2.5 z-20">
+                        <Tooltip content={`Shortcut [${i + 1}]`} position="bottom" portal wrapperClassName="inline-flex">
+                          <span className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-900 border border-slate-700 text-[10px] font-black text-slate-400">
+                            {i + 1}
+                          </span>
+                        </Tooltip>
+                      </div>
+                      <button
+                        type="button"
+                        ref={el => {
+                          choiceButtonRefs.current[i] = el;
+                        }}
+                        onClick={() => {
+                          void submitSuggestedChoice(i as 0 | 1 | 2);
+                        }}
+                        disabled={loading}
+                        className={`relative w-full p-3 ${ttsEnabled ? 'pr-10' : ''} rounded-2xl border-2 text-left transition-all hover:brightness-110 disabled:opacity-50 ${STAT_COLORS[choice.stat]}`}
+                      >
+                        <div className="font-black text-base xl:text-lg uppercase leading-tight">{choice.label}</div>
+                        {choice.narration && (
+                          <div className="text-xs italic text-slate-300/70 mt-0.5 leading-snug">{choice.narration}</div>
                         )}
-                      </div>
-                      {choice.narration && (
-                        <div className="text-xs italic text-slate-300/70 mt-0.5 leading-snug">{choice.narration}</div>
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          <StatImg stat={choice.stat} size="12" tooltip className="rounded-xl" />
+                          <span className="text-xs text-slate-400 font-black">
+                            {statTotal} vs {target}
+                          </span>
+                          <span className={`text-xs font-black uppercase tracking-widest ${risk.color}`}>{risk.label}</span>
+                          <span className="text-xs text-slate-500 font-black ml-auto">{prob}%</span>
+                        </div>
+                      </button>
+                      {ttsEnabled && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const text = choice.narration ? `${choice.label}. ${choice.narration}` : choice.label;
+                            browserTtsService.speakNarration(text, ttsSettings);
+                          }}
+                          disabled={loading}
+                          className="absolute top-3 right-3 z-10 w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 text-sm transition-colors disabled:opacity-40"
+                          aria-label="Read aloud"
+                        >
+                          🔊
+                        </button>
                       )}
-                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                        <StatImg stat={choice.stat} size="12" tooltip className="rounded-xl" />
-                        <span className="text-xs text-slate-400 font-black">
-                          {statTotal} vs {target}
-                        </span>
-                        <span className={`text-xs font-black uppercase tracking-widest ${risk.color}`}>{risk.label}</span>
-                        <span className="text-xs text-slate-500 font-black ml-auto">{prob}%</span>
-                      </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -468,9 +466,13 @@ export const ActionDock = ({
             {/* Command bar + UNLEASH */}
             <div className="flex flex-col gap-2 pt-1">
               <div className="relative">
-                <span className="absolute -top-2.5 -left-2.5 w-5 h-5 flex items-center justify-center rounded-full bg-slate-900 border border-slate-700 text-[10px] font-black text-slate-400 z-10">
-                4
-                </span>
+                <div className="absolute -top-2.5 -left-2.5 z-20">
+                  <Tooltip content="Shortcut [4]" position="bottom" portal wrapperClassName="inline-flex">
+                    <span className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-900 border border-slate-700 text-[10px] font-black text-slate-400">
+                      4
+                    </span>
+                  </Tooltip>
+                </div>
                 <textarea
                   ref={textareaRef}
                   value={customAction}

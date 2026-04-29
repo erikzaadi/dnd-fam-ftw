@@ -1,4 +1,5 @@
 import { imgSrc } from '../../lib/api';
+import { Tooltip } from '../Tooltip';
 
 const STAT_COLORS: Record<string, string> = {
   might: 'text-rose-400',
@@ -23,17 +24,13 @@ export const StatImg = ({ stat, size = '4', className = '', tooltip, rounded = f
   const roundedClass = rounded ? 'rounded-lg' : '';
   if (tooltip) {
     return (
-      <span className="relative group inline-flex">
+      <Tooltip content={stat} position="top" as="span" wrapperClassName="inline-flex">
         <img
           src={imgSrc(`/images/icon_${stat}.png`)}
           alt={stat}
           className={`${SIZE_CLASS[size] ?? 'w-4 h-4'} object-contain shrink-0 mix-blend-screen ${roundedClass} ${className}`}
         />
-        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-slate-800 border border-slate-700 rounded-lg text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
-          {stat}
-          <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-700" />
-        </span>
-      </span>
+      </Tooltip>
     );
   }
   return (
@@ -54,12 +51,10 @@ interface StatIconProps {
 }
 
 export const StatIcon = ({ stat, base, bonus = 0, className = '', iconSize = '6' }: StatIconProps) => (
-  <span className={`relative group inline-flex items-center gap-1 text-xs font-black ${STAT_COLORS[stat]} ${className}`}>
-    <StatImg stat={stat} size={iconSize} />
-    {base}{bonus > 0 ? <span className="text-amber-400 ml-0.5">+{bonus}</span> : null}
-    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-slate-800 border border-slate-700 rounded-lg text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
-      {stat}
-      <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-700" />
-    </span>
-  </span>
+  <Tooltip content={stat} position="top" as="span" wrapperClassName={`inline-flex items-center gap-1 text-xs font-black ${STAT_COLORS[stat]} ${className}`}>
+    <>
+      <StatImg stat={stat} size={iconSize} />
+      {base}{bonus > 0 ? <span className="text-amber-400 ml-0.5">+{bonus}</span> : null}
+    </>
+  </Tooltip>
 );

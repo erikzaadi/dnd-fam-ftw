@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import type { Session, Character } from '../../types';
 import type { AudioSettings } from '../../audio/audioTypes';
 import { PartyBox } from '../PartyBox';
+import { MenuItem } from '../MenuItem';
 import { audioManager } from '../../audio/audioManager';
 import { browserTtsService } from '../../tts/browserTtsService';
+import { Z } from '../../lib/zIndex';
 
 interface GearPopoverProps {
   savingsMode: boolean;
@@ -82,25 +83,27 @@ export const GearPopover = ({ savingsMode, onToggleSavingsMode, audioSettings, o
         ⚙
       </button>
       {!open && (
-        <div className="fixed top-[60px] right-4 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-[200]">
+        <div className={`fixed top-[60px] right-4 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap ${Z.popover}`}>
           Settings [s]
           <div className="absolute bottom-full right-3 border-4 border-transparent border-b-slate-700" />
         </div>
       )}
       {open && (
-        <div ref={menuRef} onKeyDown={handleMenuKeyDown} className="fixed top-[60px] right-4 w-52 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3 flex flex-col gap-1 z-[200] animate-in fade-in zoom-in-95 duration-150">
-          <button
+        <div ref={menuRef} onKeyDown={handleMenuKeyDown} className={`fixed top-[60px] right-4 w-52 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3 flex flex-col gap-1 ${Z.popover} animate-in fade-in zoom-in-95 duration-150`}>
+          <MenuItem
+            icon={savingsMode ? '🪙' : '🖼'}
+            label={savingsMode ? 'Images off' : 'Images on'}
+            active={savingsMode}
             onClick={() => {
               onToggleSavingsMode();
               setOpen(false);
             }}
-            className={`flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${savingsMode ? 'bg-amber-500/10 text-amber-400' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}
-          >
-            <span className="text-base">{savingsMode ? '🪙' : '🖼'}</span>
-            {savingsMode ? 'Images off' : 'Images on'}
-          </button>
+          />
           {showMute && (
-            <button
+            <MenuItem
+              icon={audioSettings.masterMuted ? '🔇' : '🔊'}
+              label={audioSettings.masterMuted ? 'Unmute' : 'Mute all'}
+              active={audioSettings.masterMuted}
               onClick={() => {
                 onMuteToggle();
                 if (!audioSettings.masterMuted) {
@@ -108,33 +111,20 @@ export const GearPopover = ({ savingsMode, onToggleSavingsMode, audioSettings, o
                 }
                 setOpen(false);
               }}
-              className={`flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${audioSettings.masterMuted ? 'bg-amber-500/10 text-amber-400' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}
-            >
-              <span className="text-base">{audioSettings.masterMuted ? '🔇' : '🔊'}</span>
-              {audioSettings.masterMuted ? 'Unmute' : 'Mute all'}
-            </button>
+            />
           )}
           {showSkip && (
-            <button
+            <MenuItem
+              icon="⏭"
+              label="Skip track"
               onClick={() => {
                 audioManager.skipTrack();
                 setOpen(false);
               }}
-              className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-all"
-            >
-              <span className="text-base">⏭</span>
-              Skip track
-            </button>
+            />
           )}
           <div className="border-t border-slate-800 mt-1 pt-1">
-            <Link
-              to="/settings"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-all"
-            >
-              <span className="text-base">⚙</span>
-              All settings
-            </Link>
+            <MenuItem icon="⚙" label="All settings" to="/settings" dimmed onClick={() => setOpen(false)} />
           </div>
         </div>
       )}
@@ -148,7 +138,7 @@ interface SessionHudProps {
 }
 
 export const SessionHud = ({ session, onCharacterClick }: SessionHudProps) => (
-  <header className="fixed top-0 left-0 right-0 z-[60] flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3 pointer-events-none">
+  <header className={`fixed top-0 left-0 right-0 ${Z.hud} flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3 pointer-events-none`}>
     <h1 className="text-amber-500 text-lg md:text-2xl xl:text-3xl font-display font-black italic tracking-tight shrink-0 bg-slate-950/60 backdrop-blur-md ml-4 px-4 py-2 rounded-2xl pointer-events-auto self-start">
       {session.displayName}
     </h1>

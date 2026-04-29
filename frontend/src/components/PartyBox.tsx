@@ -1,5 +1,6 @@
 import type { Character } from '../types';
 import { imgSrc, pulseSyncDelay } from '../lib/api';
+import { Tooltip } from './Tooltip';
 
 interface PartyBoxProps {
   party: Character[];
@@ -30,7 +31,13 @@ export const PartyBox = ({ party, activeCharacterId, onCharacterClick }: PartyBo
       {party.map(c => {
         const isActive = c.id === activeCharacterId && c.status !== 'downed';
         return (
-          <div key={c.id} className="relative group flex flex-col items-center gap-1">
+          <Tooltip
+            key={c.id}
+            content={`${c.name}${c.status === 'downed' ? ' · DOWNED' : ` · ${c.hp}/${c.max_hp} HP`}`}
+            position="bottom"
+            as="div"
+            wrapperClassName="flex flex-col items-center gap-1"
+          >
             <div className="relative flex items-center justify-center">
               <img
                 src={imgSrc(c.avatarUrl)}
@@ -48,12 +55,7 @@ export const PartyBox = ({ party, activeCharacterId, onCharacterClick }: PartyBo
             <span className={`font-black uppercase tracking-widest leading-none truncate text-center ${isActive ? 'text-[9px] xl:text-[10px] text-amber-400 max-w-[48px] xl:max-w-[56px]' : 'text-[8px] xl:text-[9px] text-slate-500 max-w-[36px] xl:max-w-[44px]'}`}>
               {c.name.split(' ')[0]}
             </span>
-            {/* Tooltip */}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-7 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-              {c.name}{c.status === 'downed' ? ' · DOWNED' : ` · ${c.hp}/${c.max_hp} HP`}
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-700" />
-            </div>
-          </div>
+          </Tooltip>
         );
       })}
     </div>

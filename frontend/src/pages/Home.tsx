@@ -4,6 +4,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DmFooter } from '../components/DmFooter';
 import { FullscreenImage } from '../components/FullscreenImage';
 import { SiteHeader } from '../components/SiteHeader';
+import { Tooltip } from '../components/Tooltip';
 import { apiFetch, apiUrl, imgSrc } from '../lib/api';
 import { getSessionEntryPath } from '../lib/sessionRoute';
 import type { SessionPreview } from '../types';
@@ -210,102 +211,78 @@ const WorldCard = ({
         </span>
         {/* Info toggle */}
         {hasDetails && (
-          <div className="relative group flex-shrink-0">
+          <Tooltip content={expanded ? 'Collapse details' : 'Show details'} as="div" wrapperClassName="flex-shrink-0">
             <button
               onClick={e => {
-                e.stopPropagation(); setExpanded(v => !v); 
+                e.stopPropagation(); setExpanded(v => !v);
               }}
               className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800 text-xs transition-colors"
               aria-label={expanded ? 'Collapse' : 'Info'}
             >
               {expanded ? '▲' : '▼'}
             </button>
-            <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 px-2 py-1 text-[10px] font-black bg-slate-800 border border-slate-700 rounded-lg text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-              {expanded ? 'Collapse details' : 'Show details'}
-              <span className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-700" />
-            </span>
-          </div>
+          </Tooltip>
         )}
         {/* Enter */}
         {session.gameOver ? (
-          <div className="relative group flex-shrink-0">
+          <Tooltip content="View session recap" as="div" wrapperClassName="flex-shrink-0">
             <button
               ref={enterRef}
               onClick={e => {
-                e.stopPropagation(); onEnter(); 
+                e.stopPropagation(); onEnter();
               }}
               className="px-3 py-1.5 bg-rose-900/20 hover:bg-rose-900/30 border border-rose-700/40 rounded-lg font-black uppercase tracking-widest text-rose-500 text-[10px] transition-all"
             >
               Chronicle
             </button>
-            <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 px-2 py-1 text-[10px] font-black bg-slate-800 border border-slate-700 rounded-lg text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-              View session recap
-              <span className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-700" />
-            </span>
-          </div>
+          </Tooltip>
         ) : (
-          <div className="relative group flex-shrink-0">
+          <Tooltip content="Enter realm" as="div" wrapperClassName="flex-shrink-0">
             <button
               ref={enterRef}
               onClick={e => {
-                e.stopPropagation(); onEnter(); 
+                e.stopPropagation(); onEnter();
               }}
               className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-600/40 rounded-lg font-black uppercase tracking-widest text-amber-400 text-[10px] transition-all"
             >
               Enter →
             </button>
-            <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 px-2 py-1 text-[10px] font-black bg-slate-800 border border-slate-700 rounded-lg text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-              Enter realm
-              <span className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-700" />
-            </span>
-          </div>
+          </Tooltip>
         )}
         {/* Assemble Heroes - icon button with tooltip */}
-        <div className="relative group flex-shrink-0">
+        <Tooltip content="Manage heroes" as="div" wrapperClassName="flex-shrink-0">
           <button
             onClick={e => {
-              e.stopPropagation(); onAssemble(); 
+              e.stopPropagation(); onAssemble();
             }}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-indigo-400 hover:bg-indigo-500/10 text-sm transition-colors"
             aria-label="Manage Heroes"
           >
             ⚔
           </button>
-          <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 px-2 py-1 text-[10px] font-black bg-slate-800 border border-slate-700 rounded-lg text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-            Manage heroes
-            <span className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-700" />
-          </span>
-        </div>
-        <div className="relative group flex-shrink-0">
+        </Tooltip>
+        <Tooltip content="Edit realm" as="div" wrapperClassName="flex-shrink-0">
           <button
             onClick={e => {
-              e.stopPropagation(); onEdit(); 
+              e.stopPropagation(); onEdit();
             }}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-600 hover:text-amber-400 hover:bg-amber-500/10 text-sm transition-colors"
             aria-label="Edit realm"
           >
             ✎
           </button>
-          <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 px-2 py-1 text-[10px] font-black bg-slate-800 border border-slate-700 rounded-lg text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-            Edit realm
-            <span className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-700" />
-          </span>
-        </div>
-        <div className="relative group flex-shrink-0">
+        </Tooltip>
+        <Tooltip content="Delete realm" align="right" as="div" wrapperClassName="flex-shrink-0">
           <button
             onClick={e => {
-              e.stopPropagation(); onDelete(); 
+              e.stopPropagation(); onDelete();
             }}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 text-sm font-black transition-colors"
             aria-label="Delete realm"
           >
             ✕
           </button>
-          <span className="absolute top-full right-0 mt-1.5 px-2 py-1 text-[10px] font-black bg-slate-800 border border-slate-700 rounded-lg text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-            Delete realm
-            <span className="absolute bottom-full right-3 border-4 border-transparent border-b-slate-700" />
-          </span>
-        </div>
+        </Tooltip>
       </div>
 
       {/* Collapsible details */}
