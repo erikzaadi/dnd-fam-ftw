@@ -6,10 +6,11 @@ import { getDb } from '../persistence/database.js';
 import { StateService } from './stateService.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-test-${Date.now()}.sqlite`);
+const IMAGE_STORAGE_PATH = path.join(os.tmpdir(), `dnd-test-imgs-state-${Date.now()}`);
 
 beforeAll(() => {
   process.env.SQLITE_DB_PATH = DB_PATH;
-  process.env.LOCAL_IMAGE_STORAGE_PATH = path.join(os.tmpdir(), `dnd-test-imgs-state-${Date.now()}`);
+  process.env.LOCAL_IMAGE_STORAGE_PATH = IMAGE_STORAGE_PATH;
   process.env.LOCAL_IMAGE_PUBLIC_BASE_URL = '/test-images';
   process.env.IMAGE_STORAGE_PROVIDER = 'local';
   process.env.OPENAI_BASE_URL = 'http://127.0.0.1:1';
@@ -20,6 +21,11 @@ beforeAll(() => {
 afterAll(() => {
   try {
     fs.unlinkSync(DB_PATH);
+  } catch {
+    // ignore
+  }
+  try {
+    fs.rmSync(IMAGE_STORAGE_PATH, { recursive: true, force: true });
   } catch {
     // ignore
   }
@@ -145,6 +151,50 @@ describe('StateService - Session CRUD', () => {
     await StateService.deleteSession('sess-del');
     expect(await StateService.getSession('sess-del')).toBeUndefined();
     expect(await StateService.getTurnHistory('sess-del')).toHaveLength(0);
+  });
+
+  it('deleteSession deletes stored turn images and character avatars by storage key', async () => {
+    fs.mkdirSync(IMAGE_STORAGE_PATH, { recursive: true });
+    const turnImagePath = path.join(IMAGE_STORAGE_PATH, 'turn-key-delete.png');
+    const avatarImagePath = path.join(IMAGE_STORAGE_PATH, 'avatar-key-delete.png');
+    fs.writeFileSync(turnImagePath, 'turn image');
+    fs.writeFileSync(avatarImagePath, 'avatar image');
+
+    insertTestSession('sess-delete-assets-keyed', 'local', 'Asset World');
+    getTestDb().prepare(
+      'INSERT INTO turn_history (sessionId, narration, imageSuggested, imageUrl, image_storage_key, image_storage_provider) VALUES (?, ?, ?, ?, ?, ?)',
+    ).run('sess-delete-assets-keyed', 'Image turn.', 1, '/test-images/turn-key-delete.png', 'turn-key-delete.png', 'local');
+    getTestDb().prepare(
+      'INSERT INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatar_storage_key, avatar_storage_provider, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    ).run('char-delete-assets-keyed', 'sess-delete-assets-keyed', 'Asset Hero', 'Fighter', 'Dwarf', 'Polishes shields', 10, 10, 3, 1, 1, '/test-images/avatar-key-delete.png', 'avatar-key-delete.png', 'local', 'active');
+
+    await StateService.deleteSession('sess-delete-assets-keyed');
+
+    expect(fs.existsSync(turnImagePath)).toBe(false);
+    expect(fs.existsSync(avatarImagePath)).toBe(false);
+    expect(getTestDb().prepare('SELECT id FROM turn_history WHERE sessionId = ?').all('sess-delete-assets-keyed')).toHaveLength(0);
+    expect(getTestDb().prepare('SELECT id FROM characters WHERE sessionId = ?').all('sess-delete-assets-keyed')).toHaveLength(0);
+  });
+
+  it('deleteSession deletes legacy local image files by URL basename', async () => {
+    fs.mkdirSync(IMAGE_STORAGE_PATH, { recursive: true });
+    const legacyTurnPath = path.join(IMAGE_STORAGE_PATH, 'legacy-turn-delete.png');
+    const legacyAvatarPath = path.join(IMAGE_STORAGE_PATH, 'legacy-avatar-delete.png');
+    fs.writeFileSync(legacyTurnPath, 'legacy turn image');
+    fs.writeFileSync(legacyAvatarPath, 'legacy avatar image');
+
+    insertTestSession('sess-delete-assets-legacy', 'local', 'Legacy Asset World');
+    getTestDb().prepare(
+      'INSERT INTO turn_history (sessionId, narration, imageSuggested, imageUrl) VALUES (?, ?, ?, ?)',
+    ).run('sess-delete-assets-legacy', 'Legacy image turn.', 1, '/test-images/legacy-turn-delete.png');
+    getTestDb().prepare(
+      'INSERT INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    ).run('char-delete-assets-legacy', 'sess-delete-assets-legacy', 'Legacy Hero', 'Ranger', 'Elf', 'Keeps receipts', 10, 10, 2, 2, 3, '/test-images/legacy-avatar-delete.png', 'active');
+
+    await StateService.deleteSession('sess-delete-assets-legacy');
+
+    expect(fs.existsSync(legacyTurnPath)).toBe(false);
+    expect(fs.existsSync(legacyAvatarPath)).toBe(false);
   });
 
   it('updateLatestTurnImage updates only the most recent turn', async () => {
