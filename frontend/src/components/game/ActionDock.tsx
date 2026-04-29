@@ -27,6 +27,7 @@ interface ActionDockProps {
   error: string | null;
   onSubmit: (label: string, stat: string, diff: string, difficultyValue?: number) => Promise<void> | void;
   onShowPartyGear: () => void;
+  onActiveStatChange?: (statKey: string | null) => void;
 }
 
 const RISK_MAP: Record<string, { label: string; color: string }> = {
@@ -53,6 +54,7 @@ export const ActionDock = ({
   error,
   onSubmit,
   onShowPartyGear,
+  onActiveStatChange,
 }: ActionDockProps) => {
   const [statThinking, setStatThinking] = useState(false);
   const choiceButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -267,6 +269,10 @@ export const ActionDock = ({
                         onClick={() => {
                           void submitSuggestedChoice(i as 0 | 1 | 2);
                         }}
+                        onMouseEnter={() => onActiveStatChange?.(choice.stat)}
+                        onMouseLeave={() => onActiveStatChange?.(null)}
+                        onFocus={() => onActiveStatChange?.(choice.stat)}
+                        onBlur={() => onActiveStatChange?.(null)}
                         disabled={loading}
                         className={`relative w-full p-3 ${ttsEnabled ? 'pr-10' : ''} rounded-2xl border-2 text-left transition-all hover:brightness-110 disabled:opacity-50 ${STAT_COLORS[choice.stat]}`}
                       >

@@ -63,6 +63,7 @@ export const SessionPage = () => {
   const [lastSubmittedAction, setLastSubmittedAction] = useState<LastSubmittedAction | null>(null);
   const [currentTensionLevel, setCurrentTensionLevel] = useState<'low' | 'medium' | 'high' | null>(null);
   const [showBanner, setShowBanner] = useState(true);
+  const [activeStatKey, setActiveStatKey] = useState<string | null>(null);
   const displayTurnRef = useRef<TurnResult | null>(null);
 
   const joinSession = useCallback(async (sessionId: string) => {
@@ -565,6 +566,7 @@ export const SessionPage = () => {
               error={actionError}
               onSubmit={submitAction}
               onShowPartyGear={() => setShowFullInventory(true)}
+              onActiveStatChange={setActiveStatKey}
             />
           )}
         </div>
@@ -575,6 +577,7 @@ export const SessionPage = () => {
             <StatsPanel
               character={activeChar}
               onShowPartyGear={() => setShowFullInventory(true)}
+              activeStatKey={activeStatKey}
             />
           </div>
         )}
