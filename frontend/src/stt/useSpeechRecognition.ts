@@ -30,7 +30,7 @@ export function useSpeechRecognition({
     transcriptRef.current = '';
   }, []);
 
-  const startListening = useCallback(() => {
+  const startListening = useCallback(async () => {
     if (!isSupported) {
       setState({ status: 'error', message: 'Speech input is not supported in this browser.' });
       return;
@@ -40,17 +40,37 @@ export function useSpeechRecognition({
       return;
     }
 
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop());
+      } catch (err) {
+        const denied = err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError');
+        setState({
+          status: 'error',
+          message: denied
+            ? 'Microphone access was denied. Enable it in your browser and OS settings.'
+            : 'Could not access microphone. Please try again.',
+        });
+        return;
+      }
+    }
+
     transcriptRef.current = '';
     setState({ status: 'listening', transcript: '' });
+    const startedAt = Date.now();
 
-    serviceRef.current = createService({
+    const service = createService({
       onResult: (transcript, isFinal) => {
+        if (serviceRef.current !== service) {
+          return;
+        }
         const trimmed = transcript.trim();
         if (trimmed) {
           transcriptRef.current = trimmed;
         }
         if (isFinal) {
-          serviceRef.current?.stop();
+          service.stop();
           if (trimmed) {
             setState({ status: 'confirming', transcript: trimmed });
           } else {
@@ -61,6 +81,9 @@ export function useSpeechRecognition({
         setState({ status: 'listening', transcript: transcriptRef.current });
       },
       onEnd: () => {
+        if (serviceRef.current !== service) {
+          return;
+        }
         const current = stateRef.current;
         if (current.status !== 'listening' && current.status !== 'processing') {
           return;
@@ -68,16 +91,22 @@ export function useSpeechRecognition({
         const transcript = transcriptRef.current.trim();
         if (transcript) {
           setState({ status: 'confirming', transcript });
+        } else if (Date.now() - startedAt < 1000) {
+          setState({ status: 'error', message: 'Microphone not responding - check that your browser and OS settings allow microphone access.' });
         } else {
           setState({ status: 'error', message: "Couldn't hear anything. Please try again." });
         }
       },
       onError: message => {
+        if (serviceRef.current !== service) {
+          return;
+        }
         setState({ status: 'error', message });
       },
     }, ctor);
 
-    serviceRef.current.start();
+    serviceRef.current = service;
+    service.start();
   }, [ctor, createService, isSupported]);
 
   const stopListening = useCallback(() => {
@@ -102,7 +131,7 @@ export function useSpeechRecognition({
     const idleState: SpeechInputState = { status: 'idle' };
     stateRef.current = idleState;
     setState(idleState);
-    startListening();
+    void startListening();
   }, [clearService, startListening]);
 
   const confirmTranscript = useCallback(async () => {

@@ -21,7 +21,7 @@ export const SpeechActionButton = ({
 
   const unavailable = !supported;
   const message = unavailable ? 'Speech input is not supported in this browser.' : errorMessage;
-  const tooltip = message ?? (active ? 'Listening...' : 'Voice action (V)');
+  const tooltip = message ?? (active ? 'Listening... (click to stop)' : 'Voice action (V)');
 
   return (
     <div className="absolute -top-3 -right-3 z-10 group">

@@ -257,14 +257,20 @@ export const ActionDock = ({
 
   const speechActive = speech.state.status === 'listening' || speech.state.status === 'processing';
   const speechBusy = speechActive || speech.state.status === 'confirming' || speech.state.status === 'submitting';
-  const canStartSpeech = sttSettings.enabled && speech.isSupported && !loading && !statThinking && !isDown && !speechBusy;
-  const startSpeech = useCallback(() => {
+  const canInteractSpeech = sttSettings.enabled && speech.isSupported && !loading && !statThinking && !isDown;
+  const canStartSpeech = canInteractSpeech && !speechBusy;
+  const speechButtonDisabled = !canInteractSpeech || speech.state.status === 'confirming' || speech.state.status === 'submitting';
+  const toggleSpeech = useCallback(() => {
+    if (speechActive) {
+      speech.cancel();
+      return;
+    }
     if (!canStartSpeech) {
       return;
     }
     narrationTtsService.stopNarration();
-    speech.startListening();
-  }, [canStartSpeech, speech]);
+    void speech.startListening();
+  }, [speechActive, canStartSpeech, speech]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -296,13 +302,13 @@ export const ActionDock = ({
         onShowPartyGear();
       } else if (e.key.toLowerCase() === 'v') {
         e.preventDefault();
-        startSpeech();
+        toggleSpeech();
       }
     };
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [loading, isDown, turn, onShowPartyGear, startSpeech]);
+  }, [loading, isDown, turn, onShowPartyGear, toggleSpeech]);
 
   const submitCustom = async () => {
     await submitCustomText(customAction);
@@ -484,9 +490,9 @@ export const ActionDock = ({
                   enabled={sttSettings.enabled}
                   supported={speech.isSupported}
                   active={speechActive}
-                  disabled={!canStartSpeech}
+                  disabled={speechButtonDisabled}
                   errorMessage={speech.errorMessage}
-                  onClick={startSpeech}
+                  onClick={toggleSpeech}
                 />
               </div>
               <button
