@@ -16,6 +16,7 @@ import { StoryStage } from '../components/game/StoryStage';
 import { ActionDock } from '../components/game/ActionDock';
 import { DmDecisionRecapPanel } from '../components/game/DmDecisionRecapPanel';
 import { ChronicleDrawer } from '../components/game/ChronicleDrawer';
+import { StatsPanel } from '../components/game/StatsPanel';
 import { audioManager } from '../audio/audioManager';
 import { useAudioSettings } from '../audio/useAudioSettings';
 import { useTtsSettings } from '../tts/useTtsSettings';
@@ -571,8 +572,15 @@ export const SessionPage = () => {
           )}
         </div>
 
-        {/* Phase 2: StatsPanel replaces this placeholder (bottom-right on md, right col on xl) */}
-        <div className="hidden md:block min-h-0" />
+        {/* Stats panel: hidden during chronicle and loading, right col on xl / bottom-right on md */}
+        {!showChronicle && !loading && activeChar && (
+          <div className="hidden md:block min-h-0">
+            <StatsPanel
+              character={activeChar}
+              onShowPartyGear={() => setShowFullInventory(true)}
+            />
+          </div>
+        )}
       </div>
 
       {/* Roll popup */}
