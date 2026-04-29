@@ -1,7 +1,8 @@
-import { SessionState, Character, TurnResult } from '../types.js';
+import { SessionState, TurnResult, type Character } from '../types.js';
 import { getConfig } from '../config/env.js';
 import { getImageStorageProvider } from '../providers/storage/storageProviderFactory.js';
 import { getDb, initializeDatabase } from '../persistence/database.js';
+import { characterRepository } from '../repositories/characterRepository.js';
 import { sessionRepository, type SessionListItem, type SessionPatch } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { createId } from '../lib/ids.js';
@@ -98,44 +99,11 @@ export class StateService {
   }
 
   public static async getSessionIdForCharacter(charId: string): Promise<string | null> {
-    const db = getDb();
-    const row = db.prepare('SELECT sessionId FROM characters WHERE id = ?').get(charId) as { sessionId: string } | undefined;
-    return row ? row.sessionId : null;
+    return characterRepository.getSessionIdForCharacter(charId);
   }
 
   public static async listAllCharacters(): Promise<Character[]> {
-    const db = getDb();
-    const rows = db.prepare('SELECT * FROM characters').all() as {
-        id: string;
-        name: string;
-        class: string;
-        species: string;
-        quirk: string;
-        hp: number;
-        max_hp: number;
-        might: number;
-        magic: number;
-        mischief: number;
-        avatarUrl: string | null;
-        status: string | null;
-        history: string | null;
-        gender: string | null;
-    }[];
-    return rows.map(char => ({
-      id: char.id,
-      name: char.name,
-      class: char.class,
-      species: char.species,
-      quirk: char.quirk,
-      hp: char.hp,
-      max_hp: char.max_hp,
-      status: (char.status as 'active' | 'downed') ?? 'active',
-      avatarUrl: char.avatarUrl || undefined,
-      history: char.history || undefined,
-      gender: char.gender || undefined,
-      stats: { might: char.might, magic: char.magic, mischief: char.mischief },
-      inventory: []
-    }));
+    return characterRepository.listAllCharacters();
   }
 
   public static async getTurnHistory(id: string): Promise<TurnResult[]> {
@@ -155,9 +123,7 @@ export class StateService {
   }
 
   public static deleteCharacter(charId: string): void {
-    const db = getDb();
-    db.prepare('DELETE FROM inventory WHERE characterId = ?').run(charId);
-    db.prepare('DELETE FROM characters WHERE id = ?').run(charId);
+    characterRepository.deleteCharacter(charId);
   }
 
   // --- Namespace / User management ---
