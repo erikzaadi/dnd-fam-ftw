@@ -3,9 +3,11 @@ import { getConfig } from '../config/env.js';
 import { getImageStorageProvider } from '../providers/storage/storageProviderFactory.js';
 import { getDb, initializeDatabase } from '../persistence/database.js';
 import { characterRepository } from '../repositories/characterRepository.js';
+import { inviteRequestRepository, type InviteRequest } from '../repositories/inviteRequestRepository.js';
 import { namespaceRepository, type NamespaceListItem } from '../repositories/namespaceRepository.js';
 import { sessionRepository, type SessionListItem, type SessionPatch } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
+import { usageRepository, type TtsUsage } from '../repositories/usageRepository.js';
 import { userRepository, type UserListItem, type UserRecord } from '../repositories/userRepository.js';
 import fs from 'fs';
 import path from 'path';
@@ -239,16 +241,11 @@ export class StateService {
   }
 
   public static recordTtsUsage(namespaceId: string, voice: string, characterCount: number, provider: string = 'openai'): void {
-    const db = getDb();
-    db.prepare('INSERT INTO tts_usage (namespace_id, provider, voice, character_count) VALUES (?, ?, ?, ?)')
-      .run(namespaceId, provider, voice, characterCount);
+    usageRepository.recordTtsUsage(namespaceId, voice, characterCount, provider);
   }
 
-  public static getTtsUsage(namespaceId: string): { requestCount: number; characterCount: number } {
-    const db = getDb();
-    const row = db.prepare('SELECT COUNT(*) as requestCount, COALESCE(SUM(character_count), 0) as characterCount FROM tts_usage WHERE namespace_id = ?')
-      .get(namespaceId) as { requestCount: number; characterCount: number };
-    return { requestCount: row.requestCount, characterCount: row.characterCount };
+  public static getTtsUsage(namespaceId: string): TtsUsage {
+    return usageRepository.getTtsUsage(namespaceId);
   }
 
   // --- Character history ---
@@ -260,24 +257,18 @@ export class StateService {
   // --- Invite requests ---
 
   public static hasInviteRequest(email: string): boolean {
-    const db = getDb();
-    const row = db.prepare('SELECT id FROM invite_requests WHERE email = ?').get(email) as { id: number } | undefined;
-    return !!row;
+    return inviteRequestRepository.hasInviteRequest(email);
   }
 
   public static addInviteRequest(email: string, message?: string): void {
-    const db = getDb();
-    db.prepare('INSERT OR IGNORE INTO invite_requests (email, message) VALUES (?, ?)').run(email, message ?? null);
+    inviteRequestRepository.addInviteRequest(email, message);
   }
 
-  public static listInviteRequests(): { id: number; email: string; message: string | null; created_at: string }[] {
-    const db = getDb();
-    return db.prepare('SELECT id, email, message, created_at FROM invite_requests ORDER BY created_at DESC').all() as { id: number; email: string; message: string | null; created_at: string }[];
+  public static listInviteRequests(): InviteRequest[] {
+    return inviteRequestRepository.listInviteRequests();
   }
 
   public static clearInviteRequests(): number {
-    const db = getDb();
-    const result = db.prepare('DELETE FROM invite_requests').run();
-    return result.changes;
+    return inviteRequestRepository.clearInviteRequests();
   }
 }
