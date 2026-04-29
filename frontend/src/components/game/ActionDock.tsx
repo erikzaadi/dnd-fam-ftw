@@ -1,12 +1,9 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import type { TurnResult, Character, InventoryItem } from '../../types';
+import type { TurnResult, Character } from '../../types';
 import { apiFetch, imgSrc, pulseSyncDelay } from '../../lib/api';
-import { ItemBonusBadge } from '../ItemBonusBadge';
-import { ActionButton } from '../ActionButton';
 import { beatTarget } from '../../lib/game';
-import { StatIcon, StatImg } from './StatIcon';
+import { StatImg } from './StatIcon';
 import { STAT_COLORS } from '../../lib/statColors';
-import { TargetPicker } from './TargetPicker';
 import { getHpColors } from '../../lib/hpColors';
 import { useTtsSettings } from '../../tts/useTtsSettings';
 import { browserTtsService } from '../../tts/browserTtsService';
@@ -29,10 +26,7 @@ interface ActionDockProps {
   setCustomAction: (v: string) => void;
   error: string | null;
   onSubmit: (label: string, stat: string, diff: string, difficultyValue?: number) => Promise<void> | void;
-  onUseItem: (ownerCharId: string, itemId: string, targetCharId: string) => void;
-  onGiveItem: (ownerCharId: string, itemId: string, targetCharId: string) => void;
   onShowPartyGear: () => void;
-  partyItemCount: number;
 }
 
 const RISK_MAP: Record<string, { label: string; color: string }> = {
@@ -46,128 +40,6 @@ const calcProb = (statTotal: number, target: number) => {
   return Math.round(((21 - minNeeded) / 20) * 100);
 };
 
-// All items for active character, stacked top-down, shared pending state
-const ItemsSection = ({
-  items,
-  char,
-  party,
-  disabled,
-  onUseItem,
-  onGiveItem,
-  onShowPartyGear,
-  partyItemCount,
-}: {
-  items: InventoryItem[];
-  char: Character;
-  party: Character[];
-  disabled: boolean;
-  onUseItem: (ownerCharId: string, itemId: string, targetCharId: string) => void;
-  onGiveItem: (ownerCharId: string, itemId: string, targetCharId: string) => void;
-  onShowPartyGear: () => void;
-  partyItemCount: number;
-}) => {
-  const [pending, setPending] = useState<{ itemId: string; action: 'use' | 'give' } | null>(null);
-  const [expanded, setExpanded] = useState(false);
-
-  const confirm = (targetCharId: string) => {
-    if (!pending) {
-      return;
-    }
-    if (pending.action === 'use') {
-      onUseItem(char.id, pending.itemId, targetCharId);
-    } else {
-      onGiveItem(char.id, pending.itemId, targetCharId);
-    }
-    setPending(null);
-  };
-
-  const otherPartyMembers = party.filter(c => c.id !== char.id);
-  const hasItems = items.length > 0;
-  const hasPartyItems = partyItemCount > items.length;
-
-  if (!hasItems && !hasPartyItems) {
-    return null;
-  }
-
-  return (
-    <div className="flex flex-col bg-slate-800/50 rounded-2xl border border-slate-700/50 overflow-hidden">
-      {/* Collapsed header - always visible */}
-      <button
-        onClick={() => setExpanded(e => !e)}
-        className="flex items-center gap-2 px-3 py-2 w-full text-left hover:bg-slate-700/30 transition-colors"
-      >
-        <img src={imgSrc('/images/icon_inventory.png')} alt="" className="w-5 h-5 object-contain mix-blend-screen" />
-        <span className="text-sm font-black uppercase tracking-wide text-slate-400 flex-1">
-          Items{hasItems ? ` (${items.length})` : ''}
-          {hasPartyItems ? <span className="text-slate-600 font-normal normal-case tracking-normal text-xs ml-1">+ party gear</span> : ''}
-        </span>
-        <span className="text-slate-500 text-xs">{expanded ? '▲' : '▼'}</span>
-      </button>
-
-      {expanded && (
-        <div className="flex flex-col gap-1.5 px-3 pb-3">
-          {items.map(item => {
-            const canUse = (item.healValue ?? 0) > 0;
-            const canGive = item.transferable !== false && otherPartyMembers.length > 0;
-            const isPending = pending?.itemId === item.id;
-            const bonuses = item.statBonuses ? Object.entries(item.statBonuses).filter(([, v]) => v && v > 0) : [];
-
-            return (
-              <div key={item.id} className={`flex flex-col gap-1.5 px-3 py-2 rounded-xl border transition-colors ${isPending ? 'border-amber-500/40 bg-amber-950/10' : 'border-slate-700/40 bg-slate-900/40'}`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="font-black text-xs uppercase tracking-wide text-slate-200 truncate">{item.name}</div>
-                    <div className="text-xs text-slate-500 mt-0.5 leading-snug line-clamp-1">{item.description}</div>
-                  </div>
-                  {((item.healValue ?? 0) > 0 || bonuses.length > 0) && (
-                    <div className="flex gap-1 shrink-0">
-                      {(item.healValue ?? 0) > 0 && (
-                        <ItemBonusBadge type="hp" value={item.healValue!} label="hp" />
-                      )}
-                      {bonuses.map(([stat, val]) => (
-                        <ItemBonusBadge key={stat} type="stat" value={val!} label={stat} />
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {isPending ? (
-                  <TargetPicker
-                    compact
-                    party={party}
-                    action={pending.action}
-                    ownerCharId={char.id}
-                    onConfirm={confirm}
-                    onCancel={() => setPending(null)}
-                  />
-                ) : (
-                  (canUse || canGive) && !disabled && (
-                    <div className="flex items-center gap-1.5">
-                      {canUse && (
-                        <ActionButton action="use" onClick={() => setPending({ itemId: item.id, action: 'use' })} />
-                      )}
-                      {canGive && (
-                        <ActionButton action="give" onClick={() => setPending({ itemId: item.id, action: 'give' })} />
-                      )}
-                    </div>
-                  )
-                )}
-              </div>
-            );
-          })}
-
-          {hasPartyItems && (
-            <button onClick={onShowPartyGear} className="mt-0.5 text-left">
-              <span className="inline-block px-3 py-1.5 rounded-xl border border-slate-700 text-slate-400 hover:text-amber-400 hover:border-amber-500/40 text-xs font-black uppercase tracking-widest transition-all">
-                Party Gear ({partyItemCount - items.length} more)
-              </span>
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
 
 export const ActionDock = ({
   turn,
@@ -180,10 +52,7 @@ export const ActionDock = ({
   setCustomAction,
   error,
   onSubmit,
-  onUseItem,
-  onGiveItem,
   onShowPartyGear,
-  partyItemCount,
 }: ActionDockProps) => {
   const [statThinking, setStatThinking] = useState(false);
   const choiceButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -307,8 +176,6 @@ export const ActionDock = ({
     await submitCustomText(customAction);
   };
 
-  const activeItems = activeCharacter?.inventory ?? [];
-
   return (
     <div className="flex flex-col h-full bg-slate-900 rounded-[32px] border border-slate-800 overflow-hidden">
       {/* Fixed top section: error + active character info */}
@@ -345,35 +212,8 @@ export const ActionDock = ({
                   style={{ width: `${Math.max(0, (activeCharacter.hp / activeCharacter.max_hp) * 100)}%` }}
                 />
               </div>
-              {/* Stats */}
-              <div className="flex gap-4 mt-1">
-                {(['might', 'magic', 'mischief'] as const).map(stat => (
-                  <StatIcon
-                    key={stat}
-                    stat={stat}
-                    base={activeCharacter.stats[stat]}
-                    bonus={activeCharacter.inventory.reduce((s, item) => s + (item.statBonuses?.[stat] ?? 0), 0)}
-                    className="text-sm"
-                    iconSize="12"
-                  />
-                ))}
-              </div>
             </div>
           </div>
-        )}
-
-        {/* Items panel - pinned here so it's always visible when scrolling actions */}
-        {(activeItems.length > 0 || partyItemCount > 0) && activeCharacter && (
-          <ItemsSection
-            items={activeItems}
-            char={activeCharacter}
-            party={party}
-            disabled={loading}
-            onUseItem={onUseItem}
-            onGiveItem={onGiveItem}
-            onShowPartyGear={onShowPartyGear}
-            partyItemCount={partyItemCount}
-          />
         )}
       </div>
 

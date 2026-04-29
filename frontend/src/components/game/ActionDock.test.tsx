@@ -88,10 +88,7 @@ const renderDock = (overrides: Partial<ComponentProps<typeof ActionDock>> = {}) 
     setCustomAction: vi.fn(),
     error: null,
     onSubmit: vi.fn(),
-    onUseItem: vi.fn(),
-    onGiveItem: vi.fn(),
     onShowPartyGear: vi.fn(),
-    partyItemCount: 0,
     ...overrides,
   };
   render(<ActionDock {...props} />);

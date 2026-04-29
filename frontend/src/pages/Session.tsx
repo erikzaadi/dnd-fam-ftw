@@ -429,7 +429,7 @@ export const SessionPage = () => {
   imageLoadingRef.current = imageLoading;
   const activeChar = session.party.find(c => c.id === session.activeCharacterId) || null;
   const isDown = activeChar?.status === 'downed';
-  const partyItemCount = session.party.reduce((s, c) => s + c.inventory.length, 0);
+
   const lastRollOutcome = getRollImpactOutcome(lastRoll?.roll, lastRoll?.success, lastRoll?.impact);
   const animateRollGlow = lastRollOutcome && (lastRoll?.impact === 'extreme' || lastRoll?.roll === 1 || lastRoll?.roll === 20);
 
@@ -564,10 +564,7 @@ export const SessionPage = () => {
               setCustomAction={setCustomAction}
               error={actionError}
               onSubmit={submitAction}
-              onUseItem={(ownerCharId, itemId, targetCharId) => submitAction('use item', 'none', 'easy', null, ownerCharId, itemId, targetCharId)}
-              onGiveItem={(ownerCharId, itemId, targetCharId) => submitAction('give item', 'none', 'easy', null, ownerCharId, itemId, targetCharId)}
               onShowPartyGear={() => setShowFullInventory(true)}
-              partyItemCount={partyItemCount}
             />
           )}
         </div>
