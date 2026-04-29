@@ -1,8 +1,9 @@
 import Database, { Database as DB } from 'libsql';
 import { SessionState, Character, TurnResult, InventoryItem, type Stat, type Difficulty, type GameMode, type Impact } from '../types.js';
-import { createChatClient } from '../providers/ai/AiProviderFactory.js';
 import { getConfig } from '../config/env.js';
 import { getImageStorageProvider } from '../providers/storage/storageProviderFactory.js';
+import { createId } from '../lib/ids.js';
+import { generateSessionDisplayName } from './sessionNameService.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -268,36 +269,8 @@ export class StateService {
 
   public static async createSession(worldDescription?: string, difficulty: string = 'normal', useLocalAI: boolean = false, savingsMode: boolean = false, namespaceId: string = 'local', gameMode: 'cinematic' | 'balanced' | 'fast' = 'balanced', dmPrep?: string): Promise<SessionState> {
     const db = this.getDb();
-    const id = Math.random().toString(36).substring(7);
-
-    const { client, model } = createChatClient(useLocalAI);
-    const isLocal = process.env.AI_NARRATION_PROVIDER === 'localai';
-    console.log(`[Session] Generating display name via ${isLocal ? 'LocalAI' : 'OpenAI'} model=${model}`);
-    const nameStart = Date.now();
-    let displayName = 'A New Realm';
-    try {
-      const nameResponse = await client.chat.completions.create({
-        model,
-        messages: [{ role: 'user', content: `/no_think Give me a short, evocative name (max 3 words) for a story setting based on: ${worldDescription || 'a random realm'}. Reply with the name only, no explanation.` }],
-        max_tokens: 100,
-      }, { signal: AbortSignal.timeout(20_000) });
-      console.log(`[Session] Display name received in ${Date.now() - nameStart}ms`);
-      const msg = nameResponse.choices[0].message;
-      const rawName = msg.content || (msg as unknown as Record<string, string>)['reasoning_content'] || '';
-      console.log(`[Session] Raw display name response: ${JSON.stringify(rawName)}`);
-      displayName = rawName
-        .replace(/<think>[\s\S]*?<\/think>/g, '')
-        .replace(/\*\*/g, '')
-        .replace(/\*/g, '')
-        .replace(/\(.*?\)/g, '')
-        .replace(/"/g, '')
-        .replace(/\s*[-–—].*/g, '')
-        .split('\n')
-        .map((l: string) => l.trim())
-        .find((l: string) => l.length > 0) ?? 'A New Realm';
-    } catch (err) {
-      console.warn(`[Session] Display name generation failed or timed out (${Date.now() - nameStart}ms), using fallback:`, err);
-    }
+    const id = createId();
+    const displayName = await generateSessionDisplayName(worldDescription, useLocalAI);
 
     db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, turn, tone, displayName, difficulty, gameMode, useLocalAI, savingsMode, namespace_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(id, "A New Realm", "start-1", worldDescription || null, dmPrep || null, null, 1, "thrilling adventure", displayName, difficulty, gameMode, useLocalAI ? 1 : 0, savingsMode ? 1 : 0, namespaceId);
@@ -749,8 +722,8 @@ export class StateService {
 
   public static createUser(email: string, namespaceName?: string, role: string = 'member'): { userId: string; namespaceId: string } {
     const db = this.getDb();
-    const namespaceId = Math.random().toString(36).substring(7);
-    const userId = Math.random().toString(36).substring(7);
+    const namespaceId = createId();
+    const userId = createId();
     const nsName = namespaceName ?? email.split('@')[0];
     db.prepare('INSERT INTO namespaces (id, name) VALUES (?, ?)').run(namespaceId, nsName);
     db.prepare('INSERT INTO users (id, email, namespace_id, role) VALUES (?, ?, ?, ?)').run(userId, email, namespaceId, role);
@@ -844,7 +817,7 @@ export class StateService {
 
   public static createNamespace(name: string): { namespaceId: string } {
     const db = this.getDb();
-    const namespaceId = Math.random().toString(36).substring(7);
+    const namespaceId = createId();
     db.prepare('INSERT INTO namespaces (id, name) VALUES (?, ?)').run(namespaceId, name);
     return { namespaceId };
   }

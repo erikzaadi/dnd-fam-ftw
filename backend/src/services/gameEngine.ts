@@ -1,4 +1,5 @@
 import { Character, SessionState, ActionAttempt, InventoryItem, Choice, type Stat, type Difficulty } from '../types.js';
+import { createId } from '../lib/ids.js';
 
 export class GameEngine {
   private static DIFFICULTIES = {
@@ -381,7 +382,7 @@ export class GameEngine {
           : actingChar;
         recipient.inventory.push({
           ...itemData,
-          id: Math.random().toString(36).substring(7),
+          id: createId(),
         });
       }
 
@@ -405,7 +406,7 @@ export class GameEngine {
 
     if (aiSuggestedChanges && typeof aiSuggestedChanges.newScene === 'string') {
       newState.scene = aiSuggestedChanges.newScene;
-      newState.sceneId = (aiSuggestedChanges.newSceneId as string) || Math.random().toString(36).substring(7);
+      newState.sceneId = (aiSuggestedChanges.newSceneId as string) || createId();
     }
 
     return newState;

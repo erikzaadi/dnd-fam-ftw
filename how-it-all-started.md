@@ -1,4 +1,4 @@
-# 🧠 AI Dungeon Master Web App — Engineering Memory
+# 🧠 AI Dungeon Master Web App - Engineering Memory
 
 ## 📌 Project Overview
 

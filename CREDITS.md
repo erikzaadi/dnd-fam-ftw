@@ -2,7 +2,7 @@
 
 ## Code Generation
 
-[Claude Code](https://claude.ai/code) (Anthropic) — AI pair programmer used throughout development.
+[Claude Code](https://claude.ai/code) (Anthropic) - AI pair programmer used throughout development.
 
 ## Image Assets
 
