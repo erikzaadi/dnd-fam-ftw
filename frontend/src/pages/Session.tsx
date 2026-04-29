@@ -517,9 +517,9 @@ export const SessionPage = () => {
         </div>
       )}
 
-      <div className={`flex flex-col [@media(orientation:landscape)]:flex-row gap-4 px-4 pb-4 h-dvh overflow-hidden ${showBanner ? 'pt-36 [@media(orientation:landscape)]:pt-12' : 'pt-3'}`}>
-        {/* Top / Left: Story Stage */}
-        <div className="flex-shrink-0 h-[40vh] [@media(orientation:landscape)]:h-auto [@media(orientation:landscape)]:flex-1 [@media(orientation:landscape)]:min-w-0 [@media(orientation:landscape)]:min-h-0">
+      <div className={`grid gap-4 px-4 pb-4 h-dvh overflow-hidden grid-cols-1 md:grid-cols-[1fr_280px] md:grid-rows-[minmax(0,2fr)_minmax(0,3fr)] xl:grid-cols-[minmax(280px,0.9fr)_minmax(420px,1.4fr)_minmax(240px,0.7fr)] xl:grid-rows-[minmax(0,1fr)] ${showBanner ? 'pt-36 md:pt-12' : 'pt-3'}`}>
+        {/* Story Stage: full width on mobile, top row spanning both cols on md, left col on xl */}
+        <div className="min-h-0 h-[40vh] md:h-auto md:col-span-2 xl:col-span-1">
           <StoryStage
             history={history}
             viewedTurnIdx={viewedTurnIdx}
@@ -534,8 +534,8 @@ export const SessionPage = () => {
           />
         </div>
 
-        {/* Bottom / Right: Chronicle / Action area */}
-        <div className="flex-1 min-h-0 [@media(orientation:landscape)]:flex-none [@media(orientation:landscape)]:flex-shrink-0 [@media(orientation:landscape)]:w-[380px] xl:w-[440px] 2xl:w-[500px] [@media(orientation:landscape)]:min-h-0">
+        {/* Chronicle / Action area: bottom-left on md, center col on xl */}
+        <div className="min-h-0">
           {showChronicle ? (
             <ChronicleDrawer
               history={history}
@@ -570,6 +570,9 @@ export const SessionPage = () => {
             />
           )}
         </div>
+
+        {/* Phase 2: StatsPanel replaces this placeholder (bottom-right on md, right col on xl) */}
+        <div className="hidden md:block min-h-0" />
       </div>
 
       {/* Roll popup */}
