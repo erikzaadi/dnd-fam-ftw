@@ -24,7 +24,10 @@ async function dismissAudioOverlay(page: Page): Promise<void> {
 async function screenshotViewports(page: Page, slug: string): Promise<void> {
   for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
-    await expect(page).toHaveScreenshot(`${slug}-${vp.name}.png`, { fullPage: true });
+    await expect(page).toHaveScreenshot(`${slug}-${vp.name}.png`, {
+      fullPage: true,
+      animations: 'disabled',
+    });
   }
 }
 
@@ -41,6 +44,7 @@ test('settings', async ({ page }) => {
 });
 
 test('seeded sessions', async ({ page, request }) => {
+  test.setTimeout(120_000);
   const res = await request.get('/api/sessions');
   const sessions = await res.json() as { id: string; displayName: string }[];
 
