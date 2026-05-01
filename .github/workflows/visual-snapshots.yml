@@ -7,6 +7,7 @@ name: Visual Snapshots
 #   AWS_ACCESS_KEY_ID     - from terraform output ci_access_key_id
 #   AWS_SECRET_ACCESS_KEY - from terraform output ci_secret_access_key
 #   OPENAI_API_KEY        - for seed session display name generation
+# Required variable in the 'ci' environment (Actions Variable, not Secret - bucket names aren't sensitive):
 #   VISUAL_SNAPSHOTS_BUCKET - from terraform output snapshots_bucket_name
 #
 # First-time setup: run workflow_dispatch with update_snapshots=true to
@@ -64,7 +65,7 @@ jobs:
         if: github.event.inputs.update_snapshots != 'true'
         run: |
           mkdir -p "$SNAPSHOT_PATH"
-          aws s3 sync "s3://${{ secrets.VISUAL_SNAPSHOTS_BUCKET }}/snapshots" "$SNAPSHOT_PATH" || true
+          aws s3 sync "s3://${{ vars.VISUAL_SNAPSHOTS_BUCKET }}/snapshots" "$SNAPSHOT_PATH" || true
 
       - name: Start dev server
         env:
@@ -93,14 +94,14 @@ jobs:
 
       - name: Push updated baselines to S3
         if: github.event.inputs.update_snapshots == 'true'
-        run: aws s3 sync "$SNAPSHOT_PATH" "s3://${{ secrets.VISUAL_SNAPSHOTS_BUCKET }}/snapshots" --delete
+        run: aws s3 sync "$SNAPSHOT_PATH" "s3://${{ vars.VISUAL_SNAPSHOTS_BUCKET }}/snapshots" --delete
 
       - name: Stop dev server
         if: always()
         run: pkill -f 'tsx|vite' || true
 
       - name: Upload Playwright report
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: playwright-report
