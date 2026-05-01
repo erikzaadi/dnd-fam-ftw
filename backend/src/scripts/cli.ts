@@ -11,7 +11,7 @@
  *                   add-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
  *   sessions        list [--json] | nuke | seed | export | import
  *   metrics         [--json]
- *   invite-requests list [--json] | clear
+ *   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
  */
 
 import path from 'path';
@@ -83,10 +83,22 @@ case 'users': {
       console.error(`User already exists: ${email} (namespace: ${existing.namespace_id})`);
       process.exit(1);
     }
-    const { userId, namespaceId } = StateService.createUser(email, namespaceName);
-    console.log(`Created user: ${email}`);
-    console.log(`  userId:      ${userId}`);
-    console.log(`  namespaceId: ${namespaceId}`);
+    let addResult: { userId: string; namespaceId: string };
+    if (namespaceName) {
+      const existingNs = StateService.getNamespaceByName(namespaceName);
+      if (existingNs) {
+        addResult = StateService.createUserInExistingNamespace(email, existingNs.id);
+        console.log(`Created user: ${email} (added to existing namespace: ${existingNs.name})`);
+      } else {
+        addResult = StateService.createUser(email, namespaceName);
+        console.log(`Created user: ${email} (created new namespace: ${namespaceName})`);
+      }
+    } else {
+      addResult = StateService.createUser(email);
+      console.log(`Created user: ${email}`);
+    }
+    console.log(`  userId:      ${addResult.userId}`);
+    console.log(`  namespaceId: ${addResult.namespaceId}`);
     break;
   }
   case 'remove': {
@@ -675,6 +687,39 @@ case 'invite-requests': {
     }
     break;
   }
+  case 'approve': {
+    const [approveEmail] = positional;
+    const approveNsName = parseArgValue(allArgs.find(a => a === '--namespace' || a.startsWith('--namespace=')));
+    if (!approveEmail) {
+      fail('Usage: cli invite-requests approve <email> [--namespace <name>]');
+    }
+    if (!StateService.hasInviteRequest(approveEmail)) {
+      console.error(`No invite request found for: ${approveEmail}`);
+      process.exit(1);
+    }
+    const existingApproveUser = StateService.getUserByEmail(approveEmail);
+    if (existingApproveUser) {
+      console.error(`User already exists: ${approveEmail}`);
+      process.exit(1);
+    }
+    let approveResult: { userId: string; namespaceId: string };
+    if (approveNsName) {
+      const approveNs = StateService.getNamespaceByName(approveNsName);
+      if (!approveNs) {
+        console.error(`Namespace not found: ${approveNsName}`);
+        process.exit(1);
+      }
+      approveResult = StateService.createUserInExistingNamespace(approveEmail, approveNs.id);
+      console.log(`Approved invite for: ${approveEmail} (namespace: ${approveNs.name})`);
+    } else {
+      approveResult = StateService.createUser(approveEmail);
+      console.log(`Approved invite for: ${approveEmail}`);
+    }
+    StateService.removeInviteRequest(approveEmail);
+    console.log(`  userId:      ${approveResult.userId}`);
+    console.log(`  namespaceId: ${approveResult.namespaceId}`);
+    break;
+  }
   case 'clear': {
     const count = StateService.clearInviteRequests();
     console.log(`Cleared ${count} invite request(s).`);
@@ -683,8 +728,9 @@ case 'invite-requests': {
   default:
     console.log(`
 invite-requests <sub-command>
-  list [--json]   Show all pending invite requests
-  clear           Delete all invite requests
+  list [--json]                         Show all pending invite requests
+  approve <email> [--namespace <name>]  Create user from invite request (removes request)
+  clear                                 Delete all invite requests
 `);
   }
   break;
@@ -705,7 +751,7 @@ Resources:
                   add-user <nsId> <email> | remove-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
   sessions        list [--json] | nuke | seed | export | import
   metrics         [--json]
-  invite-requests list [--json] | clear
+  invite-requests list [--json] | approve <email> [--namespace <name>] | clear
 
 Run cli <resource> for sub-command help.
 

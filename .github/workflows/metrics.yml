@@ -69,6 +69,20 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Gather invite requests
+        id: invites
+        run: |
+          # shellcheck disable=SC2029
+          INVITES=$(ssh "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}" \
+            "bash -lc 'cd $CURRENT_DIR && node --env-file=$APP_ENV_FILE dist/scripts/cli.js invite-requests list --json'")
+          COUNT=$(echo "$INVITES" | jq 'length')
+          {
+            echo "output<<EOF"
+            echo "$INVITES"
+            echo "EOF"
+            echo "count=$COUNT"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Generate AI summary
         id: summary
         env:
@@ -107,6 +121,24 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Build notification message
+        id: message
+        env:
+          SUMMARY: ${{ steps.summary.outputs.output }}
+          INVITES_JSON: ${{ steps.invites.outputs.output }}
+          INVITES_COUNT: ${{ steps.invites.outputs.count }}
+        run: |
+          MSG="$SUMMARY"
+          if [ "${INVITES_COUNT:-0}" -gt 0 ]; then
+            EMAILS=$(echo "$INVITES_JSON" | jq -r '.[].email' | paste -sd ', ')
+            MSG=$(printf '%s\n\nPending invites (%s): %s' "$MSG" "$INVITES_COUNT" "$EMAILS")
+          fi
+          {
+            echo "output<<EOF"
+            echo "$MSG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Send summary to Pushover
         uses: ./.github/actions/notify-pushover
         with:
@@ -114,7 +146,7 @@ jobs:
           token: ${{ secrets.PUSHOVER_TOKEN }}
           user: ${{ secrets.PUSHOVER_USER }}
           title: Weekly Metrics
-          message: ${{ steps.summary.outputs.output }}
+          message: ${{ steps.message.outputs.output }}
 
       - name: Save metrics to SSM
         run: |

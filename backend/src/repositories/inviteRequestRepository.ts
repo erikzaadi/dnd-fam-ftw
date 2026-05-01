@@ -24,6 +24,12 @@ export const inviteRequestRepository = {
     return db.prepare('SELECT id, email, message, created_at FROM invite_requests ORDER BY created_at DESC').all() as InviteRequest[];
   },
 
+  removeInviteRequest(email: string): boolean {
+    const db = getDb();
+    const result = db.prepare('DELETE FROM invite_requests WHERE email = ?').run(email);
+    return result.changes > 0;
+  },
+
   clearInviteRequests(): number {
     const db = getDb();
     const result = db.prepare('DELETE FROM invite_requests').run();

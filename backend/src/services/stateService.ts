@@ -224,7 +224,19 @@ export class StateService {
     return inviteRequestRepository.listInviteRequests();
   }
 
+  public static removeInviteRequest(email: string): boolean {
+    return inviteRequestRepository.removeInviteRequest(email);
+  }
+
   public static clearInviteRequests(): number {
     return inviteRequestRepository.clearInviteRequests();
+  }
+
+  public static getNamespaceByName(name: string): { id: string; name: string } | null {
+    return namespaceRepository.getNamespaceByName(name);
+  }
+
+  public static createUserInExistingNamespace(email: string, namespaceId: string, role?: string): { userId: string; namespaceId: string } {
+    return userRepository.createUserInExistingNamespace(email, namespaceId, role);
   }
 }

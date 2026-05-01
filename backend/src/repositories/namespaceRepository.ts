@@ -32,6 +32,11 @@ export const namespaceRepository = {
     return (db.prepare('SELECT id, name FROM namespaces WHERE id = ?').get(id) as { id: string; name: string }) ?? null;
   },
 
+  getNamespaceByName(name: string): { id: string; name: string } | null {
+    const db = getDb();
+    return (db.prepare('SELECT id, name FROM namespaces WHERE name = ?').get(name) as { id: string; name: string }) ?? null;
+  },
+
   createNamespace(name: string): { namespaceId: string } {
     const db = getDb();
     const namespaceId = createId();

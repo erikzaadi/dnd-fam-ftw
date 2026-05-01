@@ -13,7 +13,7 @@ _dnd_subcommands() {
     namespaces)      echo "list create rename delete sessions assign-session add-user remove-user set-limits" ;;
     sessions)        echo "list nuke seed export import" ;;
     metrics)         echo "" ;;
-    invite-requests) echo "list clear" ;;
+    invite-requests) echo "list approve clear" ;;
     *)               echo "" ;;
   esac
 }
@@ -32,6 +32,7 @@ _dnd_flags() {
     sessions/export)  echo "--session= --namespace= --output=" ;;
     sessions/import)  echo "--namespace-id=" ;;
     namespaces/set-limits) echo "--max-sessions= --max-turns=" ;;
+    invite-requests/approve) echo "--namespace=" ;;
     *) echo "" ;;
   esac
 }

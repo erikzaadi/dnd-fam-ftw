@@ -31,6 +31,14 @@ export const userRepository = {
     return { userId, namespaceId };
   },
 
+  createUserInExistingNamespace(email: string, namespaceId: string, role: string = 'member'): { userId: string; namespaceId: string } {
+    const db = getDb();
+    const userId = createId();
+    db.prepare('INSERT INTO users (id, email, namespace_id, role) VALUES (?, ?, ?, ?)').run(userId, email, namespaceId, role);
+    db.prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(userId, namespaceId);
+    return { userId, namespaceId };
+  },
+
   ensureAdminUser(email: string): void {
     const existing = userRepository.getUserByEmail(email);
     if (existing) {

@@ -141,6 +141,41 @@ npm run cli -- namespaces set-limits <id>                   # show current limit
 npm run cli -- namespaces set-limits <id> --max-sessions null   # remove limit
 ```
 
+## npm scripts
+
+All scripts run from the **repo root** - never `cd` into a workspace first.
+
+| Script | What it does |
+|---|---|
+| `npm run dev` | Backend :3001 + frontend :5173 concurrently |
+| `npm run build` | Frontend production build |
+| `npm run build:backend` | Backend TypeScript compile |
+| `npm run lint` | All linters (backend + frontend + workflows + bash) |
+| `npm run lint:backend` | ESLint on `backend/src/**/*.ts` |
+| `npm run lint:frontend` | ESLint on `frontend/src/**/*.tsx` |
+| `npm run lint:workflows` | actionlint + yamllint + shellcheck on workflows |
+| `npm run lint:bash` | shellcheck on `scripts/` |
+| `npm run test` | All tests |
+| `npm run test:backend` | Backend vitest |
+| `npm run test:frontend` | Frontend vitest |
+| `npm run cli -- ...` | Management CLI (see below) |
+
+Exception: type checks must run from the workspace directory since they need the local tsconfig:
+```bash
+cd backend && npx tsc --noEmit
+cd frontend && npx tsc -b
+```
+
+## GitHub workflows
+
+| File | Trigger | What it does |
+|---|---|---|
+| `deploy.yml` | push to main, manual | Build + deploy to Lightsail |
+| `lint.yml` | push, PR, manual | Run all linters |
+| `test.yml` | push, PR, manual | Run all tests |
+| `metrics.yml` | Sunday 10:00 UTC, manual | Gather usage metrics + pending invite requests, AI summary via Pushover |
+| `renew-cert.yml` | scheduled, manual | SSL cert renewal on Lightsail |
+
 ## Management CLI
 
 All management commands go through one entry point. Run from the repo root:
@@ -150,6 +185,8 @@ npm run cli -- <resource> [sub-command] [args...] [--json]
 ```
 
 Resources: `users`, `namespaces`, `sessions`, `metrics`, `invite-requests`. See **[MANAGE.md](MANAGE.md)** for the full reference including production deploy scripts.
+
+When adding CLI subcommands or flags, also update `scripts/cli-completion.bash` (subcommands in `_dnd_subcommands`, flags in `_dnd_flags`, `--json` support in `_dnd_supports_json`).
 
 ## Character history
 
