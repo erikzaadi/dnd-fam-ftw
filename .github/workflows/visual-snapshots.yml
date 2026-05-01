@@ -100,6 +100,15 @@ jobs:
         if: always()
         run: pkill -f 'tsx|vite' || true
 
+      - name: Notify on failure
+        if: failure()
+        uses: ./.github/actions/notify-pushover
+        with:
+          status: failure
+          token: ${{ secrets.PUSHOVER_TOKEN }}
+          user: ${{ secrets.PUSHOVER_USER }}
+          title: Visual Snapshots
+
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v7
