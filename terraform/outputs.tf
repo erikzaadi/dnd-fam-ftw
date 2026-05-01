@@ -34,6 +34,22 @@ output "image_bucket_name" {
   value = var.image_bucket_name
 }
 
+output "snapshots_bucket_name" {
+  value = module.snapshots.bucket_name
+}
+
+# CI IAM credentials - set these as AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
+# in the GitHub Actions 'ci' environment secrets
+output "ci_access_key_id" {
+  value     = module.snapshots.access_key_id
+  sensitive = true
+}
+
+output "ci_secret_access_key" {
+  value     = module.snapshots.secret_access_key
+  sensitive = true
+}
+
 output "attached_disk_name" {
   value = module.lightsail.disk_name
 }

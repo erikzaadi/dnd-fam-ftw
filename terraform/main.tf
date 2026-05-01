@@ -62,6 +62,11 @@ module "dns" {
   lightsail_static_ip       = module.lightsail.static_ip
 }
 
+module "snapshots" {
+  source      = "./modules/snapshots"
+  bucket_name = var.snapshots_bucket_name
+}
+
 module "iam" {
   source               = "./modules/iam"
   image_bucket_name    = var.image_bucket_name
@@ -83,6 +88,19 @@ resource "aws_ssm_parameter" "app_secret" {
 }
 
 # Certbot credentials are known after apply - store directly, no placeholder needed
+# CI credentials for visual snapshot bucket - set as GitHub Actions ci-environment secrets
+resource "aws_ssm_parameter" "ci_key_id" {
+  name  = "${var.ssm_parameter_prefix}/CI_AWS_ACCESS_KEY_ID"
+  type  = "String"
+  value = module.snapshots.access_key_id
+}
+
+resource "aws_ssm_parameter" "ci_secret" {
+  name  = "${var.ssm_parameter_prefix}/CI_AWS_SECRET_ACCESS_KEY"
+  type  = "SecureString"
+  value = module.snapshots.secret_access_key
+}
+
 resource "aws_ssm_parameter" "certbot_key_id" {
   name  = "${var.ssm_parameter_prefix}/CERTBOT_AWS_ACCESS_KEY_ID"
   type  = "String"

@@ -18,7 +18,10 @@
         "test:frontend": "npm run test --prefix frontend",
         "test": "npm run test:backend && npm run test:frontend",
         "lint": "npm run lint:backend && npm run lint:frontend && npm run lint:workflows && npm run lint:bash",
-        "cli": "npm run cli --prefix backend --"
+        "cli": "npm run cli --prefix backend --",
+        "test:visual": "npm run test:visual --prefix frontend",
+        "test:visual:update": "npm run test:visual:update --prefix frontend",
+        "setup:playwright": "npm exec --prefix frontend -- playwright install chromium"
     },
     "devDependencies": {
         "concurrently": "^9.2.1"

@@ -2,61 +2,44 @@
 set -euo pipefail
 
 # Take screenshots of a session page at every layout breakpoint.
-# Usage: ./frontend/scripts/screenshot-session.sh [url]
-# Default URL: http://localhost:5173/session/seed-session-3
+# Usage: ./frontend/scripts/screenshot-session.sh <api-base> <session-id> [display-name]
+# Example: ./frontend/scripts/screenshot-session.sh http://localhost:5173 abc123 "Dragon's Lair"
 #
 # Requires: playwright-cli (brew install playwright-cli)
-# Output: frontend/screenshots/
+# Output: frontend/screenshots/<session-slug>-<viewport>-<WxH>.png
 
-URL="${1:-http://localhost:5173/session/seed-session-3}"
-OUT_DIR="$(dirname "$0")/../screenshots"
-SESSION="ss-$$"
+if [ $# -lt 2 ]; then
+  echo "Usage: $0 <api-base> <session-id> [display-name]"
+  exit 1
+fi
+
+API_BASE="$1"
+SESSION_ID="$2"
+DISPLAY_NAME="${3:-$SESSION_ID}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+OUT_DIR="$SCRIPT_DIR/../screenshots"
+BROWSER_SESSION="ss-$$"
+
+# shellcheck source=./screenshot-common.sh
+source "$SCRIPT_DIR/screenshot-common.sh"
 
 mkdir -p "$OUT_DIR"
 
-# Viewport definitions: WIDTHxHEIGHT label
-VIEWPORTS=(
-  "390 844  mobile-portrait"
-  "844 390  mobile-landscape"
-  "768 1024 tablet-portrait"
-  "1024 768 tablet-landscape-md"
-  "1280 900 desktop-xl-breakpoint"
-  "1920 1080 desktop-1080p"
-  "2560 1440 desktop-ultrawide"
-  "3440 1440 desktop-ultrawide-21-9"
-)
+SESSION_SLUG=$(sanitize_slug "$DISPLAY_NAME")
+URL="$API_BASE/session/$SESSION_ID"
 
+echo "Session: $DISPLAY_NAME ($SESSION_ID)"
 echo "Opening browser at $URL ..."
-playwright-cli -s="$SESSION" open "$URL"
+playwright-cli -s="$BROWSER_SESSION" open "$URL"
 
 # Give the page time to fully render
 sleep 2
 
-# Dismiss the audio unlock overlay if present.
-# Take a snapshot, find the "Enable Audio" button ref, click it if found.
-echo "  -> dismissing audio unlock overlay (if present)"
-AUDIO_REF=$(playwright-cli -s="$SESSION" snapshot \
-  | grep 'Enable Audio' \
-  | sed 's/.*\[ref=\(e[0-9]*\)\].*/\1/' \
-  || true)
-if [ -n "$AUDIO_REF" ]; then
-  echo "     found overlay at ref=${AUDIO_REF}, clicking..."
-  playwright-cli -s="$SESSION" click "$AUDIO_REF"
-  sleep 0.5
-else
-  echo "     overlay not present, skipping"
-fi
+dismiss_audio_overlay "$BROWSER_SESSION"
 
-for entry in "${VIEWPORTS[@]}"; do
-  read -r w h label <<< "$entry"
-  echo "  -> ${label} (${w}x${h})"
-  playwright-cli -s="$SESSION" resize "$w" "$h"
-  sleep 1
-  playwright-cli -s="$SESSION" screenshot --full-page --filename "${OUT_DIR}/${label}-${w}x${h}.png"
-done
+take_viewport_screenshots "$BROWSER_SESSION" "$SESSION_SLUG" "$OUT_DIR"
 
-playwright-cli -s="$SESSION" close
+playwright-cli -s="$BROWSER_SESSION" close
 
-echo ""
 echo "Screenshots saved to ${OUT_DIR}/"
-ls -1 "$OUT_DIR"/*.png
+ls -1 "${OUT_DIR}/${SESSION_SLUG}"*.png

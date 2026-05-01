@@ -10,6 +10,7 @@ api_domain      = "api.app.yourdomain.com"
 # S3 bucket names - must be globally unique across all AWS accounts
 frontend_bucket_name = "your-app-frontend"
 image_bucket_name    = "your-app-images"
+snapshots_bucket_name = "your-app-snapshots"
 
 # Lightsail instance size: nano_3_0 (512MB) or micro_3_0 (1GB)
 lightsail_bundle_id    = "nano_3_0"

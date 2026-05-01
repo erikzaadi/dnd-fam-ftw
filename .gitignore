@@ -22,4 +22,6 @@ terraform/crash.log
 terraform/.terraform.lock.hcl
 backend/tts-sampl*
 frontend/screenshots/
+frontend/tests/__snapshots__/
+frontend/playwright-report/
 .playwright-cli/

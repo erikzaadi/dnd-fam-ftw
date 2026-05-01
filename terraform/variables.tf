@@ -35,6 +35,11 @@ variable "image_bucket_name" {
   type        = string
 }
 
+variable "snapshots_bucket_name" {
+  description = "S3 bucket name for visual regression snapshots (must be globally unique)"
+  type        = string
+}
+
 # --- Lightsail ---
 
 variable "lightsail_bundle_id" {

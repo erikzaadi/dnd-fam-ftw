@@ -159,6 +159,9 @@ All scripts run from the **repo root** - never `cd` into a workspace first.
 | `npm run test:backend` | Backend vitest |
 | `npm run test:frontend` | Frontend vitest |
 | `npm run cli -- ...` | Management CLI (see below) |
+| `npm run test:visual` | Run Playwright visual snapshot tests (dev server must be running) |
+| `npm run test:visual:update` | Regenerate local snapshot baselines |
+| `npm run setup:playwright` | One-time: install Playwright's Chromium browser |
 
 Exception: type checks must run from the workspace directory since they need the local tsconfig:
 ```bash
