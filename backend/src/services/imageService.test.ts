@@ -134,8 +134,8 @@ describe('ImageService.generateAvatar', () => {
     expect(result.prompt).toContain('Halfling Rogue');
     expect(result.prompt).toContain('Pip');
     expect(result.prompt).toContain('Talks to plants');
-    expect(result.prompt).toContain('one subject only');
-    expect(result.prompt).toContain('no split screen');
+    expect(result.prompt).toContain('single subject only');
+    expect(result.prompt).toContain('full bleed artwork');
     expect(provider.calls).toHaveLength(1);
     expect(storage.stored.size).toBe(1);
   });
@@ -143,7 +143,7 @@ describe('ImageService.generateAvatar', () => {
   it('cache hit: skips provider', async () => {
     const provider = makeMockImageProvider();
     const char = { name: 'Pip', class: 'Rogue', species: 'Halfling', quirk: 'Talks to plants' };
-    const prompt = `single finished fantasy character portrait of one ${char.species} ${char.class}, visual personality inspired by the character name "${char.name}" but do not write the name, subtle visual personality cue: ${char.quirk}, one subject only, one face only, single uninterrupted image, no split screen, no side-by-side panels, no duplicate portrait, detailed face, centered head-and-shoulders composition, plain dark background, vibrant colors, cinematic lighting, painterly storybook art, the image itself is the artwork with no surrounding software window, no toolbar, no canvas border, no editor chrome, no UI elements, no text`;
+    const prompt = `traditional oil painting portrait of one ${char.species} ${char.class}, visual personality inspired by the character name "${char.name}" but do not write the name, subtle visual personality cue: ${char.quirk}, single subject only, one face, detailed face, centered head-and-shoulders composition, plain dark background, vibrant colors, cinematic lighting, painterly storybook illustration, full bleed artwork filling the entire canvas`;
     const hash = crypto.createHash('md5').update(prompt).digest('hex');
     const cachedKey = `avatar_sess-avatar-cached_${char.name}_${hash}.png`;
     const storage = makeMockStorage(new Set([cachedKey]));

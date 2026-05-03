@@ -125,6 +125,7 @@ jobs:
           fi
 
       - uses: ./.github/actions/notify-pushover
+        if: steps.result.outputs.status == 'failure'
         with:
           status: ${{ steps.result.outputs.status }}
           token: ${{ secrets.PUSHOVER_TOKEN }}

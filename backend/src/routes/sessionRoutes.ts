@@ -192,12 +192,17 @@ export const createSessionRouter = () => {
     res.json({ success: true });
 
     if (!session.savingsMode) {
-      void ImageService.generateImage(initialTurn.imagePrompt || 'A fantasy realm map', sessionId, session.turn, session.useLocalAI).then(async result => {
-        if (result) {
-          await StateService.updateLatestTurnImage(sessionId, result.url, result.storageKey, result.storageProvider);
-          broadcastUpdate(sessionId, 'image_ready', { imageUrl: result.url });
-        }
-      }).catch(err => console.error('[Start] Background image generation failed:', err));
+      if (session.previewImageUrl) {
+        await StateService.updateLatestTurnImage(sessionId, session.previewImageUrl, '', '');
+        broadcastUpdate(sessionId, 'image_ready', { imageUrl: session.previewImageUrl });
+      } else {
+        void ImageService.generateImage(initialTurn.imagePrompt || 'A fantasy realm map', sessionId, session.turn, session.useLocalAI).then(async result => {
+          if (result) {
+            await StateService.updateLatestTurnImage(sessionId, result.url, result.storageKey, result.storageProvider);
+            broadcastUpdate(sessionId, 'image_ready', { imageUrl: result.url });
+          }
+        }).catch(err => console.error('[Start] Background image generation failed:', err));
+      }
     }
   }));
 

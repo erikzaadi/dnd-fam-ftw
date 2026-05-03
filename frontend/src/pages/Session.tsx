@@ -517,7 +517,7 @@ export const SessionPage = () => {
         </div>
       )}
 
-      <div className={`grid gap-4 px-4 pb-4 h-dvh overflow-hidden grid-cols-1 grid-rows-[minmax(0,2fr)_minmax(0,3fr)] xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-rows-[1fr] ${showBanner ? 'pt-36 md:pt-12' : 'pt-3'}`}>
+      <div className={`grid gap-4 px-4 pb-4 h-dvh overflow-hidden grid-cols-1 grid-rows-[minmax(0,2fr)_minmax(0,3fr)] xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-rows-[1fr] ${showBanner ? 'pt-40 sm:pt-28' : 'pt-3'}`}>
         {/* Story Stage */}
         <div className="min-h-0">
           <StoryStage
