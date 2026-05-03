@@ -40,10 +40,11 @@ source /path/to/dnd-fam-ftw/scripts/cli-completion.bash
 Manage registered users. Each user gets their own primary namespace on creation.
 
 ```bash
-./dnd-fam-ftw-cli users list                        # list all users and their accessible namespaces
+./dnd-fam-ftw-cli users list                                # list all users and their accessible namespaces
 ./dnd-fam-ftw-cli users list --json
-./dnd-fam-ftw-cli users add <email> [name]          # create user + namespace
-./dnd-fam-ftw-cli users remove <email>              # delete user (and their namespace if empty)
+./dnd-fam-ftw-cli users add <email> [name]                  # create user + namespace
+./dnd-fam-ftw-cli users remove <email>                      # delete user (and their namespace if empty)
+./dnd-fam-ftw-cli users set-primary <email> <namespaceId>   # change a user's primary namespace
 ```
 
 ### namespaces
@@ -60,6 +61,7 @@ Manage namespaces (isolated session spaces). Users can be granted access to addi
 ./dnd-fam-ftw-cli namespaces sessions <id> --json
 ./dnd-fam-ftw-cli namespaces assign-session <sessionId> <namespaceId>    # move a session to another namespace
 ./dnd-fam-ftw-cli namespaces add-user <namespaceId> <email>              # grant user access to a namespace
+./dnd-fam-ftw-cli namespaces remove-user <namespaceId> <email>           # revoke user access to a namespace
 ./dnd-fam-ftw-cli namespaces set-limits <id>                              # show current limits
 ./dnd-fam-ftw-cli namespaces set-limits <id> --max-sessions 5            # cap number of sessions
 ./dnd-fam-ftw-cli namespaces set-limits <id> --max-turns 100             # cap turns per session
@@ -73,10 +75,12 @@ Manage namespaces (isolated session spaces). Users can be granted access to addi
 Dev tools for inspecting and resetting session data.
 
 ```bash
-./dnd-fam-ftw-cli sessions list             # print all sessions, characters, inventory, turn history
+./dnd-fam-ftw-cli sessions list                                              # print all sessions, characters, inventory, turn history
 ./dnd-fam-ftw-cli sessions list --json
-./dnd-fam-ftw-cli sessions nuke             # delete all sessions and their data
-./dnd-fam-ftw-cli sessions seed             # seed 5 example sessions (idempotent)
+./dnd-fam-ftw-cli sessions nuke                                              # delete all sessions and their data
+./dnd-fam-ftw-cli sessions seed                                              # seed 5 example sessions (idempotent)
+./dnd-fam-ftw-cli sessions export [--session <id>] [--namespace <id>] [--output <file.json>]   # export sessions to JSON
+./dnd-fam-ftw-cli sessions import <file.json> [--namespace-id <id>]         # import sessions from JSON
 ```
 
 ### metrics
@@ -95,7 +99,8 @@ View and manage invite requests from unregistered Google users.
 ```bash
 ./dnd-fam-ftw-cli invite-requests list
 ./dnd-fam-ftw-cli invite-requests list --json
-./dnd-fam-ftw-cli invite-requests clear    # delete all requests
+./dnd-fam-ftw-cli invite-requests approve <email> [--namespace <name>]   # approve request, creates user + namespace
+./dnd-fam-ftw-cli invite-requests clear                                   # delete all requests
 ```
 
 ---
@@ -144,6 +149,14 @@ Prints the Node.js version running on the instance. Useful for confirming upgrad
 ./scripts/deploy/node-version.sh
 ```
 
+### restart-instance.sh
+
+Restarts the Lightsail instance via the AWS CLI. Use when the app is wedged and a service restart isn't enough.
+
+```bash
+./scripts/deploy/restart-instance.sh
+```
+
 ### smoke-test.sh
 
 Checks that the API health endpoint and frontend are reachable after a deploy.
@@ -187,6 +200,7 @@ These run once during initial infrastructure setup. Not needed for day-to-day op
 | `./scripts/create-terraform-user.sh [aws-profile]` | Before first `terraform apply` - creates the IAM user and policy Terraform needs |
 | `./scripts/fill-ssm-params.sh [aws-profile] [ssm-prefix]` | After `terraform apply` - fills SSM parameters with actual secret values |
 | `./scripts/provision-cert.sh` | After `terraform apply` - obtains a Let's Encrypt TLS cert via DNS-01 / Route 53 |
+| `./scripts/bump-version.sh` | Create and push a new version tag (reads latest tag, increments patch, pushes) |
 | `./scripts/install-ubuntu.sh` | Legacy local laptop deploy - installs deps and systemd service on an Ubuntu server |
 | `./scripts/re-deploy.sh` | Legacy local laptop deploy - pushes local changes and restarts the service |
 | `./scripts/sync-to-server.sh` | Legacy local laptop deploy - rsync only, no restart |
@@ -200,8 +214,10 @@ GitHub Actions handles automated deploys. Workflows live in `.github/workflows/`
 | Workflow | Trigger | What it does |
 |---|---|---|
 | `deploy.yml` | Push to `main`, or `v*` tag | Deploys backend and/or frontend if relevant files changed (tag always deploys both) |
-| `lint.yml` | Pull request | Runs `npm run lint` across all workspaces |
-| `test.yml` | Pull request | Runs backend unit tests |
+| `lint.yml` | Push, PR, manual | Runs `npm run lint` across all workspaces |
+| `test.yml` | Push, PR, manual | Runs backend and frontend tests |
+| `metrics.yml` | Sunday 10:00 UTC, manual | Gathers usage metrics + pending invite requests, AI summary via Pushover |
+| `visual-snapshots.yml` | `v*` tag, manual | Runs Playwright visual snapshot tests against a seeded prod instance; compare against S3 baselines. First run: dispatch with `update_snapshots=true` to generate baselines. |
 | `renew-cert.yml` | Scheduled (monthly) | Renews the Let's Encrypt cert via `certbot renew` |
 
 Required GitHub secrets (in the `production` environment): `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `LIGHTSAIL_INSTANCE_NAME`, `LIGHTSAIL_HOST`, `SSH_PRIVATE_KEY`, `API_DOMAIN`, `FRONTEND_DOMAIN`, `FRONTEND_BUCKET_NAME`, `IMAGE_BUCKET_NAME`, `CF_DIST_ID`.

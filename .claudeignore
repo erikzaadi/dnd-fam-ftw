@@ -1,0 +1,11 @@
+node_modules/
+frontend/dist/
+backend/dist/
+terraform/.terraform/
+frontend/src/test/snapshots/
+package-lock.json
+temp/
+next-up-instructions/
+previous-md-instructions/
+.gemini_session
+.claude_session

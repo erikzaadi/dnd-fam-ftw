@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc --noEmit *)",
+      "Bash(npx tsc -b *)",
+      "Bash(npm run lint:frontend *)",
+      "Bash(npm run lint:backend *)",
+      "Bash(npm run lint:workflows *)",
+      "Bash(npm run lint:bash *)",
+      "Bash(npm run lint *)",
+      "Bash(npm run test:frontend *)",
+      "Bash(npm run test:backend *)",
+      "Bash(npm test *)",
+      "Bash(actionlint *)"
+    ]
+  }
+}

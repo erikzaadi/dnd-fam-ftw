@@ -1,61 +1,30 @@
 # CLAUDE.md
 
-This is an AI-powered family D&D game. Players pick heroes, describe a world, and an AI Dungeon Master narrates the adventure turn by turn. Stack: React 19 + Vite frontend, Node/Express backend, SQLite, OpenAI/Gemini/LocalAI.
+AI-powered family D&D game. Stack: React 19 + Vite frontend, Node/Express backend, SQLite, OpenAI/Gemini/LocalAI.
 
 ## Dev setup
 
 ```bash
 npm run install:all   # install both workspaces
-npm run dev           # starts backend :3001 + frontend :5173 (concurrently, Ctrl+C kills both)
+npm run dev           # backend :3001 + frontend :5173
 ```
 
-The dev server runs with base path `/` (no prefix). All env vars live in the root `.env`.
+All env vars live in the root `.env`.
 
 ## Before committing
 
-After any change, run these checks for the affected workspace(s):
+Run from repo root (never cd into a workspace first):
 
 ```bash
-# Lint
-npm run lint:backend    # if backend changed
-npm run lint:frontend   # if frontend changed
+npm run lint          # all linters: backend + frontend + workflows + bash
+npm test              # all tests
 
-# Type check
-cd backend && npx tsc --noEmit   # if backend changed
-cd frontend && npx tsc -b        # if frontend changed
-
-# Tests (run the files relevant to what changed)
-npm run test:backend    # if backend changed
-npm run test:frontend   # if frontend changed
-```
-
-Or run everything at once from root:
-```bash
-npm run lint && npm test
-```
-
-## Linting
-
-Run everything from root:
-```bash
-npm run lint           # runs all: backend + frontend + workflows + bash scripts
-npm run lint:backend   # ESLint on backend/src/**/*.ts
-npm run lint:frontend  # ESLint on frontend/src/**/*.tsx
-npm run lint:workflows # actionlint + yamllint + shellcheck on workflows
-npm run lint:bash      # shellcheck on all scripts/
-```
-
-Per-workspace type checks:
-```bash
+# Type checks must run from the workspace directory:
 cd backend && npx tsc --noEmit
 cd frontend && npx tsc -b
 ```
 
-One-time setup for workflow/yaml linting:
-```bash
-brew install actionlint shellcheck
-npm run setup:lint
-```
+Targeted variants: `npm run lint:backend`, `npm run lint:frontend`, `npm run lint:workflows`, `npm run lint:bash`, `npm run test:backend`, `npm run test:frontend`.
 
 ## Project layout
 
@@ -65,7 +34,7 @@ backend/src/
   config/env.ts                    # All env var parsing - add new vars here
   services/
     stateService.ts                # SQLite via libsql - all DB access
-    authService.ts                 # Google OAuth + JWT (full, pending-namespace, pending-invite, invite-requested types)
+    authService.ts                 # Google OAuth + JWT
     aiDmService.ts                 # GPT-4o narration
     imageService.ts                # DALL-E / LocalAI image generation
     gameEngine.ts                  # Dice, damage, turn mechanics
@@ -75,7 +44,7 @@ backend/src/
     ai/                            # Narration + image provider abstraction
     storage/                       # LocalImageStorageProvider + S3ImageStorageProvider
   scripts/
-    cli.ts                         # Unified management CLI: npm run cli -- <resource> <sub-command>
+    cli.ts                         # Unified management CLI
     seedSessions.ts                # Seed data (invoked by cli sessions seed)
 
 frontend/src/
@@ -86,150 +55,85 @@ frontend/src/
   lib/api.ts                       # apiFetch() and imgSrc() URL helpers - use these everywhere
   stt/                             # Speech-to-text: Web Speech API wrapper, intent parsing, settings hook
 
-terraform/                         # AWS infrastructure (see Terraform section below)
+terraform/                         # AWS infrastructure
 ```
 
 ## Keeping docs up to date
 
-When making changes, check whether any of these need updating:
-
-- **`README.md`** - setup, stack, feature overview. Update if adding a new major feature or changing dev/deploy steps.
-- **`MANAGE.md`** - CLI reference and production operations. Update if adding/changing CLI commands, deploy scripts, or env vars.
-- **`GAME_ENGINE_RULES.md`** - dice mechanics, stats, damage, turn flow, special turns. Update if changing `gameEngine.ts` logic, difficulty, or turn types.
-- **`frontend/src/pages/HowToPlay.tsx`** - the in-game help page shown to players. Update when gameplay rules, AI prompt behavior, recovery flow, inventory behavior, or any other player-visible game flow changes.
-
-`github-secrets.md` and `how-it-all-started.md` are not user-facing and rarely change.
+- **`README.md`** - update if adding a major feature or changing dev/deploy steps
+- **`MANAGE.md`** - update if adding/changing CLI commands, deploy scripts, or env vars
+- **`GAME_ENGINE_RULES.md`** - update if changing `gameEngine.ts` logic, difficulty, or turn types
+- **`frontend/src/pages/HowToPlay.tsx`** - update when gameplay rules or player-visible flow changes
 
 ## Coding conventions
 
-- **No em dashes** in code, comments, UI strings, or docs. Use a hyphen or colon instead.
-- **All `if` statements must have braces** on a new line. ESLint enforces this (`curly` rule).
-- Run `npm run lint` from root after changes.
-- TypeScript strict mode is on in both workspaces.
-- **Tooltips**: always use custom non-native tooltips via `frontend/src/components/Tooltip.tsx`. Use `frontend/src/components/game/ActionDock.tsx` as the reference pattern, including `portal` tooltips when the trigger lives inside an overflow or scroll container. Never use the native `title` attribute.
+- **No em dashes** - use a hyphen or colon instead
+- **All `if` statements must have braces** on a new line (ESLint `curly` rule)
+- **Tooltips**: always use `frontend/src/components/Tooltip.tsx`. Reference pattern: `frontend/src/components/game/ActionDock.tsx`. Use `portal` tooltips inside overflow/scroll containers. Never use the native `title` attribute.
+- TypeScript strict mode on in both workspaces.
 
 ## Auth
 
-Auth is **optional** - if `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `JWT_SECRET` are absent from `.env`, auth is fully disabled and everything uses the `local` namespace. No login page is shown.
+Optional - omitting `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `JWT_SECRET` from `.env` disables auth entirely (uses `local` namespace, no login page).
 
-When auth is enabled:
-- Google OAuth callback URL: set `GOOGLE_CALLBACK_URL` (for local dev: `http://localhost:5173/api/auth/google/callback`)
-- Only emails pre-registered via `npm run users add <email>` can log in
-- `ADMIN_EMAIL` in `.env` auto-creates that user on startup
-
-JWT types in the `type` field:
-- `full` - normal authenticated session (default)
-- `pending-namespace` - user has multiple namespaces, must pick one (stored in `jwt_pending` cookie)
-- `pending-invite` - unregistered Google user, can submit an invite request
-- `invite-requested` - unregistered user who already submitted an invite request
-
-JWT is stored as an HttpOnly cookie. `req.namespaceId` and `req.userEmail` are attached by `authMiddleware`.
+When enabled:
+- Set `GOOGLE_CALLBACK_URL` (local dev: `http://localhost:5173/api/auth/google/callback`)
+- Only pre-registered emails (`npm run users add <email>`) can log in
+- `ADMIN_EMAIL` auto-creates that user on startup
+- JWT stored as HttpOnly cookie; `req.namespaceId` + `req.userEmail` attached by `authMiddleware`
+- JWT `type` field: `full` | `pending-namespace` | `pending-invite` | `invite-requested`
 
 ## Namespace isolation
 
-Every session belongs to a namespace. Users have a primary namespace (1:1) but can be granted access to additional namespaces via `namespaces add-user`. All session queries are scoped to `req.namespaceId`. The `local` namespace is the default when auth is disabled.
+Every session belongs to a namespace. Users have a primary namespace (1:1) but can be granted access to additional namespaces via `namespaces add-user`. All session queries scoped to `req.namespaceId`. Default: `local` when auth disabled.
 
-S3 asset deletion: `StateService.deleteSession()` deletes all turn images and character avatars from S3 (or local disk) before deleting the DB rows.
+`StateService.deleteSession()` deletes all S3/local turn images and character avatars before deleting DB rows.
 
-### Namespace limits
+Per-namespace session/turn limits (NULL = unlimited): see `MANAGE.md`.
 
-Per-namespace session and turn limits. NULL means unlimited (default).
+## Management CLI
 
 ```bash
-npm run cli -- namespaces set-limits <id> --max-sessions 5 --max-turns 100
-npm run cli -- namespaces set-limits <id>                   # show current limits
-npm run cli -- namespaces set-limits <id> --max-sessions null   # remove limit
+npm run cli -- <resource> [sub-command] [args...] [--json]
 ```
 
-## npm scripts
+Resources: `users`, `namespaces`, `sessions`, `metrics`, `invite-requests`. Full reference: **MANAGE.md**.
 
-All scripts run from the **repo root** - never `cd` into a workspace first.
+When adding CLI subcommands or flags, also update `scripts/cli-completion.bash`.
+
+## Other npm scripts
 
 | Script | What it does |
 |---|---|
 | `npm run dev` | Backend :3001 + frontend :5173 concurrently |
 | `npm run build` | Frontend production build |
 | `npm run build:backend` | Backend TypeScript compile |
-| `npm run lint` | All linters (backend + frontend + workflows + bash) |
-| `npm run lint:backend` | ESLint on `backend/src/**/*.ts` |
-| `npm run lint:frontend` | ESLint on `frontend/src/**/*.tsx` |
-| `npm run lint:workflows` | actionlint + yamllint + shellcheck on workflows |
-| `npm run lint:bash` | shellcheck on `scripts/` |
-| `npm run test` | All tests |
-| `npm run test:backend` | Backend vitest |
-| `npm run test:frontend` | Frontend vitest |
-| `npm run cli -- ...` | Management CLI (see below) |
-| `npm run test:visual` | Run Playwright visual snapshot tests (dev server must be running) |
+| `npm run test:visual` | Playwright visual snapshot tests (dev server must be running) |
 | `npm run test:visual:update` | Regenerate local snapshot baselines |
-| `npm run setup:playwright` | One-time: install Playwright's Chromium browser |
+| `npm run setup:playwright` | One-time: install Playwright Chromium |
 
-Exception: type checks must run from the workspace directory since they need the local tsconfig:
-```bash
-cd backend && npx tsc --noEmit
-cd frontend && npx tsc -b
-```
+## Testing patterns
 
-## GitHub workflows
+**Frontend** (`frontend/src/**/*.test.ts(x)`): vitest + @testing-library/react + jsdom. Setup: `frontend/src/test/setup.ts`. Pure lib utilities tested directly without rendering.
 
-| File | Trigger | What it does |
-|---|---|---|
-| `deploy.yml` | push to main, manual | Build + deploy to Lightsail |
-| `lint.yml` | push, PR, manual | Run all linters |
-| `test.yml` | push, PR, manual | Run all tests |
-| `metrics.yml` | Sunday 10:00 UTC, manual | Gather usage metrics + pending invite requests, AI summary via Pushover |
-| `renew-cert.yml` | scheduled, manual | SSL cert renewal on Lightsail |
-
-## Management CLI
-
-All management commands go through one entry point. Run from the repo root:
-
-```bash
-npm run cli -- <resource> [sub-command] [args...] [--json]
-```
-
-Resources: `users`, `namespaces`, `sessions`, `metrics`, `invite-requests`. See **[MANAGE.md](MANAGE.md)** for the full reference including production deploy scripts.
-
-When adding CLI subcommands or flags, also update `scripts/cli-completion.bash` (subcommands in `_dnd_subcommands`, flags in `_dnd_flags`, `--json` support in `_dnd_supports_json`).
-
-## Character history
-
-Characters have a `history` field. When importing a character from a previous session (CharacterAssembly), an AI-generated one-sentence summary of their past adventures is stored in `history`. This is passed to the AI DM as context for each turn.
-
-## Testing
-
-Run from root:
-```bash
-npm run test              # runs backend + frontend tests
-npm run test:backend      # vitest run in backend/
-npm run test:frontend     # vitest run in frontend/
-```
-
-**Frontend** (`frontend/src/**/*.test.ts(x)`): vitest + @testing-library/react + jsdom. Setup file at `frontend/src/test/setup.ts`. Use `describe/it/expect` from vitest. Component tests use `render/screen/fireEvent` from `@testing-library/react`. Pure lib utilities (e.g. `lib/sessionRoute.ts`) are tested directly without rendering.
-
-**Backend** (`backend/src/**/*.test.ts`): vitest with `pool: 'forks'`. Use `describe/it/expect/beforeAll/afterAll` from vitest. Test files that need env vars set them in `beforeAll` before calling any service methods (config is lazily cached). Integration tests (stateService) use a temp SQLite file created per run and cleaned up in `afterAll`. Tests that need to stub providers (imageService) define minimal mock implementations inline.
+**Backend** (`backend/src/**/*.test.ts`): vitest with `pool: 'forks'`. Set env vars in `beforeAll` before calling any service (config is lazily cached). Integration tests use a temp SQLite file per run, cleaned up in `afterAll`. Stub providers with minimal mock implementations inline.
 
 ## DB migrations
 
-`stateService.ts` runs migrations on every startup via `migrate()`. Add new columns as `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` checks at the bottom of `migrate()`. Never drop columns. Never change existing column types. When adding new migrations or changing game engine types/state shape, be sure to update the seed script (`./backend/src/scripts/seedSessions.ts`).
+`stateService.ts` runs `migrate()` on every startup. Add columns as `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` at the bottom of `migrate()`. Never drop columns or change column types. Update `seedSessions.ts` when adding migrations or changing game engine state shape.
 
 ## Image storage
 
-Controlled by `IMAGE_STORAGE_PROVIDER` env var (`local` or `s3`). The `imageService.ts` talks to the provider interface - never call `fs` directly for images. Session `savingsMode = true` skips image generation entirely.
+Controlled by `IMAGE_STORAGE_PROVIDER` env var (`local` or `s3`). Never call `fs` directly for images - always use `imageService.ts`. `savingsMode = true` skips image generation.
+
+## Character history
+
+Characters have a `history` field. When importing from a previous session (CharacterAssembly), an AI-generated one-sentence summary is stored and passed to the AI DM as context each turn.
 
 ## Base path
 
-- **Dev**: base path is `/` (default). Vite proxy rewrites `/api/*` and `/images/*` to the backend.
-- **AWS production**: base path is `/` (set via `VITE_BASE_PATH=/` in deploy.yml).
-- **Local laptop build** (scripts/re-deploy.sh): uses `/dnd-fam-ftw/` prefix. Set `APP_BASE_PATH=/dnd-fam-ftw/` in the environment config.
+Dev and AWS production both use `/`. Local laptop builds (`scripts/re-deploy.sh`) use `/dnd-fam-ftw/` - set `APP_BASE_PATH=/dnd-fam-ftw/`.
 
 ## Terraform
 
-Infrastructure lives in `terraform/`. See `plan-infra-terraform.md` for the full spec.
-
-Key rule: **`terraform/terraform.tfvars` is gitignored** - it contains all environment-specific values (domains, bucket names, CIDRs). Copy `terraform/terraform.tfvars.example` and fill it in locally.
-
-Outputs from `terraform output` feed directly into app config:
-- `frontend_url` - used as CloudFront origin / `VITE_BASE_PATH`
-- `api_url` - backend domain for Nginx config
-- `image_bucket_url` - value of `S3_IMAGE_PUBLIC_BASE_URL`
-- `cloudfront_distribution_id` - used by CI for cache invalidation
+Infrastructure in `terraform/`. `terraform/terraform.tfvars` is gitignored - copy from `terraform.tfvars.example`. Outputs feed app config: `frontend_url`, `api_url`, `image_bucket_url`, `cloudfront_distribution_id`.
