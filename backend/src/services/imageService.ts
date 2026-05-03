@@ -23,7 +23,7 @@ export class ImageService {
     const genderDesc = char.gender ? `${char.gender} ` : '';
     const nameDesc = char.name ? `, visual personality inspired by the character name "${char.name}" but do not write the name` : '';
     const quirkDesc = char.quirk ? `, subtle visual personality cue: ${char.quirk}` : '';
-    const prompt = `single finished fantasy character portrait of one ${genderDesc}${char.species} ${char.class}${nameDesc}${quirkDesc}, one subject only, one face only, single uninterrupted image, no split screen, no side-by-side panels, no duplicate portrait, detailed face, centered head-and-shoulders composition, plain dark background, vibrant colors, cinematic lighting, painterly storybook art, no interface, no editor controls, no crop guides, no grid lines, no color palettes, no overlays, no text or writing`;
+    const prompt = `single finished fantasy character portrait of one ${genderDesc}${char.species} ${char.class}${nameDesc}${quirkDesc}, one subject only, one face only, single uninterrupted image, no split screen, no side-by-side panels, no duplicate portrait, detailed face, centered head-and-shoulders composition, plain dark background, vibrant colors, cinematic lighting, painterly storybook art, the image itself is the artwork with no surrounding software window, no toolbar, no canvas border, no editor chrome, no UI elements, no text`;
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
     const fileName = `avatar_${sessionId}_${char.name}_${promptHash}.png`;
     const storage = overrideStorageProvider ?? getImageStorageProvider();
