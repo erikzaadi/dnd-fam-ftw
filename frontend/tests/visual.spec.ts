@@ -40,6 +40,8 @@ test('home', async ({ page }) => {
 test('settings', async ({ page }) => {
   await page.goto('/settings');
   await dismissAudioOverlay(page);
+  // Wait for settings to load from API before screenshotting
+  await page.waitForSelector('h2', { state: 'visible' });
   await screenshotViewports(page, 'settings');
 });
 
