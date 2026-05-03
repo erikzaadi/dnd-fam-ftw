@@ -32,9 +32,9 @@ const characterBodySchema = z.object({
 export const createCharacterRouter = () => {
   const router = Router();
 
-  router.get('/characters/all', asyncHandler(async (_req, res) => {
-    const characters = await StateService.listAllCharacters();
-    const sessions = await StateService.listSessions();
+  router.get('/characters/all', asyncHandler(async (req, res) => {
+    const characters = await StateService.listAllCharacters(req.namespaceId);
+    const sessions = await StateService.listSessions(req.namespaceId);
     const sessionMap = new Map(sessions.map(s => [s.id, s.displayName]));
 
     const enhancedCharacters = await Promise.all(characters.map(async (char) => {

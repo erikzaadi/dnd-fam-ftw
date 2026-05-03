@@ -8,9 +8,9 @@ export const characterRepository = {
     return row ? row.sessionId : null;
   },
 
-  async listAllCharacters(): Promise<Character[]> {
+  async listAllCharacters(namespaceId: string): Promise<Character[]> {
     const db = getDb();
-    const rows = db.prepare('SELECT * FROM characters').all() as {
+    const rows = db.prepare('SELECT c.* FROM characters c JOIN sessions s ON c.sessionId = s.id WHERE s.namespace_id = ?').all(namespaceId) as {
       id: string;
       name: string;
       class: string;

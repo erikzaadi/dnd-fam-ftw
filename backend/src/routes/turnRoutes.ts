@@ -24,6 +24,11 @@ export const createTurnRouter = () => {
   const router = Router();
 
   router.get('/session/:id/summary', asyncHandler(async (req, res) => {
+    const sessionNamespace = StateService.getSessionNamespaceId(req.params.id as string);
+    if (!sessionNamespace || sessionNamespace !== req.namespaceId) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
     const session = await StateService.getSession(req.params.id as string);
     if (!session) {
       res.status(404).json({ error: 'Session not found' });
@@ -76,6 +81,11 @@ export const createTurnRouter = () => {
   }));
 
   router.get('/session/:id/history', asyncHandler(async (req, res) => {
+    const sessionNamespace = StateService.getSessionNamespaceId(req.params.id as string);
+    if (!sessionNamespace || sessionNamespace !== req.namespaceId) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
     const history = await StateService.getTurnHistory(req.params.id as string);
     res.json(history);
   }));

@@ -61,8 +61,8 @@ export class StateService {
     return characterRepository.getSessionIdForCharacter(charId);
   }
 
-  public static async listAllCharacters(): Promise<Character[]> {
-    return characterRepository.listAllCharacters();
+  public static async listAllCharacters(namespaceId: string): Promise<Character[]> {
+    return characterRepository.listAllCharacters(namespaceId);
   }
 
   public static async getTurnHistory(id: string): Promise<TurnResult[]> {
