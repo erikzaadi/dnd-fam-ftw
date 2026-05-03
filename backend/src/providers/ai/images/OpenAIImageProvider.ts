@@ -9,9 +9,7 @@ const openai = () => (_openai ??= new OpenAI({
 
 export class OpenAIImageProvider implements ImageProvider {
   async generateImage(input: ImageGenerationInput): Promise<ImageGenerationOutput> {
-    // DALL-E ignores negativePrompt. All anti-UI constraints must live in the positive prompt.
-    // Leading with "pure standalone artwork" is the most reliable signal against screenshot/editor output.
-    const prompt = `Pure standalone fantasy artwork. This is a finished painting - not a screenshot, not a photo being edited, not a software mockup. No application window, no toolbar, no side panel, no menu bar, no canvas UI, no editor chrome, no interface of any kind. No typography, lettering, captions, watermark, page layout, or writing. ${input.prompt}`;
+    const prompt = input.prompt;
 
     const response = await openai().images.generate({
       model: process.env.OPENAI_IMAGE_MODEL ?? 'dall-e-3',

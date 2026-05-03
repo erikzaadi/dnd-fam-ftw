@@ -21,9 +21,7 @@ export class ImageService {
     overrideStorageProvider?: ImageStorageProvider,
   ): Promise<{ url: string; prompt: string; storageKey: string; storageProvider: string }> {
     const genderDesc = char.gender ? `${char.gender} ` : '';
-    const nameDesc = char.name ? `, visual personality inspired by the character name "${char.name}" but do not write the name` : '';
-    const quirkDesc = char.quirk ? `, subtle visual personality cue: ${char.quirk}` : '';
-    const prompt = `traditional oil painting portrait of one ${genderDesc}${char.species} ${char.class}${nameDesc}${quirkDesc}, single subject only, one face, detailed face, centered head-and-shoulders composition, plain dark background, vibrant colors, cinematic lighting, painterly storybook illustration, full bleed artwork filling the entire canvas`;
+    const prompt = `close-up portrait of a ${genderDesc}${char.species.toLowerCase()} ${char.class.toLowerCase()}, fantasy RPG character, dark background, dramatic rim lighting, digital fantasy art`;
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
     const fileName = `avatar_${sessionId}_${char.name}_${promptHash}.png`;
     const storage = overrideStorageProvider ?? getImageStorageProvider();
@@ -76,7 +74,7 @@ export class ImageService {
       console.log(`[ImageService] Generating image for session ${sessionId}: ${prompt}`);
       const imageProvider = overrideImageProvider ?? createImageProvider(useLocalAI);
       const result = await imageProvider.generateImage({
-        prompt,
+        prompt: `fantasy scene illustration, no text, no UI. ${prompt}`,
         negativePrompt: DEFAULT_NEGATIVE_PROMPT,
         width: 1024,
         height: 1024,
@@ -218,7 +216,7 @@ export class ImageService {
       console.log(`[ImageService] Generating session preview for ${session.displayName}`);
       const imageProvider = overrideImageProvider ?? createImageProvider(useLocalAI);
       const result = await imageProvider.generateImage({
-        prompt,
+        prompt: `fantasy scene illustration, no text, no UI. ${prompt}`,
         negativePrompt: DEFAULT_NEGATIVE_PROMPT,
         width: 1024,
         height: 1024,

@@ -113,7 +113,7 @@ export const StoryStage = ({
 
       {/* Previous turn teaser + Chronicle link - fades out when chronicle is open */}
       <div
-        className={`relative z-10 flex items-center justify-between px-6 py-3 gap-4 transition-opacity duration-300 ${chronicleOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        className={`relative z-10 flex items-center justify-between px-6 py-3 gap-4 shrink-0 bg-slate-950/70 backdrop-blur-sm transition-opacity duration-300 ${chronicleOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
         onClick={e => e.stopPropagation()}
       >
         {previousTurn ? (
