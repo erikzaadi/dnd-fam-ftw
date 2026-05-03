@@ -11,7 +11,7 @@ const actionBodySchema = z.object({
   action: z.string(),
   statUsed: z.string(),
   difficulty: z.string().optional(),
-  difficultyValue: z.number().optional(),
+  difficultyValue: z.number().nullish(),
   itemId: z.string().optional(),
   characterId: z.string().optional(),
   ownerCharId: z.string().optional(),

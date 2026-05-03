@@ -10,7 +10,7 @@ export interface TurnActionRequest {
   action: string;
   statUsed: string;
   difficulty?: string;
-  difficultyValue?: number;
+  difficultyValue?: number | null;
   itemId?: string;
   characterId?: string;
   ownerCharId?: string;
@@ -116,7 +116,7 @@ export const executeTurnAction = async (
     action,
     statUsed as Stat | 'none',
     (difficulty || 'normal') as Difficulty,
-    difficultyValue,
+    difficultyValue ?? undefined,
   );
   const nextCharId = GameEngine.getNextActiveCharacter(session.party, actingCharId);
   const aiInput: AIInput = { ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId };
