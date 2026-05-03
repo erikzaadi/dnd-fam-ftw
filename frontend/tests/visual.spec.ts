@@ -43,6 +43,21 @@ test('settings', async ({ page }) => {
   await screenshotViewports(page, 'settings');
 });
 
+test('session banner hidden', async ({ page, request }) => {
+  test.setTimeout(60_000);
+  const res = await request.get('/api/sessions');
+  const sessions = await res.json() as { id: string; displayName: string; gameOver?: boolean }[];
+  const session = sessions.find(s => !s.gameOver);
+  if (!session) {
+    test.skip();
+    return;
+  }
+  await page.goto(`/session/${session.id}`);
+  await dismissAudioOverlay(page);
+  await page.getByRole('button', { name: 'Hide banner' }).click();
+  await screenshotViewports(page, 'session-banner-hidden');
+});
+
 test('seeded sessions', async ({ page, request }) => {
   test.setTimeout(120_000);
   const res = await request.get('/api/sessions');

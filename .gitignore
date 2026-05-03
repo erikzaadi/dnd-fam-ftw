@@ -26,3 +26,4 @@ frontend/screenshots/
 frontend/tests/__snapshots__/
 frontend/playwright-report/
 .playwright-cli/
+frontend/test-results/*
