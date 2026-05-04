@@ -1,0 +1,40 @@
+name: Setup Playwright
+description: Set up Node dependencies and install Playwright browsers
+
+inputs:
+  node-version:
+    required: false
+    default: '24'
+    description: Node.js version to install
+  install-command:
+    required: true
+    description: Dependency install command to run before installing browsers
+  install-working-directory:
+    required: false
+    default: .
+    description: Working directory for the dependency install command
+  playwright-working-directory:
+    required: false
+    default: frontend
+    description: Working directory for the Playwright browser install command
+  browsers:
+    required: false
+    default: chromium
+    description: Playwright browser list to install
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v5
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ inputs.install-working-directory }}
+      run: ${{ inputs.install-command }}
+
+    - name: Install Playwright browsers
+      shell: bash
+      working-directory: ${{ inputs.playwright-working-directory }}
+      run: npx playwright install --with-deps ${{ inputs.browsers }}
