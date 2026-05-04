@@ -27,3 +27,4 @@ frontend/tests/__snapshots__/
 frontend/playwright-report/
 .playwright-cli/
 frontend/test-results/*
+frontend/test-results/.last-run.json

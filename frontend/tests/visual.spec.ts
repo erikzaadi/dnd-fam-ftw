@@ -21,6 +21,17 @@ async function dismissAudioOverlay(page: Page): Promise<void> {
   }
 }
 
+async function waitForSessionReady(page: Page): Promise<void> {
+  // Wait for the "Painting the scene..." badge to disappear before screenshotting.
+  // Seeded turns have no imageUrl, so imageLoading starts true and resolves once
+  // the backend finishes (or fails) generating the scene image.
+  try {
+    await page.getByText('Painting the scene...').waitFor({ state: 'hidden', timeout: 30_000 });
+  } catch {
+    // not present or already gone
+  }
+}
+
 async function screenshotViewports(page: Page, slug: string): Promise<void> {
   for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
@@ -56,6 +67,7 @@ test('session banner hidden', async ({ page, request }) => {
   }
   await page.goto(`/session/${session.id}`);
   await dismissAudioOverlay(page);
+  await waitForSessionReady(page);
   await page.getByRole('button', { name: 'Hide banner' }).click();
   await screenshotViewports(page, 'session-banner-hidden');
 });
@@ -79,6 +91,7 @@ test('session narration fullscreen', async ({ page, request }) => {
 
   await page.goto(`/session/${session.id}`);
   await dismissAudioOverlay(page);
+  await waitForSessionReady(page);
   await page.getByRole('button', { name: 'Hide banner' }).click();
 
   // Click the narration card to open the fullscreen popup
@@ -126,6 +139,7 @@ test('session chronicle open and second turn', async ({ page, request }) => {
 
   await page.goto(`/session/${session.id}`);
   await dismissAudioOverlay(page);
+  await waitForSessionReady(page);
 
   // Verify party count and names via avatar alt text in the HUD
   for (const member of fullSession.party) {
@@ -183,6 +197,7 @@ test('session inventory panel', async ({ page, request }) => {
 
   await page.goto(`/session/${sessionId}`);
   await dismissAudioOverlay(page);
+  await waitForSessionReady(page);
 
   // Verify party count and names via avatar alt text in the HUD
   for (const name of partyMembers) {
@@ -220,6 +235,7 @@ test('seeded sessions', async ({ page, request }) => {
       .replace(/^-+|-+$/g, '');
     await page.goto(`/session/${session.id}`);
     await dismissAudioOverlay(page);
+    await waitForSessionReady(page);
 
     // Game-over sessions show a "Campaign Over" screen without the narration text
     if (lastNarration && !session.gameOver) {
