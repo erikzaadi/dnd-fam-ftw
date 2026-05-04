@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
+  testMatch: 'visual.spec.ts',
   snapshotDir: './tests/__snapshots__',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,

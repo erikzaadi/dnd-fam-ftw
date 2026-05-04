@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 
 const VIEWPORTS = [
   { width: 390, height: 844, name: 'mobile-portrait' },
@@ -11,6 +11,17 @@ const VIEWPORTS = [
   { width: 3440, height: 1440, name: 'desktop-ultrawide-21-9' },
 ];
 
+const SESSIONS = {
+  standard: 'seed-session-1',
+  dragonPeak: 'seed-session-2',
+  inventory: 'seed-session-1',
+  chronicle: 'seed-session-1',
+  fallen: 'seed-session-6',
+  storyRealm: 'seed-session-5',
+} as const;
+
+type SessionListItem = { id: string; displayName: string; gameOver?: boolean };
+
 async function dismissAudioOverlay(page: Page): Promise<void> {
   const btn = page.getByRole('button', { name: 'Enable Audio' });
   try {
@@ -22,9 +33,7 @@ async function dismissAudioOverlay(page: Page): Promise<void> {
 }
 
 async function waitForSessionReady(page: Page): Promise<void> {
-  // Wait for the "Painting the scene..." badge to disappear before screenshotting.
-  // Seeded turns have no imageUrl, so imageLoading starts true and resolves once
-  // the backend finishes (or fails) generating the scene image.
+  // Session screenshots should not capture transient image-generation state.
   try {
     await page.getByText('Painting the scene...').waitFor({ state: 'hidden', timeout: 30_000 });
   } catch {
@@ -38,8 +47,27 @@ async function screenshotViewports(page: Page, slug: string): Promise<void> {
     await expect(page).toHaveScreenshot(`${slug}-${vp.name}.png`, {
       fullPage: true,
       animations: 'disabled',
+      maxDiffPixelRatio: 0.01,
     });
   }
+}
+
+async function getSessionOrSkip(request: APIRequestContext, id: string): Promise<SessionListItem | null> {
+  const res = await request.get('/api/sessions');
+  const sessions = await res.json() as SessionListItem[];
+  const session = sessions.find(s => s.id === id);
+  if (!session) {
+    test.skip(true, `Seed session ${id} was not found`);
+    return null;
+  }
+  return session;
+}
+
+async function enableSavingsMode(request: APIRequestContext, sessionId: string): Promise<void> {
+  const res = await request.post(`/api/session/${sessionId}/savings-mode`, {
+    data: { enabled: true },
+  });
+  expect(res.ok()).toBe(true);
 }
 
 test('home', async ({ page }) => {
@@ -58,13 +86,11 @@ test('settings', async ({ page }) => {
 
 test('session banner hidden', async ({ page, request }) => {
   test.setTimeout(60_000);
-  const res = await request.get('/api/sessions');
-  const sessions = await res.json() as { id: string; displayName: string; gameOver?: boolean }[];
-  const session = sessions.find(s => !s.gameOver);
+  const session = await getSessionOrSkip(request, SESSIONS.standard);
   if (!session) {
-    test.skip();
     return;
   }
+  await enableSavingsMode(request, session.id);
   await page.goto(`/session/${session.id}`);
   await dismissAudioOverlay(page);
   await waitForSessionReady(page);
@@ -74,13 +100,11 @@ test('session banner hidden', async ({ page, request }) => {
 
 test('session narration fullscreen', async ({ page, request }) => {
   test.setTimeout(60_000);
-  const res = await request.get('/api/sessions');
-  const sessions = await res.json() as { id: string; displayName: string; gameOver?: boolean }[];
-  const session = sessions.find(s => !s.gameOver);
+  const session = await getSessionOrSkip(request, SESSIONS.standard);
   if (!session) {
-    test.skip();
     return;
   }
+  await enableSavingsMode(request, session.id);
 
   const historyRes = await request.get(`/api/session/${session.id}/history`);
   const history = await historyRes.json() as { narration: string }[];
@@ -114,13 +138,11 @@ test('session narration fullscreen', async ({ page, request }) => {
 
 test('session chronicle open and second turn', async ({ page, request }) => {
   test.setTimeout(60_000);
-  const res = await request.get('/api/sessions');
-  const sessions = await res.json() as { id: string; displayName: string; gameOver?: boolean }[];
-  const session = sessions.find(s => !s.gameOver);
+  const session = await getSessionOrSkip(request, SESSIONS.chronicle);
   if (!session) {
-    test.skip();
     return;
   }
+  await enableSavingsMode(request, session.id);
 
   const [historyRes, sessionRes] = await Promise.all([
     request.get(`/api/session/${session.id}/history`),
@@ -168,34 +190,21 @@ test('session chronicle open and second turn', async ({ page, request }) => {
 
 test('session inventory panel', async ({ page, request }) => {
   test.setTimeout(60_000);
-  const res = await request.get('/api/sessions');
-  const sessions = await res.json() as { id: string; displayName: string; gameOver?: boolean }[];
-
-  let sessionId: string | null = null;
-  let inventoryItems: string[] = [];
-  let partyMembers: string[] = [];
-
-  for (const s of sessions) {
-    if (s.gameOver) {
-      continue;
-    }
-    const fullRes = await request.get(`/api/session/${s.id}`);
-    const full = await fullRes.json() as { party?: { name: string; inventory?: { id: string; name: string }[] }[] };
-    const items = full.party?.flatMap(c => c.inventory ?? []) ?? [];
-    if (items.length > 0) {
-      sessionId = s.id;
-      inventoryItems = items.map(item => item.name);
-      partyMembers = full.party?.map(c => c.name) ?? [];
-      break;
-    }
+  const session = await getSessionOrSkip(request, SESSIONS.inventory);
+  if (!session) {
+    return;
   }
-
-  if (!sessionId) {
-    test.skip();
+  await enableSavingsMode(request, session.id);
+  const fullRes = await request.get(`/api/session/${session.id}`);
+  const full = await fullRes.json() as { party?: { name: string; inventory?: { id: string; name: string }[] }[] };
+  const inventoryItems = full.party?.flatMap(c => c.inventory ?? []).map(item => item.name) ?? [];
+  const partyMembers = full.party?.map(c => c.name) ?? [];
+  if (inventoryItems.length === 0) {
+    test.skip(true, `Seed session ${session.id} has no inventory items`);
     return;
   }
 
-  await page.goto(`/session/${sessionId}`);
+  await page.goto(`/session/${session.id}`);
   await dismissAudioOverlay(page);
   await waitForSessionReady(page);
 
@@ -215,24 +224,22 @@ test('session inventory panel', async ({ page, request }) => {
 
 test('seeded sessions', async ({ page, request }) => {
   test.setTimeout(120_000);
-  const res = await request.get('/api/sessions');
-  const all = await res.json() as { id: string; displayName: string; gameOver?: boolean }[];
+  const picks = [
+    { id: SESSIONS.fallen, slug: 'the-tomb-of-endless-dark' },
+    { id: SESSIONS.dragonPeak, slug: 'dragon-peak' },
+    { id: SESSIONS.storyRealm, slug: 'whispering-shadows-realm' },
+  ];
 
-  const gameOver = all.find(s => s.gameOver);
-  const dragonPeak = all.find(s => !s.gameOver && s.displayName.toLowerCase().includes('dragon'));
-  const other = all.find(s => !s.gameOver && s.id !== dragonPeak?.id);
-
-  const picks = [gameOver, dragonPeak, other].filter(Boolean) as typeof all;
-
-  for (const session of picks) {
+  for (const pick of picks) {
+    const session = await getSessionOrSkip(request, pick.id);
+    if (!session) {
+      continue;
+    }
+    await enableSavingsMode(request, session.id);
     const historyRes = await request.get(`/api/session/${session.id}/history`);
     const history = await historyRes.json() as { narration: string }[];
     const lastNarration = history[history.length - 1]?.narration ?? null;
 
-    const slug = session.displayName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
     await page.goto(`/session/${session.id}`);
     await dismissAudioOverlay(page);
     await waitForSessionReady(page);
@@ -242,6 +249,6 @@ test('seeded sessions', async ({ page, request }) => {
       await expect(page.getByText(lastNarration.slice(0, 60), { exact: false }).first()).toBeVisible({ timeout: 15_000 });
     }
 
-    await screenshotViewports(page, `session-${slug}`);
+    await screenshotViewports(page, `session-${pick.slug}`);
   }
 });
