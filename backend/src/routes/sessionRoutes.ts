@@ -27,6 +27,12 @@ const patchSessionBodySchema = z.object({
   worldDescription: z.string().optional(),
 });
 
+const regenerateDmPrepBodySchema = z.object({
+  difficulty: z.string().optional(),
+  gameMode: z.string().optional(),
+  worldDescription: z.string().optional(),
+}).optional();
+
 export const createSessionRouter = () => {
   const router = Router();
 
@@ -156,7 +162,14 @@ export const createSessionRouter = () => {
       res.status(404).json({ error: 'Session not found' });
       return;
     }
-    const brief = await StorySummaryService.generateCampaignBrief(session.id, session.worldDescription, session.useLocalAI, session.displayName, session.difficulty, session.gameMode);
+    const body = parseBody(req, res, regenerateDmPrepBodySchema);
+    if (body === undefined && req.body !== undefined && Object.keys(req.body as Record<string, unknown>).length > 0) {
+      return;
+    }
+    const worldDescription = body?.worldDescription !== undefined ? (body.worldDescription || undefined) : session.worldDescription;
+    const difficulty = body?.difficulty ?? session.difficulty;
+    const gameMode = body?.gameMode ?? session.gameMode;
+    const brief = await StorySummaryService.generateCampaignBrief(session.id, worldDescription, session.useLocalAI, session.displayName, difficulty, gameMode);
     if (!brief) {
       res.status(500).json({ error: 'Failed to generate campaign brief' });
       return;

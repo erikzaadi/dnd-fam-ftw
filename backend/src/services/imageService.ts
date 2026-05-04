@@ -30,10 +30,18 @@ export type SceneImageContext = {
 const IMAGE_COMPOSITION_GUARDRAIL = [
   'Finished standalone fantasy illustration.',
   'Single edge-to-edge image filling the square canvas.',
+  'Continuous painted scene only, not a book page, parchment sheet, manuscript, title card, poster, trading card, gallery mat, or framed illustration.',
+  'One shared camera view with every figure occupying the same physical environment.',
   'Only the described characters, creatures, props, and environment are visible.',
   'Blank unmarked surfaces; no readable symbols or markings.',
-  'No captions, lettering, logos, borders, mats, picture frames, panels, split views, menus, toolbars, editor controls, crop handles, selection boxes, rulers, guides, or software interface elements.',
+  'No captions, lettering, logos, borders, mats, picture frames, panels, split views, grids, contact sheets, character sheets, portrait cards, labels under figures, header bands, footer bands, blank margins, menus, toolbars, editor controls, crop handles, selection boxes, rulers, guides, or software interface elements.',
 ].join(' ');
+
+export const IMAGE_PROMPT_STYLE = {
+  avatar: 'Digital fantasy art, painterly detail, centered portrait composition.',
+  scene: 'Fantasy scene illustration, detailed fantasy art, cinematic lighting, vibrant colors.',
+  preview: 'Painterly fantasy adventure art, cinematic lighting, vibrant colors, full-bleed landscape composition with no margins.',
+} as const;
 
 function sanitizeVisualPrompt(prompt: string): string {
   return prompt
@@ -47,7 +55,7 @@ function sanitizeVisualPrompt(prompt: string): string {
     .replace(/\b(picture\s+frames?|photo\s+frames?|borders?|mats?|caption\s+bands?|page\s+layout|poster\s+layout|split\s+views?|collage|diptych|triptych)\b/gi, 'edge-to-edge scene composition');
 }
 
-function buildImagePrompt(subject: string, style: string): string {
+export function buildImagePrompt(subject: string, style: string): string {
   return `${IMAGE_COMPOSITION_GUARDRAIL} ${sanitizeVisualPrompt(subject).trim()} ${style}`;
 }
 
@@ -66,7 +74,7 @@ export class ImageService {
     const quirkPart = visualQuirk ? ` The portrait includes ${visualQuirk}.` : '';
     const prompt = buildImagePrompt(
       `Close-up portrait of a ${genderDesc}${char.species.toLowerCase()} ${char.class.toLowerCase()} fantasy RPG character on a dark atmospheric background with dramatic rim lighting.${quirkPart}`,
-      'Digital fantasy art, painterly detail, centered portrait composition.',
+      IMAGE_PROMPT_STYLE.avatar,
     );
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
     const fileName = `avatar_${sessionId}_${char.name}_${promptHash}.png`;
@@ -256,8 +264,8 @@ export class ImageService {
     const moodHint = this.getSessionPreviewMood(session.difficulty, session.gameMode);
     const moodPart = moodHint ? ` Overall atmosphere: ${moodHint}.` : '';
     const prompt = buildImagePrompt(
-      `Realm preview landscape.${worldPart} Adventuring party: ${heroList}.${villainHint}${moodPart} Wide establishing shot with detailed scenery and characters integrated naturally into the environment.`,
-      'Painterly fantasy adventure art, cinematic lighting, vibrant colors, full-bleed landscape composition.',
+      `Fantasy realm establishing scene.${worldPart} Several adventurers stand together in the same location as a single group: ${heroList}.${villainHint}${moodPart} Wide establishing shot with detailed scenery and characters integrated naturally into one continuous environment.`,
+      `${IMAGE_PROMPT_STYLE.preview} Single unified group scene, not separate portraits.`,
     );
 
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
@@ -301,7 +309,7 @@ export class ImageService {
     const contextPart = sceneContext ? ` Visual continuity: ${sceneContext}.` : '';
     return buildImagePrompt(
       `${prompt}${contextPart}`,
-      'Fantasy scene illustration, detailed fantasy art, cinematic lighting, vibrant colors.',
+      IMAGE_PROMPT_STYLE.scene,
     );
   }
 

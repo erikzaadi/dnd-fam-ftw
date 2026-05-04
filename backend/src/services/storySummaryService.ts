@@ -99,9 +99,9 @@ DM NOTE: (one pacing rule and one fail-forward rule for this campaign)
 
 Be specific: invent names, places, visual details, clues, and recurring motifs. This guides the AI Dungeon Master turn by turn. Keep it playful, adventurous, and safe for a family table.`;
 
-      const brief = await this.callSummarize(prompt, useLocalAI);
+      const brief = await this.callSummarize(prompt, useLocalAI, 900, 90_000, `campaign brief session=${sessionId}`);
       if (brief) {
-        const imageBrief = await this.generateDmPrepImageBrief(brief, useLocalAI);
+        const imageBrief = await this.generateDmPrepImageBrief(brief, useLocalAI, sessionId);
         await StateService.patchSession(sessionId, { dmPrep: brief, dmPrepImageBrief: imageBrief });
         console.log(`[Campaign] Brief generated for session ${sessionId}`);
         return brief;
@@ -113,7 +113,7 @@ Be specific: invent names, places, visual details, clues, and recurring motifs. 
     }
   }
 
-  static async generateDmPrepImageBrief(dmPrep: string | undefined | null, useLocalAI: boolean): Promise<string | null> {
+  static async generateDmPrepImageBrief(dmPrep: string | undefined | null, useLocalAI: boolean, sessionId?: string): Promise<string | null> {
     if (!dmPrep?.trim()) {
       return null;
     }
@@ -135,7 +135,8 @@ Return one compact comma-separated phrase, max 45 words.
 DM PREP:
 ${dmPrep}`;
 
-      const brief = await this.callSummarize(prompt, useLocalAI, 120, 12_000);
+      const label = sessionId ? `DM prep image brief session=${sessionId}` : 'DM prep image brief';
+      const brief = await this.callSummarize(prompt, useLocalAI, 120, 12_000, label);
       return brief || null;
     } catch (err) {
       console.warn('[Campaign] DM prep image brief generation failed:', err);
@@ -143,15 +144,23 @@ ${dmPrep}`;
     }
   }
 
-  private static async callSummarize(prompt: string, useLocalAI: boolean, maxTokens = 900, timeoutMs = 20_000): Promise<string> {
+  private static async callSummarize(prompt: string, useLocalAI: boolean, maxTokens = 900, timeoutMs = 20_000, label = 'summary'): Promise<string> {
     const { client, model } = createChatClient(useLocalAI);
-    const response = await client.chat.completions.create({
-      model,
-      messages: [{ role: 'user', content: `/no_think ${prompt}` }],
-      max_tokens: maxTokens,
-    }, { signal: AbortSignal.timeout(timeoutMs) });
-    const msg = response.choices[0].message;
-    const raw = msg.content || (msg as unknown as Record<string, string>)['reasoning_content'] || '';
-    return raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+    const start = Date.now();
+    console.log(`[Summary] Starting ${label} model=${model} maxTokens=${maxTokens} timeoutMs=${timeoutMs}`);
+    try {
+      const response = await client.chat.completions.create({
+        model,
+        messages: [{ role: 'user', content: `/no_think ${prompt}` }],
+        max_tokens: maxTokens,
+      }, { signal: AbortSignal.timeout(timeoutMs) });
+      console.log(`[Summary] Finished ${label} in ${Date.now() - start}ms`);
+      const msg = response.choices[0].message;
+      const raw = msg.content || (msg as unknown as Record<string, string>)['reasoning_content'] || '';
+      return raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+    } catch (err) {
+      console.warn(`[Summary] Failed ${label} after ${Date.now() - start}ms`, err);
+      throw err;
+    }
   }
 }

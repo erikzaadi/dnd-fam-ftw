@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { ImageService } from './imageService.js';
+import { buildImagePrompt, ImageService, IMAGE_PROMPT_STYLE } from './imageService.js';
 import type { ImageProvider } from '../providers/ai/images/ImageProvider.js';
 import type { ImageStorageProvider, StoredImage } from '../providers/storage/ImageStorageProvider.js';
 
@@ -68,7 +68,7 @@ describe('ImageService.generateImage', () => {
   it('cache hit: skips provider and returns cached URL', async () => {
     const provider = makeMockImageProvider();
     const prompt = 'A dragon attacks';
-    const finalPrompt = 'Finished standalone fantasy illustration. Single edge-to-edge image filling the square canvas. Only the described characters, creatures, props, and environment are visible. Blank unmarked surfaces; no readable symbols or markings. No captions, lettering, logos, borders, mats, picture frames, panels, split views, menus, toolbars, editor controls, crop handles, selection boxes, rulers, guides, or software interface elements. A dragon attacks Fantasy scene illustration, detailed fantasy art, cinematic lighting, vibrant colors.';
+    const finalPrompt = buildImagePrompt(prompt, IMAGE_PROMPT_STYLE.scene);
     const hash = crypto.createHash('md5').update(finalPrompt).digest('hex');
     const cachedKey = `sess-cached_turn1_${hash}.png`;
     const storage = makeMockStorage(new Set([cachedKey]));
@@ -145,7 +145,10 @@ describe('ImageService.generateAvatar', () => {
   it('cache hit: skips provider', async () => {
     const provider = makeMockImageProvider();
     const char = { name: 'Pip', class: 'Rogue', species: 'Halfling', quirk: 'Talks to plants' };
-    const prompt = `Finished standalone fantasy illustration. Single edge-to-edge image filling the square canvas. Only the described characters, creatures, props, and environment are visible. Blank unmarked surfaces; no readable symbols or markings. No captions, lettering, logos, borders, mats, picture frames, panels, split views, menus, toolbars, editor controls, crop handles, selection boxes, rulers, guides, or software interface elements. Close-up portrait of a ${char.species.toLowerCase()} ${char.class.toLowerCase()} fantasy RPG character on a dark atmospheric background with dramatic rim lighting. The portrait includes expressive theatrical posture. Digital fantasy art, painterly detail, centered portrait composition.`;
+    const prompt = buildImagePrompt(
+      `Close-up portrait of a ${char.species.toLowerCase()} ${char.class.toLowerCase()} fantasy RPG character on a dark atmospheric background with dramatic rim lighting. The portrait includes expressive theatrical posture.`,
+      IMAGE_PROMPT_STYLE.avatar,
+    );
     const hash = crypto.createHash('md5').update(prompt).digest('hex');
     const cachedKey = `avatar_sess-avatar-cached_${char.name}_${hash}.png`;
     const storage = makeMockStorage(new Set([cachedKey]));

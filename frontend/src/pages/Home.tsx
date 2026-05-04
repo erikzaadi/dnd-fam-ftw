@@ -62,7 +62,15 @@ const EditSessionModal = ({
   const regenerateDmPrep = async () => {
     setRegenerating(true);
     try {
-      const res = await apiFetch(`/session/${sessionId}/regenerate-dm-prep`, { method: 'POST' });
+      const res = await apiFetch(`/session/${sessionId}/regenerate-dm-prep`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          difficulty,
+          gameMode,
+          worldDescription: worldDescription || undefined,
+        }),
+      });
       if (res.ok) {
         const data = await res.json() as { dmPrep: string };
         setDmPrep(data.dmPrep);
