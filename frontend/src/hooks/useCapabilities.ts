@@ -1,11 +1,8 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../lib/api';
+import type { Capabilities } from '../types';
 
-export interface Capabilities {
-  hasLocalAI: boolean;
-  hasCloudAI: boolean;
-  hasTts: boolean;
-}
+export type { Capabilities };
 
 const DEFAULT_CAPABILITIES: Capabilities = {
   hasLocalAI: false,

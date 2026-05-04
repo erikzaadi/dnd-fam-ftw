@@ -1,9 +1,7 @@
 import Database from 'libsql';
+import type { AppSettings } from '../types.js';
 
-export interface AppSettings {
-  imagesEnabled: boolean;
-  defaultUseLocalAI: boolean;
-}
+export type { AppSettings };
 
 const DEFAULTS: AppSettings = {
   imagesEnabled: true,

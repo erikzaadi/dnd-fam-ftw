@@ -5,7 +5,7 @@ AI-powered family D&D game. Stack: React 19 + Vite frontend, Node/Express backen
 ## Dev setup
 
 ```bash
-npm run install:all   # install both workspaces
+npm run install:all   # install shared, backend, and frontend
 npm run dev           # backend :3001 + frontend :5173
 ```
 
@@ -29,6 +29,9 @@ Targeted variants: `npm run lint:backend`, `npm run lint:frontend`, `npm run lin
 ## Project layout
 
 ```
+packages/shared/src/
+  types.ts                         # Canonical types shared by backend and frontend - add shared types here
+
 backend/src/
   index.ts                         # Express routes + SSE
   config/env.ts                    # All env var parsing - add new vars here
@@ -70,7 +73,8 @@ terraform/                         # AWS infrastructure
 - **No em dashes** - use a hyphen or colon instead
 - **All `if` statements must have braces** on a new line (ESLint `curly` rule)
 - **Tooltips**: always use `frontend/src/components/Tooltip.tsx`. Reference pattern: `frontend/src/components/game/ActionDock.tsx`. Use `portal` tooltips inside overflow/scroll containers. Never use the native `title` attribute.
-- TypeScript strict mode on in both workspaces.
+- TypeScript strict mode on in all three packages (backend, frontend, packages/shared).
+- **Shared types**: types that cross the API boundary belong in `packages/shared/src/types.ts`. Both `backend/src/types.ts` and `frontend/src/types/index.ts` re-export from there - existing imports in components and services need no changes.
 
 ## Auth
 

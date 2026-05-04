@@ -18,4 +18,4 @@ export type {
   Session,
   AppSettings,
   Capabilities,
-} from '@dnd-fam-ftw/shared';
+} from './types.js';

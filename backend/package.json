@@ -19,6 +19,7 @@
   "type": "module",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1032.0",
+    "@dnd-fam-ftw/shared": "file:../packages/shared",
     "axios": "^1.14.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
