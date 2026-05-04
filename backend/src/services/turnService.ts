@@ -90,8 +90,8 @@ export const executeTurnAction = async (
     await StateService.updateSession(sessionId, newState);
     turnResult.lastAction = itemAttempt;
     turnResult.characterId = actingCharId;
-    turnResult.hpChanges = computeHpChanges(itemState.party, newState.party);
-    turnResult.inventoryChanges = computeInventoryChanges(itemState.party, newState.party);
+    turnResult.hpChanges = computeHpChanges(session.party, newState.party);
+    turnResult.inventoryChanges = computeInventoryChanges(session.party, newState.party);
     turnResult.id = await StateService.addTurnResult(sessionId, turnResult, actingCharId);
     broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
     broadcastSessionChanged(namespaceId, sessionId, 'updated');
