@@ -41,7 +41,8 @@ jobs:
             packages:
               - 'packages/**'
 
-  test-backend:
+  test-backend-unit:
+    name: Test Backend Unit
     needs: changes
     if: >-
       needs.changes.outputs.backend == 'true' ||
@@ -62,6 +63,7 @@ jobs:
         run: cd backend && npm test
 
   test-backend-integration:
+    name: Test Backend Integration
     needs: changes
     if: >-
       needs.changes.outputs.backend == 'true' ||
@@ -82,6 +84,7 @@ jobs:
         run: cd backend && npm run test:integration
 
   test-frontend:
+    name: Test Frontend Unit
     needs: changes
     if: >-
       needs.changes.outputs.frontend == 'true' ||
@@ -102,6 +105,7 @@ jobs:
         run: cd frontend && npm test
 
   test-e2e:
+    name: Test E2E
     needs: changes
     if: needs.changes.outputs.e2e == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -119,14 +123,14 @@ jobs:
 
   notify:
     needs:
-      - test-backend
+      - test-backend-unit
       - test-backend-integration
       - test-frontend
       - test-e2e
     if: >-
       always() &&
       (
-        needs.test-backend.result != 'skipped' ||
+        needs.test-backend-unit.result != 'skipped' ||
         needs.test-backend-integration.result != 'skipped' ||
         needs.test-frontend.result != 'skipped' ||
         needs.test-e2e.result != 'skipped'
