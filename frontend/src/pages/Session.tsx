@@ -647,7 +647,7 @@ export const SessionPage = () => {
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in p-4"
           onClick={() => setShowFullInventory(false)}
         >
-          <div onClick={e => e.stopPropagation()} className="bg-slate-900 border border-slate-700 rounded-[40px] p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto shadow-2xl">
+          <div onClick={e => e.stopPropagation()} className="bg-slate-900 border border-slate-700 rounded-[40px] p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto shadow-2xl">
             <Inventory
               party={session.party}
               activeCharacterId={session.activeCharacterId}

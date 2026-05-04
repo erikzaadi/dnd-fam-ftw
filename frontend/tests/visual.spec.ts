@@ -15,9 +15,24 @@ const SESSIONS = {
   standard: 'seed-session-1',
   dragonPeak: 'seed-session-2',
   inventory: 'seed-session-1',
+  characterPopup: 'seed-session-3',
   chronicle: 'seed-session-1',
   fallen: 'seed-session-6',
   storyRealm: 'seed-session-5',
+} as const;
+
+const SEEDED_PARTY = {
+  [SESSIONS.standard]: ['Barnabas Strongarm', 'Zara the Nimble', 'Eldwin Spark', 'Mira the Bold'],
+  [SESSIONS.characterPopup]: ['Pipwick', 'Thalia Stone', 'Brother Oswin', 'Mirela Voss'],
+} as const;
+
+const SEEDED_INVENTORY = {
+  [SESSIONS.inventory]: ['🧪 Healing Potion', '🔮 Arcane Focus', '🪓 Battle Axe +1'],
+} as const;
+
+const CHARACTER_POPUP_TARGET = {
+  sessionId: SESSIONS.characterPopup,
+  characterName: 'Pipwick',
 } as const;
 
 type SessionListItem = { id: string; displayName: string; gameOver?: boolean };
@@ -95,6 +110,8 @@ test('session banner hidden', async ({ page, request }) => {
   await dismissAudioOverlay(page);
   await waitForSessionReady(page);
   await page.getByRole('button', { name: 'Hide banner' }).click();
+  await expect(page.getByRole('button', { name: 'Show banner' })).toBeVisible();
+  await expect(page.getByText(session.displayName)).not.toBeVisible();
   await screenshotViewports(page, 'session-banner-hidden');
 });
 
@@ -133,6 +150,7 @@ test('session narration fullscreen', async ({ page, request }) => {
   // Dismiss by pressing Escape
   await page.keyboard.press('Escape');
   await expect(page.locator('p.italic.text-center').first()).toBeVisible();
+  await expect(fullscreenOverlay).not.toBeVisible();
   await screenshotViewports(page, 'session-narration-fullscreen-closed');
 });
 
@@ -144,12 +162,8 @@ test('session chronicle open and second turn', async ({ page, request }) => {
   }
   await enableSavingsMode(request, session.id);
 
-  const [historyRes, sessionRes] = await Promise.all([
-    request.get(`/api/session/${session.id}/history`),
-    request.get(`/api/session/${session.id}`),
-  ]);
+  const historyRes = await request.get(`/api/session/${session.id}/history`);
   const history = await historyRes.json() as { narration: string }[];
-  const fullSession = await sessionRes.json() as { party: { name: string }[] };
 
   if (history.length < 2) {
     test.skip();
@@ -164,8 +178,8 @@ test('session chronicle open and second turn', async ({ page, request }) => {
   await waitForSessionReady(page);
 
   // Verify party count and names via avatar alt text in the HUD
-  for (const member of fullSession.party) {
-    await expect(page.getByAltText(member.name).first()).toBeVisible();
+  for (const name of SEEDED_PARTY[SESSIONS.chronicle]) {
+    await expect(page.getByAltText(name).first()).toBeVisible();
   }
 
   const chronicleLink = page.getByRole('button', { name: /Open Chronicle/i });
@@ -174,6 +188,7 @@ test('session chronicle open and second turn', async ({ page, request }) => {
   await chronicleLink.click();
 
   await expect(page.getByRole('heading', { name: 'Chronicle' })).toBeVisible();
+  await expect(page.getByText('Choose an Action')).not.toBeVisible();
 
   // Turn buttons contain an italic narration snippet paragraph
   const turnButtons = page.locator('button').filter({ has: page.locator('p.italic') });
@@ -195,10 +210,8 @@ test('session inventory panel', async ({ page, request }) => {
     return;
   }
   await enableSavingsMode(request, session.id);
-  const fullRes = await request.get(`/api/session/${session.id}`);
-  const full = await fullRes.json() as { party?: { name: string; inventory?: { id: string; name: string }[] }[] };
-  const inventoryItems = full.party?.flatMap(c => c.inventory ?? []).map(item => item.name) ?? [];
-  const partyMembers = full.party?.map(c => c.name) ?? [];
+  const inventoryItems = SEEDED_INVENTORY[SESSIONS.inventory];
+  const partyMembers = SEEDED_PARTY[SESSIONS.inventory];
   if (inventoryItems.length === 0) {
     test.skip(true, `Seed session ${session.id} has no inventory items`);
     return;
@@ -214,12 +227,46 @@ test('session inventory panel', async ({ page, request }) => {
   }
 
   await page.getByRole('button', { name: 'Show party gear' }).click();
+  await expect(page.getByRole('heading', { name: /Treasure & Gear/i })).toBeVisible();
 
   for (const itemName of inventoryItems) {
     await expect(page.getByText(itemName)).toBeVisible();
   }
+  await expect(page.getByText(/0\s*·transferable/i)).not.toBeVisible();
 
   await screenshotViewports(page, 'session-inventory');
+});
+
+test('session character popup', async ({ page, request }) => {
+  test.setTimeout(60_000);
+  const session = await getSessionOrSkip(request, CHARACTER_POPUP_TARGET.sessionId);
+  if (!session) {
+    return;
+  }
+  await enableSavingsMode(request, session.id);
+
+  await page.goto(`/session/${session.id}`);
+  await dismissAudioOverlay(page);
+  await waitForSessionReady(page);
+
+  await page.getByAltText(CHARACTER_POPUP_TARGET.characterName).first().click();
+  const popup = page.locator('div.bg-slate-900').filter({ has: page.getByRole('heading', { name: CHARACTER_POPUP_TARGET.characterName }) }).first();
+  await expect(popup.getByRole('heading', { name: CHARACTER_POPUP_TARGET.characterName })).toBeVisible();
+  await expect(popup.getByText('Gnome · Bard')).toBeVisible();
+  await expect(popup.getByText('"Turns every conversation into a song"')).toBeVisible();
+  await expect(popup.getByText('7 / 10')).toBeVisible();
+  await expect(popup.getByText('Lute of Distraction')).toBeVisible();
+  await expect(popup.getByText(/0\s*·transferable/i)).not.toBeVisible();
+
+  await expect(popup.locator('button').filter({ hasText: 'Mischief' })).toContainText('5');
+  await expect(popup.locator('button').filter({ hasText: 'Might' })).toContainText('1');
+  await expect(popup.locator('button').filter({ hasText: 'Magic' })).toContainText('2');
+
+  await popup.locator('button').filter({ hasText: 'Mischief' }).click();
+  await expect(popup.getByText('4 base')).toBeVisible();
+  await expect(popup.getByText(/\+1 .*Lute of Distraction/)).toBeVisible();
+
+  await screenshotViewports(page, 'session-character-popup');
 });
 
 test('seeded sessions', async ({ page, request }) => {
@@ -245,7 +292,10 @@ test('seeded sessions', async ({ page, request }) => {
     await waitForSessionReady(page);
 
     // Game-over sessions show a "Campaign Over" screen without the narration text
-    if (lastNarration && !session.gameOver) {
+    if (session.gameOver) {
+      await expect(page.getByText('Campaign Over')).toBeVisible();
+      await expect(page.getByRole('button', { name: /View Chronicle/i })).toBeVisible();
+    } else if (lastNarration) {
       await expect(page.getByText(lastNarration.slice(0, 60), { exact: false }).first()).toBeVisible({ timeout: 15_000 });
     }
 

@@ -1,9 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { Character } from '../types';
 import { imgSrc } from '../lib/api';
 import { StatImg } from './game/StatIcon';
+import { InventoryItemCard } from './game/Inventory';
 import { Modal } from './Modal';
 import { getHpColors } from '../lib/hpColors';
+import { STAT_TEXT_COLORS } from '../lib/statColors';
 
 interface CharacterPopupProps {
   character: Character;
@@ -18,6 +20,8 @@ const STAT_META = [
 ];
 
 export const CharacterPopup = ({ character, onClose, onAvatarClick }: CharacterPopupProps) => {
+  const [expandedStat, setExpandedStat] = useState<'might' | 'magic' | 'mischief' | null>(null);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -27,13 +31,6 @@ export const CharacterPopup = ({ character, onClose, onAvatarClick }: CharacterP
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
-
-  const invBonuses = { might: 0, magic: 0, mischief: 0 };
-  for (const item of character.inventory ?? []) {
-    invBonuses.might += item.statBonuses?.might ?? 0;
-    invBonuses.magic += item.statBonuses?.magic ?? 0;
-    invBonuses.mischief += item.statBonuses?.mischief ?? 0;
-  }
 
   const hpPct = Math.max(0, Math.min(100, (character.hp / character.max_hp) * 100));
   const { bar: hpColor } = getHpColors(character.hp, character.max_hp);
@@ -75,24 +72,46 @@ export const CharacterPopup = ({ character, onClose, onAvatarClick }: CharacterP
         <div className="grid grid-cols-3 gap-2 mb-6">
           {STAT_META.map(({ key, label, color, bg, track }) => {
             const base = character.stats[key];
-            const bonus = invBonuses[key];
+            const bonusItems = character.inventory.filter(item => (item.statBonuses?.[key] ?? 0) > 0);
+            const bonus = bonusItems.reduce((s, item) => s + (item.statBonuses![key]!), 0);
             const total = base + bonus;
+            const hasBonus = bonus > 0;
+            const isOpen = expandedStat === key;
             const barPct = Math.min(100, (total / 10) * 100);
             return (
               <div key={key} className={`p-3 rounded-2xl ${track}/40 border border-slate-800`}>
-                <div className="flex items-center gap-1 mb-1">
-                  <StatImg stat={key} size="8" />
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${color}`}>{label}</span>
-                </div>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-black text-white">{total}</span>
-                  {bonus > 0 && (
-                    <span className={`text-xs font-black ${color}`}>({base}+{bonus})</span>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  disabled={!hasBonus}
+                  onClick={() => setExpandedStat(stat => stat === key ? null : key)}
+                  className={`w-full text-left ${hasBonus ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-300 rounded' : 'cursor-default'}`}
+                  aria-expanded={hasBonus ? isOpen : undefined}
+                >
+                  <div className="flex items-center gap-1 mb-1">
+                    <StatImg stat={key} size="8" />
+                    <span className={`text-[10px] font-black uppercase tracking-widest ${color}`}>{label}</span>
+                    {hasBonus && (
+                      <span className={`ml-auto text-[10px] text-amber-500/70 leading-none transition-transform duration-150 inline-block ${isOpen ? 'rotate-180' : ''}`}>▾</span>
+                    )}
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                    <span className={`text-2xl font-black tabular-nums ${hasBonus ? 'text-amber-400' : STAT_TEXT_COLORS[key]}`}>{total}</span>
+                    {hasBonus && (
+                      <span className="text-xs font-black text-amber-500/70">+{bonus}</span>
+                    )}
+                  </div>
+                </button>
                 <div className="h-1.5 rounded-full bg-slate-800 mt-2 overflow-hidden">
                   <div className={`h-full rounded-full ${bg}`} style={{ width: `${barPct}%` }} />
                 </div>
+                {hasBonus && isOpen && (
+                  <div className="mt-2 flex flex-col gap-0.5 px-2 py-1.5 rounded-lg bg-slate-800/60 text-xs border border-slate-700/50">
+                    <div className="text-slate-400">{base} base</div>
+                    {bonusItems.map(item => (
+                      <div key={item.id} className="text-amber-400">+{item.statBonuses![key]} {item.name}</div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -100,22 +119,11 @@ export const CharacterPopup = ({ character, onClose, onAvatarClick }: CharacterP
 
         {/* Inventory */}
         <h4 className="text-xs font-black uppercase tracking-widest text-slate-600 mb-3">Inventory</h4>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {(character.inventory || []).length === 0 ? (
             <p className="text-slate-600 text-sm italic">Empty pockets...</p>
           ) : (character.inventory || []).map((item, i) => (
-            <div key={i} className="group relative px-3 py-2 bg-slate-800 rounded-xl text-xs font-bold border border-slate-700">
-              <span className="text-slate-200">{item.name}</span>
-              {item.healValue && item.healValue > 0 && (
-                <span className="ml-1 text-emerald-400">+{item.healValue}hp</span>
-              )}
-              {item.statBonuses && Object.entries(item.statBonuses).filter(([, v]) => v && v > 0).map(([stat, val]) => (
-                <span key={stat} className="ml-1 text-amber-400">+{val} {stat}</span>
-              ))}
-              {item.transferable && <span className="ml-1 text-slate-500">·transferable</span>}
-              {item.consumable && <span className="ml-1 text-slate-500">·consumable</span>}
-              <div className="absolute bottom-full left-0 mb-2 w-48 p-3 bg-slate-700 rounded-lg text-[10px] text-slate-300 hidden group-hover:block z-10">{item.description}</div>
-            </div>
+            <InventoryItemCard key={item.id ?? i} item={item} />
           ))}
         </div>
       </div>
