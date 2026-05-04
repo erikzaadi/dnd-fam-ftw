@@ -1,0 +1,31 @@
+import { expect, type APIRequestContext, type Page } from '@playwright/test';
+
+export const MOCK_NARRATION_MARKER = 'The mock DM confirms the adventure moves forward.';
+
+export async function dismissAudioOverlay(page: Page): Promise<void> {
+  const btn = page.getByRole('button', { name: 'Enable Audio' });
+  try {
+    await btn.waitFor({ state: 'visible', timeout: 2000 });
+    await btn.click();
+  } catch {
+    // overlay not present
+  }
+}
+
+export async function openSeedSession(page: Page, sessionId: string): Promise<void> {
+  await page.goto(`/session/${sessionId}`);
+  await dismissAudioOverlay(page);
+  await expect(page.getByText('Choose an Action')).toBeVisible({ timeout: 30_000 });
+}
+
+export async function waitForTurnToComplete(page: Page): Promise<void> {
+  await expect(page.getByText(MOCK_NARRATION_MARKER)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('Choose an Action')).toBeVisible({ timeout: 30_000 });
+}
+
+export async function getSessionTurn(request: APIRequestContext, sessionId: string): Promise<number> {
+  const response = await request.get(`/api/session/${sessionId}`);
+  expect(response.ok()).toBe(true);
+  const session = await response.json() as { turn: number };
+  return session.turn;
+}

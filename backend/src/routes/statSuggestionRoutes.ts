@@ -3,7 +3,7 @@ import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { createChatClient } from '../providers/ai/AiProviderFactory.js';
 import { StateService } from '../services/stateService.js';
-import { parseSuggestedStats, STAT_FALLBACK } from '../services/statSuggestionService.js';
+import { parseSuggestedStats, STAT_FALLBACK, suggestStatForSessionAction } from '../services/statSuggestionService.js';
 import { parseBody } from './routeValidation.js';
 
 const suggestStatBodySchema = z.object({
@@ -28,29 +28,13 @@ export const createStatSuggestionRouter = () => {
     if (!body) {
       return;
     }
-    const { action, characterClass, characterQuirk } = body;
     const session = await StateService.getSession(req.params.id as string);
     if (!session) {
       res.status(404).json({ stat: 'mischief' });
       return;
     }
-
-    const { client, model } = createChatClient(session.useLocalAI);
-    try {
-      const response = await client.chat.completions.create({
-        model,
-        messages: [{
-          role: 'user',
-          content: `/no_think A fantasy RPG character${characterClass ? ` (${characterClass})` : ''}${characterQuirk ? `, quirk: ${characterQuirk}` : ''} wants to: "${action}". Which single stat fits best: might (physical strength, combat, force), magic (spells, arcane, healing, divine), or mischief (stealth, trickery, charm, persuasion, deception)? Reply with ONLY one word: might, magic, or mischief.`
-        }],
-        max_tokens: 10,
-      }, { signal: AbortSignal.timeout(8_000) });
-      const raw = (response.choices[0].message.content ?? '').toLowerCase().trim().replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-      const stat = ['might', 'magic', 'mischief'].find(s => raw.includes(s)) ?? 'mischief';
-      res.json({ stat });
-    } catch {
-      res.json({ stat: 'mischief' });
-    }
+    const stat = await suggestStatForSessionAction(req.params.id as string, body);
+    res.json({ stat });
   }));
 
   router.post('/character/suggest-stats', asyncHandler(async (req, res) => {

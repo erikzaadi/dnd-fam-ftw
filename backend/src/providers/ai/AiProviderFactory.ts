@@ -4,12 +4,18 @@ import type { ImageProvider } from './images/ImageProvider.js';
 import { OpenAINarrationProvider } from './narration/OpenAINarrationProvider.js';
 import { LocalAINarrationProvider } from './narration/LocalAINarrationProvider.js';
 import { GeminiNarrationProvider } from './narration/GeminiNarrationProvider.js';
+import { MockNarrationProvider } from './narration/MockNarrationProvider.js';
 import { OpenAIImageProvider } from './images/OpenAIImageProvider.js';
 import { LocalAIImageProvider } from './images/LocalAIImageProvider.js';
 import { GeminiImageProvider } from './images/GeminiImageProvider.js';
 
 export function createNarrationProvider(useLocalAI?: boolean): NarrationProvider {
   const envProvider = process.env.AI_NARRATION_PROVIDER ?? 'openai';
+
+  if (envProvider === 'mock') {
+    console.log('[AI] Narration provider: Mock');
+    return new MockNarrationProvider();
+  }
 
   if (useLocalAI ?? envProvider === 'localai') {
     console.log('[AI] Narration provider: LocalAI');
@@ -27,6 +33,23 @@ export function createNarrationProvider(useLocalAI?: boolean): NarrationProvider
 
 export function createChatClient(useLocalAI?: boolean): { client: OpenAI; model: string } {
   const envProvider = process.env.AI_NARRATION_PROVIDER ?? 'openai';
+
+  if (envProvider === 'mock') {
+    console.log('[AI] Chat client: Mock');
+    return {
+      client: {
+        chat: {
+          completions: {
+            create: async () => ({
+              choices: [{ message: { content: 'mischief' } }],
+            }),
+          },
+        },
+      } as unknown as OpenAI,
+      model: 'mock',
+    };
+  }
+
   const isLocal = useLocalAI ?? envProvider === 'localai';
 
   if (isLocal) {

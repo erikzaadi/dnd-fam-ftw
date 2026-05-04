@@ -1,0 +1,28 @@
+import type { NarrationInput, NarrationOutput, NarrationProvider } from './NarrationProvider.js';
+
+const choices = [
+  { label: 'Press the attack', difficulty: 'normal' as const, stat: 'might' as const, narration: 'Keep the pressure on with a bold move.' },
+  { label: 'Taunt the goblin', difficulty: 'easy' as const, stat: 'mischief' as const, narration: 'Distract the foe with theatrical confidence.' },
+  { label: 'Flee dramatically', difficulty: 'hard' as const, stat: 'magic' as const, narration: 'Turn retreat into a dazzling arcane escape.' },
+];
+
+export class MockNarrationProvider implements NarrationProvider {
+  async generateTurn(input: NarrationInput): Promise<NarrationOutput> {
+    const actor = input.actingCharacterName ?? 'The adventurer';
+    return {
+      narration: `${actor} acts decisively: ${input.actionAttempt}. The mock DM confirms the adventure moves forward.`,
+      rollNarration: input.actionResult.roll
+        ? `The die lands on ${input.actionResult.roll}.`
+        : 'No roll was needed.',
+      choices,
+      imagePrompt: null,
+      imageSuggested: false,
+      currentTensionLevel: 'medium',
+      suggestedInventoryAdd: null,
+      suggestedInventoryRemove: null,
+      suggestedRevive: null,
+      suggestedHeal: null,
+      suggestedDamage: null,
+    };
+  }
+}

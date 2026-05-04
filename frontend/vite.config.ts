@@ -47,6 +47,7 @@ const faviconPlugin = (dragon: FaviconDragon): Plugin => ({
 export default defineConfig(({ command }) => {
   const base = command === 'serve' ? '/' : DEPLOY_BASE;
   const faviconDragon = dragonFromEnv(command, base);
+  const apiProxyTarget = process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:3001';
 
   return {
     base,
@@ -59,7 +60,7 @@ export default defineConfig(({ command }) => {
     server: {
       proxy: {
         [`${base}api`]: {
-          target: 'http://localhost:3001',
+          target: apiProxyTarget,
           changeOrigin: true,
           rewrite: (path) => path.slice(`${base}api`.length),
         },
