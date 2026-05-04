@@ -190,13 +190,13 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
         onUse={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'use' })}
         onGive={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'give' })}
         targetPicker={isPendingThis ? (
-            <TargetPicker
-              party={party}
-              action={pending.action}
-              ownerCharId={char.id}
-              onConfirm={confirm}
-              onCancel={() => setPending(null)}
-            />
+          <TargetPicker
+            party={party}
+            action={pending.action}
+            ownerCharId={char.id}
+            onConfirm={confirm}
+            onCancel={() => setPending(null)}
+          />
         ) : undefined}
       />
     );
