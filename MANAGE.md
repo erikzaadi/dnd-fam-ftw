@@ -214,7 +214,7 @@ GitHub Actions handles automated deploys. Workflows live in `.github/workflows/`
 | Workflow | Trigger | What it does |
 |---|---|---|
 | `deploy.yml` | Push to `main`, or `v*` tag | Deploys backend and/or frontend if relevant files changed (tag always deploys both) |
-| `lint.yml` | Push, PR, manual | Runs `npm run lint` across all workspaces |
+| `lint.yml` | Push, PR, manual | Runs `npm run lint` across backend, frontend, workflows, and shell scripts |
 | `test.yml` | Push, PR, manual | Runs backend and frontend tests |
 | `metrics.yml` | Sunday 10:00 UTC, manual | Gathers usage metrics + pending invite requests, AI summary via Pushover |
 | `visual-snapshots.yml` | `v*` tag, manual | Runs Playwright visual snapshot tests against a seeded prod instance; compare against S3 baselines. First run: dispatch with `update_snapshots=true` to generate baselines. |

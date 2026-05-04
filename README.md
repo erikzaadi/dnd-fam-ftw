@@ -165,6 +165,8 @@ You can also switch between cloud and local per-session using the toggle on the 
 npm run install:all
 ```
 
+This installs `packages/shared`, `backend`, and `frontend`. The repo intentionally does not require npm workspaces; backend and frontend consume the shared package through `file:../packages/shared`.
+
 ### 3. Run locally
 
 ```bash
@@ -183,10 +185,15 @@ The Vite dev server proxies `/api/*` → backend automatically.
 
 ```
 dnd-fam-ftw/
+├── packages/
+│   └── shared/
+│       └── src/
+│           └── types.ts          # Canonical API-boundary types and shared constants
+│
 ├── backend/
 │   └── src/
 │       ├── index.ts              # Express API + SSE
-│       ├── types.ts              # Shared types
+│       ├── types.ts              # Backend extensions plus shared type re-exports
 │       ├── services/
 │       │   ├── gameEngine.ts     # Dice, damage, state
 │       │   ├── aiDmService.ts    # GPT-4o narration

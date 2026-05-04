@@ -9,17 +9,19 @@ npm run install:all   # install shared, backend, and frontend
 npm run dev           # backend :3001 + frontend :5173
 ```
 
+The repo does not use npm workspaces. The shared package is linked from backend/frontend with `file:../packages/shared`, and `install:all` installs each package explicitly.
+
 All env vars live in the root `.env`.
 
 ## Before committing
 
-Run from repo root (never cd into a workspace first):
+Run from repo root:
 
 ```bash
 npm run lint          # all linters: backend + frontend + workflows + bash
 npm test              # all tests
 
-# Type checks must run from the workspace directory:
+# Type checks must run from each package directory:
 cd backend && npx tsc --noEmit
 cd frontend && npx tsc -b
 ```
@@ -112,15 +114,17 @@ When adding CLI subcommands or flags, also update `scripts/cli-completion.bash`.
 | `npm run dev` | Backend :3001 + frontend :5173 concurrently |
 | `npm run build` | Frontend production build |
 | `npm run build:backend` | Backend TypeScript compile |
+| `npm run test:integration` | Backend service integration tests with temp SQLite and mocked narration |
+| `npm run test:e2e` | Playwright E2E tests using isolated dev servers and mocked narration |
 | `npm run test:visual` | Playwright visual snapshot tests (dev server must be running) |
 | `npm run test:visual:update` | Regenerate local snapshot baselines |
 | `npm run setup:playwright` | One-time: install Playwright Chromium |
 
 ## Testing patterns
 
-**Frontend** (`frontend/src/**/*.test.ts(x)`): vitest + @testing-library/react + jsdom. Setup: `frontend/src/test/setup.ts`. Pure lib utilities tested directly without rendering.
+**Frontend** (`frontend/src/**/*.test.ts(x)`): vitest + @testing-library/react + jsdom. Setup: `frontend/src/test/setup.ts`. Pure lib utilities tested directly without rendering. E2E tests live in `frontend/tests/e2e` and use `frontend/playwright.e2e.config.ts`; visual snapshots are isolated to `frontend/tests/visual.spec.ts`.
 
-**Backend** (`backend/src/**/*.test.ts`): vitest with `pool: 'forks'`. Set env vars in `beforeAll` before calling any service (config is lazily cached). Integration tests use a temp SQLite file per run, cleaned up in `afterAll`. Stub providers with minimal mock implementations inline.
+**Backend** (`backend/src/**/*.test.ts`): vitest with `pool: 'forks'`. Set env vars in `beforeAll` before calling any service (config is lazily cached). Integration tests use a temp SQLite file per run, cleaned up in `afterAll`, and mock only the narration provider.
 
 ## DB migrations
 
