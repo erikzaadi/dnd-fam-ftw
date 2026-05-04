@@ -10,6 +10,8 @@ interface CharacterFormProps {
 }
 
 export const CharacterForm = ({ onSave, onCancel, isLoading, initialValues }: CharacterFormProps) => {
+  const isEditing = Boolean(initialValues);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -23,12 +25,12 @@ export const CharacterForm = ({ onSave, onCancel, isLoading, initialValues }: Ch
   return (
     <Modal>
       <div className="bg-slate-900 p-10 rounded-[40px] border-2 border-amber-500/30 shadow-2xl max-w-lg w-full relative">
-        <h3 className="text-3xl font-black text-white mb-6">{isLoading ? 'Creating your hero...' : initialValues ? 'Edit Hero' : 'Create New Hero'}</h3>
+        <h3 className="text-3xl font-black text-white mb-6">{isLoading ? (isEditing ? 'Editing your hero...' : 'Creating your hero...') : isEditing ? 'Edit Hero' : 'Create New Hero'}</h3>
 
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-16 gap-4">
             <div className="text-5xl animate-bounce">⚒</div>
-            <p className="text-amber-500 font-black uppercase tracking-widest animate-pulse">Forging hero...</p>
+            <p className="text-amber-500 font-black uppercase tracking-widest animate-pulse">{isEditing ? 'Updating hero...' : 'Forging hero...'}</p>
           </div>
         ) : (
           <form onSubmit={onSave}>

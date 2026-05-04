@@ -35,10 +35,11 @@ const IMAGE_COMPOSITION_GUARDRAIL = [
   'Only the described characters, creatures, props, and environment are visible.',
   'Blank unmarked surfaces; no readable symbols or markings.',
   'No captions, lettering, logos, borders, mats, picture frames, panels, split views, grids, contact sheets, character sheets, portrait cards, labels under figures, header bands, footer bands, blank margins, menus, toolbars, editor controls, crop handles, selection boxes, rulers, guides, or software interface elements.',
+  'No artist hands, brushes, paint palettes, color swatches, easels, canvases, art supplies, or image-creation process visible.',
 ].join(' ');
 
 export const IMAGE_PROMPT_STYLE = {
-  avatar: 'Digital fantasy art, painterly detail, centered portrait composition.',
+  avatar: 'Final rendered fantasy character portrait, painterly detail, centered portrait composition, no studio or painting tools.',
   scene: 'Fantasy scene illustration, detailed fantasy art, cinematic lighting, vibrant colors.',
   preview: 'Painterly fantasy adventure art, cinematic lighting, vibrant colors, full-bleed landscape composition with no margins.',
 } as const;

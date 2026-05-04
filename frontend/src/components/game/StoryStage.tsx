@@ -54,7 +54,7 @@ export const StoryStage = ({
 
   return (
     <div
-      className="relative flex flex-col h-full overflow-hidden rounded-[32px] bg-slate-950 cursor-zoom-in"
+      className="relative flex flex-col h-full min-h-0 overflow-hidden rounded-[32px] bg-slate-950 cursor-zoom-in"
       onClick={handleStageClick}
     >
       <SceneBackground imageUrl={imageUrl} defaultImageUrl={defaultImageUrl} />
@@ -86,10 +86,10 @@ export const StoryStage = ({
       </div>
 
       {/* Narration card - centered, fills ~75% of stage */}
-      <div className="relative z-10 flex-1 flex items-center justify-center p-4">
+      <div className="relative z-10 flex-1 min-h-0 flex items-center justify-center p-4 pb-16">
         {narration ? (
           <div
-            className="backdrop-blur-md bg-slate-950/55 rounded-[24px] p-8 lg:p-12 w-[78%] h-[75%] flex flex-col items-start justify-start cursor-pointer hover:bg-slate-950/65 transition-colors overflow-y-auto scrollbar-hide"
+            className="backdrop-blur-md bg-slate-950/55 rounded-[24px] p-8 lg:p-12 w-[78%] max-h-[75%] min-h-0 flex flex-col items-start justify-start cursor-pointer hover:bg-slate-950/65 transition-colors overflow-y-auto overscroll-contain"
             onClick={e => {
               e.stopPropagation();
               onFullscreenNarration(narration);
@@ -113,7 +113,7 @@ export const StoryStage = ({
 
       {/* Previous turn teaser + Chronicle link - fades out when chronicle is open */}
       <div
-        className={`relative z-10 flex items-center justify-between px-6 py-3 gap-4 shrink-0 bg-slate-950/70 backdrop-blur-sm transition-opacity duration-300 ${chronicleOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        className={`absolute bottom-0 left-0 right-0 z-20 flex items-center justify-between px-6 py-3 gap-4 bg-slate-950/80 backdrop-blur-sm transition-opacity duration-300 ${chronicleOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
         onClick={e => e.stopPropagation()}
       >
         {previousTurn ? (
