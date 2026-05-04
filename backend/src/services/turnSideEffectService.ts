@@ -148,7 +148,21 @@ const queueTurnImageGeneration = (
     return;
   }
 
-  void ImageService.generateImage(turnResult.imagePrompt, previousSession.id, newState.turn, previousSession.useLocalAI).then(async result => {
+  void ImageService.generateImage(
+    turnResult.imagePrompt,
+    previousSession.id,
+    newState.turn,
+    previousSession.useLocalAI,
+    undefined,
+    undefined,
+    {
+      worldDescription: newState.worldDescription,
+      dmPrepImageBrief: newState.dmPrepImageBrief,
+      party: newState.party,
+      activeCharacterId: newState.activeCharacterId,
+      currentTensionLevel: turnResult.currentTensionLevel,
+    },
+  ).then(async result => {
     if (result) {
       await StateService.updateLatestTurnImage(sessionId, result.url, result.storageKey, result.storageProvider);
       broadcastUpdate(sessionId, 'image_ready', { imageUrl: result.url });

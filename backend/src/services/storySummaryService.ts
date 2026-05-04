@@ -126,10 +126,10 @@ Focus only on things that should be visible in a single realm preview image:
 - mini-bosses
 - recurring NPC archetypes
 - iconic story items or artifacts
-- signature locations, factions, symbols, creatures, and motifs
+- signature locations, factions, creatures, colors, silhouettes, and motifs
 
 Omit plot instructions, secrets, pacing notes, mechanics, long lore, and anything not visually renderable.
-Avoid wording that implies text, signs, labels, books, maps, scrolls, plaques, or inscriptions.
+Avoid wording that implies text, signs, labels, books, maps, scrolls, plaques, inscriptions, runes, glyphs, or symbols.
 Return one compact comma-separated phrase, max 45 words.
 
 DM PREP:

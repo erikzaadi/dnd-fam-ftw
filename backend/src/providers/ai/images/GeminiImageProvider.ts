@@ -11,7 +11,7 @@ export class GeminiImageProvider implements ImageProvider {
   }
 
   async generateImage(input: ImageGenerationInput): Promise<ImageGenerationOutput> {
-    const prompt = `NO TEXT, NO WRITING, NO LETTERS. Fantasy illustration: ${input.prompt}`;
+    const prompt = `Finished standalone fantasy illustration. Single edge-to-edge image. No lettering, logos, frames, borders, panels, toolbars, editor controls, or software interface elements. ${input.prompt}`;
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
 
     const response = await axios.post(url, {

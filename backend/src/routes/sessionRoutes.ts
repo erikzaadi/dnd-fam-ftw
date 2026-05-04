@@ -196,7 +196,21 @@ export const createSessionRouter = () => {
         await StateService.updateLatestTurnImage(sessionId, session.previewImageUrl, '', '');
         broadcastUpdate(sessionId, 'image_ready', { imageUrl: session.previewImageUrl });
       } else {
-        void ImageService.generateImage(initialTurn.imagePrompt || 'A fantasy realm map', sessionId, session.turn, session.useLocalAI).then(async result => {
+        void ImageService.generateImage(
+          initialTurn.imagePrompt || 'A fantasy realm establishing scene',
+          sessionId,
+          session.turn,
+          session.useLocalAI,
+          undefined,
+          undefined,
+          {
+            worldDescription: session.worldDescription,
+            dmPrepImageBrief: session.dmPrepImageBrief,
+            party: session.party,
+            activeCharacterId: session.activeCharacterId,
+            currentTensionLevel: initialTurn.currentTensionLevel,
+          },
+        ).then(async result => {
           if (result) {
             await StateService.updateLatestTurnImage(sessionId, result.url, result.storageKey, result.storageProvider);
             broadcastUpdate(sessionId, 'image_ready', { imageUrl: result.url });

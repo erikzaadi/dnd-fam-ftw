@@ -59,6 +59,8 @@ describe('ImageService.generateImage', () => {
     expect(result).not.toBeNull();
     expect(provider.calls).toHaveLength(1);
     expect(provider.calls[0]).toContain('A dragon attacks');
+    expect(provider.calls[0]).toContain('Finished standalone fantasy illustration');
+    expect(provider.calls[0]).toContain('No captions, lettering, logos, borders');
     expect(storage.stored.size).toBe(1);
     expect(result!.url).toMatch(/^http:\/\/mock-storage\//);
   });
@@ -66,7 +68,8 @@ describe('ImageService.generateImage', () => {
   it('cache hit: skips provider and returns cached URL', async () => {
     const provider = makeMockImageProvider();
     const prompt = 'A dragon attacks';
-    const hash = crypto.createHash('md5').update(prompt).digest('hex');
+    const finalPrompt = 'Finished standalone fantasy illustration. Single edge-to-edge image filling the square canvas. Only the described characters, creatures, props, and environment are visible. Blank unmarked surfaces; no readable symbols or markings. No captions, lettering, logos, borders, mats, picture frames, panels, split views, menus, toolbars, editor controls, crop handles, selection boxes, rulers, guides, or software interface elements. A dragon attacks Fantasy scene illustration, detailed fantasy art, cinematic lighting, vibrant colors.';
+    const hash = crypto.createHash('md5').update(finalPrompt).digest('hex');
     const cachedKey = `sess-cached_turn1_${hash}.png`;
     const storage = makeMockStorage(new Set([cachedKey]));
     const result = await ImageService.generateImage(prompt, 'sess-cached', 1, false, provider, storage);
@@ -132,8 +135,9 @@ describe('ImageService.generateAvatar', () => {
     const result = await ImageService.generateAvatar(char, 'sess-avatar-1', false, provider, storage);
     expect(result.url).toBeTruthy();
     expect(result.prompt).toContain('halfling rogue');
-    expect(result.prompt).toContain('fantasy RPG character');
-    expect(result.prompt).toContain('close-up portrait');
+    expect(result.prompt).toContain('fantasy illustration');
+    expect(result.prompt).toContain('Close-up portrait');
+    expect(result.prompt).toContain('No captions, lettering, logos, borders');
     expect(provider.calls).toHaveLength(1);
     expect(storage.stored.size).toBe(1);
   });
@@ -141,7 +145,7 @@ describe('ImageService.generateAvatar', () => {
   it('cache hit: skips provider', async () => {
     const provider = makeMockImageProvider();
     const char = { name: 'Pip', class: 'Rogue', species: 'Halfling', quirk: 'Talks to plants' };
-    const prompt = `close-up portrait of a ${char.species.toLowerCase()} ${char.class.toLowerCase()}, fantasy RPG character, dark background, dramatic rim lighting, digital fantasy art`;
+    const prompt = `Finished standalone fantasy illustration. Single edge-to-edge image filling the square canvas. Only the described characters, creatures, props, and environment are visible. Blank unmarked surfaces; no readable symbols or markings. No captions, lettering, logos, borders, mats, picture frames, panels, split views, menus, toolbars, editor controls, crop handles, selection boxes, rulers, guides, or software interface elements. Close-up portrait of a ${char.species.toLowerCase()} ${char.class.toLowerCase()} fantasy RPG character on a dark atmospheric background with dramatic rim lighting. The portrait includes expressive theatrical posture. Digital fantasy art, painterly detail, centered portrait composition.`;
     const hash = crypto.createHash('md5').update(prompt).digest('hex');
     const cachedKey = `avatar_sess-avatar-cached_${char.name}_${hash}.png`;
     const storage = makeMockStorage(new Set([cachedKey]));
@@ -195,6 +199,7 @@ describe('ImageService.generateSessionPreview', () => {
     expect(provider.calls[0]).toContain('Elf Wizard with small gleaming trinkets and subtle magical aura');
     expect(provider.calls[0]).toContain('goblin king, glowing cheese artifact, mushroom cave throne');
     expect(provider.calls[0]).toContain('full-bleed');
+    expect(provider.calls[0]).toContain('No captions, lettering, logos, borders');
     expect(provider.calls[0]).not.toContain('talks to books');
     expect(provider.calls[0]).not.toContain('collects cursed spoons');
     expect(provider.calls[0]).not.toContain('storybook');

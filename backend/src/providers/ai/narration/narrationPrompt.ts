@@ -197,13 +197,15 @@ Inventory:
 Image Strategy:
 - ALWAYS set imageSuggested: true and provide an imagePrompt for every turn.
 - imagePrompt rules:
-  - CRITICAL: NEVER include any text, words, letters, numbers, signs, labels, or writing of any kind in the image prompt
+  - Write the prompt as a finished standalone illustration, not a screenshot, card, poster, comic panel, framed photo, or design/editing workspace
+  - CRITICAL: NEVER include any text, words, letters, numbers, signs, labels, maps, books, scrolls, runes, glyphs, symbols, plaques, banners, captions, or writing of any kind in the image prompt
+  - CRITICAL: NEVER mention UI, interface, menu, toolbar, panel, frame, border, poster, page layout, split screen, crop marks, handles, rulers, guides, or editor controls
   - Never use: undead, corpse, dead, zombie, skeleton, gore, blood, kill, death, decapitate, mutilate
   - Instead use: spectral, ethereal, skeletal warrior, cursed, shadowy, necrotic, withered
   - Describe actions as: clashes with, faces, confronts, battles, defends against
   - Write a vivid scene description (15-20 words), NOT just style tags
   - Include: the specific moment of action, who is in the scene, the environment, lighting, and mood
-  - End with art style hints: "fantasy scene, detailed fantasy illustration, cinematic lighting, vibrant colors, storybook art"
+  - End with art style hints: "finished fantasy scene illustration, cinematic lighting, vibrant colors, painterly storybook art"
 
 Return your response in STRICT JSON format:
 {

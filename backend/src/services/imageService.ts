@@ -10,6 +10,47 @@ import { getConfig } from '../config/env.js';
 
 export type ImageResult = { url: string; storageKey: string; storageProvider: string };
 
+type ImageCharacterContext = {
+  id?: string;
+  class: string;
+  species: string;
+  quirk?: string;
+  gender?: string;
+  status?: string;
+};
+
+export type SceneImageContext = {
+  worldDescription?: string;
+  dmPrepImageBrief?: string;
+  party?: ImageCharacterContext[];
+  activeCharacterId?: string;
+  currentTensionLevel?: string;
+};
+
+const IMAGE_COMPOSITION_GUARDRAIL = [
+  'Finished standalone fantasy illustration.',
+  'Single edge-to-edge image filling the square canvas.',
+  'Only the described characters, creatures, props, and environment are visible.',
+  'Blank unmarked surfaces; no readable symbols or markings.',
+  'No captions, lettering, logos, borders, mats, picture frames, panels, split views, menus, toolbars, editor controls, crop handles, selection boxes, rulers, guides, or software interface elements.',
+].join(' ');
+
+function sanitizeVisualPrompt(prompt: string): string {
+  return prompt
+    .replace(/\b(readable\s+)?(text|words?|letters?|numbers?|captions?|labels?|headlines?|titles?|typography|font|writing|written\s+text)\b/gi, 'plain unmarked visual detail')
+    .replace(/\b(signboards?|signs?|plaques?|inscriptions?|carved\s+writing|book\s+pages?)\b/gi, 'unmarked weathered surfaces')
+    .replace(/\b(runes?|glyphs?|sigils?|symbols?)\b/gi, 'abstract magical glow')
+    .replace(/\b(scrolls?)\b/gi, 'blank parchment')
+    .replace(/\b(maps?)\b/gi, 'unmarked parchment chart')
+    .replace(/\b(banners?)\b/gi, 'plain cloth standards')
+    .replace(/\b(UI|interface|menus?|toolbars?|panels?|sliders?|crop\s+handles?|selection\s+boxes?|rulers?|guides?|editing\s+controls?|image\s+editor|photoshop)\b/gi, 'finished artwork composition')
+    .replace(/\b(picture\s+frames?|photo\s+frames?|borders?|mats?|caption\s+bands?|page\s+layout|poster\s+layout|split\s+views?|collage|diptych|triptych)\b/gi, 'edge-to-edge scene composition');
+}
+
+function buildImagePrompt(subject: string, style: string): string {
+  return `${IMAGE_COMPOSITION_GUARDRAIL} ${sanitizeVisualPrompt(subject).trim()} ${style}`;
+}
+
 export class ImageService {
   private static DEFAULT_IMAGE = '/images/default_scene.png';
 
@@ -21,7 +62,12 @@ export class ImageService {
     overrideStorageProvider?: ImageStorageProvider,
   ): Promise<{ url: string; prompt: string; storageKey: string; storageProvider: string }> {
     const genderDesc = char.gender ? `${char.gender} ` : '';
-    const prompt = `close-up portrait of a ${genderDesc}${char.species.toLowerCase()} ${char.class.toLowerCase()}, fantasy RPG character, dark background, dramatic rim lighting, digital fantasy art`;
+    const visualQuirk = this.getSafeVisualQuirk(char.quirk);
+    const quirkPart = visualQuirk ? ` The portrait includes ${visualQuirk}.` : '';
+    const prompt = buildImagePrompt(
+      `Close-up portrait of a ${genderDesc}${char.species.toLowerCase()} ${char.class.toLowerCase()} fantasy RPG character on a dark atmospheric background with dramatic rim lighting.${quirkPart}`,
+      'Digital fantasy art, painterly detail, centered portrait composition.',
+    );
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
     const fileName = `avatar_${sessionId}_${char.name}_${promptHash}.png`;
     const storage = overrideStorageProvider ?? getImageStorageProvider();
@@ -60,8 +106,10 @@ export class ImageService {
     useLocalAI?: boolean,
     overrideImageProvider?: ImageProvider,
     overrideStorageProvider?: ImageStorageProvider,
+    context?: SceneImageContext,
   ): Promise<ImageResult | null> {
-    const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
+    const finalPrompt = this.buildSceneImagePrompt(prompt, context);
+    const promptHash = crypto.createHash('md5').update(finalPrompt).digest('hex');
     const fileName = `${sessionId}_turn${turn}_${promptHash}.png`;
     const storage = overrideStorageProvider ?? getImageStorageProvider();
     const config = getConfig();
@@ -74,7 +122,7 @@ export class ImageService {
       console.log(`[ImageService] Generating image for session ${sessionId}: ${prompt}`);
       const imageProvider = overrideImageProvider ?? createImageProvider(useLocalAI);
       const result = await imageProvider.generateImage({
-        prompt: `fantasy scene illustration, no text, no UI. ${prompt}`,
+        prompt: finalPrompt,
         negativePrompt: DEFAULT_NEGATIVE_PROMPT,
         width: 1024,
         height: 1024,
@@ -87,7 +135,7 @@ export class ImageService {
       const code = (error as { code?: string })?.code;
       if (code === 'content_policy_violation') {
         console.warn('[ImageService] Content policy hit, retrying with sanitized prompt');
-        return this.generateSanitizedImage(prompt, sessionId, turn, useLocalAI, overrideImageProvider, overrideStorageProvider);
+        return this.generateSanitizedImage(prompt, sessionId, turn, useLocalAI, overrideImageProvider, overrideStorageProvider, context);
       }
       console.error('[ImageService] Error generating image:', error);
       return null;
@@ -125,9 +173,11 @@ export class ImageService {
     useLocalAI?: boolean,
     overrideImageProvider?: ImageProvider,
     overrideStorageProvider?: ImageStorageProvider,
+    context?: SceneImageContext,
   ): Promise<ImageResult | null> {
     const sanitized = this.sanitizePrompt(originalPrompt);
-    const promptHash = crypto.createHash('md5').update(sanitized).digest('hex');
+    const finalPrompt = this.buildSceneImagePrompt(`Family-friendly adventure moment: ${sanitized}`, context);
+    const promptHash = crypto.createHash('md5').update(finalPrompt).digest('hex');
     const fileName = `${sessionId}_turn${turn}_${promptHash}_safe.png`;
     const storage = overrideStorageProvider ?? getImageStorageProvider();
     const config = getConfig();
@@ -137,7 +187,7 @@ export class ImageService {
       const imageProvider = overrideImageProvider ?? createImageProvider(useLocalAI);
       console.log('After image provider generating');
       const result = await imageProvider.generateImage({
-        prompt: `family-friendly, ${sanitized}`,
+        prompt: finalPrompt,
         negativePrompt: DEFAULT_NEGATIVE_PROMPT,
         width: 1024,
         height: 1024,
@@ -183,6 +233,8 @@ export class ImageService {
       worldDescription?: string;
       dmPrep?: string;
       dmPrepImageBrief?: string;
+      difficulty?: string;
+      gameMode?: string;
       party: { name: string; class: string; species: string; quirk?: string; gender?: string }[];
     },
     useLocalAI?: boolean,
@@ -192,7 +244,7 @@ export class ImageService {
     const heroList = session.party.length > 0
       ? session.party.map(c => {
         const genderPart = c.gender ? `${c.gender} ` : '';
-        const visualQuirk = this.getSessionPreviewVisualQuirk(c.quirk);
+        const visualQuirk = this.getSafeVisualQuirk(c.quirk);
         const quirkPart = visualQuirk ? ` with ${visualQuirk}` : '';
         return `${genderPart}${c.species} ${c.class}${quirkPart}`;
       }).join(', ')
@@ -201,7 +253,12 @@ export class ImageService {
     const villainHint = session.dmPrepImageBrief
       ? ` Visual story cues: ${session.dmPrepImageBrief}.`
       : '';
-    const prompt = `Single full-bleed fantasy adventure landscape painting for a realm.${worldPart} Adventuring party: ${heroList}.${villainHint} Fill the entire square canvas with scenery and characters. No blank margins, no caption bands, no page layout, no poster layout, no title area, no typography. Wide establishing shot, cinematic lighting, detailed environment, painterly fantasy illustration`;
+    const moodHint = this.getSessionPreviewMood(session.difficulty, session.gameMode);
+    const moodPart = moodHint ? ` Overall atmosphere: ${moodHint}.` : '';
+    const prompt = buildImagePrompt(
+      `Realm preview landscape.${worldPart} Adventuring party: ${heroList}.${villainHint}${moodPart} Wide establishing shot with detailed scenery and characters integrated naturally into the environment.`,
+      'Painterly fantasy adventure art, cinematic lighting, vibrant colors, full-bleed landscape composition.',
+    );
 
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
     const fileName = `preview_${session.id}_${promptHash}.png`;
@@ -216,7 +273,7 @@ export class ImageService {
       console.log(`[ImageService] Generating session preview for ${session.displayName}`);
       const imageProvider = overrideImageProvider ?? createImageProvider(useLocalAI);
       const result = await imageProvider.generateImage({
-        prompt: `fantasy scene illustration, no text, no UI. ${prompt}`,
+        prompt,
         negativePrompt: DEFAULT_NEGATIVE_PROMPT,
         width: 1024,
         height: 1024,
@@ -239,7 +296,91 @@ export class ImageService {
     return this.DEFAULT_IMAGE;
   }
 
-  private static getSessionPreviewVisualQuirk(quirk?: string): string | null {
+  private static buildSceneImagePrompt(prompt: string, context?: SceneImageContext): string {
+    const sceneContext = this.buildSceneVisualContext(context);
+    const contextPart = sceneContext ? ` Visual continuity: ${sceneContext}.` : '';
+    return buildImagePrompt(
+      `${prompt}${contextPart}`,
+      'Fantasy scene illustration, detailed fantasy art, cinematic lighting, vibrant colors.',
+    );
+  }
+
+  private static buildSceneVisualContext(context?: SceneImageContext): string | null {
+    if (!context) {
+      return null;
+    }
+
+    const parts: string[] = [];
+    if (context.worldDescription?.trim()) {
+      parts.push(`realm atmosphere: ${context.worldDescription.trim()}`);
+    }
+    if (context.dmPrepImageBrief?.trim()) {
+      parts.push(`recurring visual motifs: ${context.dmPrepImageBrief.trim()}`);
+    }
+
+    const party = this.describePartyForImage(context.party);
+    if (party) {
+      parts.push(`party: ${party}`);
+    }
+
+    const active = context.party?.find(c => c.id && c.id === context.activeCharacterId);
+    const activeDescription = this.describeCharacterForImage(active);
+    if (activeDescription) {
+      parts.push(`featured adventurer: ${activeDescription}`);
+    }
+
+    if (context.currentTensionLevel) {
+      parts.push(`${context.currentTensionLevel} tension mood`);
+    }
+
+    return parts.length > 0 ? parts.join('; ') : null;
+  }
+
+  private static describePartyForImage(party?: ImageCharacterContext[]): string | null {
+    if (!party?.length) {
+      return null;
+    }
+
+    return party
+      .slice(0, 5)
+      .map(c => this.describeCharacterForImage(c))
+      .filter((value): value is string => Boolean(value))
+      .join(', ') || null;
+  }
+
+  private static describeCharacterForImage(character?: ImageCharacterContext): string | null {
+    if (!character) {
+      return null;
+    }
+
+    const genderPart = character.gender ? `${character.gender} ` : '';
+    const visualQuirk = this.getSafeVisualQuirk(character.quirk);
+    const quirkPart = visualQuirk ? ` with ${visualQuirk}` : '';
+    const statusPart = character.status === 'downed' ? ' looking battered but present' : '';
+    return `${genderPart}${character.species} ${character.class}${quirkPart}${statusPart}`;
+  }
+
+  private static getSessionPreviewMood(difficulty?: string, gameMode?: string): string | null {
+    const cues: string[] = [];
+
+    if (difficulty === 'easy') {
+      cues.push('welcoming adventure with bright hopeful lighting');
+    } else if (difficulty === 'hard') {
+      cues.push('dangerous heroic atmosphere with dramatic shadows');
+    }
+
+    if (gameMode === 'fast') {
+      cues.push('energetic motion and clear action focus');
+    } else if (gameMode === 'cinematic') {
+      cues.push('sweeping cinematic scale and dramatic depth');
+    } else if (gameMode === 'zug-ma-geddon') {
+      cues.push('wild chaotic battlefield energy');
+    }
+
+    return cues.length > 0 ? cues.join(', ') : null;
+  }
+
+  private static getSafeVisualQuirk(quirk?: string): string | null {
     if (!quirk?.trim()) {
       return null;
     }
@@ -266,11 +407,26 @@ export class ImageService {
     if (/\b(noble|royal|titles?|proud|formal|respect)\b/.test(lower)) {
       cues.push('overdressed noble confidence');
     }
+    if (/\b(clumsy|awkward|nervous|shy|timid|scared|fearful|jumpy)\b/.test(lower)) {
+      cues.push('slightly nervous posture');
+    }
+    if (/\b(cheerful|happy|joyful|smiles?|laughs?|laughing|optimistic|friendly)\b/.test(lower)) {
+      cues.push('warm cheerful expression');
+    }
+    if (/\b(grumpy|angry|stern|serious|brooding|moody|suspicious)\b/.test(lower)) {
+      cues.push('stern dramatic expression');
+    }
+    if (/\b(messy|dirty|mud|muddy|patches|patched|ragged|torn|wild|unkempt)\b/.test(lower)) {
+      cues.push('weathered adventuring gear');
+    }
+    if (/\b(food|snacks?|cookies?|cake|cheese|hungry|eats?|eating|cooks?|cooking)\b/.test(lower)) {
+      cues.push('small travel snacks tucked into their gear');
+    }
 
     if (cues.length > 0) {
       return Array.from(new Set(cues)).slice(0, 2).join(' and ');
     }
 
-    return q.slice(0, 80);
+    return 'a distinctive expressive personality';
   }
 }
