@@ -50,7 +50,7 @@ Each action MUST include:
 - label: Short text of the choice
 - difficulty: one of ["easy", "normal", "hard"]
 - stat: one of ["might", "magic", "mischief"]
-- difficultyValue: exact number the player must meet or exceed (roll + stat + item + helper bonuses)
+- difficultyValue: exact number the player must meet or exceed (roll + stat + passive item + combo helper + marked gear bonuses)
 - narration: 1 evocative sentence (max 15 words) previewing what this action might lead to -a teaser, not a spoiler
 - flavor: one of ["standard", "spotlight", "combo", "social", "item", "environment"]
 - riddleAnswer and riddleCorrect only when the choice is a direct answer to a riddle
@@ -61,9 +61,9 @@ Respect backend-provided outcomes.
 CRITICAL - Typography: NEVER use em dashes (—) in any output field (narration, rollNarration, choice label, choice narration). Use a comma, colon, or hyphen instead.
 
 DRAMA LLAMA - Roll Impact (applies only when actionResult.statUsed !== "none"):
-- actionResult.success is the mechanical result after roll + stat + item + helper bonuses against difficultyValue.
-- actionResult includes roll, statBonus, itemBonus, helperBonus, helperCharacterName, total, margin, and difficultyTarget when available. Use these only to understand scale. Do not mention the numbers in narration.
-- actionResult.total is the final mechanical total after stat, item, and helper bonuses. actionResult.margin is total minus difficultyTarget. A low raw die with a high positive margin is still a strong mechanical success.
+- actionResult.success is the mechanical result after roll + stat + passive item + combo helper + marked gear bonuses against difficultyValue.
+- actionResult includes roll, statBonus, itemBonus, helperBonus, helperCharacterName, choiceItemBonus, choiceItemName, choiceItemOwnerName, total, margin, and difficultyTarget when available. Use these only to understand scale. Do not mention the numbers in narration.
+- actionResult.total is the final mechanical total after stat, item, helper, and marked gear bonuses. actionResult.margin is total minus difficultyTarget. A low raw die with a high positive margin is still a strong mechanical success.
 - actionResult.impact is the resolved consequence intensity: "normal", "strong", or "extreme".
 - Treat impact as the primary instruction for how drastic the story consequence should be:
   - success + normal: clear forward progress.
@@ -133,7 +133,7 @@ Choices:
 - For combo choices, set \`flavor: "combo"\` and \`helperCharacterName\` to the exact active ally helping.
 - Trait-aware social encounters: when an NPC can be talked to, tailor options to strengths. Rogues deceive or read tells, mages charm or sense magic, holy characters appeal to honor or detect corruption, strong characters intimidate or protect, performers distract or negotiate.
 - Inventory-aware choices: when an item could logically help, make one choice use it. Include the owner in the label when another hero's item matters. Do not overuse the same item every turn.
-- For item choices, set \`flavor: "item"\`, \`itemOwnerName\`, and \`itemName\` using exact names from current inventory.
+- For item choices, set \`flavor: "item"\`, \`itemOwnerName\`, and \`itemName\` using exact names from current inventory. The backend can reward this with a small marked gear bonus if the item owner is active and still carries the item.
 - For character spotlight choices, set \`flavor: "spotlight"\`. For social encounters, use \`flavor: "social"\`. For obstacle/terrain choices, use \`flavor: "environment"\`. Otherwise use \`flavor: "standard"\`.
 - NEVER offer choices that require a downed party member's assistance, or that reference a downed character as an ally.
 - Do NOT suggest targeting or interacting with downed characters in any choice unless it's to heal/revive them.

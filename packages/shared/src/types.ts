@@ -90,6 +90,9 @@ export interface ActionAttempt {
     itemBonus?: number;
     helperBonus?: number;
     helperCharacterName?: string;
+    choiceItemBonus?: number;
+    choiceItemName?: string;
+    choiceItemOwnerName?: string;
     impact?: Impact;
     isCritical?: boolean;
     difficultyTarget?: number;

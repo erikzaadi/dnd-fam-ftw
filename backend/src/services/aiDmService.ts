@@ -11,8 +11,9 @@ export function toNarrationInput(input: AIInput): NarrationInput {
   const statBonus = input.actionResult.statBonus ?? 0;
   const itemBonus = input.actionResult.itemBonus ?? 0;
   const helperBonus = input.actionResult.helperBonus ?? 0;
+  const choiceItemBonus = input.actionResult.choiceItemBonus ?? 0;
   const total = typeof roll === 'number' && input.actionResult.statUsed !== 'none'
-    ? roll + statBonus + itemBonus + helperBonus
+    ? roll + statBonus + itemBonus + helperBonus + choiceItemBonus
     : undefined;
   const margin = total !== undefined && input.actionResult.difficultyTarget !== undefined
     ? total - input.actionResult.difficultyTarget
@@ -59,6 +60,9 @@ export function toNarrationInput(input: AIInput): NarrationInput {
       itemBonus: input.actionResult.itemBonus,
       helperBonus: input.actionResult.helperBonus,
       helperCharacterName: input.actionResult.helperCharacterName,
+      choiceItemBonus: input.actionResult.choiceItemBonus,
+      choiceItemName: input.actionResult.choiceItemName,
+      choiceItemOwnerName: input.actionResult.choiceItemOwnerName,
       total,
       margin,
       difficultyTarget: input.actionResult.difficultyTarget,

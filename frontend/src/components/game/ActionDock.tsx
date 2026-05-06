@@ -43,6 +43,7 @@ const CHOICE_FLAVOR_BADGES: Record<string, { label: string; className: string }>
 };
 
 const COMBO_HELPER_BONUS = 2;
+const CHOICE_ITEM_BONUS = 2;
 
 const calcProb = (statTotal: number, target: number) => {
   const minNeeded = Math.max(1, Math.min(20, target - statTotal));
@@ -326,7 +327,9 @@ export const ActionDock = ({
                   const statBonus = activeCharacter?.inventory.reduce((s, item) => s + (item.statBonuses?.[choice.stat as keyof typeof item.statBonuses] ?? 0), 0) ?? 0;
                   const hasActiveHelper = choice.flavor === 'combo' && !!choice.helperCharacterName && party.some(c => c.name === choice.helperCharacterName && c.status === 'active' && c.id !== activeCharacter?.id);
                   const helperBonus = hasActiveHelper ? COMBO_HELPER_BONUS : 0;
-                  const statTotal = statBase + statBonus + helperBonus;
+                  const hasChoiceItem = choice.flavor === 'item' && !!choice.itemOwnerName && !!choice.itemName && party.some(c => c.name === choice.itemOwnerName && c.status === 'active' && c.inventory.some(item => item.name === choice.itemName));
+                  const choiceItemBonus = hasChoiceItem ? CHOICE_ITEM_BONUS : 0;
+                  const statTotal = statBase + statBonus + helperBonus + choiceItemBonus;
                   const target = beatTarget(choice.difficultyValue, choice.difficulty);
                   const prob = calcProb(statTotal, target);
 
@@ -380,6 +383,9 @@ export const ActionDock = ({
                               </span>
                               {helperBonus > 0 && (
                                 <span className="text-xs font-black text-cyan-300">+{helperBonus} help</span>
+                              )}
+                              {choiceItemBonus > 0 && (
+                                <span className="text-xs font-black text-amber-300">+{choiceItemBonus} gear</span>
                               )}
                               <span className={`text-xs font-black uppercase tracking-widest ${risk.color}`}>{risk.label}</span>
                               <span className="text-xs text-slate-500 font-black ml-auto">{prob}%</span>

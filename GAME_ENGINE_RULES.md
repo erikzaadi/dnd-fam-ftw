@@ -40,6 +40,14 @@ roll (d20) + effective stat + helper bonus  ≥  difficulty target  →  success
 
 The helper bonus is currently `+2` and only applies when the submitted action exactly matches a current `combo` choice with an active ally in `helperCharacterName`.
 
+Inventory-aware choices can add a small backend-owned marked gear bonus:
+
+```
+roll (d20) + effective stat + marked gear bonus  ≥  difficulty target  →  success
+```
+
+The marked gear bonus is currently `+2` and only applies when the submitted action exactly matches a current `item` choice whose `itemOwnerName` is active and whose `itemName` exists in that character's inventory.
+
 The backend also assigns an `impact` to rolled actions:
 
 | Impact | Meaning |
@@ -66,7 +74,7 @@ This allows the AI to say "picking this lock in the dark is a 14, not a standard
 
 The resolved `actionDifficultyTarget` is stored in turn history so it can be displayed in the history panel.
 
-A natural 1 on the d20 is a **Critical Failure** and always fails, even if stat, item, and helper bonuses would otherwise meet the target (see damage below).
+A natural 1 on the d20 is a **Critical Failure** and always fails, even if stat, item, helper, and marked gear bonuses would otherwise meet the target (see damage below).
 
 A natural 20 on the d20 is a **Critical Success** and always succeeds, even if the total would otherwise miss the difficulty target. The backend marks this result as `impact: "extreme"`.
 
@@ -162,7 +170,7 @@ AI-suggested choices may include a `flavor` field so the UI and future mechanics
 | `spotlight` | Tailored to the active hero's class, species, quirk, history, or role |
 | `combo` | The active hero works with another active ally; includes `helperCharacterName` and can earn the helper bonus |
 | `social` | Conversation, deception, charm, intimidation, appeal, or negotiation |
-| `item` | Uses a carried item; includes `itemOwnerName` and `itemName` |
+| `item` | Uses a carried item; includes `itemOwnerName` and `itemName`, and can earn the marked gear bonus |
 | `environment` | Uses terrain, hazards, mechanisms, obstacles, or scene details |
 
 ### `use_item`

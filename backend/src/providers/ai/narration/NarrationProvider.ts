@@ -53,6 +53,9 @@ export type NarrationInput = {
     itemBonus?: number;
     helperBonus?: number;
     helperCharacterName?: string;
+    choiceItemBonus?: number;
+    choiceItemName?: string;
+    choiceItemOwnerName?: string;
     total?: number;
     margin?: number;
     difficultyTarget?: number;
