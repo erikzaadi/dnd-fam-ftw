@@ -33,8 +33,8 @@ export const createStatSuggestionRouter = () => {
       res.status(404).json({ stat: 'mischief' });
       return;
     }
-    const stat = await suggestStatForSessionAction(req.params.id as string, body);
-    res.json({ stat });
+    const suggestion = await suggestStatForSessionAction(req.params.id as string, body);
+    res.json(suggestion);
   }));
 
   router.post('/character/suggest-stats', asyncHandler(async (req, res) => {

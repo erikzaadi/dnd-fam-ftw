@@ -1,18 +1,25 @@
 import { createChatClient } from '../providers/ai/AiProviderFactory.js';
+import type { FreeActionBonusPreview } from './freeActionInferenceService.js';
+import { inferFreeActionBonuses, toFreeActionBonusPreview } from './freeActionInferenceService.js';
 import { StateService } from './stateService.js';
 
 export const STAT_FALLBACK = { might: 2, magic: 2, mischief: 3 };
 export type SuggestedStat = 'might' | 'magic' | 'mischief';
+export type SessionActionStatSuggestion = FreeActionBonusPreview & { stat: SuggestedStat };
 
 export async function suggestStatForSessionAction(
   sessionId: string,
   input: { action: string; characterClass?: string; characterQuirk?: string },
-): Promise<SuggestedStat> {
+): Promise<SessionActionStatSuggestion> {
   const { action, characterClass, characterQuirk } = input;
   const session = await StateService.getSession(sessionId);
   if (!session) {
-    return 'mischief';
+    return { stat: 'mischief' };
   }
+  const character = session.party.find(c => c.id === session.activeCharacterId) ?? session.party[0] ?? null;
+  const bonusPreview = character
+    ? toFreeActionBonusPreview(inferFreeActionBonuses(action, character, session))
+    : {};
 
   const { client, model } = createChatClient(session.useLocalAI);
   try {
@@ -25,9 +32,10 @@ export async function suggestStatForSessionAction(
       max_tokens: 10,
     }, { signal: AbortSignal.timeout(8_000) });
     const raw = (response.choices[0].message.content ?? '').toLowerCase().trim().replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-    return (['might', 'magic', 'mischief'] as const).find(s => raw.includes(s)) ?? 'mischief';
+    const stat = (['might', 'magic', 'mischief'] as const).find(s => raw.includes(s)) ?? 'mischief';
+    return { stat, ...bonusPreview };
   } catch {
-    return 'mischief';
+    return { stat: 'mischief', ...bonusPreview };
   }
 }
 

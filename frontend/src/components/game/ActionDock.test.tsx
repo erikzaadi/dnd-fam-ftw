@@ -146,7 +146,36 @@ describe('ActionDock speech input', () => {
     await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
 
     await waitFor(() => {
-      expect(onSubmit).toHaveBeenCalledWith('cast shield', 'magic', 'normal');
+      expect(onSubmit).toHaveBeenCalledWith('cast shield', 'magic', 'normal', undefined, undefined, undefined, undefined, {});
+    });
+  });
+
+  it('passes free-text bonus preview from the stat suggestion response', async () => {
+    mocks.apiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        stat: 'mischief',
+        characterBonus: 2,
+        characterBonusLabel: 'social edge',
+        flavor: 'social',
+      }),
+    });
+    const onSubmit = vi.fn();
+    renderDock({ customAction: 'talk down the guard', onSubmit });
+
+    await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        'talk down the guard',
+        'mischief',
+        'normal',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { characterBonus: 2, characterBonusLabel: 'social edge', flavor: 'social' },
+      );
     });
   });
 

@@ -31,6 +31,14 @@ interface LastSubmittedAction {
   char: Character | null;
   difficulty: string;
   difficultyValue?: number;
+  helperBonus?: number;
+  helperCharacterName?: string;
+  choiceItemBonus?: number;
+  choiceItemName?: string;
+  choiceItemOwnerName?: string;
+  characterBonus?: number;
+  characterBonusLabel?: string;
+  flavor?: string;
 }
 
 export const SessionPage = () => {
@@ -223,10 +231,10 @@ export const SessionPage = () => {
     onGameOver: (updatedSession) => {
       setSession(updatedSession);
     },
-    onNarrating: ({ action, statUsed, difficulty, difficultyValue, character }) => {
+    onNarrating: ({ action, statUsed, difficulty, difficultyValue, character, ...preview }) => {
       setLoading(true);
       if (action && statUsed && difficulty && character) {
-        setLastSubmittedAction(prev => prev ?? { label: action, stat: statUsed, difficulty, difficultyValue, char: character });
+        setLastSubmittedAction(prev => prev ?? { label: action, stat: statUsed, difficulty, difficultyValue, char: character, ...preview });
       }
     },
     onTurnComplete: (updatedSession, turnResult) => {
@@ -355,7 +363,7 @@ export const SessionPage = () => {
     setSession({ ...session, savingsMode: enabled });
   };
 
-  const submitAction = async (action: string, statUsed: string = 'none', difficulty: string = 'normal', difficultyValue: number | null = null, ownerCharId: string | null = null, itemId: string | null = null, targetCharId: string | null = null) => {
+  const submitAction = async (action: string, statUsed: string = 'none', difficulty: string = 'normal', difficultyValue: number | null = null, ownerCharId: string | null = null, itemId: string | null = null, targetCharId: string | null = null, preview: Partial<LastSubmittedAction> = {}) => {
     if (!session) {
       return;
     }
@@ -369,7 +377,7 @@ export const SessionPage = () => {
       : actionType === 'use_item' && item && itemTarget
         ? `${itemOwner?.name ?? 'Someone'} used ${item.name} on ${itemTarget.name}`
         : action;
-    setLastSubmittedAction({ label: displayAction, stat: statUsed, char: itemOwner, difficulty, difficultyValue: difficultyValue ?? undefined });
+    setLastSubmittedAction({ label: displayAction, stat: statUsed, char: itemOwner, difficulty, difficultyValue: difficultyValue ?? undefined, ...preview });
     setLoading(true);
     audioManager.stopNarrating();
     narrationTtsService.stopNarration();

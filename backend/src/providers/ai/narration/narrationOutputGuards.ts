@@ -5,7 +5,6 @@ const PORTAL_CHOICE_RE = /\b(portal|shortcut|teleport|teleportation|gateway|rift
 const PORTAL_NARRATION_RE = /\b(portal|shortcut|teleport|teleportation|gateway|rift|waygate)\b/i;
 const NPC_RE = /\b(npc|figure|stranger|spirit|sprite|fairy|fae|pixie|courier|messenger|guide|scout|herald|mage|wizard|witch|seer|priest|druid|merchant|vendor|traveler|ally|patron|summoner|guardian|keeper|voice)\b/i;
 const OFFER_OR_ACTIVATE_RE = /\b(offer|offers|offered|offering|beckon|beckons|beckoning|gesture|gestures|gesturing|point|points|pointing|motion|motions|motioning|wave|waves|waving|urge|urges|urging|invite|invites|inviting|open|opens|opened|opening|activate|activates|activated|activating|summon|summons|summoned|summoning|create|creates|created|creating|conjure|conjures|conjured|conjuring|tear|tears|tore|tearing|signal|signals|signaling|signalling)\b/i;
-const BONUS_CHOICE_FLAVORS = new Set(['combo', 'item', 'social', 'spotlight']);
 
 const choiceText = (choice: NarrationOutput['choices'][number]) => `${choice.label} ${choice.narration ?? ''}`;
 
@@ -27,11 +26,6 @@ export function validateNarrationOutput(input: NarrationInput, output: Narration
 
   if ((input.gameMode === 'zug-ma-geddon') && output.currentTensionLevel !== 'high') {
     errors.push('zug-ma-geddon turns must keep currentTensionLevel high.');
-  }
-
-  const bonusChoiceCount = output.choices.filter(choice => choice.flavor != null && BONUS_CHOICE_FLAVORS.has(choice.flavor)).length;
-  if (bonusChoiceCount > 2) {
-    errors.push('No more than two bonus-bearing choices may appear in one turn.');
   }
 
   for (const choice of output.choices) {

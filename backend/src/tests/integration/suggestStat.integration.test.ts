@@ -41,14 +41,31 @@ describe('suggest-stat integration', () => {
   it('uses the chat client and returns the parsed stat for a custom action', async () => {
     await insertSessionState(makeTestSession({ id: 'suggest-stat-session' }));
 
-    const stat = await suggestStatForSessionAction('suggest-stat-session', {
+    const suggestion = await suggestStatForSessionAction('suggest-stat-session', {
       action: 'I conjure a shield of moonlight',
       characterClass: 'Wizard',
       characterQuirk: 'Talks to books',
     });
 
-    expect(stat).toBe('magic');
+    expect(suggestion.stat).toBe('magic');
     expect(mockCreateCompletion).toHaveBeenCalledTimes(1);
     expect(mockCreateCompletion.mock.calls[0][0].messages[0].content).toContain('I conjure a shield of moonlight');
+  });
+
+  it('returns character edge preview for social free-text actions', async () => {
+    await insertSessionState(makeTestSession({ id: 'suggest-stat-edge-session' }));
+
+    const suggestion = await suggestStatForSessionAction('suggest-stat-edge-session', {
+      action: 'I persuade the guard to let everyone pass',
+      characterClass: 'Rogue',
+      characterQuirk: 'Talks to books',
+    });
+
+    expect(suggestion).toMatchObject({
+      stat: 'magic',
+      characterBonus: 2,
+      characterBonusLabel: 'social edge',
+      flavor: 'social',
+    });
   });
 });

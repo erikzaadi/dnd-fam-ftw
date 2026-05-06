@@ -9,6 +9,14 @@ interface NarratingPayload {
   difficulty?: string;
   difficultyValue?: number;
   character?: Character;
+  helperBonus?: number;
+  helperCharacterName?: string;
+  choiceItemBonus?: number;
+  choiceItemName?: string;
+  choiceItemOwnerName?: string;
+  characterBonus?: number;
+  characterBonusLabel?: string;
+  flavor?: string;
 }
 
 interface SessionEventHandlers {
@@ -42,7 +50,21 @@ export const useSessionEvents = ({
       es.onmessage = (e: MessageEvent) => {
         const data = JSON.parse(e.data);
         if (data.type === 'dm_narrating') {
-          onNarrating({ action: data.action, statUsed: data.statUsed, difficulty: data.difficulty, difficultyValue: data.difficultyValue, character: data.character });
+	  onNarrating({
+	    action: data.action,
+	    statUsed: data.statUsed,
+	    difficulty: data.difficulty,
+	    difficultyValue: data.difficultyValue,
+	    character: data.character,
+	    helperBonus: data.helperBonus,
+	    helperCharacterName: data.helperCharacterName,
+	    choiceItemBonus: data.choiceItemBonus,
+	    choiceItemName: data.choiceItemName,
+	    choiceItemOwnerName: data.choiceItemOwnerName,
+	    characterBonus: data.characterBonus,
+	    characterBonusLabel: data.characterBonusLabel,
+	    flavor: data.flavor,
+	  });
         } else if (data.type === 'turn_complete') {
           if (data.turnResult?.currentTensionLevel) {
             audioManager.setTension(data.turnResult.currentTensionLevel);

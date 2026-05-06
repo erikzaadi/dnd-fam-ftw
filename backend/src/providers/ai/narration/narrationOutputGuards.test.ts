@@ -117,18 +117,20 @@ describe('parseNarrationOutput', () => {
     }
   });
 
-  it('rejects more than two bonus-bearing choices in one turn', () => {
+  it('allows more than two bonus-bearing choices without discarding a successful party heal', () => {
     const result = parseNarrationOutput(input, output({
+      narration: 'Pip chants a bright healing rhyme, and the whole party steadies themselves.',
       choices: [
         { label: 'Use Pip\'s rogue nerve', difficulty: 'normal', stat: 'mischief', difficultyValue: 11, flavor: 'spotlight' },
         { label: 'Talk down the keep spirit', difficulty: 'normal', stat: 'mischief', difficultyValue: 11, flavor: 'social' },
         { label: 'Lean into Pip\'s halfling luck', difficulty: 'easy', stat: 'mischief', difficultyValue: 8, flavor: 'spotlight' },
       ],
+      suggestedHeal: [{ characterName: 'Pip', hp: 3 }],
     }));
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toContain('No more than two bonus-bearing choices');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.suggestedHeal).toEqual([{ characterName: 'Pip', hp: 3 }]);
     }
   });
 });

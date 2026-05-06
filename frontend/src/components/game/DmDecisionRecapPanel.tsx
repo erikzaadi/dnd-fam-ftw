@@ -12,6 +12,13 @@ interface LastSubmittedAction {
   char: Character | null;
   difficulty: string;
   difficultyValue?: number;
+  helperBonus?: number;
+  helperCharacterName?: string;
+  choiceItemBonus?: number;
+  choiceItemName?: string;
+  choiceItemOwnerName?: string;
+  characterBonus?: number;
+  characterBonusLabel?: string;
 }
 
 interface DmDecisionRecapPanelProps {
@@ -29,7 +36,10 @@ export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings }: DmDec
   const statBonus = char && stat !== 'none'
     ? char.inventory.reduce((s, item) => s + (item.statBonuses?.[stat as keyof typeof item.statBonuses] ?? 0), 0)
     : 0;
-  const statTotal = statBase + statBonus;
+  const helperBonus = lastSubmittedAction?.helperBonus ?? 0;
+  const choiceItemBonus = lastSubmittedAction?.choiceItemBonus ?? 0;
+  const characterBonus = lastSubmittedAction?.characterBonus ?? 0;
+  const statTotal = statBase + statBonus + helperBonus + choiceItemBonus + characterBonus;
 
   const minNeeded = lastSubmittedAction
     ? beatTarget(lastSubmittedAction.difficultyValue, lastSubmittedAction.difficulty)
@@ -95,11 +105,27 @@ export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings }: DmDec
                         {statBonus > 0 ? `+${statBonus}` : statBonus}
                       </span>
                     )}
+		    {helperBonus > 0 && <span className="text-cyan-300">+{helperBonus}</span>}
+		    {choiceItemBonus > 0 && <span className="text-amber-300">+{choiceItemBonus}</span>}
+		    {characterBonus > 0 && <span className="text-fuchsia-300">+{characterBonus}</span>}
                     {' '}= {statTotal}
                   </span>
                   <span className="text-slate-600">·</span>
                   <span className="text-slate-400">Need ≥ {minNeeded}</span>
                 </div>
+                {(helperBonus > 0 || choiceItemBonus > 0 || characterBonus > 0) && (
+		  <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-black">
+		    {helperBonus > 0 && (
+		      <span className="text-cyan-300">+{helperBonus} help</span>
+		    )}
+		    {choiceItemBonus > 0 && (
+		      <span className="text-amber-300">+{choiceItemBonus} gear</span>
+		    )}
+		    {characterBonus > 0 && (
+		      <span className="text-fuchsia-300">+{characterBonus} {lastSubmittedAction.characterBonusLabel}</span>
+		    )}
+		  </div>
+                )}
               </div>
             )}
           </div>

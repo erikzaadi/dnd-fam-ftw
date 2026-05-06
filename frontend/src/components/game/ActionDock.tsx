@@ -24,8 +24,19 @@ interface ActionDockProps {
   customAction: string;
   setCustomAction: (v: string) => void;
   error: string | null;
-  onSubmit: (label: string, stat: string, diff: string, difficultyValue?: number) => Promise<void> | void;
+  onSubmit: (label: string, stat: string, diff: string, difficultyValue?: number, ownerCharId?: string | null, itemId?: string | null, targetCharId?: string | null, preview?: ActionPreviewBonuses) => Promise<void> | void;
   onShowPartyGear: () => void;
+}
+
+interface ActionPreviewBonuses {
+  helperBonus?: number;
+  helperCharacterName?: string;
+  choiceItemBonus?: number;
+  choiceItemName?: string;
+  choiceItemOwnerName?: string;
+  characterBonus?: number;
+  characterBonusLabel?: string;
+  flavor?: string;
 }
 
 const RISK_MAP: Record<string, { label: string; color: string }> = {
@@ -81,8 +92,21 @@ export const ActionDock = ({
     if (!choice || loading) {
       return;
     }
-    await onSubmit(choice.label, choice.stat, choice.difficulty, choice.difficultyValue);
-  }, [choices, loading, onSubmit]);
+    const hasActiveHelper = choice.flavor === 'combo' && !!choice.helperCharacterName && party.some(c => c.name === choice.helperCharacterName && c.status === 'active' && c.id !== activeCharacter?.id);
+    const choiceItemOwner = choice.flavor === 'item' && choice.itemOwnerName
+      ? party.find(c => c.name === choice.itemOwnerName && c.status === 'active')
+      : null;
+    const choiceItem = choiceItemOwner && choice.itemName
+      ? choiceItemOwner.inventory.find(item => item.name === choice.itemName)
+      : null;
+    const preview: ActionPreviewBonuses = {
+      ...(hasActiveHelper && { helperBonus: COMBO_HELPER_BONUS, helperCharacterName: choice.helperCharacterName }),
+      ...(choiceItem && choiceItemOwner && { choiceItemBonus: CHOICE_ITEM_BONUS, choiceItemName: choiceItem.name, choiceItemOwnerName: choiceItemOwner.name }),
+      ...(choice.flavor === 'spotlight' && { characterBonus: CHARACTER_EDGE_BONUS, characterBonusLabel: 'spotlight', flavor: 'spotlight' }),
+      ...(choice.flavor === 'social' && { characterBonus: CHARACTER_EDGE_BONUS, characterBonusLabel: 'social edge', flavor: 'social' }),
+    };
+    await onSubmit(choice.label, choice.stat, choice.difficulty, choice.difficultyValue, undefined, undefined, undefined, preview);
+  }, [activeCharacter, choices, loading, onSubmit, party]);
 
   const submitCustomText = useCallback(async (actionText: string) => {
     const trimmed = actionText.trim();
@@ -91,6 +115,7 @@ export const ActionDock = ({
     }
     setStatThinking(true);
     let stat = 'mischief';
+    let preview: ActionPreviewBonuses = {};
     try {
       const res = await apiFetch(`/session/${sessionId}/suggest-stat`, {
         method: 'POST',
@@ -102,11 +127,12 @@ export const ActionDock = ({
         }),
       });
       if (res.ok) {
-        ({ stat } = await res.json());
+        const suggestion = await res.json();
+        ({ stat, ...preview } = suggestion);
       }
     } catch { /* fallback to mischief */ }
     setStatThinking(false);
-    await onSubmit(trimmed, stat, 'normal');
+    await onSubmit(trimmed, stat, 'normal', undefined, undefined, undefined, undefined, preview);
   }, [activeCharacter, loading, onSubmit, sessionId]);
 
   const confirmSpeechTranscript = useCallback(async (transcript: string) => {

@@ -1,11 +1,19 @@
 import { broadcastSessionChanged, broadcastUpdate } from '../realtime/sessionEvents.js';
-import type { ActionAttempt, AIInput, Character, Difficulty, InventoryItem, SessionState, Stat } from '../types.js';
+import type { ActionAttempt, AIInput, Difficulty, SessionState, Stat } from '../types.js';
 import { AiDmService } from './aiDmService.js';
 import { GameEngine } from './gameEngine.js';
 import { StateService } from './stateService.js';
 import { queueCompletedTurnSideEffects } from './turnSideEffectService.js';
 import { computeHpChanges, computeInventoryChanges } from './turnChangeService.js';
 import { resolveRiddleAnswer } from './riddleService.js';
+import {
+  CHARACTER_EDGE_BONUS,
+  CHOICE_ITEM_BONUS,
+  COMBO_HELPER_BONUS,
+  type InferredFreeActionBonuses,
+  inferFreeActionBonuses,
+  toFreeActionBonusPreview,
+} from './freeActionInferenceService.js';
 
 export interface TurnActionRequest {
   action: string;
@@ -19,13 +27,6 @@ export interface TurnActionRequest {
   targetCharId?: string;
   actionType?: 'use_item' | 'give_item';
 }
-
-const COMBO_HELPER_BONUS = 2;
-const CHOICE_ITEM_BONUS = 2;
-const CHARACTER_EDGE_BONUS = 2;
-const FREE_ACTION_MAX_INFERRED_BONUSES = 2;
-const SOCIAL_ACTION_RE = /\b(charm|convince|persuade|deceive|trick|lie|bluff|negotiate|bargain|barter|haggle|intimidate|threaten|appeal|plead|comfort|reassure|taunt|distract|perform|sing|talk|speak|ask|question|interrogate|befriend)\b/i;
-const SPOTLIGHT_ACTION_RE = /\b(signature|instinct|training|heritage|background|memory|quirk|talent|specialty|speciality|faith|divine|holy|sneak|stealth|shadow|arcane|spell|rage|brute|protect|shield)\b/i;
 
 export type TurnActionResult =
   | {
@@ -42,88 +43,6 @@ export type TurnActionResult =
       status: number;
       body: Record<string, unknown>;
     };
-
-const searchable = (text: string | undefined): string => (text ?? '')
-  .toLowerCase()
-  .normalize('NFKD')
-  .replace(/[^\p{Letter}\p{Number}]+/gu, ' ')
-  .replace(/\s+/g, ' ')
-  .trim();
-
-const containsSearchable = (haystack: string, needle: string | undefined): boolean => {
-  const normalizedNeedle = searchable(needle);
-  return normalizedNeedle.length > 1 && haystack.includes(normalizedNeedle);
-};
-
-const firstName = (name: string): string => name.split(/\s+/)[0] ?? name;
-
-const actionReferencesCharacter = (normalizedAction: string, character: Character): boolean =>
-  containsSearchable(normalizedAction, character.name) ||
-  containsSearchable(normalizedAction, firstName(character.name));
-
-const actionReferencesItem = (normalizedAction: string, item: InventoryItem): boolean =>
-  containsSearchable(normalizedAction, item.name) ||
-  item.name.split(/\s+/).some(part => containsSearchable(normalizedAction, part));
-
-const actionUsesCharacterSpotlight = (normalizedAction: string, character: Character): boolean => {
-  const classOrSpecies = containsSearchable(normalizedAction, character.class) ||
-    containsSearchable(normalizedAction, character.species);
-  const quirkWords = searchable(character.quirk)
-    .split(' ')
-    .filter(word => word.length >= 5);
-  const historyWords = searchable(character.history)
-    .split(' ')
-    .filter(word => word.length >= 6);
-  const personalWords = [...quirkWords, ...historyWords].some(word => normalizedAction.includes(word));
-  return classOrSpecies || personalWords || SPOTLIGHT_ACTION_RE.test(normalizedAction);
-};
-
-type InferredFreeActionBonuses = {
-  helperCharacter?: Character;
-  choiceItemOwner?: Character;
-  choiceItem?: InventoryItem;
-  characterEdge?: { label: string; bonus: number };
-};
-
-export const inferFreeActionBonuses = (
-  action: string,
-  character: Character,
-  session: SessionState,
-): InferredFreeActionBonuses => {
-  const normalizedAction = searchable(action);
-  let inferredCount = 0;
-  const result: InferredFreeActionBonuses = {};
-
-  const helperCharacter = session.party.find(c =>
-    c.id !== character.id &&
-    c.status === 'active' &&
-    actionReferencesCharacter(normalizedAction, c)
-  );
-  if (helperCharacter) {
-    result.helperCharacter = helperCharacter;
-    inferredCount++;
-  }
-
-  const itemMatch = session.party
-    .filter(c => c.status === 'active')
-    .flatMap(owner => owner.inventory.map(item => ({ owner, item })))
-    .find(({ item }) => actionReferencesItem(normalizedAction, item));
-  if (itemMatch && inferredCount < FREE_ACTION_MAX_INFERRED_BONUSES) {
-    result.choiceItemOwner = itemMatch.owner;
-    result.choiceItem = itemMatch.item;
-    inferredCount++;
-  }
-
-  if (inferredCount < FREE_ACTION_MAX_INFERRED_BONUSES) {
-    if (SOCIAL_ACTION_RE.test(normalizedAction)) {
-      result.characterEdge = { label: 'social edge', bonus: CHARACTER_EDGE_BONUS };
-    } else if (actionUsesCharacterSpotlight(normalizedAction, character)) {
-      result.characterEdge = { label: 'spotlight', bonus: CHARACTER_EDGE_BONUS };
-    }
-  }
-
-  return result;
-};
 
 export const executeTurnAction = async (
   sessionId: string,
@@ -156,8 +75,6 @@ export const executeTurnAction = async (
     return { ok: false, status: 400, body: { error: 'No character in session' } };
   }
 
-  broadcastUpdate(sessionId, 'dm_narrating', { action, statUsed, difficulty, difficultyValue, character });
-
   if (actionType === 'use_item' || actionType === 'give_item') {
     if (!itemId) {
       return { ok: false, status: 400, body: { error: 'Missing itemId' } };
@@ -174,6 +91,7 @@ export const executeTurnAction = async (
 
     const nextCharIdForItem = GameEngine.getNextActiveCharacter(itemState.party, actingCharId);
     const aiInput: AIInput = { ...itemState, ...itemAttempt, activeCharacterId: nextCharIdForItem, characterId: actingCharId };
+    broadcastUpdate(sessionId, 'dm_narrating', { action, statUsed, difficulty, difficultyValue, character });
     const turnResult = await AiDmService.generateTurnResult(aiInput, session.useLocalAI);
 
     const newState = GameEngine.updateState(itemState, itemAttempt, turnResult as unknown as Record<string, unknown>);
@@ -223,6 +141,29 @@ export const executeTurnAction = async (
     : submittedChoice?.flavor === 'social'
       ? { label: 'social edge', bonus: CHARACTER_EDGE_BONUS }
       : inferredFreeActionBonuses.characterEdge;
+  const submittedChoicePreview = {
+    ...(helperCharacter && {
+      helperBonus: COMBO_HELPER_BONUS,
+      helperCharacterName: helperCharacter.name,
+    }),
+    ...(choiceItem && choiceItemOwner && {
+      choiceItemBonus: CHOICE_ITEM_BONUS,
+      choiceItemName: choiceItem.name,
+      choiceItemOwnerName: choiceItemOwner.name,
+    }),
+    ...(submittedChoice?.flavor === 'spotlight' && {
+      characterBonus: CHARACTER_EDGE_BONUS,
+      characterBonusLabel: 'spotlight',
+      flavor: 'spotlight',
+    }),
+    ...(submittedChoice?.flavor === 'social' && {
+      characterBonus: CHARACTER_EDGE_BONUS,
+      characterBonusLabel: 'social edge',
+      flavor: 'social',
+    }),
+  };
+  const bonusPreview = submittedChoice ? submittedChoicePreview : toFreeActionBonusPreview(inferredFreeActionBonuses);
+  broadcastUpdate(sessionId, 'dm_narrating', { action, statUsed, difficulty, difficultyValue, character, ...bonusPreview });
   const actionAttempt = resolveRiddleAnswer(action, latestChoices) ?? GameEngine.resolveAction(
     character,
     action,
