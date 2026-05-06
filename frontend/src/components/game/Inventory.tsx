@@ -96,11 +96,9 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
   const partyWithItems = displayParty.filter(c => c.inventory?.length > 0);
 
   useEffect(() => {
-    // Only clear pending if it's actually set
-    if (pending) {
-      setTimeout(() => setPending(null), 0);
-    }
-  }, [activeCharacterId, pending]);
+    const timeout = window.setTimeout(() => setPending(null), 0);
+    return () => window.clearTimeout(timeout);
+  }, [activeCharacterId]);
 
   const interactive = !!(onUseItem || onGiveItem) && !disabled;
 

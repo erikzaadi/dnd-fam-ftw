@@ -80,6 +80,14 @@ describe('TargetPicker - compact mode', () => {
     expect(screen.queryByAltText('Bob')).not.toBeInTheDocument();
     expect(screen.getByAltText('Alice')).toBeInTheDocument();
   });
+
+  it('shows target name and class in the avatar tooltip', async () => {
+    render(<TargetPicker compact party={PARTY} action="give" ownerCharId="alice" onConfirm={() => {}} onCancel={() => {}} />);
+
+    await userEvent.hover(screen.getByAltText('Bob'));
+
+    expect(await screen.findByText('Bob · Warrior')).toBeInTheDocument();
+  });
 });
 
 describe('TargetPicker - downed characters', () => {

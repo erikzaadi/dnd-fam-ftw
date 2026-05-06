@@ -149,5 +149,20 @@ describe('ActionDock speech input', () => {
       expect(onSubmit).toHaveBeenCalledWith('cast shield', 'magic', 'normal');
     });
   });
-});
 
+  it('shows riddle answer choices as no-roll answers', () => {
+    renderDock({
+      turn: {
+        ...TURN,
+        choices: [
+          { label: 'Answer: a river', stat: 'mischief', difficulty: 'normal', difficultyValue: 12, riddleAnswer: 'a river', riddleCorrect: true },
+          { label: 'Answer: a shadow', stat: 'mischief', difficulty: 'normal', difficultyValue: 12, riddleAnswer: 'a shadow', riddleCorrect: false },
+          { label: 'Ask for a hint', stat: 'mischief', difficulty: 'easy', difficultyValue: 8 },
+        ],
+      },
+    });
+
+    expect(screen.getAllByText('Riddle Answer')).toHaveLength(2);
+    expect(screen.getAllByText('No roll')).toHaveLength(2);
+  });
+});

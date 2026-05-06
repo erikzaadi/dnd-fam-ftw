@@ -99,6 +99,12 @@ export const migrate = (db: DB): void => {
   if (!choiceCols.includes('difficultyValue')) {
     db.prepare("ALTER TABLE turn_choices ADD COLUMN difficultyValue INTEGER").run();
   }
+  if (!choiceCols.includes('riddleAnswer')) {
+    db.prepare("ALTER TABLE turn_choices ADD COLUMN riddleAnswer TEXT").run();
+  }
+  if (!choiceCols.includes('riddleCorrect')) {
+    db.prepare("ALTER TABLE turn_choices ADD COLUMN riddleCorrect INTEGER").run();
+  }
 
   const charCols = (db.prepare("PRAGMA table_info(characters)").all() as { name: string }[]).map(r => r.name);
   if (!charCols.includes('avatarPrompt')) {

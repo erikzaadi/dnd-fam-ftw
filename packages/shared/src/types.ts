@@ -50,6 +50,8 @@ export interface Choice {
   stat: Stat;
   difficultyValue?: number;
   narration?: string;
+  riddleAnswer?: string;
+  riddleCorrect?: boolean;
 }
 
 export type TurnType = 'normal' | 'intervention' | 'sanctuary';

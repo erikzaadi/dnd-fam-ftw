@@ -5,6 +5,7 @@ import { GameEngine } from './gameEngine.js';
 import { StateService } from './stateService.js';
 import { queueCompletedTurnSideEffects } from './turnSideEffectService.js';
 import { computeHpChanges, computeInventoryChanges } from './turnChangeService.js';
+import { resolveRiddleAnswer } from './riddleService.js';
 
 export interface TurnActionRequest {
   action: string;
@@ -111,7 +112,9 @@ export const executeTurnAction = async (
     };
   }
 
-  const actionAttempt = GameEngine.resolveAction(
+  const history = await StateService.getTurnHistory(sessionId);
+  const latestChoices = history[history.length - 1]?.choices ?? session.lastChoices;
+  const actionAttempt = resolveRiddleAnswer(action, latestChoices) ?? GameEngine.resolveAction(
     character,
     action,
     statUsed as Stat | 'none',

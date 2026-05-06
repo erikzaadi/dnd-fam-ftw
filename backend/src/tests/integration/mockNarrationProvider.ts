@@ -4,9 +4,9 @@ import type { NarrationInput, NarrationOutput, NarrationProvider } from '../../p
 export const FIXED_NARRATION_OUTPUT: NarrationOutput = {
   narration: 'The goblin stumbles back, surprised.',
   choices: [
-    { label: 'Press the attack', difficulty: 'normal', stat: 'might' },
-    { label: 'Taunt the goblin', difficulty: 'easy', stat: 'mischief' },
-    { label: 'Flee dramatically', difficulty: 'hard', stat: 'magic' },
+    { label: 'Press the attack', difficulty: 'normal', stat: 'might', difficultyValue: 12 },
+    { label: 'Taunt the goblin', difficulty: 'easy', stat: 'mischief', difficultyValue: 8 },
+    { label: 'Flee dramatically', difficulty: 'hard', stat: 'magic', difficultyValue: 16 },
   ],
   imagePrompt: null,
   imageSuggested: false,

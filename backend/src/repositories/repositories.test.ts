@@ -112,7 +112,7 @@ describe('turnHistoryRepository', () => {
       imagePrompt: 'a ranger in a moonlit ruin',
       imageSuggested: true,
       imageUrl: null,
-      choices: [{ label: 'Scout ahead', difficulty: 'normal', stat: 'mischief', difficultyValue: 11, narration: 'Move quietly.' }],
+      choices: [{ label: 'Scout ahead', difficulty: 'normal', stat: 'mischief', difficultyValue: 11, narration: 'Move quietly.', riddleAnswer: 'a river', riddleCorrect: true }],
       lastAction: {
         actionAttempt: 'Steady the group',
         actionResult: { success: true, roll: 18, statUsed: 'magic', statBonus: 2, itemBonus: 1, isCritical: true, difficultyTarget: 14 },
@@ -125,7 +125,7 @@ describe('turnHistoryRepository', () => {
 
     const history = await turnHistoryRepository.getTurnHistory('repo-turn-history');
     expect(history).toHaveLength(1);
-    expect(history[0].choices[0]).toMatchObject({ label: 'Scout ahead', difficultyValue: 11, narration: 'Move quietly.' });
+    expect(history[0].choices[0]).toMatchObject({ label: 'Scout ahead', difficultyValue: 11, narration: 'Move quietly.', riddleAnswer: 'a river', riddleCorrect: true });
     expect(history[0].lastAction?.actionResult).toMatchObject({
       success: true,
       roll: 18,

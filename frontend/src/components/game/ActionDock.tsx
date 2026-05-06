@@ -309,6 +309,7 @@ export const ActionDock = ({
               <div className="flex flex-col gap-2">
                 <div className="text-xs font-black uppercase tracking-widest text-slate-500 px-1">Choose an Action</div>
                 {turn.choices.map((choice, i) => {
+                  const isRiddleAnswer = !!choice.riddleAnswer;
                   const risk = RISK_MAP[choice.difficulty] ?? RISK_MAP.normal;
                   const statBase = activeCharacter?.stats[choice.stat as keyof typeof activeCharacter.stats] ?? 0;
                   const statBonus = activeCharacter?.inventory.reduce((s, item) => s + (item.statBonuses?.[choice.stat as keyof typeof item.statBonuses] ?? 0), 0) ?? 0;
@@ -341,13 +342,22 @@ export const ActionDock = ({
                           <div className="text-xs italic text-slate-300/70 mt-0.5 leading-snug">{choice.narration}</div>
                         )}
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                          <StatImg stat={choice.stat} size="4" tooltip className="rounded-xl" />
-                          <span className="text-xs font-black">
-                            <span className={statBonus > 0 ? 'text-amber-400' : (STAT_TEXT_COLORS[choice.stat] ?? 'text-slate-300')}>{statTotal}</span>
-                            <span className="text-slate-400"> vs {target}</span>
-                          </span>
-                          <span className={`text-xs font-black uppercase tracking-widest ${risk.color}`}>{risk.label}</span>
-                          <span className="text-xs text-slate-500 font-black ml-auto">{prob}%</span>
+                          {isRiddleAnswer ? (
+                            <>
+                              <span className="px-2 py-0.5 rounded-full border border-amber-500/40 bg-amber-950/30 text-amber-300 text-xs font-black uppercase tracking-widest">Riddle Answer</span>
+                              <span className="text-xs text-slate-500 font-black ml-auto">No roll</span>
+                            </>
+                          ) : (
+                            <>
+                              <StatImg stat={choice.stat} size="4" tooltip className="rounded-xl" />
+                              <span className="text-xs font-black">
+                                <span className={statBonus > 0 ? 'text-amber-400' : (STAT_TEXT_COLORS[choice.stat] ?? 'text-slate-300')}>{statTotal}</span>
+                                <span className="text-slate-400"> vs {target}</span>
+                              </span>
+                              <span className={`text-xs font-black uppercase tracking-widest ${risk.color}`}>{risk.label}</span>
+                              <span className="text-xs text-slate-500 font-black ml-auto">{prob}%</span>
+                            </>
+                          )}
                         </div>
                       </button>
                       {ttsEnabled && (

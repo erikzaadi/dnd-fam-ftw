@@ -91,6 +91,7 @@ VILLAIN: (name + motivation + sympathetic detail + one tell or behaviour the DM 
 RECURRING NPCS: (2 NPCs with names, roles, quirks, and how they can help or complicate things)
 FACTIONS: (2 groups with simple goals, one potential ally and one source of trouble)
 LOCATIONS: (3 key locations, each with a one-line description, obstacle, and notable NPC or clue)
+SETUP/PAYOFF: (2 quest objects, clues, passwords, or tokens the party can find early and use later; name where each is found and what later challenge it helps solve)
 SECRETS: (3 hidden truths or reveals to uncover over time)
 ENCOUNTERS: (one combat, one exploration challenge, one social challenge, one magical/weird challenge)
 TREASURE: (2-3 thematic rewards or items that feel tied to the world)

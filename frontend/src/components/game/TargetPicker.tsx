@@ -1,5 +1,6 @@
 import type { Character } from '../../types';
 import { imgSrc } from '../../lib/api';
+import { Tooltip } from '../Tooltip';
 
 interface TargetPickerProps {
   party: Character[];
@@ -26,6 +27,7 @@ const TargetAvatar = ({
 }) => {
   const sizeClass = size === 'sm' ? 'w-7 h-7' : 'w-9 h-9';
   const groupClass = showName ? 'group/target flex flex-col items-center gap-1' : '';
+  const tooltipLabel = `${target.name} · ${target.class}`;
   const imgClass = [
     sizeClass,
     'rounded-full object-cover border-2 transition-all',
@@ -38,18 +40,25 @@ const TargetAvatar = ({
   ].join(' ');
 
   return (
-    <button
-      onClick={() => onConfirm(target.id)}
-      title={target.name}
-      className={groupClass}
+    <Tooltip
+      content={tooltipLabel}
+      position="top"
+      portal
+      wrapperClassName="inline-flex"
     >
-      <img src={imgSrc(target.avatarUrl)} className={imgClass} alt={target.name} />
-      {showName && (
-        <span className="text-xs font-black uppercase tracking-widest text-slate-500 group-hover/target:text-amber-400">
-          {target.name.split(' ')[0]}
-        </span>
-      )}
-    </button>
+      <button
+        onClick={() => onConfirm(target.id)}
+        aria-label={tooltipLabel}
+        className={groupClass}
+      >
+        <img src={imgSrc(target.avatarUrl)} className={imgClass} alt={target.name} />
+        {showName && (
+          <span className="text-xs font-black uppercase tracking-widest text-slate-500 group-hover/target:text-amber-400">
+            {target.name.split(' ')[0]}
+          </span>
+        )}
+      </button>
+    </Tooltip>
   );
 };
 

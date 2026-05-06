@@ -4,7 +4,10 @@ export type NarrationChoice = {
   label: string;
   difficulty: Difficulty;
   stat: Stat;
+  difficultyValue: number;
   narration?: string;
+  riddleAnswer?: string;
+  riddleCorrect?: boolean;
 };
 
 export type NarrationInput = {

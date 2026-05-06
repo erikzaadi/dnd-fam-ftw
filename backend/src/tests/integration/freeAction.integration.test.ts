@@ -59,4 +59,38 @@ describe('executeTurnAction free action integration', () => {
     expect(stored?.turn).toBe(2);
     expect(stored?.activeCharacterId).toBe('char-pip');
   });
+
+  it('resolves typed correct riddle answers without rolling', async () => {
+    const session = makeTestSession({
+      id: 'free-action-riddle-session',
+      party: [makeTestSession().party[0]],
+      activeCharacterId: 'char-pip',
+    });
+    await insertSessionState(session);
+    await StateService.addTurnResult('free-action-riddle-session', {
+      narration: 'Fiddlewick asks, "What runs but never walks?"',
+      choices: [
+        { label: 'Answer: a river', difficulty: 'normal', stat: 'mischief', difficultyValue: 12, riddleAnswer: 'a river', riddleCorrect: true },
+        { label: 'Answer: a shadow', difficulty: 'normal', stat: 'mischief', difficultyValue: 12, riddleAnswer: 'a shadow', riddleCorrect: false },
+        { label: 'Ask for a hint', difficulty: 'easy', stat: 'mischief', difficultyValue: 8 },
+      ],
+      imagePrompt: null,
+      imageSuggested: false,
+    }, null);
+
+    const result = await executeTurnAction('free-action-riddle-session', 'local', {
+      action: 'Solve the riddle with the answer: "A river"',
+      statUsed: 'mischief',
+      difficulty: 'normal',
+      difficultyValue: 12,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.body.actionAttempt.actionResult).toMatchObject({ success: true, roll: 0, statUsed: 'none' });
+    expect(mockGenerateTurn.mock.calls[0][0].actionResult).toMatchObject({ success: true, statUsed: undefined });
+  });
 });

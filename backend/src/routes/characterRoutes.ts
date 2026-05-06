@@ -6,6 +6,7 @@ import { createChatClient } from '../providers/ai/AiProviderFactory.js';
 import { broadcastSessionChanged, broadcastUpdate } from '../realtime/sessionEvents.js';
 import { ImageService } from '../services/imageService.js';
 import { StateService } from '../services/stateService.js';
+import { getStartingMaxHp } from '../services/characterHpService.js';
 import { triggerPreviewRegen } from '../services/sessionPreviewService.js';
 import type { Character } from '../types.js';
 import { parseBody } from './routeValidation.js';
@@ -16,9 +17,9 @@ const characterDataSchema = z.object({
   species: z.string().min(1),
   quirk: z.string(),
   stats: z.object({
-    might: z.number(),
-    magic: z.number(),
-    mischief: z.number(),
+    might: z.number().int().min(1).max(5),
+    magic: z.number().int().min(1).max(5),
+    mischief: z.number().int().min(1).max(5),
   }),
   gender: z.string().optional(),
   history: z.string().optional(),
@@ -60,10 +61,11 @@ export const createCharacterRouter = () => {
       ? await ImageService.generateAvatar(characterData, sessionId, session.useLocalAI)
       : { url: ImageService.generateInitialsSvg(characterData.name, sessionId), prompt: '', storageKey: '', storageProvider: 'local' };
 
+    const startingMaxHp = getStartingMaxHp(characterData.class);
     const character: Character = {
       id: createId(),
-      hp: 10,
-      max_hp: 10,
+      hp: startingMaxHp,
+      max_hp: startingMaxHp,
       status: 'active',
       inventory: [],
       avatarUrl: avatarResult.url,

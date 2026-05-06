@@ -3,6 +3,7 @@ import { imgSrc } from '../../lib/api';
 import type { TtsSettings } from '../../tts/ttsTypes';
 import { NarrationTtsButton } from '../NarrationTtsButton';
 import { SceneBackground } from './SceneBackground';
+import { useEffect, useRef } from 'react';
 
 const TENSION_CONFIG = {
   low: { label: 'Calm', color: 'text-emerald-400', bg: 'bg-emerald-900/40', border: 'border-emerald-700/40', icon: '🌿' },
@@ -18,6 +19,7 @@ interface StoryStageProps {
   hasTts: boolean;
   chronicleOpen: boolean;
   currentTensionLevel?: 'low' | 'medium' | 'high' | null;
+  focusRequest: number;
   onOpenChronicle: () => void;
   onFullscreenImage: (url: string) => void;
   onFullscreenNarration: (narration: string) => void;
@@ -31,10 +33,12 @@ export const StoryStage = ({
   hasTts,
   chronicleOpen,
   currentTensionLevel,
+  focusRequest,
   onOpenChronicle,
   onFullscreenImage,
   onFullscreenNarration,
 }: StoryStageProps) => {
+  const narrationCardRef = useRef<HTMLDivElement | null>(null);
 
   const displayTurn = history[viewedTurnIdx] ?? null;
   const previousTurn = viewedTurnIdx > 0 ? history[viewedTurnIdx - 1] : null;
@@ -51,6 +55,24 @@ export const StoryStage = ({
       onFullscreenImage(defaultImageUrl);
     }
   };
+
+  useEffect(() => {
+    if (focusRequest <= 0 || !narration) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const narrationCard = narrationCardRef.current;
+      if (!narrationCard) {
+        return;
+      }
+
+      narrationCard.focus({ preventScroll: true });
+      narrationCard.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusRequest, narration]);
 
   return (
     <div
@@ -89,7 +111,10 @@ export const StoryStage = ({
       <div className="relative z-10 flex-1 min-h-0 flex items-center justify-center p-4 pb-16">
         {narration ? (
           <div
-            className="backdrop-blur-md bg-slate-950/55 rounded-[24px] p-8 lg:p-12 w-[78%] max-h-[75%] min-h-0 flex flex-col items-start justify-start cursor-pointer hover:bg-slate-950/65 transition-colors overflow-y-auto overscroll-contain"
+            ref={narrationCardRef}
+            tabIndex={-1}
+            aria-label="Story narration"
+            className="backdrop-blur-md bg-slate-950/55 rounded-[24px] p-8 lg:p-12 w-[78%] max-h-[75%] min-h-0 flex flex-col items-start justify-start cursor-pointer hover:bg-slate-950/65 transition-colors overflow-y-auto overscroll-contain focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70"
             onClick={e => {
               e.stopPropagation();
               onFullscreenNarration(narration);

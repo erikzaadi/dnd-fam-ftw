@@ -62,7 +62,22 @@ export const SessionPage = () => {
   const [lastSubmittedAction, setLastSubmittedAction] = useState<LastSubmittedAction | null>(null);
   const [currentTensionLevel, setCurrentTensionLevel] = useState<'low' | 'medium' | 'high' | null>(null);
   const [showBanner, setShowBanner] = useState(true);
+  const [storyFocusRequest, setStoryFocusRequest] = useState(0);
   const displayTurnRef = useRef<TurnResult | null>(null);
+  const pendingStoryFocusRef = useRef(false);
+
+  const requestStoryFocus = useCallback(() => {
+    setStoryFocusRequest(version => version + 1);
+  }, []);
+
+  const closeRollPopup = useCallback(() => {
+    setLastRoll(null);
+    setDieExiting(false);
+    if (pendingStoryFocusRef.current) {
+      pendingStoryFocusRef.current = false;
+      requestStoryFocus();
+    }
+  }, [requestStoryFocus]);
 
   const joinSession = useCallback(async (sessionId: string) => {
     const res = await apiFetch(`/session/${sessionId}`);
@@ -145,13 +160,12 @@ export const SessionPage = () => {
     }
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setLastRoll(null);
-        setDieExiting(false);
+        closeRollPopup();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [lastRoll]);
+  }, [closeRollPopup, lastRoll]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -226,7 +240,8 @@ export const SessionPage = () => {
         setSession(updatedSession);
       }
       const roll = turnResult?.lastAction?.actionResult;
-      if (roll && roll.statUsed !== 'none') {
+      const hasRollDetails = !!roll && roll.statUsed !== 'none';
+      if (hasRollDetails) {
         setLastRoll({
           roll: roll.roll,
           success: roll.success,
@@ -243,17 +258,24 @@ export const SessionPage = () => {
         setDieExiting(false);
         setTimeout(() => setDieExiting(true), 4000);
         setTimeout(() => {
-          setLastRoll(null);
-          setDieExiting(false);
+          closeRollPopup();
         }, 4500);
       }
       if (turnResult) {
         setHistory(prev => {
           if (turnResult.id && prev.some(t => t.id === turnResult.id)) {
+            if (hasRollDetails) {
+              pendingStoryFocusRef.current = true;
+            }
             return prev;
           }
           const next = [...prev, turnResult];
           setViewedTurnIdx(next.length - 1);
+          if (hasRollDetails) {
+            pendingStoryFocusRef.current = true;
+          } else {
+            requestStoryFocus();
+          }
           return next;
         });
       }
@@ -370,6 +392,7 @@ export const SessionPage = () => {
         }
         const next = [...prev, data.turnResult];
         setViewedTurnIdx(next.length - 1);
+        requestStoryFocus();
         return next;
       });
     } catch (err: unknown) {
@@ -528,6 +551,7 @@ export const SessionPage = () => {
             hasTts={capabilities.hasTts}
             chronicleOpen={showChronicle}
             currentTensionLevel={currentTensionLevel}
+            focusRequest={storyFocusRequest}
             onOpenChronicle={() => setShowChronicle(true)}
             onFullscreenImage={setFullscreenImage}
             onFullscreenNarration={setFullscreenNarration}
@@ -574,10 +598,7 @@ export const SessionPage = () => {
       {lastRoll && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in"
-          onClick={() => {
-            setLastRoll(null);
-            setDieExiting(false);
-          }}
+          onClick={closeRollPopup}
         >
           <div
             className={`relative overflow-hidden bg-slate-900 border-2 ${lastRollOutcome?.containerClass ?? 'border-slate-700'} ${animateRollGlow ? 'critical-roll-popup' : ''} p-8 rounded-[40px] shadow-2xl text-center flex flex-col items-center animate-in zoom-in-95 ${dieExiting ? 'animate-out fade-out zoom-out-95' : ''}`}

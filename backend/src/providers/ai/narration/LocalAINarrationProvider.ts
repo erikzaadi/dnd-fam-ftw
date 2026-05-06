@@ -1,7 +1,8 @@
 import OpenAI from 'openai';
 import type { NarrationInput, NarrationOutput, NarrationProvider } from './NarrationProvider.js';
-import { narrationOutputSchema, NARRATION_FALLBACK } from './narrationSchemas.js';
+import { NARRATION_FALLBACK } from './narrationSchemas.js';
 import { NARRATION_SYSTEM_PROMPT, buildNarrationUserContent } from './narrationPrompt.js';
+import { parseNarrationOutput } from './narrationOutputGuards.js';
 
 export class LocalAINarrationProvider implements NarrationProvider {
   private client: OpenAI;
@@ -18,16 +19,16 @@ export class LocalAINarrationProvider implements NarrationProvider {
 
   async generateTurn(input: NarrationInput): Promise<NarrationOutput> {
     const content = await this.callModel(input);
-    const parsed = narrationOutputSchema.safeParse(this.parseJson(content));
+    const parsed = parseNarrationOutput(input, this.parseJson(content));
     if (parsed.success) {
       return parsed.data;
     }
 
-    console.warn('[LocalAINarration] First attempt failed validation, retrying...', parsed.error.message);
+    console.warn('[LocalAINarration] First attempt failed validation, retrying...', parsed.error);
     console.warn('[LocalAINarration] Raw output:', content);
 
     const retryContent = await this.callModel(input, true);
-    const retryParsed = narrationOutputSchema.safeParse(this.parseJson(retryContent));
+    const retryParsed = parseNarrationOutput(input, this.parseJson(retryContent));
     if (retryParsed.success) {
       return retryParsed.data;
     }

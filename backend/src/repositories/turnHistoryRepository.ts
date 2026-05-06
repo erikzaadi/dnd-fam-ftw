@@ -35,6 +35,8 @@ const mapTurnHistoryRow = (row: TurnHistoryRow): TurnResult => {
     stat: Stat;
     difficultyValue: number | null;
     narration: string | null;
+    riddleAnswer: string | null;
+    riddleCorrect: number | null;
   }[];
   const rollTotal = (row.actionRoll ?? 0) + (row.actionStatBonus ?? 0) + (row.actionItemBonus ?? 0);
   const margin = row.actionDifficultyTarget != null
@@ -75,10 +77,12 @@ const mapTurnHistoryRow = (row: TurnHistoryRow): TurnResult => {
     imageSuggested: !!row.imageSuggested,
     imageUrl,
     characterId: row.characterId || undefined,
-    choices: choices.map(({ difficultyValue, narration, ...choice }) => ({
+    choices: choices.map(({ difficultyValue, narration, riddleAnswer, riddleCorrect, ...choice }) => ({
       ...choice,
       ...(difficultyValue != null && { difficultyValue }),
       ...(narration != null && { narration }),
+      ...(riddleAnswer != null && { riddleAnswer }),
+      ...(riddleCorrect != null && { riddleCorrect: !!riddleCorrect }),
     })),
     lastAction,
     turnType: (row.turnType as TurnResult['turnType']) ?? 'normal',
@@ -124,8 +128,8 @@ export const turnHistoryRepository = {
 
     const turnId = info.lastInsertRowid;
     for (const choice of (turn.choices ?? [])) {
-      db.prepare('INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue, narration) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(turnId, choice.label, choice.difficulty, choice.stat, choice.difficultyValue ?? null, choice.narration ?? null);
+      db.prepare('INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue, narration, riddleAnswer, riddleCorrect) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(turnId, choice.label, choice.difficulty, choice.stat, choice.difficultyValue ?? null, choice.narration ?? null, choice.riddleAnswer ?? null, choice.riddleCorrect == null ? null : (choice.riddleCorrect ? 1 : 0));
     }
     return Number(turnId);
   },

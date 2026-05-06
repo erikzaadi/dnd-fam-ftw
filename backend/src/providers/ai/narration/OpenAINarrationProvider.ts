@@ -1,7 +1,8 @@
 import OpenAI from 'openai';
 import type { NarrationInput, NarrationOutput, NarrationProvider } from './NarrationProvider.js';
-import { narrationOutputSchema, NARRATION_FALLBACK } from './narrationSchemas.js';
+import { NARRATION_FALLBACK } from './narrationSchemas.js';
 import { NARRATION_SYSTEM_PROMPT, buildNarrationUserContent } from './narrationPrompt.js';
+import { parseNarrationOutput } from './narrationOutputGuards.js';
 
 let _openai: OpenAI | null = null;
 const openai = () => (_openai ??= new OpenAI({
@@ -12,14 +13,14 @@ const openai = () => (_openai ??= new OpenAI({
 export class OpenAINarrationProvider implements NarrationProvider {
   async generateTurn(input: NarrationInput): Promise<NarrationOutput> {
     const content = await this.callModel(input);
-    const parsed = narrationOutputSchema.safeParse(JSON.parse(content));
+    const parsed = parseNarrationOutput(input, JSON.parse(content));
     if (parsed.success) {
       return parsed.data;
     }
 
-    console.warn('[OpenAINarration] First attempt failed validation, retrying...', parsed.error.message);
+    console.warn('[OpenAINarration] First attempt failed validation, retrying...', parsed.error);
     const retryContent = await this.callModel(input, true);
-    const retryParsed = narrationOutputSchema.safeParse(JSON.parse(retryContent));
+    const retryParsed = parseNarrationOutput(input, JSON.parse(retryContent));
     if (retryParsed.success) {
       return retryParsed.data;
     }

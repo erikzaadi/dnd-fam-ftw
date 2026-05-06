@@ -174,8 +174,14 @@ const TurnDetail = ({
                 <span className="font-black text-xs uppercase leading-tight">{choice.label}</span>
                 <span className={`inline-flex items-center gap-1 text-xs font-black tracking-widest px-1.5 py-0.5 rounded-full shrink-0
                   ${isChosen ? 'bg-amber-900/60' : choice.stat === 'might' ? 'bg-rose-900/60' : choice.stat === 'magic' ? 'bg-blue-900/60' : 'bg-purple-900/60'}`}>
-                  <StatImg stat={choice.stat} size="5" />
-                  {choice.stat} · {beatTarget(choice.difficultyValue, choice.difficulty)}
+                  {choice.riddleAnswer ? (
+                    'answer'
+                  ) : (
+                    <>
+                      <StatImg stat={choice.stat} size="5" />
+                      {choice.stat} · {beatTarget(choice.difficultyValue, choice.difficulty)}
+                    </>
+                  )}
                 </span>
               </div>
             );
