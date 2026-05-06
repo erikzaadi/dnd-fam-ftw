@@ -18,6 +18,8 @@ type TurnHistoryRow = {
   actionRoll: number | null;
   actionStatBonus: number | null;
   actionItemBonus: number | null;
+  actionHelperBonus: number | null;
+  actionHelperCharacterName: string | null;
   actionIsCritical: number | null;
   actionImpact: string | null;
   actionDifficultyTarget: number | null;
@@ -42,7 +44,7 @@ const mapTurnHistoryRow = (row: TurnHistoryRow): TurnResult => {
     itemOwnerName: string | null;
     itemName: string | null;
   }[];
-  const rollTotal = (row.actionRoll ?? 0) + (row.actionStatBonus ?? 0) + (row.actionItemBonus ?? 0);
+  const rollTotal = (row.actionRoll ?? 0) + (row.actionStatBonus ?? 0) + (row.actionItemBonus ?? 0) + (row.actionHelperBonus ?? 0);
   const margin = row.actionDifficultyTarget != null
     ? (row.actionSuccess ? rollTotal - row.actionDifficultyTarget : row.actionDifficultyTarget - rollTotal)
     : 0;
@@ -59,6 +61,8 @@ const mapTurnHistoryRow = (row: TurnHistoryRow): TurnResult => {
       statUsed: (row.actionStat ?? 'none') as Stat | 'none',
       ...(row.actionStatBonus != null && { statBonus: row.actionStatBonus }),
       ...(row.actionItemBonus != null && row.actionItemBonus > 0 && { itemBonus: row.actionItemBonus }),
+      ...(row.actionHelperBonus != null && row.actionHelperBonus > 0 && { helperBonus: row.actionHelperBonus }),
+      ...(row.actionHelperCharacterName && { helperCharacterName: row.actionHelperCharacterName }),
       impact: (row.actionImpact ?? derivedImpact) as Impact,
       ...(row.actionIsCritical && { isCritical: true }),
       ...(row.actionDifficultyTarget != null && { difficultyTarget: row.actionDifficultyTarget }),
@@ -116,7 +120,7 @@ export const turnHistoryRepository = {
   async addTurnResult(sessionId: string, turn: TurnResult, characterId: string | null): Promise<number> {
     const db = getDb();
     const action = turn.lastAction ?? null;
-    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(
         sessionId, characterId || null, turn.narration, turn.rollNarration || null, turn.imagePrompt, turn.imageSuggested ? 1 : 0, turn.imageUrl || null,
         action?.actionAttempt ?? null,
@@ -125,6 +129,8 @@ export const turnHistoryRepository = {
         action?.actionResult?.roll ?? null,
         action?.actionResult?.statBonus ?? null,
         action?.actionResult?.itemBonus ?? null,
+        action?.actionResult?.helperBonus ?? null,
+        action?.actionResult?.helperCharacterName ?? null,
         action?.actionResult?.isCritical ? 1 : null,
         action?.actionResult?.impact ?? null,
         action?.actionResult?.difficultyTarget ?? null,

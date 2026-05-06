@@ -130,7 +130,7 @@ export const HowToPlay = () => {
 
             <Section title="Turns">
               <p className="text-slate-300 text-lg leading-relaxed">
-                Heroes take turns in order. The active hero is highlighted in the party bar at the top. Only the active hero can perform actions, but choices may spotlight their traits, involve another active hero's help, use carried gear, or turn an NPC conversation into the challenge.
+                Heroes take turns in order. The active hero is highlighted in the party bar at the top. Only the active hero can perform actions, but choices may spotlight their traits, involve another active hero's help, use carried gear, or turn an NPC conversation into the challenge. Team-up choices can add a small help bonus to the roll.
               </p>
             </Section>
           </div>

@@ -88,6 +88,8 @@ export interface ActionAttempt {
     statUsed: Stat | 'none';
     statBonus?: number;
     itemBonus?: number;
+    helperBonus?: number;
+    helperCharacterName?: string;
     impact?: Impact;
     isCritical?: boolean;
     difficultyTarget?: number;

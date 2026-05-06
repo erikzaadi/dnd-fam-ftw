@@ -52,7 +52,7 @@ export const SessionPage = () => {
   const [confirmDialog, setConfirmDialog] = useState<{message: string; confirmLabel?: string; onConfirm: () => void} | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
-  const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; impact?: 'normal' | 'strong' | 'extreme'; isCritical?: boolean; difficultyTarget?: number; rollNarration?: string; hpChanges?: HpChange[]; inventoryChanges?: InventoryChange[] } | null>(null);
+  const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; helperBonus?: number; helperCharacterName?: string; impact?: 'normal' | 'strong' | 'extreme'; isCritical?: boolean; difficultyTarget?: number; rollNarration?: string; hpChanges?: HpChange[]; inventoryChanges?: InventoryChange[] } | null>(null);
   const [dieExiting, setDieExiting] = useState(false);
   const [interventionBanner, setInterventionBanner] = useState<string | null>(null);
   const [sanctuaryBanner, setSanctuaryBanner] = useState<string | null>(null);
@@ -248,6 +248,8 @@ export const SessionPage = () => {
           stat: roll.statUsed,
           statBonus: roll.statBonus,
           itemBonus: roll.itemBonus,
+          helperBonus: roll.helperBonus,
+          helperCharacterName: roll.helperCharacterName,
           impact: roll.impact,
           isCritical: roll.isCritical,
           difficultyTarget: roll.difficultyTarget,
@@ -619,6 +621,8 @@ export const SessionPage = () => {
               roll={lastRoll.roll}
               statBonus={lastRoll.statBonus}
               itemBonus={lastRoll.itemBonus}
+              helperBonus={lastRoll.helperBonus}
+              helperCharacterName={lastRoll.helperCharacterName}
               stat={lastRoll.stat}
               success={lastRoll.success}
               difficultyTarget={lastRoll.difficultyTarget}

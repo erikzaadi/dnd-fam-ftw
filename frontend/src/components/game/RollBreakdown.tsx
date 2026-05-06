@@ -4,6 +4,8 @@ interface RollBreakdownProps {
   roll: number;
   statBonus?: number;
   itemBonus?: number;
+  helperBonus?: number;
+  helperCharacterName?: string;
   stat?: string;
   success: boolean;
   difficultyTarget?: number;
@@ -22,13 +24,15 @@ export const RollBreakdown = ({
   roll,
   statBonus,
   itemBonus,
+  helperBonus,
+  helperCharacterName,
   stat,
   success,
   difficultyTarget,
   className = '',
   iconSize = '6',
 }: RollBreakdownProps) => {
-  const total = roll + (statBonus ?? 0) + (itemBonus ?? 0);
+  const total = roll + (statBonus ?? 0) + (itemBonus ?? 0) + (helperBonus ?? 0);
   return (
     <div className={`flex flex-col items-center gap-0.5 ${className}`}>
       <div className="flex items-center gap-0.5 font-black flex-wrap justify-center">
@@ -44,6 +48,12 @@ export const RollBreakdown = ({
           <>
             <span className="text-slate-600">+</span>
             <span className="text-amber-400">{itemBonus} items</span>
+          </>
+        )}
+        {(helperBonus ?? 0) > 0 && (
+          <>
+            <span className="text-slate-600">+</span>
+            <span className="text-cyan-300">{helperBonus} help{helperCharacterName ? ` (${helperCharacterName.split(' ')[0]})` : ''}</span>
           </>
         )}
         <span className="text-slate-600">=</span>

@@ -265,7 +265,8 @@ export class GameEngine {
     action: string,
     statName: Stat | 'none',
     difficulty: Difficulty = 'normal',
-    difficultyValue?: number
+    difficultyValue?: number,
+    helper?: { name: string; bonus: number }
   ): ActionAttempt {
     if (statName === 'none') {
       return {
@@ -280,11 +281,12 @@ export class GameEngine {
 
     const statValue = character.stats[statName];
     const itemBonus = character.inventory.reduce((sum, item) => sum + (item.statBonuses?.[statName] ?? 0), 0);
+    const helperBonus = helper?.bonus ?? 0;
     const { roll, total } = this.rollDice(statValue);
     const target = difficultyValue ?? this.DIFFICULTIES[difficulty] ?? 12;
-    const totalWithItems = total + itemBonus;
-    const success = roll === 20 || (roll !== 1 && this.checkSuccess(totalWithItems, target));
-    const margin = success ? totalWithItems - target : target - totalWithItems;
+    const finalTotal = total + itemBonus + helperBonus;
+    const success = roll === 20 || (roll !== 1 && this.checkSuccess(finalTotal, target));
+    const margin = success ? finalTotal - target : target - finalTotal;
     const impact = roll === 1 || roll === 20 || margin >= 12
       ? 'extreme'
       : margin >= 8
@@ -301,6 +303,8 @@ export class GameEngine {
         impact,
         difficultyTarget: target,
         ...(itemBonus > 0 && { itemBonus }),
+        ...(helperBonus > 0 && { helperBonus }),
+        ...(helperBonus > 0 && helper?.name && { helperCharacterName: helper.name }),
       }
     };
   }

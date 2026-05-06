@@ -87,6 +87,12 @@ export const migrate = (db: DB): void => {
   if (!turnCols.includes('actionImpact')) {
     db.prepare("ALTER TABLE turn_history ADD COLUMN actionImpact TEXT").run();
   }
+  if (!turnCols.includes('actionHelperBonus')) {
+    db.prepare("ALTER TABLE turn_history ADD COLUMN actionHelperBonus INTEGER").run();
+  }
+  if (!turnCols.includes('actionHelperCharacterName')) {
+    db.prepare("ALTER TABLE turn_history ADD COLUMN actionHelperCharacterName TEXT").run();
+  }
   if (!turnCols.includes('image_storage_key')) {
     db.prepare("ALTER TABLE turn_history ADD COLUMN image_storage_key TEXT").run();
     db.prepare("ALTER TABLE turn_history ADD COLUMN image_storage_provider TEXT").run();

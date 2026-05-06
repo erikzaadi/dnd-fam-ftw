@@ -50,7 +50,7 @@ Each action MUST include:
 - label: Short text of the choice
 - difficulty: one of ["easy", "normal", "hard"]
 - stat: one of ["might", "magic", "mischief"]
-- difficultyValue: exact number the player must meet or exceed (roll + stat + item bonuses)
+- difficultyValue: exact number the player must meet or exceed (roll + stat + item + helper bonuses)
 - narration: 1 evocative sentence (max 15 words) previewing what this action might lead to -a teaser, not a spoiler
 - flavor: one of ["standard", "spotlight", "combo", "social", "item", "environment"]
 - riddleAnswer and riddleCorrect only when the choice is a direct answer to a riddle
@@ -61,9 +61,9 @@ Respect backend-provided outcomes.
 CRITICAL - Typography: NEVER use em dashes (—) in any output field (narration, rollNarration, choice label, choice narration). Use a comma, colon, or hyphen instead.
 
 DRAMA LLAMA - Roll Impact (applies only when actionResult.statUsed !== "none"):
-- actionResult.success is the mechanical result after roll + stat + item bonuses against difficultyValue.
-- actionResult includes roll, statBonus, itemBonus, total, margin, and difficultyTarget when available. Use these only to understand scale. Do not mention the numbers in narration.
-- actionResult.total is the final mechanical total after stat and item bonuses. actionResult.margin is total minus difficultyTarget. A low raw die with a high positive margin is still a strong mechanical success.
+- actionResult.success is the mechanical result after roll + stat + item + helper bonuses against difficultyValue.
+- actionResult includes roll, statBonus, itemBonus, helperBonus, helperCharacterName, total, margin, and difficultyTarget when available. Use these only to understand scale. Do not mention the numbers in narration.
+- actionResult.total is the final mechanical total after stat, item, and helper bonuses. actionResult.margin is total minus difficultyTarget. A low raw die with a high positive margin is still a strong mechanical success.
 - actionResult.impact is the resolved consequence intensity: "normal", "strong", or "extreme".
 - Treat impact as the primary instruction for how drastic the story consequence should be:
   - success + normal: clear forward progress.

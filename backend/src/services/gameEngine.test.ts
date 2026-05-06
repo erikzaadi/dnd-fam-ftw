@@ -154,6 +154,19 @@ describe('GameEngine.resolveAction - edge cases', () => {
     vi.restoreAllMocks();
   });
 
+  it('helper bonus is applied to combo rolls', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const helperChar = makeChar({ stats: { might: 1, magic: 1, mischief: 1 } });
+
+    const result = GameEngine.resolveAction(helperChar, 'Distract the guard together', 'mischief', 'normal', 14, { name: 'Zara', bonus: 2 });
+    vi.restoreAllMocks();
+
+    expect(result.actionResult.roll).toBe(11);
+    expect(result.actionResult.success).toBe(true);
+    expect(result.actionResult.helperBonus).toBe(2);
+    expect(result.actionResult.helperCharacterName).toBe('Zara');
+  });
+
   it('strong impact is set when the result beats the target by a lot', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
     const strongChar = makeChar({ stats: { might: 8, magic: 1, mischief: 1 } });

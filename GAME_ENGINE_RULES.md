@@ -32,6 +32,14 @@ When a `perform` action is taken, the backend rolls:
 roll (d20) + effective stat  ≥  difficulty target  →  success
 ```
 
+Combo/help choices can add a small backend-owned helper bonus:
+
+```
+roll (d20) + effective stat + helper bonus  ≥  difficulty target  →  success
+```
+
+The helper bonus is currently `+2` and only applies when the submitted action exactly matches a current `combo` choice with an active ally in `helperCharacterName`.
+
 The backend also assigns an `impact` to rolled actions:
 
 | Impact | Meaning |
@@ -58,7 +66,7 @@ This allows the AI to say "picking this lock in the dark is a 14, not a standard
 
 The resolved `actionDifficultyTarget` is stored in turn history so it can be displayed in the history panel.
 
-A natural 1 on the d20 is a **Critical Failure** and always fails, even if stat and item bonuses would otherwise meet the target (see damage below).
+A natural 1 on the d20 is a **Critical Failure** and always fails, even if stat, item, and helper bonuses would otherwise meet the target (see damage below).
 
 A natural 20 on the d20 is a **Critical Success** and always succeeds, even if the total would otherwise miss the difficulty target. The backend marks this result as `impact: "extreme"`.
 
@@ -152,7 +160,7 @@ AI-suggested choices may include a `flavor` field so the UI and future mechanics
 |--------|---------|
 | `standard` | Ordinary action |
 | `spotlight` | Tailored to the active hero's class, species, quirk, history, or role |
-| `combo` | The active hero works with another active ally; includes `helperCharacterName` |
+| `combo` | The active hero works with another active ally; includes `helperCharacterName` and can earn the helper bonus |
 | `social` | Conversation, deception, charm, intimidation, appeal, or negotiation |
 | `item` | Uses a carried item; includes `itemOwnerName` and `itemName` |
 | `environment` | Uses terrain, hazards, mechanisms, obstacles, or scene details |

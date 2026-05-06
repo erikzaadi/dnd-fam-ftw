@@ -20,6 +20,8 @@ export interface TurnActionRequest {
   actionType?: 'use_item' | 'give_item';
 }
 
+const COMBO_HELPER_BONUS = 2;
+
 export type TurnActionResult =
   | {
       ok: true;
@@ -114,12 +116,21 @@ export const executeTurnAction = async (
 
   const history = await StateService.getTurnHistory(sessionId);
   const latestChoices = history[history.length - 1]?.choices ?? session.lastChoices;
+  const submittedChoice = latestChoices.find(choice => choice.label === action);
+  const helperCharacter = submittedChoice?.flavor === 'combo' && submittedChoice.helperCharacterName
+    ? session.party.find(c =>
+      c.name === submittedChoice.helperCharacterName &&
+      c.id !== actingCharId &&
+      c.status === 'active'
+    )
+    : undefined;
   const actionAttempt = resolveRiddleAnswer(action, latestChoices) ?? GameEngine.resolveAction(
     character,
     action,
     statUsed as Stat | 'none',
     (difficulty || 'normal') as Difficulty,
     difficultyValue ?? undefined,
+    helperCharacter ? { name: helperCharacter.name, bonus: COMBO_HELPER_BONUS } : undefined,
   );
   const nextCharId = GameEngine.getNextActiveCharacter(session.party, actingCharId);
   const aiInput: AIInput = { ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId };
