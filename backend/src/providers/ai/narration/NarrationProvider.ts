@@ -1,4 +1,4 @@
-import type { Difficulty, GameMode, Impact, Stat, TensionLevel } from '../../../types.js';
+import type { ChoiceFlavor, Difficulty, GameMode, Impact, Stat, TensionLevel } from '../../../types.js';
 
 export type NarrationChoice = {
   label: string;
@@ -8,6 +8,10 @@ export type NarrationChoice = {
   narration?: string;
   riddleAnswer?: string;
   riddleCorrect?: boolean;
+  flavor?: ChoiceFlavor;
+  helperCharacterName?: string;
+  itemOwnerName?: string;
+  itemName?: string;
 };
 
 export type NarrationInput = {

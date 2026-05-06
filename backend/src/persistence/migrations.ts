@@ -192,6 +192,18 @@ export const migrate = (db: DB): void => {
   if (!choiceCols.includes('narration')) {
     db.prepare("ALTER TABLE turn_choices ADD COLUMN narration TEXT").run();
   }
+  if (!choiceCols.includes('flavor')) {
+    db.prepare("ALTER TABLE turn_choices ADD COLUMN flavor TEXT").run();
+  }
+  if (!choiceCols.includes('helperCharacterName')) {
+    db.prepare("ALTER TABLE turn_choices ADD COLUMN helperCharacterName TEXT").run();
+  }
+  if (!choiceCols.includes('itemOwnerName')) {
+    db.prepare("ALTER TABLE turn_choices ADD COLUMN itemOwnerName TEXT").run();
+  }
+  if (!choiceCols.includes('itemName')) {
+    db.prepare("ALTER TABLE turn_choices ADD COLUMN itemName TEXT").run();
+  }
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS namespaces (

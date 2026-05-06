@@ -5,6 +5,7 @@ export type Stat = 'might' | 'magic' | 'mischief';
 export type Difficulty = 'easy' | 'normal' | 'hard';
 export type TensionLevel = 'low' | 'medium' | 'high';
 export type Impact = 'normal' | 'strong' | 'extreme';
+export type ChoiceFlavor = 'standard' | 'spotlight' | 'combo' | 'social' | 'item' | 'environment';
 
 export interface InventoryItem {
   id: string;
@@ -57,6 +58,10 @@ export interface Choice {
   narration?: string;
   riddleAnswer?: string;
   riddleCorrect?: boolean;
+  flavor?: ChoiceFlavor;
+  helperCharacterName?: string;
+  itemOwnerName?: string;
+  itemName?: string;
 }
 
 export type TurnType = 'normal' | 'intervention' | 'sanctuary';

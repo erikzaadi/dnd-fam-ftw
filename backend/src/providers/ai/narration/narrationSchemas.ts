@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DIFFICULTY_VALUES, STAT_VALUES, TENSION_LEVEL_VALUES } from '../../../types.js';
+import { CHOICE_FLAVOR_VALUES, DIFFICULTY_VALUES, STAT_VALUES, TENSION_LEVEL_VALUES } from '../../../types.js';
 
 const choiceSchema = z.object({
   label: z.string().min(1),
@@ -9,6 +9,10 @@ const choiceSchema = z.object({
   narration: z.string().optional(),
   riddleAnswer: z.string().min(1).optional(),
   riddleCorrect: z.boolean().optional(),
+  flavor: z.enum(CHOICE_FLAVOR_VALUES).optional(),
+  helperCharacterName: z.string().min(1).optional(),
+  itemOwnerName: z.string().min(1).optional(),
+  itemName: z.string().min(1).optional(),
 });
 
 const inventoryAddSchema = z.object({

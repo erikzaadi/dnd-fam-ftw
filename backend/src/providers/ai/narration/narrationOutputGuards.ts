@@ -28,6 +28,22 @@ export function validateNarrationOutput(input: NarrationInput, output: Narration
     errors.push('zug-ma-geddon turns must keep currentTensionLevel high.');
   }
 
+  for (const choice of output.choices) {
+    if (choice.flavor === 'combo') {
+      const helper = input.party.find(c => c.name === choice.helperCharacterName);
+      if (!helper || helper.status !== 'active' || helper.name === input.nextCharacterName) {
+        errors.push('Combo choices must include helperCharacterName for an active ally.');
+      }
+    }
+
+    if (choice.flavor === 'item') {
+      const item = input.inventory.find(i => i.ownerName === choice.itemOwnerName && i.name === choice.itemName);
+      if (!item) {
+        errors.push('Item choices must reference an existing itemOwnerName and itemName from inventory.');
+      }
+    }
+  }
+
   return errors;
 }
 

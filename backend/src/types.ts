@@ -7,6 +7,7 @@ export const STAT_VALUES = ['might', 'magic', 'mischief'] as const;
 export const DIFFICULTY_VALUES = ['easy', 'normal', 'hard'] as const;
 export const TENSION_LEVEL_VALUES = ['low', 'medium', 'high'] as const;
 export const IMPACT_VALUES = ['normal', 'strong', 'extreme'] as const;
+export const CHOICE_FLAVOR_VALUES = ['standard', 'spotlight', 'combo', 'social', 'item', 'environment'] as const;
 
 export interface SessionState extends Session {
   sceneId: string;

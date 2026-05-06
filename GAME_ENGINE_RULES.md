@@ -141,7 +141,21 @@ Flow:
 5. AI narrates what happened and provides three new choices, each with a suggested `difficultyValue`.
 6. If failed, acting character takes damage; if 0 HP, marked as downed.
 7. AI may suggest a new inventory item to grant via `suggestedInventoryAdd`; backend assigns it a random ID and adds it to the acting character's inventory.
-8. AI may suggest removing an item via `suggestedInventoryRemove` (used for trades - see Trading below).
+8. AI may suggest evolving an existing item via `suggestedInventoryUpdate`; backend only applies bounded changes to a real carried item.
+9. AI may suggest removing an item via `suggestedInventoryRemove` (used for trades - see Trading below).
+
+### Choice flavors
+
+AI-suggested choices may include a `flavor` field so the UI and future mechanics can recognize the shape of the opportunity.
+
+| Flavor | Meaning |
+|--------|---------|
+| `standard` | Ordinary action |
+| `spotlight` | Tailored to the active hero's class, species, quirk, history, or role |
+| `combo` | The active hero works with another active ally; includes `helperCharacterName` |
+| `social` | Conversation, deception, charm, intimidation, appeal, or negotiation |
+| `item` | Uses a carried item; includes `itemOwnerName` and `itemName` |
+| `environment` | Uses terrain, hazards, mechanisms, obstacles, or scene details |
 
 ### `use_item`
 
@@ -201,8 +215,19 @@ Quest-critical or non-transferable items should not be removed as random rest co
 | `healValue` | number | HP restored when used (0 = no healing) |
 | `consumable` | boolean | Removed from inventory after use. Default: `false`. Set `true` only for single-use items (potions, scrolls, food). |
 | `transferable` | boolean | Can be given to another character. Default: `true`. Set `false` only for quest items or soul-bound gear. |
+| `tags` | string[] | Short labels such as Blessed, Cursed, Revealed, or Charged |
+| `effect` | string | Bounded story/mechanical note, e.g. glows near lies or +1 magic against shadows |
+| `charges` | number | Limited-use count, capped by backend |
+| `condition` | string | Current item state such as Blessed, Damaged, or Drained |
+| `boundToCharacterId` | string | Character ID this item is bonded to, when applicable |
 
 Items with `statBonuses` provide a **passive** benefit : they are always active while in the character's inventory, no action required. There is no equip/unequip mechanic.
+
+### Item evolution
+
+Story moments can change an existing item instead of adding a new one. The AI returns `suggestedInventoryUpdate` with the exact owner and item name, and the backend applies only bounded updates to an item already in inventory.
+
+Allowed evolutions include blessed, enchanted, cursed, revealed, damaged, repaired, charged, drained, or bonded items. Stat bonuses are capped at +3 per stat, charges are capped at 9, and effects should stay narrow and readable.
 
 ---
 
@@ -262,12 +287,12 @@ To keep AI context lean across long sessions, the backend maintains a compressed
 
 The AI is a narrator, not an authority. It:
 
-- **Can**: narrate outcomes, suggest choices, propose new items to grant, describe scenes, generate image prompts, return a roll flavour comment (`rollNarration`), and declare the current tension level (`currentTensionLevel`).
-- **Cannot**: change HP, move items, change who is downed, set difficulty, alter turn order.
+- **Can**: narrate outcomes, suggest choices, propose inventory adds/removes/updates, describe scenes, generate image prompts, return a roll flavour comment (`rollNarration`), and declare the current tension level (`currentTensionLevel`).
+- **Cannot**: directly change HP, directly move or mutate items, change who is downed, set difficulty, alter turn order.
 
 All of the above are backend-owned. The AI receives a snapshot of the current state (including outcomes already resolved by the backend) and returns structured JSON. The backend validates and applies only the fields it trusts.
 
-AI-suggested inventory items are granted by the backend when the narrative earns it. The backend assigns the `id`; the AI should never invent IDs.
+AI-suggested inventory items are granted or updated by the backend when the narrative earns it. The backend assigns the `id`; the AI should never invent IDs.
 
 **Combat loot**: Combat victories may produce loot thematically tied to the defeated enemy. Loot always goes to `actingCharacterName` (the character who struck the finishing blow) - `targetCharacterName` is omitted on combat loot grants. Drop frequency depends on difficulty:
 

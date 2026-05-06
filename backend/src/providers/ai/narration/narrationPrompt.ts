@@ -52,6 +52,7 @@ Each action MUST include:
 - stat: one of ["might", "magic", "mischief"]
 - difficultyValue: exact number the player must meet or exceed (roll + stat + item bonuses)
 - narration: 1 evocative sentence (max 15 words) previewing what this action might lead to -a teaser, not a spoiler
+- flavor: one of ["standard", "spotlight", "combo", "social", "item", "environment"]
 - riddleAnswer and riddleCorrect only when the choice is a direct answer to a riddle
 
 Tone: Thrilling, adventurous, slightly dark but still accessible.
@@ -129,8 +130,11 @@ Choices:
 - Character spotlight: occasionally make the scene especially notice one hero's class, species, quirk, history, or carried item. Keep it active and useful, not downtime.
 - Party combo/help: occasionally offer a choice where \`nextCharacterName\` works with one active ally. Example labels: "Distract the guard while Zara slips behind him", "Bless Oswin's hammer before he strikes". Never require help from a downed character.
 - Reward good help in the choice design: if an active ally's class, trait, spell, or item clearly supports \`nextCharacterName\`, make that combo choice a little easier or safer than doing it alone.
+- For combo choices, set \`flavor: "combo"\` and \`helperCharacterName\` to the exact active ally helping.
 - Trait-aware social encounters: when an NPC can be talked to, tailor options to strengths. Rogues deceive or read tells, mages charm or sense magic, holy characters appeal to honor or detect corruption, strong characters intimidate or protect, performers distract or negotiate.
 - Inventory-aware choices: when an item could logically help, make one choice use it. Include the owner in the label when another hero's item matters. Do not overuse the same item every turn.
+- For item choices, set \`flavor: "item"\`, \`itemOwnerName\`, and \`itemName\` using exact names from current inventory.
+- For character spotlight choices, set \`flavor: "spotlight"\`. For social encounters, use \`flavor: "social"\`. For obstacle/terrain choices, use \`flavor: "environment"\`. Otherwise use \`flavor: "standard"\`.
 - NEVER offer choices that require a downed party member's assistance, or that reference a downed character as an ally.
 - Do NOT suggest targeting or interacting with downed characters in any choice unless it's to heal/revive them.
 - RIDDLES AND PUZZLES: If THIS TURN's narration introduces a direct riddle, pun question, password, or answerable puzzle, exactly 2 of the 3 choices MUST be possible answers. One answer choice MUST be correct and one MUST be plausible but wrong. For these two answer choices, set riddleAnswer to the exact answer text and riddleCorrect to true or false. The third choice MUST be a non-answer action tailored to \`nextCharacterName\` such as scouting, asking for a hint, using an item, or investigating the scene, and MUST NOT include riddleAnswer. Correct riddle answers are resolved by the game without a dice roll, so do not describe them as risky guesses.
@@ -235,9 +239,9 @@ Return your response in STRICT JSON format:
 {
   "narration": "string",
   "choices": [
-    { "label": "string", "difficulty": "string", "stat": "string", "difficultyValue": 10, "narration": "string", "riddleAnswer": "optional string", "riddleCorrect": true },
-    { "label": "string", "difficulty": "string", "stat": "string", "difficultyValue": 10, "narration": "string", "riddleAnswer": "optional string", "riddleCorrect": false },
-    { "label": "string", "difficulty": "string", "stat": "string", "difficultyValue": 10, "narration": "string" }
+    { "label": "string", "difficulty": "string", "stat": "string", "difficultyValue": 10, "narration": "string", "flavor": "combo", "helperCharacterName": "optional exact ally name", "itemOwnerName": "optional exact item owner", "itemName": "optional exact item name", "riddleAnswer": "optional string", "riddleCorrect": true },
+    { "label": "string", "difficulty": "string", "stat": "string", "difficultyValue": 10, "narration": "string", "flavor": "social", "riddleAnswer": "optional string", "riddleCorrect": false },
+    { "label": "string", "difficulty": "string", "stat": "string", "difficultyValue": 10, "narration": "string", "flavor": "standard" }
   ],
   "rollNarration": "string",
   "imagePrompt": "string | null",

@@ -34,6 +34,14 @@ const RISK_MAP: Record<string, { label: string; color: string }> = {
   hard: { label: 'Tough', color: 'text-rose-400' },
 };
 
+const CHOICE_FLAVOR_BADGES: Record<string, { label: string; className: string }> = {
+  spotlight: { label: 'Spotlight', className: 'bg-fuchsia-950/40 border-fuchsia-700/50 text-fuchsia-300' },
+  combo: { label: 'Team Up', className: 'bg-cyan-950/40 border-cyan-700/50 text-cyan-300' },
+  social: { label: 'Social', className: 'bg-violet-950/40 border-violet-700/50 text-violet-300' },
+  item: { label: 'Gear', className: 'bg-amber-950/40 border-amber-700/50 text-amber-300' },
+  environment: { label: 'Obstacle', className: 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300' },
+};
+
 const calcProb = (statTotal: number, target: number) => {
   const minNeeded = Math.max(1, Math.min(20, target - statTotal));
   return Math.round(((21 - minNeeded) / 20) * 100);
@@ -310,6 +318,7 @@ export const ActionDock = ({
                 <div className="text-xs font-black uppercase tracking-widest text-slate-500 px-1">Choose an Action</div>
                 {turn.choices.map((choice, i) => {
                   const isRiddleAnswer = !!choice.riddleAnswer;
+                  const flavorBadge = choice.flavor && choice.flavor !== 'standard' ? CHOICE_FLAVOR_BADGES[choice.flavor] : null;
                   const risk = RISK_MAP[choice.difficulty] ?? RISK_MAP.normal;
                   const statBase = activeCharacter?.stats[choice.stat as keyof typeof activeCharacter.stats] ?? 0;
                   const statBonus = activeCharacter?.inventory.reduce((s, item) => s + (item.statBonuses?.[choice.stat as keyof typeof item.statBonuses] ?? 0), 0) ?? 0;
@@ -340,6 +349,17 @@ export const ActionDock = ({
                         <div className="font-black text-base xl:text-lg uppercase leading-tight">{choice.label}</div>
                         {choice.narration && (
                           <div className="text-xs italic text-slate-300/70 mt-0.5 leading-snug">{choice.narration}</div>
+                        )}
+                        {flavorBadge && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            <span className={`px-2 py-0.5 rounded-full border text-[10px] font-black uppercase tracking-widest ${flavorBadge.className}`}>{flavorBadge.label}</span>
+                            {choice.helperCharacterName && (
+                              <span className="px-2 py-0.5 rounded-full border border-slate-600/70 bg-slate-950/40 text-[10px] font-black text-slate-300">with {choice.helperCharacterName.split(' ')[0]}</span>
+                            )}
+                            {choice.itemName && (
+                              <span className="px-2 py-0.5 rounded-full border border-slate-600/70 bg-slate-950/40 text-[10px] font-black text-slate-300 truncate max-w-[11rem]">{choice.itemName}</span>
+                            )}
+                          </div>
                         )}
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                           {isRiddleAnswer ? (
