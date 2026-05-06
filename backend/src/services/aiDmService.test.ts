@@ -142,7 +142,7 @@ describe('toNarrationInput', () => {
   });
 
   it('passes impact through for rolled actions and includes it in summary', () => {
-    const out = toNarrationInput(makeAIInput({ actionResult: { success: true, roll: 19, statUsed: 'might', statBonus: 4, itemBonus: 2, helperBonus: 2, helperCharacterName: 'Zara', choiceItemBonus: 2, choiceItemName: 'Moon Key', choiceItemOwnerName: 'Pip', difficultyTarget: 14, impact: 'strong' } }));
+    const out = toNarrationInput(makeAIInput({ actionResult: { success: true, roll: 19, statUsed: 'might', statBonus: 4, itemBonus: 2, helperBonus: 2, helperCharacterName: 'Zara', choiceItemBonus: 2, choiceItemName: 'Moon Key', choiceItemOwnerName: 'Pip', characterBonus: 2, characterBonusLabel: 'spotlight', difficultyTarget: 14, impact: 'strong' } }));
     expect(out.actionResult.impact).toBe('strong');
     expect(out.actionResult.statBonus).toBe(4);
     expect(out.actionResult.itemBonus).toBe(2);
@@ -151,8 +151,10 @@ describe('toNarrationInput', () => {
     expect(out.actionResult.choiceItemBonus).toBe(2);
     expect(out.actionResult.choiceItemName).toBe('Moon Key');
     expect(out.actionResult.choiceItemOwnerName).toBe('Pip');
-    expect(out.actionResult.total).toBe(29);
-    expect(out.actionResult.margin).toBe(15);
+    expect(out.actionResult.characterBonus).toBe(2);
+    expect(out.actionResult.characterBonusLabel).toBe('spotlight');
+    expect(out.actionResult.total).toBe(31);
+    expect(out.actionResult.margin).toBe(17);
     expect(out.actionResult.difficultyTarget).toBe(14);
     expect(out.actionResult.summary).toBe('The action succeeded with strong impact.');
   });

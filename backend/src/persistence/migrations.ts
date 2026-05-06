@@ -102,6 +102,12 @@ export const migrate = (db: DB): void => {
   if (!turnCols.includes('actionChoiceItemOwnerName')) {
     db.prepare("ALTER TABLE turn_history ADD COLUMN actionChoiceItemOwnerName TEXT").run();
   }
+  if (!turnCols.includes('actionCharacterBonus')) {
+    db.prepare("ALTER TABLE turn_history ADD COLUMN actionCharacterBonus INTEGER").run();
+  }
+  if (!turnCols.includes('actionCharacterBonusLabel')) {
+    db.prepare("ALTER TABLE turn_history ADD COLUMN actionCharacterBonusLabel TEXT").run();
+  }
   if (!turnCols.includes('image_storage_key')) {
     db.prepare("ALTER TABLE turn_history ADD COLUMN image_storage_key TEXT").run();
     db.prepare("ALTER TABLE turn_history ADD COLUMN image_storage_provider TEXT").run();

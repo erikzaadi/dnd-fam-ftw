@@ -267,7 +267,8 @@ export class GameEngine {
     difficulty: Difficulty = 'normal',
     difficultyValue?: number,
     helper?: { name: string; bonus: number },
-    choiceItem?: { name: string; ownerName: string; bonus: number }
+    choiceItem?: { name: string; ownerName: string; bonus: number },
+    characterEdge?: { label: string; bonus: number }
   ): ActionAttempt {
     if (statName === 'none') {
       return {
@@ -284,9 +285,10 @@ export class GameEngine {
     const itemBonus = character.inventory.reduce((sum, item) => sum + (item.statBonuses?.[statName] ?? 0), 0);
     const helperBonus = helper?.bonus ?? 0;
     const choiceItemBonus = choiceItem?.bonus ?? 0;
+    const characterBonus = characterEdge?.bonus ?? 0;
     const { roll, total } = this.rollDice(statValue);
     const target = difficultyValue ?? this.DIFFICULTIES[difficulty] ?? 12;
-    const finalTotal = total + itemBonus + helperBonus + choiceItemBonus;
+    const finalTotal = total + itemBonus + helperBonus + choiceItemBonus + characterBonus;
     const success = roll === 20 || (roll !== 1 && this.checkSuccess(finalTotal, target));
     const margin = success ? finalTotal - target : target - finalTotal;
     const impact = roll === 1 || roll === 20 || margin >= 12
@@ -310,6 +312,8 @@ export class GameEngine {
         ...(choiceItemBonus > 0 && { choiceItemBonus }),
         ...(choiceItemBonus > 0 && choiceItem?.name && { choiceItemName: choiceItem.name }),
         ...(choiceItemBonus > 0 && choiceItem?.ownerName && { choiceItemOwnerName: choiceItem.ownerName }),
+        ...(characterBonus > 0 && { characterBonus }),
+        ...(characterBonus > 0 && characterEdge?.label && { characterBonusLabel: characterEdge.label }),
       }
     };
   }

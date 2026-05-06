@@ -8,6 +8,8 @@ interface RollBreakdownProps {
   helperCharacterName?: string;
   choiceItemBonus?: number;
   choiceItemName?: string;
+  characterBonus?: number;
+  characterBonusLabel?: string;
   stat?: string;
   success: boolean;
   difficultyTarget?: number;
@@ -30,13 +32,15 @@ export const RollBreakdown = ({
   helperCharacterName,
   choiceItemBonus,
   choiceItemName,
+  characterBonus,
+  characterBonusLabel,
   stat,
   success,
   difficultyTarget,
   className = '',
   iconSize = '6',
 }: RollBreakdownProps) => {
-  const total = roll + (statBonus ?? 0) + (itemBonus ?? 0) + (helperBonus ?? 0) + (choiceItemBonus ?? 0);
+  const total = roll + (statBonus ?? 0) + (itemBonus ?? 0) + (helperBonus ?? 0) + (choiceItemBonus ?? 0) + (characterBonus ?? 0);
   return (
     <div className={`flex flex-col items-center gap-0.5 ${className}`}>
       <div className="flex items-center gap-0.5 font-black flex-wrap justify-center">
@@ -64,6 +68,12 @@ export const RollBreakdown = ({
           <>
             <span className="text-slate-600">+</span>
             <span className="text-amber-300">{choiceItemBonus} gear{choiceItemName ? ` (${choiceItemName.replace(/^\S+\s*/, '').split(' ')[0]})` : ''}</span>
+          </>
+        )}
+        {(characterBonus ?? 0) > 0 && (
+          <>
+            <span className="text-slate-600">+</span>
+            <span className="text-fuchsia-300">{characterBonus} {characterBonusLabel ?? 'edge'}</span>
           </>
         )}
         <span className="text-slate-600">=</span>

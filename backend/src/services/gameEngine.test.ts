@@ -181,6 +181,19 @@ describe('GameEngine.resolveAction - edge cases', () => {
     expect(result.actionResult.choiceItemOwnerName).toBe('Pip');
   });
 
+  it('character edge bonus is applied to social and spotlight rolls', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const socialChar = makeChar({ stats: { might: 1, magic: 1, mischief: 1 } });
+
+    const result = GameEngine.resolveAction(socialChar, 'Charm the suspicious guard', 'mischief', 'normal', 14, undefined, undefined, { label: 'social edge', bonus: 2 });
+    vi.restoreAllMocks();
+
+    expect(result.actionResult.roll).toBe(11);
+    expect(result.actionResult.success).toBe(true);
+    expect(result.actionResult.characterBonus).toBe(2);
+    expect(result.actionResult.characterBonusLabel).toBe('social edge');
+  });
+
   it('strong impact is set when the result beats the target by a lot', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
     const strongChar = makeChar({ stats: { might: 8, magic: 1, mischief: 1 } });

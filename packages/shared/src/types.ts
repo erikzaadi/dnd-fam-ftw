@@ -93,6 +93,8 @@ export interface ActionAttempt {
     choiceItemBonus?: number;
     choiceItemName?: string;
     choiceItemOwnerName?: string;
+    characterBonus?: number;
+    characterBonusLabel?: string;
     impact?: Impact;
     isCritical?: boolean;
     difficultyTarget?: number;
