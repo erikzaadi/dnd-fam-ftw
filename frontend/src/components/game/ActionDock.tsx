@@ -416,13 +416,13 @@ export const ActionDock = ({
                                 <span className="text-slate-400"> vs {target}</span>
                               </span>
 			      {helperBonus > 0 && (
-				<span className="text-xs font-black text-cyan-300">+{formatHelperBonusLabel(helperBonus, choice.helperCharacterName)}</span>
+                                <span className="text-xs font-black text-cyan-300">+{formatHelperBonusLabel(helperBonus, choice.helperCharacterName)}</span>
 			      )}
 			      {choiceItemBonus > 0 && (
-				<span className="text-xs font-black text-amber-300">+{formatChoiceItemBonusLabel(choiceItemBonus, choice.itemName)}</span>
+                                <span className="text-xs font-black text-amber-300">+{formatChoiceItemBonusLabel(choiceItemBonus, choice.itemName)}</span>
 			      )}
 			      {characterBonus > 0 && (
-				<span className="text-xs font-black text-fuchsia-300">+{formatCharacterBonusLabel(characterBonus, characterBonusLabel)}</span>
+                                <span className="text-xs font-black text-fuchsia-300">+{formatCharacterBonusLabel(characterBonus, characterBonusLabel)}</span>
 			      )}
                               <span className={`text-xs font-black uppercase tracking-widest ${risk.color}`}>{risk.label}</span>
                               <span className="text-xs text-slate-500 font-black ml-auto">{prob}%</span>

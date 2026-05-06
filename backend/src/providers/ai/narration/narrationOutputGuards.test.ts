@@ -150,13 +150,13 @@ describe('parseNarrationOutput', () => {
     const result = parseNarrationOutput({
       ...input,
       inventory: [
-	{ ownerName: 'Pip', name: '🧭 Brass Compass', description: 'Points to safe paths', statBonuses: {} },
+        { ownerName: 'Pip', name: '🧭 Brass Compass', description: 'Points to safe paths', statBonuses: {} },
       ],
     }, output({
       choices: [
-	{ label: 'Follow the Brass Compass', difficulty: 'easy', stat: 'mischief', difficultyValue: 8, flavor: 'item', itemOwnerName: 'Pip', itemName: 'Brass Compass' },
-	{ label: 'Check for traps', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
-	{ label: 'Call for help', difficulty: 'easy', stat: 'magic', difficultyValue: 7 },
+        { label: 'Follow the Brass Compass', difficulty: 'easy', stat: 'mischief', difficultyValue: 8, flavor: 'item', itemOwnerName: 'Pip', itemName: 'Brass Compass' },
+        { label: 'Check for traps', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+        { label: 'Call for help', difficulty: 'easy', stat: 'magic', difficultyValue: 7 },
       ],
     }));
 
@@ -169,9 +169,9 @@ describe('parseNarrationOutput', () => {
   it('downgrades invalid item choices instead of discarding the resolved turn', () => {
     const result = parseNarrationOutput(input, output({
       choices: [
-	{ label: 'Ring your bell to call for aid', difficulty: 'hard', stat: 'might', difficultyValue: 15, flavor: 'item', itemOwnerName: 'Oswin Bell', itemName: 'Bell of Summoning' },
-	{ label: 'Check for traps', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
-	{ label: 'Call for help', difficulty: 'easy', stat: 'magic', difficultyValue: 7 },
+        { label: 'Ring your bell to call for aid', difficulty: 'hard', stat: 'might', difficultyValue: 15, flavor: 'item', itemOwnerName: 'Oswin Bell', itemName: 'Bell of Summoning' },
+        { label: 'Check for traps', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+        { label: 'Call for help', difficulty: 'easy', stat: 'magic', difficultyValue: 7 },
       ],
     }));
 

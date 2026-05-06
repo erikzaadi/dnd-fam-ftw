@@ -7,7 +7,7 @@ test('mechanics showcase aligns action bonuses between popup and Chronicle', asy
   await openSeedSession(page, SESSION_ID);
 
   await expect(page.getByText('Team Up', { exact: true })).toBeVisible();
-  await expect(page.getByText('+2 help', { exact: true })).toBeVisible();
+  await expect(page.getByText('+2 help (Zara)', { exact: true })).toBeVisible();
   await expect(page.getByText('with Zara', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: /Time the jump while Zara steadies the spell/i }).click();

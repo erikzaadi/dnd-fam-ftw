@@ -234,7 +234,7 @@ export const SessionPage = () => {
     onNarrating: ({ action, statUsed, difficulty, difficultyValue, character, ...preview }) => {
       setLoading(true);
       if (action && statUsed && difficulty && character) {
-	setLastSubmittedAction(prev => prev
+        setLastSubmittedAction(prev => prev
 	  ? { ...prev, ...preview }
 	  : { label: action, stat: statUsed, difficulty, difficultyValue, char: character, ...preview });
       }
