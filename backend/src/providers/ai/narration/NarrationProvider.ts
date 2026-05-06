@@ -12,6 +12,7 @@ export type NarrationChoice = {
   helperCharacterName?: string;
   itemOwnerName?: string;
   itemName?: string;
+  environmentFeature?: string;
 };
 
 export type NarrationInput = {

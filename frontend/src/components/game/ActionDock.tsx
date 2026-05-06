@@ -369,6 +369,9 @@ export const ActionDock = ({
                             {choice.itemName && (
                               <span className="px-2 py-0.5 rounded-full border border-slate-600/70 bg-slate-950/40 text-[10px] font-black text-slate-300 truncate max-w-[11rem]">{choice.itemName}</span>
                             )}
+                            {choice.environmentFeature && (
+                              <span className="px-2 py-0.5 rounded-full border border-slate-600/70 bg-slate-950/40 text-[10px] font-black text-slate-300 truncate max-w-[11rem]">{choice.environmentFeature}</span>
+                            )}
                           </div>
                         )}
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">

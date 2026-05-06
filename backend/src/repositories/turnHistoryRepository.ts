@@ -48,6 +48,7 @@ const mapTurnHistoryRow = (row: TurnHistoryRow): TurnResult => {
     helperCharacterName: string | null;
     itemOwnerName: string | null;
     itemName: string | null;
+    environmentFeature: string | null;
   }[];
   const rollTotal = (row.actionRoll ?? 0) + (row.actionStatBonus ?? 0) + (row.actionItemBonus ?? 0) + (row.actionHelperBonus ?? 0) + (row.actionChoiceItemBonus ?? 0) + (row.actionCharacterBonus ?? 0);
   const margin = row.actionDifficultyTarget != null
@@ -95,7 +96,7 @@ const mapTurnHistoryRow = (row: TurnHistoryRow): TurnResult => {
     imageSuggested: !!row.imageSuggested,
     imageUrl,
     characterId: row.characterId || undefined,
-    choices: choices.map(({ difficultyValue, narration, riddleAnswer, riddleCorrect, flavor, helperCharacterName, itemOwnerName, itemName, ...choice }) => ({
+    choices: choices.map(({ difficultyValue, narration, riddleAnswer, riddleCorrect, flavor, helperCharacterName, itemOwnerName, itemName, environmentFeature, ...choice }) => ({
       ...choice,
       ...(difficultyValue != null && { difficultyValue }),
       ...(narration != null && { narration }),
@@ -105,6 +106,7 @@ const mapTurnHistoryRow = (row: TurnHistoryRow): TurnResult => {
       ...(helperCharacterName != null && { helperCharacterName }),
       ...(itemOwnerName != null && { itemOwnerName }),
       ...(itemName != null && { itemName }),
+      ...(environmentFeature != null && { environmentFeature }),
     })),
     lastAction,
     turnType: (row.turnType as TurnResult['turnType']) ?? 'normal',
@@ -157,7 +159,7 @@ export const turnHistoryRepository = {
 
     const turnId = info.lastInsertRowid;
     for (const choice of (turn.choices ?? [])) {
-      db.prepare('INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue, narration, riddleAnswer, riddleCorrect, flavor, helperCharacterName, itemOwnerName, itemName) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      db.prepare('INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue, narration, riddleAnswer, riddleCorrect, flavor, helperCharacterName, itemOwnerName, itemName, environmentFeature) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
         .run(
           turnId,
           choice.label,
@@ -171,6 +173,7 @@ export const turnHistoryRepository = {
           choice.helperCharacterName ?? null,
           choice.itemOwnerName ?? null,
           choice.itemName ?? null,
+          choice.environmentFeature ?? null,
         );
     }
     return Number(turnId);

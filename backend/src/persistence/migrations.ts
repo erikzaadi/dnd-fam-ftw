@@ -225,6 +225,9 @@ export const migrate = (db: DB): void => {
   if (!choiceCols.includes('itemName')) {
     db.prepare("ALTER TABLE turn_choices ADD COLUMN itemName TEXT").run();
   }
+  if (!choiceCols.includes('environmentFeature')) {
+    db.prepare("ALTER TABLE turn_choices ADD COLUMN environmentFeature TEXT").run();
+  }
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS namespaces (

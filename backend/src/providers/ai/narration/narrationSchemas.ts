@@ -13,6 +13,7 @@ const choiceSchema = z.object({
   helperCharacterName: z.string().min(1).optional(),
   itemOwnerName: z.string().min(1).optional(),
   itemName: z.string().min(1).optional(),
+  environmentFeature: z.string().min(1).optional(),
 });
 
 const inventoryAddSchema = z.object({

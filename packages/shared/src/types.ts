@@ -62,6 +62,7 @@ export interface Choice {
   helperCharacterName?: string;
   itemOwnerName?: string;
   itemName?: string;
+  environmentFeature?: string;
 }
 
 export type TurnType = 'normal' | 'intervention' | 'sanctuary';

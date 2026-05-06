@@ -179,7 +179,11 @@ AI-suggested choices may include a `flavor` field so the UI and future mechanics
 | `combo` | The active hero works with another active ally; includes `helperCharacterName` and can earn the helper bonus |
 | `social` | Conversation, deception, charm, intimidation, appeal, or negotiation, and can earn the character edge bonus |
 | `item` | Uses a carried item; includes `itemOwnerName` and `itemName`, and can earn the marked gear bonus |
-| `environment` | Uses terrain, hazards, mechanisms, obstacles, or scene details |
+| `environment` | Uses terrain, hazards, mechanisms, obstacles, or scene details; includes `environmentFeature` |
+
+`environment` choices should name the concrete feature they use, such as a collapsing bridge, flooded tunnel, unstable rune circle, living vines, sliding walls, falling stones, magical fog, or brittle ice.
+
+No more than two choices in one AI response may use bonus-bearing flavors: `combo`, `item`, `social`, or `spotlight`. Each turn should leave room for at least one non-bonus, environmental, or standard option.
 
 ### `use_item`
 

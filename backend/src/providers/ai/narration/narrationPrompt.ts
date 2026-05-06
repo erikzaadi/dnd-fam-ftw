@@ -134,7 +134,12 @@ Choices:
 - Trait-aware social encounters: when an NPC can be talked to, tailor options to strengths. Rogues deceive or read tells, mages charm or sense magic, holy characters appeal to honor or detect corruption, strong characters intimidate or protect, performers distract or negotiate.
 - Inventory-aware choices: when an item could logically help, make one choice use it. Include the owner in the label when another hero's item matters. Do not overuse the same item every turn.
 - For item choices, set \`flavor: "item"\`, \`itemOwnerName\`, and \`itemName\` using exact names from current inventory. The backend can reward this with a small marked gear bonus if the item owner is active and still carries the item.
-- For character spotlight choices, set \`flavor: "spotlight"\`. For social encounters, use \`flavor: "social"\`. For obstacle/terrain choices, use \`flavor: "environment"\`. Otherwise use \`flavor: "standard"\`.
+- Environmental obstacles should be fast, actionable, and specific: collapsing bridge, rotating room, flooded tunnel, unstable runes, living vines, sliding walls, falling stones, magical fog, brittle ice, or similar concrete scene features.
+- Environment choices should use active verbs, not "inspect the area" unless investigation is the real challenge.
+- When a scene is primarily an obstacle, offer 2-3 different approaches: force or brace with \`might\`, timing or stealth with \`mischief\`, magic, sensing, or stabilizing with \`magic\`.
+- For character spotlight choices, set \`flavor: "spotlight"\`. For social encounters, use \`flavor: "social"\`. For obstacle/terrain choices, use \`flavor: "environment"\` and set \`environmentFeature\` to a short concrete feature from the current scene. Otherwise use \`flavor: "standard"\`.
+- No more than 2 choices in the same response may use bonus-bearing flavors: \`combo\`, \`item\`, \`social\`, or \`spotlight\`. Prefer at least one non-bonus, environment, or standard option so every turn is not a bonus hunt.
+- Avoid repeating the same flavor pattern every turn. \`fast\` mode should usually favor \`environment\`, \`combo\`, \`item\`, or \`standard\` over slower social or spotlight choices unless the stakes are immediate.
 - NEVER offer choices that require a downed party member's assistance, or that reference a downed character as an ally.
 - Do NOT suggest targeting or interacting with downed characters in any choice unless it's to heal/revive them.
 - RIDDLES AND PUZZLES: If THIS TURN's narration introduces a direct riddle, pun question, password, or answerable puzzle, exactly 2 of the 3 choices MUST be possible answers. One answer choice MUST be correct and one MUST be plausible but wrong. For these two answer choices, set riddleAnswer to the exact answer text and riddleCorrect to true or false. The third choice MUST be a non-answer action tailored to \`nextCharacterName\` such as scouting, asking for a hint, using an item, or investigating the scene, and MUST NOT include riddleAnswer. Correct riddle answers are resolved by the game without a dice roll, so do not describe them as risky guesses.
@@ -239,9 +244,9 @@ Return your response in STRICT JSON format:
 {
   "narration": "string",
   "choices": [
-    { "label": "string", "difficulty": "string", "stat": "string", "difficultyValue": 10, "narration": "string", "flavor": "combo", "helperCharacterName": "optional exact ally name", "itemOwnerName": "optional exact item owner", "itemName": "optional exact item name", "riddleAnswer": "optional string", "riddleCorrect": true },
+    { "label": "string", "difficulty": "string", "stat": "string", "difficultyValue": 10, "narration": "string", "flavor": "combo", "helperCharacterName": "optional exact ally name", "itemOwnerName": "optional exact item owner", "itemName": "optional exact item name", "environmentFeature": "optional short terrain or obstacle", "riddleAnswer": "optional string", "riddleCorrect": true },
     { "label": "string", "difficulty": "string", "stat": "string", "difficultyValue": 10, "narration": "string", "flavor": "social", "riddleAnswer": "optional string", "riddleCorrect": false },
-    { "label": "string", "difficulty": "string", "stat": "string", "difficultyValue": 10, "narration": "string", "flavor": "standard" }
+    { "label": "string", "difficulty": "string", "stat": "string", "difficultyValue": 10, "narration": "string", "flavor": "environment", "environmentFeature": "short terrain or obstacle" }
   ],
   "rollNarration": "string",
   "imagePrompt": "string | null",

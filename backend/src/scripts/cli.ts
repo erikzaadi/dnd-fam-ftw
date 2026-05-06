@@ -561,7 +561,7 @@ case 'sessions': {
 
           const newTurnId = result.lastInsertRowid;
           for (const choice of (turn.choices as Record<string, unknown>[]) ?? []) {
-            db.prepare('INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue, narration, flavor, helperCharacterName, itemOwnerName, itemName) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+            db.prepare('INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue, narration, flavor, helperCharacterName, itemOwnerName, itemName, environmentFeature) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
               .run(
                 newTurnId,
                 choice.label,
@@ -573,6 +573,7 @@ case 'sessions': {
                 choice.helperCharacterName ?? null,
                 choice.itemOwnerName ?? null,
                 choice.itemName ?? null,
+                choice.environmentFeature ?? null,
               );
           }
         }

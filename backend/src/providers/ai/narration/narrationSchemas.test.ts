@@ -52,4 +52,21 @@ describe('narrationOutputSchema', () => {
 
     expect(result.success).toBe(true);
   });
+
+  it('accepts environment feature metadata on obstacle choices', () => {
+    const result = narrationOutputSchema.safeParse({
+      narration: 'The bridge stones begin dropping into a misty ravine.',
+      choices: [
+        { label: 'Sprint across the falling stones', difficulty: 'normal', stat: 'might', difficultyValue: 11, flavor: 'environment', environmentFeature: 'falling bridge stones' },
+        { label: 'Time each step between gaps', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+        { label: 'Stabilize the bridge with a spell', difficulty: 'hard', stat: 'magic', difficultyValue: 15 },
+      ],
+      imagePrompt: null,
+      imageSuggested: false,
+      currentTensionLevel: 'high',
+      suggestedInventoryAdd: null,
+    });
+
+    expect(result.success).toBe(true);
+  });
 });

@@ -75,4 +75,34 @@ describe('parseNarrationOutput', () => {
       expect(result.error).toContain('zug-ma-geddon');
     }
   });
+
+  it('rejects environment choices without an environment feature', () => {
+    const result = parseNarrationOutput(input, output({
+      choices: [
+        { label: 'Leap across the crumbling stair', difficulty: 'normal', stat: 'might', difficultyValue: 11, flavor: 'environment' },
+        { label: 'Check for traps', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+        { label: 'Call for help', difficulty: 'easy', stat: 'magic', difficultyValue: 7 },
+      ],
+    }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('environmentFeature');
+    }
+  });
+
+  it('rejects more than two bonus-bearing choices in one turn', () => {
+    const result = parseNarrationOutput(input, output({
+      choices: [
+        { label: 'Use Pip\'s rogue nerve', difficulty: 'normal', stat: 'mischief', difficultyValue: 11, flavor: 'spotlight' },
+        { label: 'Talk down the keep spirit', difficulty: 'normal', stat: 'mischief', difficultyValue: 11, flavor: 'social' },
+        { label: 'Lean into Pip\'s halfling luck', difficulty: 'easy', stat: 'mischief', difficultyValue: 8, flavor: 'spotlight' },
+      ],
+    }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('No more than two bonus-bearing choices');
+    }
+  });
 });
