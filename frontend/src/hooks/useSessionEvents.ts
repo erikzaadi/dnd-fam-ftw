@@ -3,6 +3,10 @@ import type { Session, TurnResult, Character } from '../types';
 import { apiUrl } from '../lib/api';
 import { audioManager } from '../audio/audioManager';
 
+const SSE_STALE_TIMEOUT_MS = 60000;
+const SSE_STALE_CHECK_MS = 10000;
+const SSE_RECONNECT_DELAY_MS = 3000;
+
 interface NarratingPayload {
   action?: string;
   statUsed?: string;
@@ -43,11 +47,24 @@ export const useSessionEvents = ({
   useEffect(() => {
     let es: EventSource;
     let reconnectTimer: ReturnType<typeof setTimeout>;
+    let lastMessageAt = Date.now();
+    let closed = false;
+
+    const scheduleReconnect = () => {
+      if (closed) {
+        return; 
+      }
+      es?.close();
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, SSE_RECONNECT_DELAY_MS);
+    };
 
     const connect = () => {
+      lastMessageAt = Date.now();
       es = new EventSource(apiUrl(`/session/${sessionId}/events`), { withCredentials: true });
 
       es.onmessage = (e: MessageEvent) => {
+        lastMessageAt = Date.now();
         const data = JSON.parse(e.data);
         if (data.type === 'dm_narrating') {
 	  onNarrating({
@@ -105,15 +122,22 @@ export const useSessionEvents = ({
       };
 
       es.onerror = () => {
-        es.close();
-        reconnectTimer = setTimeout(connect, 3000);
+        scheduleReconnect(); 
       };
     };
 
     connect();
+    const staleTimer = setInterval(() => {
+      if (Date.now() - lastMessageAt > SSE_STALE_TIMEOUT_MS) {
+        scheduleReconnect(); 
+      }
+    }, SSE_STALE_CHECK_MS);
+
     return () => {
+      closed = true;
       es?.close();
       clearTimeout(reconnectTimer);
+      clearInterval(staleTimer);
     };
   // Handlers are intentionally excluded - they are stable callbacks from the parent.
   // Re-running the effect on every render would reconnect the SSE stream unnecessarily.

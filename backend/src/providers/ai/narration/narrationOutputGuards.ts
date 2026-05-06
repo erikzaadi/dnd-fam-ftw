@@ -2,9 +2,7 @@ import type { NarrationInput, NarrationOutput } from './NarrationProvider.js';
 import { narrationOutputSchema } from './narrationSchemas.js';
 
 const PORTAL_CHOICE_RE = /\b(portal|shortcut|teleport|teleportation|gateway|rift|waygate)\b/i;
-const PORTAL_NARRATION_RE = /\b(portal|shortcut|teleport|teleportation|gateway|rift|waygate)\b/i;
-const NPC_RE = /\b(npc|figure|stranger|spirit|sprite|fairy|fae|pixie|courier|messenger|guide|scout|herald|mage|wizard|witch|seer|priest|druid|merchant|vendor|traveler|ally|patron|summoner|guardian|keeper|voice)\b/i;
-const OFFER_OR_ACTIVATE_RE = /\b(offer|offers|offered|offering|beckon|beckons|beckoning|gesture|gestures|gesturing|point|points|pointing|motion|motions|motioning|wave|waves|waving|urge|urges|urging|invite|invites|inviting|open|opens|opened|opening|activate|activates|activated|activating|summon|summons|summoned|summoning|create|creates|created|creating|conjure|conjures|conjured|conjuring|tear|tears|tore|tearing|signal|signals|signaling|signalling)\b/i;
+const CHALLENGE_ACTION_RE = /\b(ambush|battle|boss|brawl|challenge|chase|combat|conflict|defeat|disarm|duel|enemy|escape|fight|foe|guard|guardian|hazard|monster|obstacle|puzzle|riddle|ritual|shadow|shadows|sneak|spectral|strike|trap|wolf|wolves)\b/i;
 const HEALING_ACTION_RE = /\b(heal|healing|restore|restoring|revive|reviving|mend|mending|soothe|soothing|recover|recovery|rest|resting|sleep|sleeping|eat|eating|meal|care|treat|treating|medicine|potion|bandage|sanctuary)\b/i;
 
 const choiceText = (choice: NarrationOutput['choices'][number]) => `${choice.label} ${choice.narration ?? ''}`;
@@ -21,10 +19,26 @@ function hasPortalChoice(output: NarrationOutput): boolean {
   return output.choices.some(choice => PORTAL_CHOICE_RE.test(choiceText(choice)));
 }
 
-function narrationHasNpcPortalOffer(output: NarrationOutput): boolean {
-  return PORTAL_NARRATION_RE.test(output.narration)
-    && NPC_RE.test(output.narration)
-    && OFFER_OR_ACTIVATE_RE.test(output.narration);
+function inputHasChallengeContext(input: NarrationInput): boolean {
+  const context = [
+    input.actionAttempt,
+    input.actionResult.summary,
+    input.scene,
+    input.storySummary,
+    ...(input.recentHistory ?? []),
+  ].join(' ');
+  return CHALLENGE_ACTION_RE.test(context);
+}
+
+function completedPortalWorthyChallenge(input: NarrationInput): boolean {
+  if (!input.actionResult.success || HEALING_ACTION_RE.test(input.actionAttempt)) {
+    return false;
+  }
+
+  const impact = input.actionResult.impact;
+  const completedStrongOutcome = impact === 'strong' || impact === 'extreme';
+  const completedDifficultRoll = (input.actionResult.difficultyTarget ?? 0) >= 13;
+  return completedStrongOutcome || completedDifficultRoll || inputHasChallengeContext(input);
 }
 
 function canonicalizeItemChoices(input: NarrationInput, output: NarrationOutput): void {
@@ -51,8 +65,8 @@ function canonicalizeItemChoices(input: NarrationInput, output: NarrationOutput)
 
 export function validateNarrationOutput(input: NarrationInput, output: NarrationOutput): string[] {
   const errors: string[] = [];
-  if (hasPortalChoice(output) && !narrationHasNpcPortalOffer(output)) {
-    errors.push('Portal, shortcut, or teleport choices require this turn narration to show an NPC offering or activating one.');
+  if (hasPortalChoice(output) && !completedPortalWorthyChallenge(input)) {
+    errors.push('Portal, shortcut, or teleport choices require this turn to complete combat or a difficult challenge.');
   }
 
   if ((input.gameMode === 'zug-ma-geddon') && output.currentTensionLevel !== 'high') {

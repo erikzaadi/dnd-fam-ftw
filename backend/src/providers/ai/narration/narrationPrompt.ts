@@ -116,7 +116,7 @@ Story Continuity:
 - NPCs from \`dmPrep\`: do NOT reserve them for choices only. Named NPCs must appear IN the narration itself -they speak, react, interfere, threaten, or help in the scene description. A villain should loom. A merchant should call out. A mysterious figure should be glimpsed. NPCs are part of the living world, not just action targets.
 - If NO \`dmPrep\` is provided: invent and maintain an implicit 3-stage campaign arc -an early discovery, a dangerous escalation, and a climactic confrontation. Give the party a clear sense of forward momentum: a destination, a looming threat, a mystery unfolding. Reference this arc subtly across turns so the adventure feels like it is going somewhere.
 - FAST MODE PORTAL NPC (applies only when gameMode is "fast" or "zug-ma-geddon" AND no \`dmPrep\` is provided): After the party defeats their foes (combat encounter ends in victory), a brief NPC -a cloaked figure, a summoned spirit, a frantic courier, or similar- must appear IN THE NARRATION TEXT and explicitly offer or activate a portal/shortcut. Keep it to 1 sentence woven into the victory narration. This replaces any lingering downtime and keeps momentum into the next encounter. When this portal appears, one of the 3 suggested actions MUST be to take, enter, follow, or accept the portal/shortcut. That portal action MUST be difficulty "easy" with difficultyValue 1.
-- PORTAL CHOICE GATE: A portal/shortcut/teleport choice MUST NEVER appear in the suggested actions unless the narration of THIS EXACT TURN explicitly describes an NPC offering or activating one. Do NOT offer portal choices based on prior turns, environmental hints, or assumed lore. The NPC must speak, gesture, or act in this turn's narration text before the portal option is valid.
+- PORTAL CHOICE GATE: A portal/shortcut/teleport choice MUST NEVER appear in the suggested actions unless THIS EXACT TURN completed combat or a difficult challenge. Portal choices are reward beats after danger or a hard obstacle resolves. Do NOT offer portal choices after downtime, healing, rest, care, low-pressure support actions, prior-turn portal hints, environmental hints, or assumed lore.
 
 Acting and Next Character:
 - \`actingCharacterName\` is the character who just performed the \`actionAttempt\`. Your narration MUST attribute the success or failure of the action to THIS character.
@@ -176,6 +176,7 @@ CRITICAL -Character Revival (downed → alive):
 CRITICAL - Healing (Active and Passive):
 - Set suggestedHeal only when the submitted action is actually healing, reviving, resting, eating, sleeping, receiving care, or otherwise explicitly recovering.
 - Do NOT grant HP just because the roll was high, the action was triumphant, the party escaped danger, teleported, found a shortcut, or reached a safer place.
+- A healing action does not need combat, urgency, or an external challenge to "pass". If the party is simply taking a breath to mend wounds, narrate quiet recovery and keep any next danger as existing scene context, not a newly invented threat.
 - Set suggestedHeal whenever an explicitly healing/recovery action heals a character by supported means: spells, druidic restoration, divine power, natural abilities, potions, food, rest, sleep, meditation, sanctuary, or care.
 - The "characterName" in each suggestedHeal entry MUST be the character RECEIVING the healing -NOT the one casting/performing it. If Druid heals Warrior, characterName = "Warrior's exact name".
 - Active healing (character uses a healing ability/spell targeting someone): include ONLY the healed character(s). hp = 3-6 standard, up to max for powerful healing.
@@ -271,8 +272,8 @@ export function buildNarrationRetryInstructions(validationError: string, formatI
   ];
 
   if (validationError.includes('Portal, shortcut, or teleport choices')) {
-    fixes.push('For portal errors, either remove every portal/shortcut/teleport choice, or rewrite the narration so a named NPC explicitly offers, opens, points to, beckons toward, motions toward, or activates the portal in this exact turn.');
-    fixes.push('A portal merely glowing, humming, existing nearby, or being behind an NPC is not enough.');
+    fixes.push('For portal errors, remove every portal/shortcut/teleport choice unless this exact turn completed combat or a difficult challenge.');
+    fixes.push('Do not keep portal choices after healing, rest, care, downtime, low-pressure support, prior-turn portal hints, or environmental hints.');
   }
 
   if (validationError.includes('No more than two bonus-bearing choices')) {

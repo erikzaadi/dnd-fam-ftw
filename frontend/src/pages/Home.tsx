@@ -22,6 +22,10 @@ const PACING_LABELS: Record<string, { icon: string; label: string }> = {
   'zug-ma-geddon': { icon: '💀', label: 'ZUG-MA-GEDDON' },
 };
 
+const SSE_STALE_TIMEOUT_MS = 60000;
+const SSE_STALE_CHECK_MS = 10000;
+const SSE_RECONNECT_DELAY_MS = 3000;
+
 const EditSessionModal = ({
   sessionName,
   sessionId,
@@ -378,30 +382,50 @@ export const Home = () => {
   useEffect(() => {
     let es: EventSource;
     let reconnectTimer: ReturnType<typeof setTimeout>;
+    let lastMessageAt = Date.now();
+    let closed = false;
 
     const refresh = () => {
       loadSessions();
       loadLimits();
     };
 
+    const scheduleReconnect = () => {
+      if (closed) {
+        return; 
+      }
+      es?.close();
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, SSE_RECONNECT_DELAY_MS);
+    };
+
     const connect = () => {
+      lastMessageAt = Date.now();
       es = new EventSource(apiUrl('/sessions/events'), { withCredentials: true });
       es.onmessage = (e: MessageEvent) => {
+        lastMessageAt = Date.now();
         const data = JSON.parse(e.data) as { type?: string };
         if (data.type === 'session_changed' || data.type === 'preview_image_available') {
           refresh();
         }
       };
       es.onerror = () => {
-        es.close();
-        reconnectTimer = setTimeout(connect, 3000);
+        scheduleReconnect(); 
       };
     };
 
     connect();
+    const staleTimer = setInterval(() => {
+      if (Date.now() - lastMessageAt > SSE_STALE_TIMEOUT_MS) {
+        scheduleReconnect(); 
+      }
+    }, SSE_STALE_CHECK_MS);
+
     return () => {
+      closed = true;
       es?.close();
       clearTimeout(reconnectTimer);
+      clearInterval(staleTimer);
     };
   }, [loadLimits, loadSessions]);
 

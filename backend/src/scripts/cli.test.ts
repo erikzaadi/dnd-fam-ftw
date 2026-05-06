@@ -301,7 +301,7 @@ function seedNarrationMetricsTurn(): void {
     1,
     1,
     'No more than two bonus-bearing choices may appear in one turn.',
-    'Portal, shortcut, or teleport choices require this turn narration to show an NPC offering or activating one.',
+    'Portal, shortcut, or teleport choices require this turn to complete combat or a difficult challenge.',
   );
 }
 
@@ -341,7 +341,7 @@ describe('CLI metrics', () => {
     expect(status).toBe(0);
     expect(stdout).toContain('turn_id,session_id,session_name,namespace_id');
     expect(stdout).toContain('narration-metrics-session');
-    expect(stdout).toContain('"Portal, shortcut, or teleport choices require this turn narration to show an NPC offering or activating one."');
+    expect(stdout).toContain('"Portal, shortcut, or teleport choices require this turn to complete combat or a difficult challenge."');
 
     const metricsJson = cli('metrics', '--json');
     expect(metricsJson.status).toBe(0);

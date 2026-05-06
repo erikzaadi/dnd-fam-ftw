@@ -36,7 +36,7 @@ const output = (overrides: Partial<NarrationOutput> = {}): NarrationOutput => ({
 });
 
 describe('parseNarrationOutput', () => {
-  it('rejects portal choices when this turn narration lacks an NPC offer or activation', () => {
+  it('rejects portal choices when this turn did not complete combat or a difficult challenge', () => {
     const result = parseNarrationOutput(input, output({
       narration: 'A portal opens with a low violet hum.',
       choices: [
@@ -48,12 +48,21 @@ describe('parseNarrationOutput', () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toContain('NPC');
+      expect(result.error).toContain('complete combat or a difficult challenge');
     }
   });
 
-  it('accepts portal choices when this turn narration has an NPC activating the portal', () => {
-    const result = parseNarrationOutput(input, output({
+  it('accepts portal choices after a successful difficult challenge', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      actionAttempt: 'Disarm the collapsing bridge trap',
+      actionResult: {
+        success: true,
+        summary: 'Pip disarmed the bridge trap before it could collapse.',
+        difficultyTarget: 14,
+        impact: 'strong',
+      },
+    }, output({
       narration: 'A cloaked figure gestures sharply and opens a portal beside the fallen foe.',
       choices: [
         { label: 'Enter the portal', difficulty: 'easy', stat: 'magic', difficultyValue: 1 },
@@ -65,8 +74,15 @@ describe('parseNarrationOutput', () => {
     expect(result.success).toBe(true);
   });
 
-  it('accepts portal choices when an NPC is gesturing towards the portal', () => {
-    const result = parseNarrationOutput(input, output({
+  it('accepts portal choices after completed combat', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      actionAttempt: 'Defeat the spectral wolves',
+      actionResult: {
+        success: true,
+        summary: 'The spectral wolves fall back and the combat ends in victory.',
+      },
+    }, output({
       narration: 'A cloaked figure appears, gesturing towards an ethereal portal shimmering with light.',
       choices: [
         { label: 'Follow the portal to the unknown', difficulty: 'easy', stat: 'magic', difficultyValue: 1 },
@@ -78,8 +94,15 @@ describe('parseNarrationOutput', () => {
     expect(result.success).toBe(true);
   });
 
-  it('accepts portal choices when a sprite urges the party toward the portal opportunity', () => {
-    const result = parseNarrationOutput(input, output({
+  it('accepts portal choices when a sprite urges the party toward the portal after combat', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      actionAttempt: 'Strike the shadow monster',
+      actionResult: {
+        success: true,
+        summary: 'Pip lands the final blow and the monster is defeated.',
+      },
+    }, output({
       narration: 'A shimmering portal opens behind the foe, and Fiddlewick the sprite chirps excitedly, urging the party to seize the opportunity.',
       choices: [
         { label: 'Dive through the shimmering portal', difficulty: 'easy', stat: 'mischief', difficultyValue: 1, flavor: 'environment', environmentFeature: 'shimmering portal' },
@@ -89,6 +112,32 @@ describe('parseNarrationOutput', () => {
     }));
 
     expect(result.success).toBe(true);
+  });
+
+  it('rejects portal choices after healing even when the existing story already established a portal', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      actionAttempt: 'Heal the whole party',
+      storySummary: 'A shimmering portal waits at the edge of the bridge.',
+      actionResult: {
+        success: true,
+        summary: 'Pip restores the party with a careful healing spell.',
+        difficultyTarget: 14,
+        impact: 'strong',
+      },
+    }, output({
+      narration: 'Pip takes a moment to steady the party.',
+      choices: [
+        { label: 'Step through the portal', difficulty: 'easy', stat: 'magic', difficultyValue: 8 },
+        { label: 'Check the threshold', difficulty: 'normal', stat: 'mischief', difficultyValue: 10 },
+        { label: 'Guard the party', difficulty: 'normal', stat: 'might', difficultyValue: 11 },
+      ],
+    }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('complete combat or a difficult challenge');
+    }
   });
 
   it('rejects zug-ma-geddon output below high tension', () => {

@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import type { Request, Response } from 'express';
 
 const eventEmitter = new EventEmitter();
+const HEARTBEAT_INTERVAL_MS = 25000;
 
 const writeEvent = (res: Response, data: Record<string, unknown>) => {
   res.write(`data: ${JSON.stringify(data)}\n\n`);
@@ -13,8 +14,14 @@ const setSseHeaders = (res: Response) => {
   res.setHeader('Connection', 'keep-alive');
 };
 
+const startHeartbeat = (res: Response) => setInterval(() => {
+  writeEvent(res, { type: 'heartbeat' });
+}, HEARTBEAT_INTERVAL_MS);
+
 export const registerSessionEventStream = (req: Request, res: Response, sessionId: string) => {
   setSseHeaders(res);
+  writeEvent(res, { type: 'connected' });
+  const heartbeat = startHeartbeat(res);
 
   const onUpdate = (data: Record<string, unknown>) => {
     if (data.sessionId === sessionId) {
@@ -24,6 +31,7 @@ export const registerSessionEventStream = (req: Request, res: Response, sessionI
 
   eventEmitter.on('update', onUpdate);
   req.on('close', () => {
+    clearInterval(heartbeat);
     eventEmitter.off('update', onUpdate);
   });
 };
@@ -31,6 +39,7 @@ export const registerSessionEventStream = (req: Request, res: Response, sessionI
 export const registerSessionListEventStream = (req: Request, res: Response, namespaceId: string) => {
   setSseHeaders(res);
   writeEvent(res, { type: 'connected' });
+  const heartbeat = startHeartbeat(res);
 
   const onUpdate = (data: Record<string, unknown>) => {
     if (data.namespaceId === namespaceId) {
@@ -40,6 +49,7 @@ export const registerSessionListEventStream = (req: Request, res: Response, name
 
   eventEmitter.on('session-list-update', onUpdate);
   req.on('close', () => {
+    clearInterval(heartbeat);
     eventEmitter.off('session-list-update', onUpdate);
   });
 };

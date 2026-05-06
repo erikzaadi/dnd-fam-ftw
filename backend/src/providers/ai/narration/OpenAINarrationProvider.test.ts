@@ -76,10 +76,10 @@ describe('OpenAINarrationProvider', () => {
       ],
     });
     const corrected = output({
-      narration: 'A cloaked figure gestures sharply and opens a portal beside the fallen foe.',
+      narration: 'Pip finds a safer stairwell and marks the old stones with chalk.',
       choices: [
-        { label: 'Enter the portal', difficulty: 'easy', stat: 'magic', difficultyValue: 1 },
-        { label: 'Question the figure', difficulty: 'normal', stat: 'mischief', difficultyValue: 10 },
+        { label: 'Follow the marked stairwell', difficulty: 'easy', stat: 'mischief', difficultyValue: 8 },
+        { label: 'Question the echoing voices', difficulty: 'normal', stat: 'mischief', difficultyValue: 10 },
         { label: 'Guard the party', difficulty: 'normal', stat: 'might', difficultyValue: 11 },
       ],
     });
@@ -98,15 +98,15 @@ describe('OpenAINarrationProvider', () => {
       expect(result).toMatchObject(corrected);
       expect(result.narrationRetried).toBe(true);
       expect(result.narrationFailed).toBeUndefined();
-      expect(result.narrationValidationError).toContain('NPC');
+      expect(result.narrationValidationError).toContain('complete combat or a difficult challenge');
       expect(mocks.create).toHaveBeenCalledTimes(2);
       expect(warn).toHaveBeenCalledWith(
         '[OpenAINarration] First attempt failed validation, retrying...',
-        expect.stringContaining('NPC')
+        expect.stringContaining('complete combat or a difficult challenge')
       );
       expect(retryRequest?.messages[0].content).toContain('fix these validation errors');
-      expect(retryRequest?.messages[0].content).toContain('NPC');
-      expect(retryRequest?.messages[0].content).toContain('A portal merely glowing, humming, existing nearby, or being behind an NPC is not enough.');
+      expect(retryRequest?.messages[0].content).toContain('complete combat or a difficult challenge');
+      expect(retryRequest?.messages[0].content).toContain('Do not keep portal choices after healing, rest, care, downtime, low-pressure support, prior-turn portal hints, or environmental hints.');
       expect(error).not.toHaveBeenCalled();
     } finally {
       warn.mockRestore();
