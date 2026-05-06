@@ -137,6 +137,21 @@ export const migrate = (db: DB): void => {
   if (!invCols.includes('consumable')) {
     db.prepare("ALTER TABLE inventory ADD COLUMN consumable INTEGER").run();
   }
+  if (!invCols.includes('tags')) {
+    db.prepare("ALTER TABLE inventory ADD COLUMN tags TEXT").run();
+  }
+  if (!invCols.includes('effect')) {
+    db.prepare("ALTER TABLE inventory ADD COLUMN effect TEXT").run();
+  }
+  if (!invCols.includes('charges')) {
+    db.prepare("ALTER TABLE inventory ADD COLUMN charges INTEGER").run();
+  }
+  if (!invCols.includes('condition')) {
+    db.prepare("ALTER TABLE inventory ADD COLUMN condition TEXT").run();
+  }
+  if (!invCols.includes('boundToCharacterId')) {
+    db.prepare("ALTER TABLE inventory ADD COLUMN boundToCharacterId TEXT").run();
+  }
 
   const sessionCols = (db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[]).map(r => r.name);
   if (!sessionCols.includes('savingsMode')) {

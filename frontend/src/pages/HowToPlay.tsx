@@ -102,7 +102,7 @@ export const HowToPlay = () => {
                 }
                 value="Hand a transferable item to another party member"
               />
-              <p className="text-slate-500 text-base mt-3">Using and giving items doesn't cost a roll. They always succeed.</p>
+              <p className="text-slate-500 text-base mt-3">Using and giving items doesn't cost a roll. They always succeed. Story moments can also bless, reveal, charge, damage, or bond items so old gear may gain new properties.</p>
             </Section>
 
             <Section title="🪙 Trading">

@@ -131,6 +131,11 @@ export const sessionRepository = {
         healValue: number | null;
         transferable: number | null;
         consumable: number | null;
+        tags: string | null;
+        effect: string | null;
+        charges: number | null;
+        condition: string | null;
+        boundToCharacterId: string | null;
       }[];
       (char as unknown as { inventory: InventoryItem[] }).inventory = rawInv.map(i => ({
         id: i.itemId ?? String(i.id),
@@ -140,6 +145,11 @@ export const sessionRepository = {
         healValue: i.healValue ?? undefined,
         transferable: i.transferable != null ? !!i.transferable : undefined,
         consumable: i.consumable != null ? !!i.consumable : undefined,
+        tags: i.tags ? JSON.parse(i.tags) : undefined,
+        effect: i.effect || undefined,
+        charges: i.charges ?? undefined,
+        condition: i.condition || undefined,
+        boundToCharacterId: i.boundToCharacterId || undefined,
       }));
       (char as unknown as { stats: { might: number, magic: number, mischief: number } }).stats = { might: char.might, magic: char.magic, mischief: char.mischief };
     }
@@ -219,8 +229,22 @@ export const sessionRepository = {
 
       db.prepare('DELETE FROM inventory WHERE characterId = ?').run(char.id);
       for (const item of (char.inventory ?? [])) {
-        db.prepare('INSERT INTO inventory (characterId, itemId, name, description, statBonuses, healValue, transferable, consumable) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-          .run(char.id, item.id, item.name, item.description, item.statBonuses ? JSON.stringify(item.statBonuses) : null, item.healValue ?? null, item.transferable != null ? (item.transferable ? 1 : 0) : null, item.consumable != null ? (item.consumable ? 1 : 0) : null);
+        db.prepare('INSERT INTO inventory (characterId, itemId, name, description, statBonuses, healValue, transferable, consumable, tags, effect, charges, condition, boundToCharacterId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          .run(
+            char.id,
+            item.id,
+            item.name,
+            item.description,
+            item.statBonuses ? JSON.stringify(item.statBonuses) : null,
+            item.healValue ?? null,
+            item.transferable != null ? (item.transferable ? 1 : 0) : null,
+            item.consumable != null ? (item.consumable ? 1 : 0) : null,
+            item.tags && item.tags.length > 0 ? JSON.stringify(item.tags) : null,
+            item.effect ?? null,
+            item.charges ?? null,
+            item.condition ?? null,
+            item.boundToCharacterId ?? null,
+          );
       }
     }
   },

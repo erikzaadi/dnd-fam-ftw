@@ -26,9 +26,15 @@ export const computeInventoryChanges = (before: Character[], after: Character[])
     }
     const beforeIds = new Set(beforeChar.inventory.map(i => i.id));
     const afterIds = new Set(afterChar.inventory.map(i => i.id));
+    const beforeById = new Map(beforeChar.inventory.map(i => [i.id, i]));
     for (const item of afterChar.inventory) {
       if (!beforeIds.has(item.id)) {
         changes.push({ characterName: afterChar.name, itemName: item.name, type: 'added' });
+        continue;
+      }
+      const beforeItem = beforeById.get(item.id);
+      if (beforeItem && JSON.stringify(beforeItem) !== JSON.stringify(item)) {
+        changes.push({ characterName: afterChar.name, itemName: item.name, type: 'updated' });
       }
     }
     for (const item of beforeChar.inventory) {

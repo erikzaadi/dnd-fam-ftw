@@ -6,6 +6,7 @@ import { NARRATION_FALLBACK } from '../providers/ai/narration/narrationSchemas.j
 export function toNarrationInput(input: AIInput): NarrationInput {
   const actingChar = input.party.find(c => c.id === input.characterId);
   const nextChar = input.party.find(c => c.id === input.activeCharacterId);
+  const characterNameById = new Map(input.party.map(c => [c.id, c.name]));
   const roll = input.actionResult.roll;
   const statBonus = input.actionResult.statBonus ?? 0;
   const itemBonus = input.actionResult.itemBonus ?? 0;
@@ -41,6 +42,11 @@ export function toNarrationInput(input: AIInput): NarrationInput {
         healValue: item.healValue,
         consumable: item.consumable,
         transferable: item.transferable,
+        tags: item.tags,
+        effect: item.effect,
+        charges: item.charges,
+        condition: item.condition,
+        boundToCharacterName: item.boundToCharacterId ? characterNameById.get(item.boundToCharacterId) : undefined,
       }))
     ),
     actionAttempt: input.actionAttempt,
@@ -85,6 +91,7 @@ export class AiDmService {
         currentTensionLevel: output.currentTensionLevel,
         suggestedInventoryAdd: output.suggestedInventoryAdd ?? null,
         suggestedInventoryRemove: output.suggestedInventoryRemove ?? null,
+        suggestedInventoryUpdate: output.suggestedInventoryUpdate ?? null,
         suggestedRevive: output.suggestedRevive ?? null,
         suggestedHeal: output.suggestedHeal ?? null,
         suggestedDamage: output.suggestedDamage ?? null,

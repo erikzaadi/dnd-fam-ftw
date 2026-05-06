@@ -20,6 +20,7 @@ export class MockNarrationProvider implements NarrationProvider {
       currentTensionLevel: 'medium',
       suggestedInventoryAdd: null,
       suggestedInventoryRemove: null,
+      suggestedInventoryUpdate: null,
       suggestedRevive: null,
       suggestedHeal: null,
       suggestedDamage: null,

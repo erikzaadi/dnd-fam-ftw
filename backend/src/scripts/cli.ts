@@ -526,12 +526,14 @@ case 'sessions': {
 
           for (const item of (char.inventory as Record<string, unknown>[]) ?? []) {
             db.prepare(`
-              INSERT INTO inventory (characterId, itemId, name, description, statBonuses, healValue, transferable, consumable)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO inventory (characterId, itemId, name, description, statBonuses, healValue, transferable, consumable, tags, effect, charges, condition, boundToCharacterId)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).run(
               newCharId, item.itemId ?? null, item.name, item.description ?? '',
               item.statBonuses ?? null, item.healValue ?? null,
               item.transferable ?? null, item.consumable ?? null,
+              item.tags ?? null, item.effect ?? null, item.charges ?? null,
+              item.condition ?? null, item.boundToCharacterId ?? null,
             );
           }
         }

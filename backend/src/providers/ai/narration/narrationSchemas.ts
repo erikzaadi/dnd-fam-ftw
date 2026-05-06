@@ -23,11 +23,36 @@ const inventoryAddSchema = z.object({
   healValue: z.number().optional(),
   consumable: z.boolean().optional(),
   transferable: z.boolean().optional(),
+  tags: z.array(z.string().min(1)).max(5).optional(),
+  effect: z.string().optional(),
+  charges: z.number().int().min(0).max(9).optional(),
+  condition: z.string().optional(),
+  boundToCharacterName: z.string().optional(),
 });
 
 const inventoryRemoveSchema = z.object({
   characterName: z.string().min(1),
   itemName: z.string().min(1),
+});
+
+const inventoryUpdateSchema = z.object({
+  characterName: z.string().min(1),
+  itemName: z.string().min(1),
+  name: z.string().min(1).optional(),
+  description: z.string().min(1).optional(),
+  statBonuses: z.object({
+    might: z.number().optional(),
+    magic: z.number().optional(),
+    mischief: z.number().optional(),
+  }).optional(),
+  healValue: z.number().optional(),
+  consumable: z.boolean().optional(),
+  transferable: z.boolean().optional(),
+  tags: z.array(z.string().min(1)).max(5).optional(),
+  effect: z.string().optional(),
+  charges: z.number().int().min(0).max(9).optional(),
+  condition: z.string().optional(),
+  boundToCharacterName: z.string().optional(),
 });
 
 const reviveSchema = z.object({
@@ -44,6 +69,7 @@ export const narrationOutputSchema = z.object({
   currentTensionLevel: z.enum(TENSION_LEVEL_VALUES).default('medium'),
   suggestedInventoryAdd: inventoryAddSchema.nullable(),
   suggestedInventoryRemove: inventoryRemoveSchema.nullable().default(null),
+  suggestedInventoryUpdate: inventoryUpdateSchema.nullable().default(null),
   suggestedRevive: reviveSchema.nullable().default(null),
   suggestedHeal: z.array(reviveSchema).nullable().default(null),
   suggestedDamage: z.number().int().min(0).max(20).nullable().default(null),
@@ -63,6 +89,7 @@ export const NARRATION_FALLBACK: ValidNarrationOutput = {
   currentTensionLevel: 'medium',
   suggestedInventoryAdd: null,
   suggestedInventoryRemove: null,
+  suggestedInventoryUpdate: null,
   suggestedRevive: null,
   suggestedHeal: null,
   suggestedDamage: null,

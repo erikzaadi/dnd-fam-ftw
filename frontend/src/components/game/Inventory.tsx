@@ -46,6 +46,7 @@ export const InventoryItemCard = ({
   targetPicker,
 }: InventoryItemCardProps) => {
   const bonuses = item.statBonuses ? Object.entries(item.statBonuses).filter(([, v]) => v && v > 0) : [];
+  const hasEvolution = !!(item.condition || item.effect || item.charges !== undefined || (item.tags && item.tags.length > 0) || item.boundToCharacterId);
 
   return (
     <div className="relative group min-w-0">
@@ -60,6 +61,12 @@ export const InventoryItemCard = ({
               {bonuses.map(([stat, val]) => (
                 <ItemBonusBadge key={stat} type="stat" value={val!} label={stat} />
               ))}
+              {item.condition && (
+                <span className="px-1.5 py-0.5 rounded bg-indigo-900/40 border border-indigo-700/50 text-[9px] font-black uppercase tracking-wider text-indigo-300">{item.condition}</span>
+              )}
+              {item.charges !== undefined && (
+                <span className="px-1.5 py-0.5 rounded bg-sky-900/40 border border-sky-700/50 text-[9px] font-black uppercase tracking-wider text-sky-300">{item.charges} charge{item.charges === 1 ? '' : 's'}</span>
+              )}
             </div>
           </div>
           {(canUse || canGive) && !pending && (
@@ -78,6 +85,19 @@ export const InventoryItemCard = ({
           )}
         </div>
         {targetPicker}
+        {hasEvolution && !pending && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {item.tags?.map(tag => (
+              <span key={tag} className="px-1.5 py-0.5 rounded bg-slate-950/60 border border-slate-700/60 text-[9px] font-black uppercase tracking-wider text-slate-400">{tag}</span>
+            ))}
+            {item.effect && (
+              <span className="text-[10px] leading-snug text-slate-400">{item.effect}</span>
+            )}
+            {item.boundToCharacterId && (
+              <span className="px-1.5 py-0.5 rounded bg-amber-950/40 border border-amber-700/40 text-[9px] font-black uppercase tracking-wider text-amber-300">bonded</span>
+            )}
+          </div>
+        )}
         {item.description && !pending && (
           <div className="absolute bottom-full left-0 mb-2 w-56 px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-300 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
             {item.description}
@@ -116,6 +136,7 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
 
   const renderItem = (item: InventoryItem, char: Character, isActive: boolean) => {
     const bonuses = item.statBonuses ? Object.entries(item.statBonuses).filter(([, v]) => v && v > 0) : [];
+    const hasEvolution = !!(item.condition || item.effect || item.charges !== undefined || (item.tags && item.tags.length > 0) || item.boundToCharacterId);
     const canAct = interactive && isActive;
     const canUse = canAct && isUsable(item);
     const canGive = canAct && isGiveable(item) && party.filter(c => c.id !== char.id).length > 0;
@@ -152,6 +173,19 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
                 {bonuses.map(([stat, val]) => (
                   <ItemBonusBadge compact key={stat} type="stat" value={val!} label={stat} />
                 ))}
+              </div>
+            )}
+            {hasEvolution && (
+              <div className="flex gap-1 flex-wrap justify-end">
+                {item.condition && (
+                  <span className="px-1.5 py-0.5 rounded bg-indigo-900/40 border border-indigo-700/50 text-[9px] font-black uppercase tracking-wider text-indigo-300">{item.condition}</span>
+                )}
+                {item.charges !== undefined && (
+                  <span className="px-1.5 py-0.5 rounded bg-sky-900/40 border border-sky-700/50 text-[9px] font-black uppercase tracking-wider text-sky-300">{item.charges}</span>
+                )}
+                {item.boundToCharacterId && (
+                  <span className="px-1.5 py-0.5 rounded bg-amber-950/40 border border-amber-700/40 text-[9px] font-black uppercase tracking-wider text-amber-300">bonded</span>
+                )}
               </div>
             )}
             {/* Target picker */}

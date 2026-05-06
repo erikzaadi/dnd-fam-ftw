@@ -648,9 +648,9 @@ export const SessionPage = () => {
                 {lastRoll.inventoryChanges.map((ic, i) => (
                   <div
                     key={i}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black border ${ic.type === 'added' ? 'bg-amber-900/40 border-amber-700/50 text-amber-400' : 'bg-slate-800/60 border-slate-700/50 text-slate-400'}`}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black border ${ic.type === 'added' ? 'bg-amber-900/40 border-amber-700/50 text-amber-400' : ic.type === 'updated' ? 'bg-indigo-900/40 border-indigo-700/50 text-indigo-300' : 'bg-slate-800/60 border-slate-700/50 text-slate-400'}`}
                   >
-                    <span>{ic.type === 'added' ? '＋' : '－'}</span>
+                    <span>{ic.type === 'added' ? '＋' : ic.type === 'updated' ? '✦' : '－'}</span>
                     <span className="normal-case tracking-normal font-semibold">{ic.itemName}</span>
                     <span className="opacity-60">→ {ic.characterName.split(' ')[0]}</span>
                   </div>

@@ -34,6 +34,11 @@ export type NarrationInput = {
     healValue?: number;
     consumable?: boolean;
     transferable?: boolean;
+    tags?: string[];
+    effect?: string;
+    charges?: number;
+    condition?: string;
+    boundToCharacterName?: string;
   }>;
   actionAttempt: string;
   actionResult: {
@@ -73,8 +78,28 @@ export type NarrationOutput = {
     healValue?: number;
     consumable?: boolean;
     transferable?: boolean;
+    tags?: string[];
+    effect?: string;
+    charges?: number;
+    condition?: string;
+    boundToCharacterName?: string;
   } | null;
   suggestedInventoryRemove: { characterName: string; itemName: string } | null;
+  suggestedInventoryUpdate: {
+    characterName: string;
+    itemName: string;
+    name?: string;
+    description?: string;
+    statBonuses?: { might?: number; magic?: number; mischief?: number };
+    healValue?: number;
+    consumable?: boolean;
+    transferable?: boolean;
+    tags?: string[];
+    effect?: string;
+    charges?: number;
+    condition?: string;
+    boundToCharacterName?: string;
+  } | null;
   suggestedRevive: { characterName: string; hp: number } | null;
   suggestedHeal: Array<{ characterName: string; hp: number }> | null;
   suggestedDamage: number | null;

@@ -34,6 +34,32 @@ export class GameEngine {
     return dp[m][n];
   }
 
+  private static capItemStatBonuses(statBonuses: InventoryItem['statBonuses']): InventoryItem['statBonuses'] {
+    if (!statBonuses) {
+      return undefined;
+    }
+    const capped: InventoryItem['statBonuses'] = {};
+    for (const stat of ['might', 'magic', 'mischief'] as const) {
+      const value = statBonuses[stat];
+      if (typeof value === 'number' && value > 0) {
+        capped[stat] = Math.min(3, Math.max(0, Math.round(value)));
+      }
+    }
+    return Object.keys(capped).length > 0 ? capped : undefined;
+  }
+
+  private static cleanItemTags(tags: unknown): string[] | undefined {
+    if (!Array.isArray(tags)) {
+      return undefined;
+    }
+    const cleaned = tags
+      .filter((tag): tag is string => typeof tag === 'string')
+      .map(tag => tag.trim())
+      .filter(Boolean)
+      .slice(0, 5);
+    return cleaned.length > 0 ? cleaned : undefined;
+  }
+
   // Fuzzy character lookup: exact → normalized contains → class match → closest edit distance
   public static findCharacter(party: Character[], targetName: string): Character | undefined {
     if (!targetName) {
@@ -375,15 +401,73 @@ export class GameEngine {
       // Inventory add from AI suggestion (assign id, optional targetCharacterName for trades)
       const item = aiSuggestedChanges?.suggestedInventoryAdd;
       if (item && typeof item === 'object' && !Array.isArray(item)) {
-        const newItem = item as Omit<InventoryItem, 'id'> & { targetCharacterName?: string };
-        const { targetCharacterName, ...itemData } = newItem;
+        const newItem = item as Omit<InventoryItem, 'id'> & { targetCharacterName?: string; boundToCharacterName?: string };
+        const { targetCharacterName, boundToCharacterName, ...itemData } = newItem;
         const recipient = targetCharacterName
           ? (GameEngine.findCharacter(newState.party, targetCharacterName) ?? actingChar)
           : actingChar;
+        const boundToCharacter = typeof boundToCharacterName === 'string'
+          ? GameEngine.findCharacter(newState.party, boundToCharacterName)
+          : undefined;
         recipient.inventory.push({
           ...itemData,
+          statBonuses: this.capItemStatBonuses(itemData.statBonuses),
+          tags: this.cleanItemTags(itemData.tags),
+          charges: typeof itemData.charges === 'number' ? Math.min(9, Math.max(0, Math.round(itemData.charges))) : undefined,
+          boundToCharacterId: boundToCharacter?.id ?? itemData.boundToCharacterId,
           id: createId(),
         });
+      }
+
+      // Inventory update from AI suggestion (bless/enchant/reveal/damage an existing item)
+      const update = aiSuggestedChanges?.suggestedInventoryUpdate as (Partial<InventoryItem> & {
+        characterName?: string;
+        itemName?: string;
+        boundToCharacterName?: string;
+      }) | null | undefined;
+      if (update && typeof update === 'object' && update.characterName && update.itemName) {
+        const owner = GameEngine.findCharacter(newState.party, update.characterName);
+        if (owner) {
+          const targetItem = owner.inventory.find(i =>
+            i.name.toLowerCase().includes(update.itemName!.toLowerCase()) ||
+            update.itemName!.toLowerCase().includes(i.name.toLowerCase())
+          );
+          if (targetItem) {
+            if (typeof update.name === 'string' && update.name.trim()) {
+              targetItem.name = update.name.trim();
+            }
+            if (typeof update.description === 'string' && update.description.trim()) {
+              targetItem.description = update.description.trim();
+            }
+            if (update.statBonuses) {
+              targetItem.statBonuses = this.capItemStatBonuses(update.statBonuses);
+            }
+            if (typeof update.healValue === 'number') {
+              targetItem.healValue = Math.min(10, Math.max(0, Math.round(update.healValue)));
+            }
+            if (typeof update.consumable === 'boolean') {
+              targetItem.consumable = update.consumable;
+            }
+            if (typeof update.transferable === 'boolean') {
+              targetItem.transferable = update.transferable;
+            }
+            if (update.tags) {
+              targetItem.tags = this.cleanItemTags(update.tags);
+            }
+            if (typeof update.effect === 'string') {
+              targetItem.effect = update.effect.trim() || undefined;
+            }
+            if (typeof update.charges === 'number') {
+              targetItem.charges = Math.min(9, Math.max(0, Math.round(update.charges)));
+            }
+            if (typeof update.condition === 'string') {
+              targetItem.condition = update.condition.trim() || undefined;
+            }
+            if (typeof update.boundToCharacterName === 'string') {
+              targetItem.boundToCharacterId = GameEngine.findCharacter(newState.party, update.boundToCharacterName)?.id;
+            }
+          }
+        }
       }
 
       // 3. TURN ROTATION (round-robin, skip downed)

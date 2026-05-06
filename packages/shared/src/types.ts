@@ -14,6 +14,11 @@ export interface InventoryItem {
   healValue?: number;
   transferable?: boolean;
   consumable?: boolean;
+  tags?: string[];
+  effect?: string;
+  charges?: number;
+  condition?: string;
+  boundToCharacterId?: string;
 }
 
 export interface Character {
@@ -67,7 +72,7 @@ export interface HpChange {
 export interface InventoryChange {
   characterName: string;
   itemName: string;
-  type: 'added' | 'removed';
+  type: 'added' | 'removed' | 'updated';
 }
 
 export interface ActionAttempt {
@@ -92,8 +97,23 @@ export interface TurnResult {
   imagePrompt: string | null;
   imageSuggested: boolean;
   imageUrl?: string | null;
-  suggestedInventoryAdd?: (Omit<InventoryItem, 'id'> & { targetCharacterName?: string }) | null;
+  suggestedInventoryAdd?: (Omit<InventoryItem, 'id'> & { targetCharacterName?: string; boundToCharacterName?: string }) | null;
   suggestedInventoryRemove?: { characterName: string; itemName: string } | null;
+  suggestedInventoryUpdate?: {
+    characterName: string;
+    itemName: string;
+    name?: string;
+    description?: string;
+    statBonuses?: { might?: number; magic?: number; mischief?: number };
+    healValue?: number;
+    consumable?: boolean;
+    transferable?: boolean;
+    tags?: string[];
+    effect?: string;
+    charges?: number;
+    condition?: string;
+    boundToCharacterName?: string;
+  } | null;
   suggestedRevive?: { characterName: string; hp: number } | null;
   suggestedHeal?: Array<{ characterName: string; hp: number }> | null;
   suggestedDamage?: number | null;
