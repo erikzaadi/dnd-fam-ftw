@@ -3,7 +3,7 @@ import { imgSrc } from '../../lib/api';
 import type { TtsSettings } from '../../tts/ttsTypes';
 import { NarrationTtsButton } from '../NarrationTtsButton';
 import { SceneBackground } from './SceneBackground';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const TENSION_CONFIG = {
   low: { label: 'Calm', color: 'text-emerald-400', bg: 'bg-emerald-900/40', border: 'border-emerald-700/40', icon: '🌿' },
@@ -38,7 +38,8 @@ export const StoryStage = ({
   onFullscreenImage,
   onFullscreenNarration,
 }: StoryStageProps) => {
-  const narrationCardRef = useRef<HTMLDivElement | null>(null);
+  const narrationTextRef = useRef<HTMLParagraphElement | null>(null);
+  const [isNarrationScrollable, setIsNarrationScrollable] = useState(false);
 
   const displayTurn = history[viewedTurnIdx] ?? null;
   const previousTurn = viewedTurnIdx > 0 ? history[viewedTurnIdx - 1] : null;
@@ -47,6 +48,16 @@ export const StoryStage = ({
   const imageUrl = displayTurn?.imageUrl ? imgSrc(displayTurn.imageUrl) : null;
   const defaultImageUrl = imgSrc('/images/default_scene.png');
   const narration = displayTurn?.narration ?? '';
+
+  const updateNarrationScrollability = useCallback(() => {
+    const narrationText = narrationTextRef.current;
+    if (!narrationText) {
+      setIsNarrationScrollable(false);
+      return;
+    }
+
+    setIsNarrationScrollable(narrationText.scrollHeight > narrationText.clientHeight + 4);
+  }, []);
 
   const handleStageClick = () => {
     if (imageUrl) {
@@ -62,17 +73,42 @@ export const StoryStage = ({
     }
 
     const frame = window.requestAnimationFrame(() => {
-      const narrationCard = narrationCardRef.current;
-      if (!narrationCard) {
+      const narrationText = narrationTextRef.current;
+      if (!narrationText) {
         return;
       }
 
-      narrationCard.focus({ preventScroll: true });
-      narrationCard.scrollTo({ top: 0, behavior: 'smooth' });
+      narrationText.focus({ preventScroll: true });
+      narrationText.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
     return () => window.cancelAnimationFrame(frame);
   }, [focusRequest, narration]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(updateNarrationScrollability);
+
+    const narrationText = narrationTextRef.current;
+    if (!narrationText) {
+      return () => window.cancelAnimationFrame(frame);
+    }
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateNarrationScrollability);
+      return () => {
+        window.cancelAnimationFrame(frame);
+        window.removeEventListener('resize', updateNarrationScrollability);
+      };
+    }
+
+    const resizeObserver = new ResizeObserver(updateNarrationScrollability);
+    resizeObserver.observe(narrationText);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
+    };
+  }, [narration, updateNarrationScrollability]);
 
   return (
     <div
@@ -111,19 +147,21 @@ export const StoryStage = ({
       <div className="relative z-10 flex-1 min-h-0 flex items-center justify-center p-4 pb-16">
         {narration ? (
           <div
-            ref={narrationCardRef}
-            tabIndex={-1}
             aria-label="Story narration"
-            className="backdrop-blur-md bg-slate-950/55 rounded-[24px] p-8 lg:p-12 w-[78%] max-h-[75%] min-h-0 flex flex-col items-start justify-start cursor-pointer hover:bg-slate-950/65 transition-colors overflow-y-auto overscroll-contain focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70"
+            className="backdrop-blur-md bg-slate-950/55 rounded-[24px] p-8 lg:p-12 w-[78%] max-h-[75%] min-h-0 flex flex-col items-start justify-start cursor-pointer hover:bg-slate-950/65 transition-colors overflow-hidden"
             onClick={e => {
               e.stopPropagation();
               onFullscreenNarration(narration);
             }}
           >
-            <p className="font-narrative text-slate-100 italic text-center w-full text-sm sm:text-base md:text-lg lg:text-3xl xl:text-4xl 2xl:text-5xl 3xl:text-6xl 4xl:text-7xl ultrawide:text-7xl leading-relaxed">
+            <p
+              ref={narrationTextRef}
+              tabIndex={-1}
+              className={`font-narrative text-slate-100 italic text-center w-full flex-1 min-h-0 text-sm sm:text-base md:text-lg lg:text-3xl xl:text-4xl 2xl:text-5xl 3xl:text-6xl 4xl:text-7xl ultrawide:text-7xl leading-relaxed ${isNarrationScrollable ? 'overflow-y-auto scrollbar-hide' : 'overflow-y-hidden'} overscroll-contain focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70`}
+            >
               {narration}
             </p>
-            <div className="mt-6" onClick={e => e.stopPropagation()}>
+            <div className="mt-6 shrink-0" onClick={e => e.stopPropagation()}>
               <NarrationTtsButton
                 text={narration}
                 ttsSettings={ttsSettings}
