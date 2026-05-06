@@ -10,7 +10,7 @@
  *                   sessions <id> | assign-session <sessionId> <nsId>
  *                   add-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
  *   sessions        list [--json] | nuke | seed | export | import
- *   metrics         [--json]
+ *   metrics         [--json] | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>]
  *   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
  */
 
@@ -45,6 +45,24 @@ function parseArgValue(arg: string | undefined): string | undefined {
 function fail(msg: string): never {
   console.error(msg);
   process.exit(1);
+}
+
+function csvCell(value: unknown): string {
+  if (value == null) {
+    return '';
+  }
+  const text = String(value);
+  if (/[",\n\r]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function writeCsv(rows: Record<string, unknown>[], columns: string[]): void {
+  process.stdout.write(columns.join(',') + '\n');
+  for (const row of rows) {
+    process.stdout.write(columns.map(column => csvCell(row[column])).join(',') + '\n');
+  }
 }
 
 StateService.initialize();
@@ -541,8 +559,8 @@ case 'sessions': {
         for (const turn of (session.turnHistory as Record<string, unknown>[]) ?? []) {
           const mappedCharId = turn.characterId ? (charIdMap.get(turn.characterId as string) ?? null) : null;
           const result = db.prepare(`
-            INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, image_storage_key, image_storage_provider, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionChoiceItemBonus, actionChoiceItemName, actionChoiceItemOwnerName, actionCharacterBonus, actionCharacterBonusLabel, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, image_storage_key, image_storage_provider, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionChoiceItemBonus, actionChoiceItemName, actionChoiceItemOwnerName, actionCharacterBonus, actionCharacterBonusLabel, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges, narrationRetried, narrationFailed, narrationValidationError, narrationRetryValidationError)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
             newSessionId, mappedCharId,
             turn.narration, turn.rollNarration ?? null,
@@ -557,6 +575,8 @@ case 'sessions': {
             turn.actionIsCritical ?? null, turn.actionImpact ?? null, turn.actionDifficultyTarget ?? null,
             turn.turnType ?? 'normal',
             turn.currentTensionLevel ?? null, turn.hpChanges ?? null, turn.inventoryChanges ?? null,
+            turn.narrationRetried ?? null, turn.narrationFailed ?? null,
+            turn.narrationValidationError ?? null, turn.narrationRetryValidationError ?? null,
           );
 
           const newTurnId = result.lastInsertRowid;
@@ -605,6 +625,121 @@ sessions <sub-command>
 // ── metrics ───────────────────────────────────────────────────────────────────
 
 case 'metrics': {
+  if (subcommand === 'narration') {
+    interface NarrationMetricsRow {
+      turn_id: number;
+      session_id: string;
+      session_name: string;
+      namespace_id: string;
+      namespace_name: string;
+      character_id: string | null;
+      character_name: string | null;
+      action_attempt: string | null;
+      narration_retried: number | null;
+      narration_failed: number | null;
+      narration_validation_error: string | null;
+      narration_retry_validation_error: string | null;
+      narration: string;
+      roll_narration: string | null;
+      image_suggested: number;
+      image_prompt: string | null;
+    }
+
+    const formatFlag = parseArgValue(allArgs.find(a => a === '--format' || a.startsWith('--format=')));
+    const outputFormat = process.argv.includes('--csv') ? 'csv' : formatFlag ?? (jsonMode ? 'json' : 'table');
+    if (!['table', 'json', 'csv'].includes(outputFormat)) {
+      fail('Usage: cli metrics narration [--json|--format csv|--csv] [--failed-only] [--namespace <id>] [--session <id>]');
+    }
+    const namespaceFilter = parseArgValue(allArgs.find(a => a === '--namespace' || a.startsWith('--namespace=')));
+    const sessionFilter = parseArgValue(allArgs.find(a => a === '--session' || a.startsWith('--session=')));
+    const failedOnly = process.argv.includes('--failed-only');
+
+    const conditions = failedOnly
+      ? ['COALESCE(th.narrationFailed, 0) = 1']
+      : ['(COALESCE(th.narrationRetried, 0) = 1 OR COALESCE(th.narrationFailed, 0) = 1)'];
+    const params: string[] = [];
+    if (namespaceFilter) {
+      conditions.push('s.namespace_id = ?');
+      params.push(namespaceFilter);
+    }
+    if (sessionFilter) {
+      conditions.push('th.sessionId = ?');
+      params.push(sessionFilter);
+    }
+
+    const dbPath = path.resolve(getConfig().SQLITE_DB_PATH);
+    const db = new Database(dbPath, { readonly: true });
+    const rows = db.prepare(`
+      SELECT
+        th.id AS turn_id,
+        th.sessionId AS session_id,
+        s.displayName AS session_name,
+        s.namespace_id AS namespace_id,
+        n.name AS namespace_name,
+        th.characterId AS character_id,
+        c.name AS character_name,
+        th.actionAttempt AS action_attempt,
+        th.narrationRetried AS narration_retried,
+        th.narrationFailed AS narration_failed,
+        th.narrationValidationError AS narration_validation_error,
+        th.narrationRetryValidationError AS narration_retry_validation_error,
+        th.narration,
+        th.rollNarration AS roll_narration,
+        th.imageSuggested AS image_suggested,
+        th.imagePrompt AS image_prompt
+      FROM turn_history th
+      JOIN sessions s ON s.id = th.sessionId
+      LEFT JOIN namespaces n ON n.id = s.namespace_id
+      LEFT JOIN characters c ON c.id = th.characterId
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY th.id DESC
+    `).all(...params) as NarrationMetricsRow[];
+    db.close();
+
+    const normalized = rows.map(row => ({
+      ...row,
+      narration_retried: Boolean(row.narration_retried),
+      narration_failed: Boolean(row.narration_failed),
+      image_suggested: Boolean(row.image_suggested),
+    }));
+
+    if (outputFormat === 'json') {
+      process.stdout.write(JSON.stringify(normalized, null, 2) + '\n');
+    } else if (outputFormat === 'csv') {
+      writeCsv(normalized, [
+        'turn_id',
+        'session_id',
+        'session_name',
+        'namespace_id',
+        'namespace_name',
+        'character_id',
+        'character_name',
+        'action_attempt',
+        'narration_retried',
+        'narration_failed',
+        'narration_validation_error',
+        'narration_retry_validation_error',
+        'narration',
+        'roll_narration',
+        'image_suggested',
+        'image_prompt',
+      ]);
+    } else if (normalized.length === 0) {
+      console.log('No narration retries or failures found.');
+    } else {
+      console.table(normalized.map(row => ({
+        turn_id: row.turn_id,
+        session: row.session_name,
+        character: row.character_name,
+        retried: row.narration_retried,
+        failed: row.narration_failed,
+        error: row.narration_retry_validation_error ?? row.narration_validation_error,
+      })));
+      console.log('\nUse --json or --format csv for analysis-friendly output.');
+    }
+    break;
+  }
+
   interface NamespaceMetrics {
     namespace_id: string;
     namespace_name: string;
@@ -767,7 +902,7 @@ Resources:
                   sessions <id> | assign-session <sessionId> <nsId>
                   add-user <nsId> <email> | remove-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
   sessions        list [--json] | nuke | seed | export | import
-  metrics         [--json]
+  metrics         [--json] | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>]
   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
 
 Run cli <resource> for sub-command help.
@@ -778,6 +913,7 @@ Examples:
   npm run cli -- namespaces add-user <nsId> someone@gmail.com
   npm -s run cli -- sessions list --json | jq '.sessions[].displayName'
   npm -s run cli -- metrics --json | jq '.[].total_turns'
+  npm -s run cli -- metrics narration --format csv
   npm run cli -- sessions export --output backup.json
   npm run cli -- sessions export --session abc123 --output session.json
   npm run cli -- sessions import backup.json --namespace-id xyz789

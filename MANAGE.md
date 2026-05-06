@@ -92,6 +92,17 @@ Per-namespace usage stats: sessions, turns, images, avatars, LocalAI and savings
 ./dnd-fam-ftw-cli metrics --json
 ```
 
+Narration retry and fallback diagnostics are available as analysis-friendly JSON or CSV. The default includes any turn that retried narration or fell back after retry failure.
+
+```bash
+./dnd-fam-ftw-cli metrics narration --json
+./dnd-fam-ftw-cli metrics narration --format csv
+./dnd-fam-ftw-cli metrics narration --failed-only --namespace <id>
+./dnd-fam-ftw-cli metrics narration --session <id> --csv
+```
+
+The weekly metrics workflow stores a compact narration diagnostics summary and flags a significant failure increase when failures rise by at least 3, or double from a nonzero previous week.
+
 ### invite-requests
 
 View and manage invite requests from unregistered Google users.

@@ -65,6 +65,32 @@ describe('parseNarrationOutput', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts portal choices when an NPC is gesturing towards the portal', () => {
+    const result = parseNarrationOutput(input, output({
+      narration: 'A cloaked figure appears, gesturing towards an ethereal portal shimmering with light.',
+      choices: [
+        { label: 'Follow the portal to the unknown', difficulty: 'easy', stat: 'magic', difficultyValue: 1 },
+        { label: 'Question the figure', difficulty: 'normal', stat: 'mischief', difficultyValue: 10 },
+        { label: 'Guard the party', difficulty: 'normal', stat: 'might', difficultyValue: 11 },
+      ],
+    }));
+
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts portal choices when a sprite urges the party toward the portal opportunity', () => {
+    const result = parseNarrationOutput(input, output({
+      narration: 'A shimmering portal opens behind the foe, and Fiddlewick the sprite chirps excitedly, urging the party to seize the opportunity.',
+      choices: [
+        { label: 'Dive through the shimmering portal', difficulty: 'easy', stat: 'mischief', difficultyValue: 1, flavor: 'environment', environmentFeature: 'shimmering portal' },
+        { label: 'Question Fiddlewick first', difficulty: 'normal', stat: 'mischief', difficultyValue: 10 },
+        { label: 'Guard the party', difficulty: 'normal', stat: 'might', difficultyValue: 11 },
+      ],
+    }));
+
+    expect(result.success).toBe(true);
+  });
+
   it('rejects zug-ma-geddon output below high tension', () => {
     const result = parseNarrationOutput({ ...input, gameMode: 'zug-ma-geddon' }, output({
       currentTensionLevel: 'medium',

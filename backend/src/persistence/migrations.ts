@@ -209,6 +209,18 @@ export const migrate = (db: DB): void => {
   if (!turnCols.includes('inventoryChanges')) {
     db.prepare("ALTER TABLE turn_history ADD COLUMN inventoryChanges TEXT").run();
   }
+  if (!turnCols.includes('narrationRetried')) {
+    db.prepare("ALTER TABLE turn_history ADD COLUMN narrationRetried INTEGER").run();
+  }
+  if (!turnCols.includes('narrationFailed')) {
+    db.prepare("ALTER TABLE turn_history ADD COLUMN narrationFailed INTEGER").run();
+  }
+  if (!turnCols.includes('narrationValidationError')) {
+    db.prepare("ALTER TABLE turn_history ADD COLUMN narrationValidationError TEXT").run();
+  }
+  if (!turnCols.includes('narrationRetryValidationError')) {
+    db.prepare("ALTER TABLE turn_history ADD COLUMN narrationRetryValidationError TEXT").run();
+  }
 
   if (!choiceCols.includes('narration')) {
     db.prepare("ALTER TABLE turn_choices ADD COLUMN narration TEXT").run();

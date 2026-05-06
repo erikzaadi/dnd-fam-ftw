@@ -9,6 +9,7 @@ env:
   AWS_REGION: eu-west-1
   SSM_PREFIX: /dnd-fam-ftw/prod
   METRICS_SSM_PATH: /dnd-fam-ftw/internal/last-weekly-metrics
+  NARRATION_METRICS_SSM_PATH: /dnd-fam-ftw/internal/last-weekly-narration-metrics
   CURRENT_DIR: /opt/dnd-fam-ftw/current
   APP_ENV_FILE: /opt/dnd-fam-ftw/app.env
   SSH_USER: ubuntu
@@ -57,6 +58,18 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Fetch previous narration metrics from SSM
+        id: previous_narration
+        run: |
+          PREV=$(aws ssm get-parameter \
+            --name "$NARRATION_METRICS_SSM_PATH" \
+            --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+          {
+            echo "output<<EOF"
+            echo "$PREV"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Gather metrics
         id: metrics
         run: |
@@ -67,6 +80,67 @@ jobs:
             echo "output<<EOF"
             echo "$METRICS"
             echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Gather narration diagnostics
+        id: narration
+        run: |
+          # shellcheck disable=SC2029
+          NARRATION=$(ssh "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}" \
+            "bash -lc 'cd $CURRENT_DIR && node --env-file=$APP_ENV_FILE dist/scripts/cli.js metrics narration --json'")
+          SUMMARY=$(echo "$NARRATION" | jq -c '{
+            diagnostic_turns: length,
+            retried_turns: ([.[] | select(.narration_retried == true)] | length),
+            failed_turns: ([.[] | select(.narration_failed == true)] | length),
+            failure_reasons: (
+              [.[] | select(.narration_failed == true) | (.narration_retry_validation_error // .narration_validation_error // "unknown")]
+              | sort
+              | group_by(.)
+              | map({reason: .[0], count: length})
+              | sort_by(-.count)
+            ),
+            recent_failures: [
+              .[] | select(.narration_failed == true) | {
+                session_id,
+                session_name,
+                character_name,
+                reason: (.narration_retry_validation_error // .narration_validation_error // "unknown")
+              }
+            ][0:5]
+          }')
+          {
+            echo "output<<EOF"
+            echo "$SUMMARY"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Analyze narration health
+        id: narration_health
+        env:
+          CURRENT_NARRATION_METRICS: ${{ steps.narration.outputs.output }}
+          PREV_NARRATION_METRICS: ${{ steps.previous_narration.outputs.output }}
+        run: |
+          CURRENT_FAILED=$(echo "$CURRENT_NARRATION_METRICS" | jq -r '.failed_turns // 0')
+          if [ -n "$PREV_NARRATION_METRICS" ]; then
+            PREVIOUS_FAILED=$(echo "$PREV_NARRATION_METRICS" | jq -r '.failed_turns // 0' 2>/dev/null || echo 0)
+          else
+            PREVIOUS_FAILED=0
+          fi
+          DELTA=$((CURRENT_FAILED - PREVIOUS_FAILED))
+          SIGNIFICANT=false
+          if [ "$DELTA" -ge 3 ]; then
+            SIGNIFICANT=true
+          elif [ "$PREVIOUS_FAILED" -gt 0 ] && [ "$CURRENT_FAILED" -ge $((PREVIOUS_FAILED * 2)) ]; then
+            SIGNIFICANT=true
+          fi
+          if [ "$SIGNIFICANT" = true ]; then
+            MESSAGE="Significant increase in narration failures: $CURRENT_FAILED this week, up from $PREVIOUS_FAILED."
+          else
+            MESSAGE="Narration failures: $CURRENT_FAILED this week, previous $PREVIOUS_FAILED."
+          fi
+          {
+            echo "significant=$SIGNIFICANT"
+            echo "message=$MESSAGE"
           } >> "$GITHUB_OUTPUT"
 
       - name: Gather invite requests
@@ -88,6 +162,9 @@ jobs:
         env:
           CURRENT_METRICS: ${{ steps.metrics.outputs.output }}
           PREV_METRICS: ${{ steps.previous.outputs.output }}
+          CURRENT_NARRATION_METRICS: ${{ steps.narration.outputs.output }}
+          PREV_NARRATION_METRICS: ${{ steps.previous_narration.outputs.output }}
+          NARRATION_HEALTH: ${{ steps.narration_health.outputs.message }}
         run: |
           OPENAI_API_KEY=$(aws ssm get-parameter \
             --name "$SSM_PREFIX/OPENAI_API_KEY" \
@@ -96,17 +173,21 @@ jobs:
 
           PROMPT="You are a usage analyst for a family D&D game app."
           PROMPT="$PROMPT Summarize this week's metrics in 2 sentences, highlighting trends vs last week."
+          PROMPT="$PROMPT Include narration retry/fallback health, and explicitly call out a significant increase in narration failures when failed_turns rose by 3 or more, or doubled from a nonzero previous value."
           PROMPT="$PROMPT Be concise and friendly. If no previous metrics, just summarize current state."
           PAYLOAD=$(jq -n \
             --arg prompt "$PROMPT" \
             --arg current "$CURRENT_METRICS" \
             --arg previous "${PREV_METRICS:-none}" \
+            --arg currentNarration "$CURRENT_NARRATION_METRICS" \
+            --arg previousNarration "${PREV_NARRATION_METRICS:-none}" \
+            --arg narrationHealth "$NARRATION_HEALTH" \
             '{
               model: "gpt-4o-mini",
-              max_tokens: 120,
+              max_tokens: 160,
               messages: [{
                 role: "user",
-                content: "\($prompt)\n\nCurrent:\n\($current)\n\nPrevious week:\n\($previous)"
+                content: "\($prompt)\n\nCurrent usage:\n\($current)\n\nPrevious usage:\n\($previous)\n\nNarration health:\n\($narrationHealth)\n\nCurrent narration diagnostics:\n\($currentNarration)\n\nPrevious narration diagnostics:\n\($previousNarration)"
               }]
             }')
 
@@ -127,8 +208,13 @@ jobs:
           SUMMARY: ${{ steps.summary.outputs.output }}
           INVITES_JSON: ${{ steps.invites.outputs.output }}
           INVITES_COUNT: ${{ steps.invites.outputs.count }}
+          NARRATION_HEALTH: ${{ steps.narration_health.outputs.message }}
+          NARRATION_SIGNIFICANT: ${{ steps.narration_health.outputs.significant }}
         run: |
           MSG="$SUMMARY"
+          if [ "$NARRATION_SIGNIFICANT" = "true" ]; then
+            MSG=$(printf '%s\n\n%s' "$MSG" "$NARRATION_HEALTH")
+          fi
           if [ "${INVITES_COUNT:-0}" -gt 0 ]; then
             EMAILS=$(echo "$INVITES_JSON" | jq -r '.[].email' | paste -sd ', ')
             MSG=$(printf '%s\n\nPending invites (%s): %s' "$MSG" "$INVITES_COUNT" "$EMAILS")
@@ -153,6 +239,16 @@ jobs:
           aws ssm put-parameter \
             --name "$METRICS_SSM_PATH" \
             --value "${{ steps.metrics.outputs.output }}" \
+            --type String \
+            --overwrite
+
+      - name: Save narration metrics to SSM
+        env:
+          NARRATION_SUMMARY: ${{ steps.narration.outputs.output }}
+        run: |
+          aws ssm put-parameter \
+            --name "$NARRATION_METRICS_SSM_PATH" \
+            --value "$NARRATION_SUMMARY" \
             --type String \
             --overwrite
 

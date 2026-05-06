@@ -93,4 +93,86 @@ describe('executeTurnAction free action integration', () => {
     expect(result.body.actionAttempt.actionResult).toMatchObject({ success: true, roll: 0, statUsed: 'none' });
     expect(mockGenerateTurn.mock.calls[0][0].actionResult).toMatchObject({ success: true, statUsed: undefined });
   });
+
+  it('infers helper and item bonuses from valid free-text references', async () => {
+    const base = makeTestSession();
+    const session = makeTestSession({
+      id: 'free-action-bonus-session',
+      party: [
+        base.party[0],
+        {
+          ...base.party[1],
+          inventory: [{ id: 'scroll-1', name: '📜 Enchanted Scroll', description: 'A protective spell', transferable: true, consumable: false }],
+        },
+      ],
+      activeCharacterId: 'char-pip',
+    });
+    await insertSessionState(session);
+
+    const result = await executeTurnAction('free-action-bonus-session', 'local', {
+      action: 'Ask Zara to use the Enchanted Scroll while Pip slips past the guard',
+      statUsed: 'mischief',
+      difficulty: 'normal',
+      difficultyValue: 14,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.body.actionAttempt.actionResult.helperBonus).toBe(2);
+    expect(result.body.actionAttempt.actionResult.helperCharacterName).toBe('Zara');
+    expect(result.body.actionAttempt.actionResult.choiceItemBonus).toBe(2);
+    expect(result.body.actionAttempt.actionResult.choiceItemName).toBe('📜 Enchanted Scroll');
+    expect(result.body.actionAttempt.actionResult.choiceItemOwnerName).toBe('Zara');
+    expect(result.body.actionAttempt.actionResult.characterBonus).toBeUndefined();
+  });
+
+  it('infers character edge from social and spotlight free-text actions', async () => {
+    const session = makeTestSession({
+      id: 'free-action-edge-session',
+      party: [makeTestSession().party[0]],
+      activeCharacterId: 'char-pip',
+    });
+    await insertSessionState(session);
+
+    const socialResult = await executeTurnAction('free-action-edge-session', 'local', {
+      action: 'Charm the guard with a warm halfling smile',
+      statUsed: 'mischief',
+      difficulty: 'normal',
+      difficultyValue: 14,
+    });
+
+    expect(socialResult.ok).toBe(true);
+    if (!socialResult.ok) {
+      return;
+    }
+
+    expect(socialResult.body.actionAttempt.actionResult.characterBonus).toBe(2);
+    expect(socialResult.body.actionAttempt.actionResult.characterBonusLabel).toBe('social edge');
+
+    const stored = await StateService.getSession('free-action-edge-session');
+    expect(stored).toBeTruthy();
+    if (!stored) {
+      return;
+    }
+    stored.activeCharacterId = 'char-pip';
+    await StateService.updateSession('free-action-edge-session', stored);
+
+    const spotlightResult = await executeTurnAction('free-action-edge-session', 'local', {
+      action: 'Use Pip the Rogue training to vanish into the shadow',
+      statUsed: 'mischief',
+      difficulty: 'normal',
+      difficultyValue: 14,
+    });
+
+    expect(spotlightResult.ok).toBe(true);
+    if (!spotlightResult.ok) {
+      return;
+    }
+
+    expect(spotlightResult.body.actionAttempt.actionResult.characterBonus).toBe(2);
+    expect(spotlightResult.body.actionAttempt.actionResult.characterBonusLabel).toBe('spotlight');
+  });
 });

@@ -262,6 +262,29 @@ Return your response in STRICT JSON format:
 }
 `;
 
+export function buildNarrationRetryInstructions(validationError: string, formatInstruction = 'No markdown, no explanation.'): string {
+  const fixes: string[] = [
+    'Return ONLY valid JSON matching the exact schema.',
+    formatInstruction,
+    `Revise the same turn and fix these validation errors: ${validationError}`,
+  ];
+
+  if (validationError.includes('Portal, shortcut, or teleport choices')) {
+    fixes.push('For portal errors, either remove every portal/shortcut/teleport choice, or rewrite the narration so a named NPC explicitly offers, opens, points to, beckons toward, motions toward, or activates the portal in this exact turn.');
+    fixes.push('A portal merely glowing, humming, existing nearby, or being behind an NPC is not enough.');
+  }
+
+  if (validationError.includes('No more than two bonus-bearing choices')) {
+    fixes.push('For bonus-count errors, change excess combo, item, social, or spotlight choices to standard or environment choices, or replace them entirely.');
+  }
+
+  if (validationError.includes('Environment choices must include environmentFeature')) {
+    fixes.push('For environment choices, include environmentFeature with a short concrete terrain, hazard, or obstacle name.');
+  }
+
+  return `\nCRITICAL: ${fixes.join(' ')}`;
+}
+
 export function buildNarrationUserContent(input: NarrationInput): string {
   if (input.interventionRescue) {
     return '[INTERVENTION] The entire party was just knocked out and nearly lost forever. A mysterious magical force intervened at the last second: a dragon swooped in, time rewound, a divine blessing struck, or some gloriously absurd coincidence saved them. Write a dramatic, surprising rescue (2-3 sentences). Every party member is now alive but barely standing at 1 HP. Then provide 3 fresh choices for the battered-but-breathing party to continue.\n\n' + JSON.stringify(input);

@@ -118,6 +118,10 @@ export type NarrationOutput = {
   suggestedRevive: { characterName: string; hp: number } | null;
   suggestedHeal: Array<{ characterName: string; hp: number }> | null;
   suggestedDamage: number | null;
+  narrationRetried?: boolean;
+  narrationFailed?: boolean;
+  narrationValidationError?: string;
+  narrationRetryValidationError?: string;
 };
 
 export interface NarrationProvider {

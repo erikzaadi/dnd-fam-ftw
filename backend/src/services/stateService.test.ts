@@ -128,6 +128,10 @@ describe('StateService - Session CRUD', () => {
         actionResult: { success: true, roll: 15, statUsed: 'might', statBonus: 2, impact: 'strong', difficultyTarget: 12 },
       },
       inventoryChanges: [{ characterName: 'Archer', itemName: 'Goblin Key', type: 'added' }],
+      narrationRetried: true,
+      narrationFailed: true,
+      narrationValidationError: 'first guard failed',
+      narrationRetryValidationError: 'retry guard failed',
       turnType: 'normal',
     }, 'char-t1');
     expect(turnId).toBeTruthy();
@@ -140,6 +144,10 @@ describe('StateService - Session CRUD', () => {
     expect(history[0].lastAction?.actionResult.statBonus).toBe(2);
     expect(history[0].lastAction?.actionResult.impact).toBe('strong');
     expect(history[0].inventoryChanges).toEqual([{ characterName: 'Archer', itemName: 'Goblin Key', type: 'added' }]);
+    expect(history[0].narrationRetried).toBe(true);
+    expect(history[0].narrationFailed).toBe(true);
+    expect(history[0].narrationValidationError).toBe('first guard failed');
+    expect(history[0].narrationRetryValidationError).toBe('retry guard failed');
   });
 
   it('deleteSession cascades to turn history', async () => {

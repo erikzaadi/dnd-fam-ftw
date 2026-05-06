@@ -112,6 +112,10 @@ export class AiDmService {
         suggestedRevive: output.suggestedRevive ?? null,
         suggestedHeal: output.suggestedHeal ?? null,
         suggestedDamage: output.suggestedDamage ?? null,
+        narrationRetried: output.narrationRetried ?? false,
+        narrationFailed: output.narrationFailed ?? false,
+        narrationValidationError: output.narrationValidationError,
+        narrationRetryValidationError: output.narrationRetryValidationError,
         imageUrl: null,
       };
     } catch (error: unknown) {
@@ -122,6 +126,8 @@ export class AiDmService {
       console.error('Error calling AI service:', error);
       return {
         ...NARRATION_FALLBACK,
+        narrationFailed: true,
+        narrationValidationError: error instanceof Error ? error.message : String(error),
         imageUrl: null,
       };
     }

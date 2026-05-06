@@ -1,5 +1,5 @@
 import { broadcastSessionChanged, broadcastUpdate } from '../realtime/sessionEvents.js';
-import type { ActionAttempt, AIInput, Difficulty, SessionState, Stat } from '../types.js';
+import type { ActionAttempt, AIInput, Character, Difficulty, InventoryItem, SessionState, Stat } from '../types.js';
 import { AiDmService } from './aiDmService.js';
 import { GameEngine } from './gameEngine.js';
 import { StateService } from './stateService.js';
@@ -23,6 +23,9 @@ export interface TurnActionRequest {
 const COMBO_HELPER_BONUS = 2;
 const CHOICE_ITEM_BONUS = 2;
 const CHARACTER_EDGE_BONUS = 2;
+const FREE_ACTION_MAX_INFERRED_BONUSES = 2;
+const SOCIAL_ACTION_RE = /\b(charm|convince|persuade|deceive|trick|lie|bluff|negotiate|bargain|barter|haggle|intimidate|threaten|appeal|plead|comfort|reassure|taunt|distract|perform|sing|talk|speak|ask|question|interrogate|befriend)\b/i;
+const SPOTLIGHT_ACTION_RE = /\b(signature|instinct|training|heritage|background|memory|quirk|talent|specialty|speciality|faith|divine|holy|sneak|stealth|shadow|arcane|spell|rage|brute|protect|shield)\b/i;
 
 export type TurnActionResult =
   | {
@@ -39,6 +42,88 @@ export type TurnActionResult =
       status: number;
       body: Record<string, unknown>;
     };
+
+const searchable = (text: string | undefined): string => (text ?? '')
+  .toLowerCase()
+  .normalize('NFKD')
+  .replace(/[^\p{Letter}\p{Number}]+/gu, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const containsSearchable = (haystack: string, needle: string | undefined): boolean => {
+  const normalizedNeedle = searchable(needle);
+  return normalizedNeedle.length > 1 && haystack.includes(normalizedNeedle);
+};
+
+const firstName = (name: string): string => name.split(/\s+/)[0] ?? name;
+
+const actionReferencesCharacter = (normalizedAction: string, character: Character): boolean =>
+  containsSearchable(normalizedAction, character.name) ||
+  containsSearchable(normalizedAction, firstName(character.name));
+
+const actionReferencesItem = (normalizedAction: string, item: InventoryItem): boolean =>
+  containsSearchable(normalizedAction, item.name) ||
+  item.name.split(/\s+/).some(part => containsSearchable(normalizedAction, part));
+
+const actionUsesCharacterSpotlight = (normalizedAction: string, character: Character): boolean => {
+  const classOrSpecies = containsSearchable(normalizedAction, character.class) ||
+    containsSearchable(normalizedAction, character.species);
+  const quirkWords = searchable(character.quirk)
+    .split(' ')
+    .filter(word => word.length >= 5);
+  const historyWords = searchable(character.history)
+    .split(' ')
+    .filter(word => word.length >= 6);
+  const personalWords = [...quirkWords, ...historyWords].some(word => normalizedAction.includes(word));
+  return classOrSpecies || personalWords || SPOTLIGHT_ACTION_RE.test(normalizedAction);
+};
+
+type InferredFreeActionBonuses = {
+  helperCharacter?: Character;
+  choiceItemOwner?: Character;
+  choiceItem?: InventoryItem;
+  characterEdge?: { label: string; bonus: number };
+};
+
+export const inferFreeActionBonuses = (
+  action: string,
+  character: Character,
+  session: SessionState,
+): InferredFreeActionBonuses => {
+  const normalizedAction = searchable(action);
+  let inferredCount = 0;
+  const result: InferredFreeActionBonuses = {};
+
+  const helperCharacter = session.party.find(c =>
+    c.id !== character.id &&
+    c.status === 'active' &&
+    actionReferencesCharacter(normalizedAction, c)
+  );
+  if (helperCharacter) {
+    result.helperCharacter = helperCharacter;
+    inferredCount++;
+  }
+
+  const itemMatch = session.party
+    .filter(c => c.status === 'active')
+    .flatMap(owner => owner.inventory.map(item => ({ owner, item })))
+    .find(({ item }) => actionReferencesItem(normalizedAction, item));
+  if (itemMatch && inferredCount < FREE_ACTION_MAX_INFERRED_BONUSES) {
+    result.choiceItemOwner = itemMatch.owner;
+    result.choiceItem = itemMatch.item;
+    inferredCount++;
+  }
+
+  if (inferredCount < FREE_ACTION_MAX_INFERRED_BONUSES) {
+    if (SOCIAL_ACTION_RE.test(normalizedAction)) {
+      result.characterEdge = { label: 'social edge', bonus: CHARACTER_EDGE_BONUS };
+    } else if (actionUsesCharacterSpotlight(normalizedAction, character)) {
+      result.characterEdge = { label: 'spotlight', bonus: CHARACTER_EDGE_BONUS };
+    }
+  }
+
+  return result;
+};
 
 export const executeTurnAction = async (
   sessionId: string,
@@ -119,24 +204,25 @@ export const executeTurnAction = async (
   const history = await StateService.getTurnHistory(sessionId);
   const latestChoices = history[history.length - 1]?.choices ?? session.lastChoices;
   const submittedChoice = latestChoices.find(choice => choice.label === action);
+  const inferredFreeActionBonuses: InferredFreeActionBonuses = submittedChoice ? {} : inferFreeActionBonuses(action, character, session);
   const helperCharacter = submittedChoice?.flavor === 'combo' && submittedChoice.helperCharacterName
     ? session.party.find(c =>
       c.name === submittedChoice.helperCharacterName &&
       c.id !== actingCharId &&
       c.status === 'active'
     )
-    : undefined;
+    : inferredFreeActionBonuses.helperCharacter;
   const choiceItemOwner = submittedChoice?.flavor === 'item' && submittedChoice.itemOwnerName
     ? session.party.find(c => c.name === submittedChoice.itemOwnerName && c.status === 'active')
-    : undefined;
+    : inferredFreeActionBonuses.choiceItemOwner;
   const choiceItem = choiceItemOwner && submittedChoice?.itemName
     ? choiceItemOwner.inventory.find(item => item.name === submittedChoice.itemName)
-    : undefined;
+    : inferredFreeActionBonuses.choiceItem;
   const characterEdge = submittedChoice?.flavor === 'spotlight'
     ? { label: 'spotlight', bonus: CHARACTER_EDGE_BONUS }
     : submittedChoice?.flavor === 'social'
       ? { label: 'social edge', bonus: CHARACTER_EDGE_BONUS }
-      : undefined;
+      : inferredFreeActionBonuses.characterEdge;
   const actionAttempt = resolveRiddleAnswer(action, latestChoices) ?? GameEngine.resolveAction(
     character,
     action,

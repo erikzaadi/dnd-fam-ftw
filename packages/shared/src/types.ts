@@ -136,6 +136,10 @@ export interface TurnResult {
   currentTensionLevel?: TensionLevel;
   hpChanges?: HpChange[];
   inventoryChanges?: InventoryChange[];
+  narrationRetried?: boolean;
+  narrationFailed?: boolean;
+  narrationValidationError?: string;
+  narrationRetryValidationError?: string;
 }
 
 export interface SessionPreview {

@@ -32,6 +32,10 @@ type TurnHistoryRow = {
   currentTensionLevel: string | null;
   hpChanges: string | null;
   inventoryChanges: string | null;
+  narrationRetried: number | null;
+  narrationFailed: number | null;
+  narrationValidationError: string | null;
+  narrationRetryValidationError: string | null;
 };
 
 const mapTurnHistoryRow = (row: TurnHistoryRow): TurnResult => {
@@ -113,6 +117,10 @@ const mapTurnHistoryRow = (row: TurnHistoryRow): TurnResult => {
     ...(row.currentTensionLevel && { currentTensionLevel: row.currentTensionLevel as TurnResult['currentTensionLevel'] }),
     ...(row.hpChanges && { hpChanges: JSON.parse(row.hpChanges) }),
     ...(row.inventoryChanges && { inventoryChanges: JSON.parse(row.inventoryChanges) }),
+    ...(row.narrationRetried != null && { narrationRetried: !!row.narrationRetried }),
+    ...(row.narrationFailed != null && { narrationFailed: !!row.narrationFailed }),
+    ...(row.narrationValidationError && { narrationValidationError: row.narrationValidationError }),
+    ...(row.narrationRetryValidationError && { narrationRetryValidationError: row.narrationRetryValidationError }),
   };
 };
 
@@ -132,7 +140,7 @@ export const turnHistoryRepository = {
   async addTurnResult(sessionId: string, turn: TurnResult, characterId: string | null): Promise<number> {
     const db = getDb();
     const action = turn.lastAction ?? null;
-    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionChoiceItemBonus, actionChoiceItemName, actionChoiceItemOwnerName, actionCharacterBonus, actionCharacterBonusLabel, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionChoiceItemBonus, actionChoiceItemName, actionChoiceItemOwnerName, actionCharacterBonus, actionCharacterBonusLabel, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges, narrationRetried, narrationFailed, narrationValidationError, narrationRetryValidationError) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(
         sessionId, characterId || null, turn.narration, turn.rollNarration || null, turn.imagePrompt, turn.imageSuggested ? 1 : 0, turn.imageUrl || null,
         action?.actionAttempt ?? null,
@@ -155,6 +163,10 @@ export const turnHistoryRepository = {
         turn.currentTensionLevel ?? null,
         turn.hpChanges && turn.hpChanges.length > 0 ? JSON.stringify(turn.hpChanges) : null,
         turn.inventoryChanges && turn.inventoryChanges.length > 0 ? JSON.stringify(turn.inventoryChanges) : null,
+        turn.narrationRetried ? 1 : 0,
+        turn.narrationFailed ? 1 : 0,
+        turn.narrationValidationError ?? null,
+        turn.narrationRetryValidationError ?? null,
       );
 
     const turnId = info.lastInsertRowid;

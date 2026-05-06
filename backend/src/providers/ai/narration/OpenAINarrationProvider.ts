@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import type { NarrationInput, NarrationOutput, NarrationProvider } from './NarrationProvider.js';
 import { NARRATION_FALLBACK } from './narrationSchemas.js';
-import { NARRATION_SYSTEM_PROMPT, buildNarrationUserContent } from './narrationPrompt.js';
+import { NARRATION_SYSTEM_PROMPT, buildNarrationRetryInstructions, buildNarrationUserContent } from './narrationPrompt.js';
 import { parseNarrationOutput } from './narrationOutputGuards.js';
 
 let _openai: OpenAI | null = null;
@@ -19,18 +19,30 @@ export class OpenAINarrationProvider implements NarrationProvider {
     }
 
     console.warn('[OpenAINarration] First attempt failed validation, retrying...', parsed.error);
-    const retryContent = await this.callModel(input, true);
+    const retryContent = await this.callModel(input, parsed.error);
     const retryParsed = parseNarrationOutput(input, JSON.parse(retryContent));
     if (retryParsed.success) {
-      return retryParsed.data;
+      return {
+        ...retryParsed.data,
+        narrationRetried: true,
+        narrationValidationError: parsed.error,
+      };
     }
 
-    console.error('[OpenAINarration] Retry also failed, using fallback. Raw:', retryContent);
-    return NARRATION_FALLBACK;
+    console.error('[OpenAINarration] Retry also failed, using fallback.', retryParsed.error, 'Raw:', retryContent);
+    return {
+      ...NARRATION_FALLBACK,
+      narrationRetried: true,
+      narrationFailed: true,
+      narrationValidationError: parsed.error,
+      narrationRetryValidationError: retryParsed.error,
+    };
   }
 
-  private async callModel(input: NarrationInput, strict = false): Promise<string> {
-    const extra = strict ? '\nCRITICAL: Return ONLY valid JSON matching the exact schema. No markdown, no explanation.' : '';
+  private async callModel(input: NarrationInput, validationError?: string): Promise<string> {
+    const extra = validationError
+      ? buildNarrationRetryInstructions(validationError)
+      : '';
     const response = await openai().chat.completions.create({
       model: process.env.OPENAI_MODEL ?? 'gpt-4o',
       messages: [

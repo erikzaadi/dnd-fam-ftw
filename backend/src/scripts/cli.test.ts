@@ -252,6 +252,59 @@ describe('CLI sessions export/import', () => {
 
 // ── metrics ───────────────────────────────────────────────────────────────────
 
+function seedNarrationMetricsTurn(): void {
+  const db = getDb();
+  db.prepare('DELETE FROM turn_history WHERE sessionId = ?').run('narration-metrics-session');
+  db.prepare('DELETE FROM characters WHERE sessionId = ?').run('narration-metrics-session');
+  db.prepare('DELETE FROM sessions WHERE id = ?').run('narration-metrics-session');
+  db.prepare(
+    'INSERT INTO sessions (id, scene, sceneId, worldDescription, turn, tone, displayName, difficulty, gameMode, useLocalAI, savingsMode, namespace_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(
+    'narration-metrics-session',
+    'A Grove',
+    'grove-1',
+    'Diagnostics world',
+    2,
+    'thrilling',
+    'Narration Metrics World',
+    'normal',
+    'balanced',
+    0,
+    0,
+    'local',
+  );
+  db.prepare(
+    'INSERT INTO characters (id, sessionId, name, class, species, quirk) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run('narration-metrics-character', 'narration-metrics-session', 'Mirela Voss', 'Sorcerer', 'Tiefling', 'glowing eyes');
+  db.prepare(`
+    INSERT INTO turn_history (
+      sessionId,
+      characterId,
+      narration,
+      rollNarration,
+      imagePrompt,
+      imageSuggested,
+      actionAttempt,
+      narrationRetried,
+      narrationFailed,
+      narrationValidationError,
+      narrationRetryValidationError
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    'narration-metrics-session',
+    'narration-metrics-character',
+    'Fallback narration appeared.',
+    'A retry could not recover the narration.',
+    'Shadow grove',
+    1,
+    'Cast a careful spell',
+    1,
+    1,
+    'No more than two bonus-bearing choices may appear in one turn.',
+    'Portal, shortcut, or teleport choices require this turn narration to show an NPC offering or activating one.',
+  );
+}
+
 describe('CLI metrics', () => {
   it('--json returns array of namespace metrics', () => {
     const { stdout, status } = cli('metrics', '--json');
@@ -259,6 +312,42 @@ describe('CLI metrics', () => {
     const rows = JSON.parse(stdout) as { namespace_id: string; session_count: number }[];
     expect(Array.isArray(rows)).toBe(true);
     expect(rows.every(r => 'namespace_id' in r && 'session_count' in r)).toBe(true);
+  });
+
+  it('narration --json returns retried and failed narration diagnostics', () => {
+    seedNarrationMetricsTurn();
+
+    const { stdout, status } = cli('metrics', 'narration', '--json');
+    expect(status).toBe(0);
+    const rows = JSON.parse(stdout) as {
+      session_id: string;
+      character_name: string;
+      narration_retried: boolean;
+      narration_failed: boolean;
+      narration_retry_validation_error: string;
+    }[];
+    const row = rows.find(r => r.session_id === 'narration-metrics-session');
+    expect(row).toBeTruthy();
+    expect(row?.character_name).toBe('Mirela Voss');
+    expect(row?.narration_retried).toBe(true);
+    expect(row?.narration_failed).toBe(true);
+    expect(row?.narration_retry_validation_error).toContain('Portal');
+  });
+
+  it('narration --format csv emits analysis-friendly CSV without changing metrics --json', () => {
+    seedNarrationMetricsTurn();
+
+    const { stdout, status } = cli('metrics', 'narration', '--format', 'csv', '--failed-only');
+    expect(status).toBe(0);
+    expect(stdout).toContain('turn_id,session_id,session_name,namespace_id');
+    expect(stdout).toContain('narration-metrics-session');
+    expect(stdout).toContain('"Portal, shortcut, or teleport choices require this turn narration to show an NPC offering or activating one."');
+
+    const metricsJson = cli('metrics', '--json');
+    expect(metricsJson.status).toBe(0);
+    const rows = JSON.parse(metricsJson.stdout) as { total_turns: number }[];
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.every(row => 'total_turns' in row)).toBe(true);
   });
 });
 

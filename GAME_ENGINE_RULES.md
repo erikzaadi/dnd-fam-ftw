@@ -38,7 +38,7 @@ Combo/help choices can add a small backend-owned helper bonus:
 roll (d20) + effective stat + helper bonus  ≥  difficulty target  →  success
 ```
 
-The helper bonus is currently `+2` and only applies when the submitted action exactly matches a current `combo` choice with an active ally in `helperCharacterName`.
+The helper bonus is currently `+2` and applies when the submitted action exactly matches a current `combo` choice with an active ally in `helperCharacterName`. Free-text actions can also earn it when they clearly name an active ally.
 
 Inventory-aware choices can add a small backend-owned marked gear bonus:
 
@@ -46,7 +46,7 @@ Inventory-aware choices can add a small backend-owned marked gear bonus:
 roll (d20) + effective stat + marked gear bonus  ≥  difficulty target  →  success
 ```
 
-The marked gear bonus is currently `+2` and only applies when the submitted action exactly matches a current `item` choice whose `itemOwnerName` is active and whose `itemName` exists in that character's inventory.
+The marked gear bonus is currently `+2` and applies when the submitted action exactly matches a current `item` choice whose `itemOwnerName` is active and whose `itemName` exists in that character's inventory. Free-text actions can also earn it when they clearly name a real item carried by an active party member.
 
 Social and spotlight choices can add a small backend-owned character edge bonus:
 
@@ -54,7 +54,9 @@ Social and spotlight choices can add a small backend-owned character edge bonus:
 roll (d20) + effective stat + character edge bonus  ≥  difficulty target  →  success
 ```
 
-The character edge bonus is currently `+2` and only applies when the submitted action exactly matches a current `social` or `spotlight` choice.
+The character edge bonus is currently `+2` and applies when the submitted action exactly matches a current `social` or `spotlight` choice. Free-text actions can also earn it when they clearly describe a social play or spotlight the acting hero's class, species, quirk, history, or specialty.
+
+Free-text inferred bonuses are conservative and capped at two inferred bonus categories per action.
 
 The backend also assigns an `impact` to rolled actions:
 
