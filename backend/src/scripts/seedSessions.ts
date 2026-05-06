@@ -1,5 +1,5 @@
 /**
- * Seed script: creates 3 example sessions with pre-populated turns.
+ * Seed script: creates 7 example sessions with pre-populated turns.
  * Idempotent - drops and recreates sessions each run.
  * Run from backend/: npx tsx src/scripts/seedSessions.ts
  */

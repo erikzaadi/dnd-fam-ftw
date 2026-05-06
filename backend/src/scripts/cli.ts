@@ -9,7 +9,7 @@
  *   namespaces      list | create <name> | rename <id> <name> | delete <id>
  *                   sessions <id> | assign-session <sessionId> <nsId>
  *                   add-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
- *   sessions        list [--json] | nuke | seed | seed-mechanics-showcase | export | import
+ *   sessions        list [--json] | nuke | seed | export | import
  *   metrics         [--json] | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>]
  *   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
  */
@@ -423,15 +423,6 @@ case 'sessions': {
     await import('./seedSessions.js');
     break;
   }
-  case 'seed-mechanics-showcase': {
-    const { MECHANICS_SHOWCASE_SESSION_ID, seedMechanicsShowcase } = await import('./seedMechanicsShowcase.js');
-    const dbPath = path.resolve(getConfig().SQLITE_DB_PATH);
-    const db = new Database(dbPath);
-    seedMechanicsShowcase(db);
-    db.close();
-    console.log(`Seed complete: ${MECHANICS_SHOWCASE_SESSION_ID}`);
-    break;
-  }
   case 'export': {
     const sessionFilter = parseArgValue(allArgs.find(a => a === '--session' || a.startsWith('--session=')));
     const nsFilter = parseArgValue(allArgs.find(a => a === '--namespace' || a.startsWith('--namespace=')));
@@ -624,7 +615,6 @@ sessions <sub-command>
   list [--json]                                         List all sessions, characters, inventory, and turn history
   nuke                                                  Delete all sessions and their data (dev only)
   seed                                                  Seed example sessions (dev only, idempotent)
-  seed-mechanics-showcase                              Seed only the visual mechanics fixture
   export [--session <id>] [--namespace <id>] [--output <file>]   Export sessions to JSON (stdout if no --output)
   import <file.json> [--namespace-id <id>]              Import sessions from a JSON export file
 `);
@@ -911,7 +901,7 @@ Resources:
   namespaces      list | create <name> | rename <id> <name> | delete <id>
                   sessions <id> | assign-session <sessionId> <nsId>
                   add-user <nsId> <email> | remove-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
-  sessions        list [--json] | nuke | seed | seed-mechanics-showcase | export | import
+  sessions        list [--json] | nuke | seed | export | import
   metrics         [--json] | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>]
   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
 

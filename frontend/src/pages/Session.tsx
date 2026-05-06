@@ -777,8 +777,8 @@ export const SessionPage = () => {
         <KeybindingsHelp
           onClose={() => setShowKeybindingsHelp(false)}
           bindings={[
-            { key: '1 / 2 / 3', action: 'Focus action choice (Enter submits)' },
-            { key: '4', action: 'Focus custom action input' },
+            { key: '1 / 2 / 3 / ...', action: 'Focus action choice (Enter submits)' },
+            { key: 'next number', action: 'Focus custom action input' },
             { key: 'v', action: 'Start voice action' },
             { key: 'i', action: 'Open inventory' },
             { key: 'n', action: 'Toggle fullscreen narration' },

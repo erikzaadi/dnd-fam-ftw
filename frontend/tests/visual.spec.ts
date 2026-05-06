@@ -93,8 +93,8 @@ async function enableSavingsMode(request: APIRequestContext, sessionId: string):
   expect(res.ok()).toBe(true);
 }
 
-function seedMechanicsShowcaseFixture(): void {
-  execFileSync('npm', ['run', 'cli', '--', 'sessions', 'seed-mechanics-showcase'], {
+function seedSessionsFixture(): void {
+  execFileSync('npm', ['run', 'cli', '--', 'sessions', 'seed'], {
     cwd: BACKEND_DIR,
     env: process.env,
     stdio: 'pipe',
@@ -272,7 +272,7 @@ test('session character popup', async ({ page, request }) => {
 
 test('session mechanics showcase visual asserts', async ({ page, request }) => {
   test.setTimeout(120_000);
-  seedMechanicsShowcaseFixture();
+  seedSessionsFixture();
   const session = await getSessionOrFail(request, SESSIONS.mechanicsShowcase);
   await enableSavingsMode(request, session.id);
 

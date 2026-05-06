@@ -150,6 +150,39 @@ describe('ActionDock speech input', () => {
     });
   });
 
+  it('uses the fourth numeric shortcut for the fourth suggested action', () => {
+    renderDock({
+      turn: {
+        ...TURN,
+        choices: [
+          ...TURN.choices,
+          { label: 'Duck under the counterweights', stat: 'might', difficulty: 'hard' },
+        ],
+      },
+    });
+
+    fireEvent.keyDown(window, { key: '4' });
+
+    expect(screen.getByRole('button', { name: /Duck under the counterweights/i })).toHaveFocus();
+    expect(screen.getByPlaceholderText('Describe a different action...')).not.toHaveFocus();
+  });
+
+  it('moves the custom action shortcut after the suggested actions', () => {
+    renderDock({
+      turn: {
+        ...TURN,
+        choices: [
+          ...TURN.choices,
+          { label: 'Duck under the counterweights', stat: 'might', difficulty: 'hard' },
+        ],
+      },
+    });
+
+    fireEvent.keyDown(window, { key: '5' });
+
+    expect(screen.getByPlaceholderText('Describe a different action...')).toHaveFocus();
+  });
+
   it('shows riddle answer choices as no-roll answers', () => {
     renderDock({
       turn: {

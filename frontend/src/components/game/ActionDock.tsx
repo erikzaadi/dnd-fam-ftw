@@ -73,13 +73,16 @@ export const ActionDock = ({
   const { settings: sttSettings } = useSttSettings();
   const ttsEnabled = ttsSettings.enabled && browserTtsService.isSupported();
 
-  const submitSuggestedChoice = useCallback(async (index: 0 | 1 | 2) => {
-    const choice = turn?.choices[index];
+  const choices = useMemo(() => turn?.choices ?? [], [turn?.choices]);
+  const customActionShortcut = choices.length + 1;
+
+  const submitSuggestedChoice = useCallback(async (index: number) => {
+    const choice = choices[index];
     if (!choice || loading) {
       return;
     }
     await onSubmit(choice.label, choice.stat, choice.difficulty, choice.difficultyValue);
-  }, [loading, onSubmit, turn]);
+  }, [choices, loading, onSubmit]);
 
   const submitCustomText = useCallback(async (actionText: string) => {
     const trimmed = actionText.trim();
@@ -162,14 +165,11 @@ export const ActionDock = ({
         return;
       }
 
-      const choices = turn?.choices ?? [];
-      if (e.key === '1' && choices[0]) {
-        choiceButtonRefs.current[0]?.focus();
-      } else if (e.key === '2' && choices[1]) {
-        choiceButtonRefs.current[1]?.focus();
-      } else if (e.key === '3' && choices[2]) {
-        choiceButtonRefs.current[2]?.focus();
-      } else if (e.key === '4') {
+      const shortcutIndex = Number(e.key) - 1;
+      if (Number.isInteger(shortcutIndex) && shortcutIndex >= 0 && shortcutIndex < choices.length) {
+        e.preventDefault();
+        choiceButtonRefs.current[shortcutIndex]?.focus();
+      } else if (e.key === String(customActionShortcut)) {
         e.preventDefault();
         textareaRef.current?.focus();
       } else if (e.key === 'i') {
@@ -182,7 +182,7 @@ export const ActionDock = ({
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [loading, isDown, turn, onShowPartyGear, toggleSpeech]);
+  }, [choices, customActionShortcut, loading, isDown, onShowPartyGear, toggleSpeech]);
 
   const submitCustom = async () => {
     await submitCustomText(customAction);
@@ -334,14 +334,15 @@ export const ActionDock = ({
                   const characterBonusLabel = choice.flavor === 'spotlight' ? 'spotlight' : choice.flavor === 'social' ? 'social' : '';
                   const statTotal = statBase + statBonus + helperBonus + choiceItemBonus + characterBonus;
                   const target = beatTarget(choice.difficultyValue, choice.difficulty);
+                  const shortcut = i + 1;
                   const prob = calcProb(statTotal, target);
 
                   return (
                     <div key={i} className="relative">
                       <div className="absolute -top-2.5 -left-2.5 z-20">
-                        <Tooltip content={`Shortcut [${i + 1}]`} position="bottom" portal wrapperClassName="inline-flex">
+                        <Tooltip content={`Shortcut [${shortcut}]`} position="bottom" portal wrapperClassName="inline-flex">
                           <span className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-900 border border-slate-700 text-[10px] font-black text-slate-400">
-                            {i + 1}
+                            {shortcut}
                           </span>
                         </Tooltip>
                       </div>
@@ -351,7 +352,7 @@ export const ActionDock = ({
                           choiceButtonRefs.current[i] = el;
                         }}
                         onClick={() => {
-                          void submitSuggestedChoice(i as 0 | 1 | 2);
+                          void submitSuggestedChoice(i);
                         }}
                         disabled={loading}
                         className={`relative w-full p-3 rounded-2xl border-2 text-left transition-all hover:brightness-110 disabled:opacity-50 ${STAT_COLORS[choice.stat]}`}
@@ -430,9 +431,9 @@ export const ActionDock = ({
             <div className="flex flex-col gap-2 pt-1">
               <div className="relative">
                 <div className="absolute -top-2.5 -left-2.5 z-20">
-                  <Tooltip content="Shortcut [4]" position="bottom" portal wrapperClassName="inline-flex">
+                  <Tooltip content={`Shortcut [${customActionShortcut}]`} position="bottom" portal wrapperClassName="inline-flex">
                     <span className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-900 border border-slate-700 text-[10px] font-black text-slate-400">
-                      4
+                      {customActionShortcut}
                     </span>
                   </Tooltip>
                 </div>

@@ -11,6 +11,8 @@ describe('parseSpeechIntent', () => {
     ['second', 1],
     ['number three', 2],
     ['choice 3', 2],
+    ['choice 4', 3],
+    ['fourth', 3],
   ])('maps %s to a suggested choice', (text, index) => {
     expect(parseSpeechIntent(text)).toMatchObject({ type: 'choice', index });
   });
@@ -31,4 +33,3 @@ describe('parseSpeechIntent', () => {
     });
   });
 });
-
