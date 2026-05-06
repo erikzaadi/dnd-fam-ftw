@@ -9,7 +9,8 @@ import type { Choice, Impact } from '../types.js';
 
 dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '.env'), quiet: true });
 
-const SESSION_ID = 'seed-session-mechanics-showcase';
+export const MECHANICS_SHOWCASE_SESSION_ID = 'seed-session-7';
+const LEGACY_SESSION_ID = 'seed-session-mechanics-showcase';
 
 type SeedChoice = Omit<Choice, 'difficulty' | 'stat'> & { difficulty: string; stat: string };
 
@@ -72,15 +73,16 @@ function deleteSession(db: DB, id: string) {
 }
 
 export function seedMechanicsShowcase(db: DB): void {
-  deleteSession(db, SESSION_ID);
+  deleteSession(db, LEGACY_SESSION_ID);
+  deleteSession(db, MECHANICS_SHOWCASE_SESSION_ID);
   db.prepare(`INSERT INTO sessions (id, scene, sceneId, displayName, turn, activeCharacterId, tone, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, rescues_used, game_over, storySummary, dm_prep)
     VALUES (?, 'The Clockwork Bridge', 'mechanics-showcase', 'Mechanics Showcase', 4, 'seed-s7-c1', 'clear test fixture', 'normal', 'fast', 1, 0, 0, 0, 0, ?, NULL)`)
-    .run(SESSION_ID, 'A deterministic fixture for Playwright visual assertions around choice flavors, roll breakdowns, and narration scroll behavior.');
+    .run(MECHANICS_SHOWCASE_SESSION_ID, 'A deterministic fixture for Playwright visual assertions around choice flavors, roll breakdowns, and narration scroll behavior.');
 
-  seedChar(db, SESSION_ID, 'seed-s7-c1', 'Pip Gearwise', 'Rogue', 'Halfling', 'Keeps a checklist for every risky idea', 1, 2, 4, 8, 10);
-  seedChar(db, SESSION_ID, 'seed-s7-c2', 'Zara Brightspell', 'Mage', 'Elf', 'Times every spell with a wink', 1, 5, 1, 7, 10);
-  seedChar(db, SESSION_ID, 'seed-s7-c3', 'Mira Ironleaf', 'Ranger', 'Human', 'Names every useful knot', 3, 1, 3, 9, 10);
-  seedChar(db, SESSION_ID, 'seed-s7-c4', 'Oswin Bell', 'Cleric', 'Human', 'Apologizes before ringing any bell', 2, 4, 1, 9, 10);
+  seedChar(db, MECHANICS_SHOWCASE_SESSION_ID, 'seed-s7-c1', 'Pip Gearwise', 'Rogue', 'Halfling', 'Keeps a checklist for every risky idea', 1, 2, 4, 8, 10);
+  seedChar(db, MECHANICS_SHOWCASE_SESSION_ID, 'seed-s7-c2', 'Zara Brightspell', 'Mage', 'Elf', 'Times every spell with a wink', 1, 5, 1, 7, 10);
+  seedChar(db, MECHANICS_SHOWCASE_SESSION_ID, 'seed-s7-c3', 'Mira Ironleaf', 'Ranger', 'Human', 'Names every useful knot', 3, 1, 3, 9, 10);
+  seedChar(db, MECHANICS_SHOWCASE_SESSION_ID, 'seed-s7-c4', 'Oswin Bell', 'Cleric', 'Human', 'Apologizes before ringing any bell', 2, 4, 1, 9, 10);
 
   seedItem(db, 'seed-s7-c1', 's7-brass-compass', 'Brass Compass', 'Points toward hidden mechanisms', JSON.stringify({ mischief: 1 }), 0);
   seedItem(db, 'seed-s7-c2', 's7-moon-lens', 'Moon Lens', 'Focuses pale light onto invisible marks', JSON.stringify({ magic: 1 }), 0);
@@ -93,17 +95,17 @@ export function seedMechanicsShowcase(db: DB): void {
     { label: 'Duck under the swinging counterweights', difficulty: 'hard', stat: 'might', difficultyValue: 16, narration: 'The machinery itself becomes the obstacle.', flavor: 'environment', environmentFeature: 'swinging counterweights' },
   ];
 
-  seedTurn(db, SESSION_ID, null, 'Short bridge prompt.', choices, null, null, null, null, null, null, null, 'low');
-  seedTurn(db, SESSION_ID, 'seed-s7-c1',
+  seedTurn(db, MECHANICS_SHOWCASE_SESSION_ID, null, 'Short bridge prompt.', choices, null, null, null, null, null, null, null, 'low');
+  seedTurn(db, MECHANICS_SHOWCASE_SESSION_ID, 'seed-s7-c1',
     'Pip times the jump while Zara steadies the spell. The brass teeth slow just enough for the party to land on the far platform, and a tiny silver bridge token clicks loose into Pip\'s hand.',
     choices, 'Time the jump while Zara steadies the spell', 'mischief', 1, 12, 4, 13, 'Zara steadies the moment.', 'medium',
     JSON.stringify([{ characterName: 'Pip Gearwise', itemName: 'Silver Bridge Token', type: 'added' }]), 'normal',
     { itemBonus: 1, helperBonus: 2, helperCharacterName: 'Zara Brightspell' });
-  seedTurn(db, SESSION_ID, 'seed-s7-c1',
+  seedTurn(db, MECHANICS_SHOWCASE_SESSION_ID, 'seed-s7-c1',
     'Pip reads every moving gear, every blinking rune, every warning bell, and every line of Zara\'s hurried chalk notes while the Clockwork Bridge unfolds into a long sequence of platforms, rails, pressure plates, light lenses, brass teeth, suspended counterweights, whispering bridge-keeper instructions, and tiny safe footholds that must be crossed in exact order before the whole span resets itself with a ringing snap.',
     choices, 'Hook Mira\'s anchor rope to the gear rail', 'mischief', 1, 11, 4, 13, 'The rope catches cleanly.', 'medium',
     null, 'normal', { itemBonus: 1, choiceItemBonus: 2, choiceItemName: 'Anchor Rope', choiceItemOwnerName: 'Mira Ironleaf' });
-  seedTurn(db, SESSION_ID, 'seed-s7-c1',
+  seedTurn(db, MECHANICS_SHOWCASE_SESSION_ID, 'seed-s7-c1',
     'Pip\'s checklist is approved.',
     choices, 'Charm the bridge keeper with Pip\'s checklist', 'mischief', 1, 10, 4, 12, 'The checklist does the talking.', 'medium',
     null, 'normal', { itemBonus: 1, characterBonus: 2, characterBonusLabel: 'social edge' });
@@ -114,5 +116,5 @@ if (process.argv[1]?.endsWith('seedMechanicsShowcase.ts')) {
   const db = new Database(path.resolve(getConfig().SQLITE_DB_PATH));
   seedMechanicsShowcase(db);
   db.close();
-  console.log(`Seed complete: ${SESSION_ID}`);
+  console.log(`Seed complete: ${MECHANICS_SHOWCASE_SESSION_ID}`);
 }

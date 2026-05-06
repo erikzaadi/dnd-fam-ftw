@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { MOCK_NARRATION_MARKER, openSeedSession, waitForTurnToComplete } from './helpers';
 
-const SESSION_ID = 'seed-session-mechanics-showcase';
+const SESSION_ID = 'seed-session-7';
 
 test('mechanics showcase aligns action bonuses between popup and Chronicle', async ({ page }) => {
   await openSeedSession(page, SESSION_ID);

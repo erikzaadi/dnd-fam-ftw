@@ -12,7 +12,7 @@ import { getConfig } from '../config/env.js';
 import { StateService } from '../services/stateService.js';
 import { ImageService } from '../services/imageService.js';
 import type { Choice, Impact } from '../types.js';
-import { seedMechanicsShowcase } from './seedMechanicsShowcase.js';
+import { MECHANICS_SHOWCASE_SESSION_ID, seedMechanicsShowcase } from './seedMechanicsShowcase.js';
 
 dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '.env'), quiet: true });
 
@@ -357,4 +357,4 @@ console.log(`  Session 3 (${S3}): The Merchant's Mystery - 4 chars, 6 turns`);
 console.log(`  Session 4 (${S4}): ZUG-MA-GEDDON - The Endless Arena - 3 chars, 5 turns`);
 console.log(`  Session 5 (${S5}): The Shattered Crown - 4 chars, 4 turns (DM prep + intrigue)`);
 console.log(`  Session 6 (${S6}): The Tomb of Endless Dark - 4 chars, 13 turns (GAME OVER - hard, 1 rescue used)`);
-console.log('  Session 7 (seed-session-mechanics-showcase): Mechanics Showcase - 4 chars, 4 turns');
+console.log(`  Session 7 (${MECHANICS_SHOWCASE_SESSION_ID}): Mechanics Showcase - 4 chars, 4 turns`);

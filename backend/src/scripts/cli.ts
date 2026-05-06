@@ -424,12 +424,12 @@ case 'sessions': {
     break;
   }
   case 'seed-mechanics-showcase': {
-    const { seedMechanicsShowcase } = await import('./seedMechanicsShowcase.js');
+    const { MECHANICS_SHOWCASE_SESSION_ID, seedMechanicsShowcase } = await import('./seedMechanicsShowcase.js');
     const dbPath = path.resolve(getConfig().SQLITE_DB_PATH);
     const db = new Database(dbPath);
     seedMechanicsShowcase(db);
     db.close();
-    console.log('Seed complete: seed-session-mechanics-showcase');
+    console.log(`Seed complete: ${MECHANICS_SHOWCASE_SESSION_ID}`);
     break;
   }
   case 'export': {

@@ -15,7 +15,9 @@ All env vars live in the root `.env`.
 
 ## Before committing
 
-Run from repo root:
+Do not run token-heavy verification commands yourself unless explicitly asked. This includes `npm test`, `npm run test:*`, `npm run build`, `npm run lint`, `npm run lint:*`, `npx tsc`, and package-specific variants. Ask the user to run the relevant command manually instead.
+
+Manual verification checklist from repo root:
 
 ```bash
 npm run lint          # all linters: backend + frontend + workflows + bash

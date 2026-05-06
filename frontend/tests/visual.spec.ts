@@ -25,7 +25,7 @@ const SESSIONS = {
   chronicle: 'seed-session-1',
   fallen: 'seed-session-6',
   storyRealm: 'seed-session-5',
-  mechanicsShowcase: 'seed-session-mechanics-showcase',
+  mechanicsShowcase: 'seed-session-7',
 } as const;
 
 const SEEDED_PARTY = {
