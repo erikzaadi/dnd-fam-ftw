@@ -173,21 +173,24 @@ jobs:
 
           PROMPT="You are a usage analyst for a family D&D game app."
           PROMPT="$PROMPT Summarize this week's metrics in 2 sentences, highlighting trends vs last week."
-          PROMPT="$PROMPT Include narration retry/fallback health, and explicitly call out a significant increase in narration failures when failed_turns rose by 3 or more, or doubled from a nonzero previous value."
+          PROMPT="$PROMPT Include narration retry/fallback health."
+          PROMPT="$PROMPT Explicitly call out a significant increase in narration failures"
+          PROMPT="$PROMPT when failed_turns rose by 3 or more, or doubled from a nonzero previous value."
           PROMPT="$PROMPT Be concise and friendly. If no previous metrics, just summarize current state."
+          MESSAGE=$(printf '%s' "$PROMPT")
+          MESSAGE=$(printf '%s\n\nCurrent usage:\n%s' "$MESSAGE" "$CURRENT_METRICS")
+          MESSAGE=$(printf '%s\n\nPrevious usage:\n%s' "$MESSAGE" "${PREV_METRICS:-none}")
+          MESSAGE=$(printf '%s\n\nNarration health:\n%s' "$MESSAGE" "$NARRATION_HEALTH")
+          MESSAGE=$(printf '%s\n\nCurrent narration diagnostics:\n%s' "$MESSAGE" "$CURRENT_NARRATION_METRICS")
+          MESSAGE=$(printf '%s\n\nPrevious narration diagnostics:\n%s' "$MESSAGE" "${PREV_NARRATION_METRICS:-none}")
           PAYLOAD=$(jq -n \
-            --arg prompt "$PROMPT" \
-            --arg current "$CURRENT_METRICS" \
-            --arg previous "${PREV_METRICS:-none}" \
-            --arg currentNarration "$CURRENT_NARRATION_METRICS" \
-            --arg previousNarration "${PREV_NARRATION_METRICS:-none}" \
-            --arg narrationHealth "$NARRATION_HEALTH" \
+            --arg message "$MESSAGE" \
             '{
               model: "gpt-4o-mini",
               max_tokens: 160,
               messages: [{
                 role: "user",
-                content: "\($prompt)\n\nCurrent usage:\n\($current)\n\nPrevious usage:\n\($previous)\n\nNarration health:\n\($narrationHealth)\n\nCurrent narration diagnostics:\n\($currentNarration)\n\nPrevious narration diagnostics:\n\($previousNarration)"
+                content: $message
               }]
             }')
 
