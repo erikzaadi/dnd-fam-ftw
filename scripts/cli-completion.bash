@@ -11,7 +11,7 @@ _dnd_subcommands() {
   case "$1" in
     users)           echo "list add remove set-primary" ;;
     namespaces)      echo "list create rename delete sessions assign-session add-user remove-user set-limits" ;;
-    sessions)        echo "list nuke seed export import" ;;
+    sessions)        echo "list nuke seed seed-mechanics-showcase export import" ;;
     metrics)         echo "narration" ;;
     invite-requests) echo "list approve clear" ;;
     *)               echo "" ;;

@@ -5,6 +5,7 @@ export type {
   Difficulty,
   TensionLevel,
   Impact,
+  ChoiceFlavor,
   InventoryItem,
   Character,
   InterventionState,

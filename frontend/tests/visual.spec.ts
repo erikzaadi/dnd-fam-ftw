@@ -1,4 +1,10 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const BACKEND_DIR = path.resolve(__dirname, '../../backend');
 
 const VIEWPORTS = [
   { width: 390, height: 844, name: 'mobile-portrait' },
@@ -19,6 +25,7 @@ const SESSIONS = {
   chronicle: 'seed-session-1',
   fallen: 'seed-session-6',
   storyRealm: 'seed-session-5',
+  mechanicsShowcase: 'seed-session-mechanics-showcase',
 } as const;
 
 const SEEDED_PARTY = {
@@ -67,14 +74,15 @@ async function screenshotViewports(page: Page, slug: string): Promise<void> {
   }
 }
 
-async function getSessionOrSkip(request: APIRequestContext, id: string): Promise<SessionListItem | null> {
+async function getSessionOrFail(request: APIRequestContext, id: string): Promise<SessionListItem> {
   const res = await request.get('/api/sessions');
+  expect(res.ok()).toBe(true);
   const sessions = await res.json() as SessionListItem[];
   const session = sessions.find(s => s.id === id);
-  if (!session) {
-    test.skip(true, `Seed session ${id} was not found`);
-    return null;
-  }
+  expect(
+    session,
+    `Seed session ${id} was not found. Run "cd backend && npm run cli -- sessions seed" against the visual-test database before updating snapshots.`
+  ).toBeTruthy();
   return session;
 }
 
@@ -83,6 +91,14 @@ async function enableSavingsMode(request: APIRequestContext, sessionId: string):
     data: { enabled: true },
   });
   expect(res.ok()).toBe(true);
+}
+
+function seedMechanicsShowcaseFixture(): void {
+  execFileSync('npm', ['run', 'cli', '--', 'sessions', 'seed-mechanics-showcase'], {
+    cwd: BACKEND_DIR,
+    env: process.env,
+    stdio: 'pipe',
+  });
 }
 
 test('home', async ({ page }) => {
@@ -101,10 +117,7 @@ test('settings', async ({ page }) => {
 
 test('session banner hidden', async ({ page, request }) => {
   test.setTimeout(60_000);
-  const session = await getSessionOrSkip(request, SESSIONS.standard);
-  if (!session) {
-    return;
-  }
+  const session = await getSessionOrFail(request, SESSIONS.standard);
   await enableSavingsMode(request, session.id);
   await page.goto(`/session/${session.id}`);
   await dismissAudioOverlay(page);
@@ -117,10 +130,7 @@ test('session banner hidden', async ({ page, request }) => {
 
 test('session narration fullscreen', async ({ page, request }) => {
   test.setTimeout(60_000);
-  const session = await getSessionOrSkip(request, SESSIONS.standard);
-  if (!session) {
-    return;
-  }
+  const session = await getSessionOrFail(request, SESSIONS.standard);
   await enableSavingsMode(request, session.id);
 
   const historyRes = await request.get(`/api/session/${session.id}/history`);
@@ -156,10 +166,7 @@ test('session narration fullscreen', async ({ page, request }) => {
 
 test('session chronicle open and second turn', async ({ page, request }) => {
   test.setTimeout(60_000);
-  const session = await getSessionOrSkip(request, SESSIONS.chronicle);
-  if (!session) {
-    return;
-  }
+  const session = await getSessionOrFail(request, SESSIONS.chronicle);
   await enableSavingsMode(request, session.id);
 
   const historyRes = await request.get(`/api/session/${session.id}/history`);
@@ -205,10 +212,7 @@ test('session chronicle open and second turn', async ({ page, request }) => {
 
 test('session inventory panel', async ({ page, request }) => {
   test.setTimeout(60_000);
-  const session = await getSessionOrSkip(request, SESSIONS.inventory);
-  if (!session) {
-    return;
-  }
+  const session = await getSessionOrFail(request, SESSIONS.inventory);
   await enableSavingsMode(request, session.id);
   const inventoryItems = SEEDED_INVENTORY[SESSIONS.inventory];
   const partyMembers = SEEDED_PARTY[SESSIONS.inventory];
@@ -239,10 +243,7 @@ test('session inventory panel', async ({ page, request }) => {
 
 test('session character popup', async ({ page, request }) => {
   test.setTimeout(60_000);
-  const session = await getSessionOrSkip(request, CHARACTER_POPUP_TARGET.sessionId);
-  if (!session) {
-    return;
-  }
+  const session = await getSessionOrFail(request, CHARACTER_POPUP_TARGET.sessionId);
   await enableSavingsMode(request, session.id);
 
   await page.goto(`/session/${session.id}`);
@@ -269,6 +270,55 @@ test('session character popup', async ({ page, request }) => {
   await screenshotViewports(page, 'session-character-popup');
 });
 
+test('session mechanics showcase visual asserts', async ({ page, request }) => {
+  test.setTimeout(120_000);
+  seedMechanicsShowcaseFixture();
+  const session = await getSessionOrFail(request, SESSIONS.mechanicsShowcase);
+  await enableSavingsMode(request, session.id);
+
+  const historyRes = await request.get(`/api/session/${session.id}/history`);
+  const history = await historyRes.json() as { narration: string }[];
+  const shortNarration = history[history.length - 1]?.narration ?? '';
+  const longNarration = history.find(turn => turn.narration.includes('Clockwork Bridge unfolds'))?.narration ?? '';
+
+  await page.goto(`/session/${session.id}`);
+  await dismissAudioOverlay(page);
+  await waitForSessionReady(page);
+
+  for (const label of ['Team Up', 'Gear', 'Social', 'Obstacle']) {
+    await expect(page.getByText(label, { exact: true })).toBeVisible();
+  }
+  for (const bonus of ['+2 help', '+2 gear', '+2 social']) {
+    await expect(page.getByText(bonus, { exact: true })).toBeVisible();
+  }
+  for (const pill of ['with Zara', 'Anchor Rope', 'swinging counterweights']) {
+    await expect(page.getByText(pill, { exact: true })).toBeVisible();
+  }
+
+  for (const viewport of [{ width: 844, height: 390 }, { width: 1280, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    await expect(page.getByPlaceholder('Describe a different action...')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'UNLEASH' })).toBeVisible();
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByText(shortNarration, { exact: true })).toBeVisible();
+  const narrationText = page.getByLabel('Story narration').locator('p');
+  await expect.poll(async () => {
+    return narrationText.evaluate(el => el.scrollHeight <= el.clientHeight + 4);
+  }).toBe(true);
+  await screenshotViewports(page, 'session-mechanics-showcase-short-narration');
+
+  const chronicleLink = page.getByRole('button', { name: /Open Chronicle/i });
+  await chronicleLink.click();
+  await page.getByRole('button', { name: new RegExp(longNarration.slice(0, 40)) }).click();
+  await expect(narrationText).toHaveText(longNarration);
+  await expect.poll(async () => {
+    return narrationText.evaluate(el => el.scrollHeight > el.clientHeight + 4);
+  }).toBe(true);
+  await screenshotViewports(page, 'session-mechanics-showcase-long-narration');
+});
+
 test('seeded sessions', async ({ page, request }) => {
   test.setTimeout(120_000);
   const picks = [
@@ -278,10 +328,7 @@ test('seeded sessions', async ({ page, request }) => {
   ];
 
   for (const pick of picks) {
-    const session = await getSessionOrSkip(request, pick.id);
-    if (!session) {
-      continue;
-    }
+    const session = await getSessionOrFail(request, pick.id);
     await enableSavingsMode(request, session.id);
     const historyRes = await request.get(`/api/session/${session.id}/history`);
     const history = await historyRes.json() as { narration: string }[];

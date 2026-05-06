@@ -11,6 +11,8 @@ import Database from 'libsql';
 import { getConfig } from '../config/env.js';
 import { StateService } from '../services/stateService.js';
 import { ImageService } from '../services/imageService.js';
+import type { Choice, Impact } from '../types.js';
+import { seedMechanicsShowcase } from './seedMechanicsShowcase.js';
 
 dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '.env'), quiet: true });
 
@@ -31,20 +33,45 @@ function seedChar(sessionId: string, id: string, name: string, cls: string, spec
     .run(id, sessionId, name, cls, species, quirk, hp, maxHp, might, magic, mischief, status, avatarUrl);
 }
 
-function seedItem(characterId: string, name: string, description: string, healValue: number | null, statBonuses: string | null, consumable: number, transferable: number) {
+function seedItem(characterId: string, name: string, description: string, healValue: number | null, statBonuses: string | null, consumable: number, transferable: number, itemId: string = Math.random().toString(36).slice(2)) {
   db.prepare(`INSERT INTO inventory (characterId, itemId, name, description, healValue, statBonuses, consumable, transferable)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(characterId, Math.random().toString(36).slice(2), name, description, healValue, statBonuses, consumable, transferable);
+    .run(characterId, itemId, name, description, healValue, statBonuses, consumable, transferable);
 }
 
-function seedTurn(sessionId: string, characterId: string | null, narration: string, choices: { label: string; difficulty: string; stat: string; difficultyValue?: number; narration?: string }[], actionAttempt: string | null, actionStat: string | null, actionSuccess: number | null, actionRoll: number | null, actionStatBonus: number | null, turnType: string = 'normal', imageUrl: string | null = null, actionDifficultyTarget: number | null = null, rollNarration: string | null = null, currentTensionLevel: string | null = null, hpChanges: string | null = null, inventoryChanges: string | null = null, actionImpact: string | null = null) {
-  const info = db.prepare(`INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges)
-    VALUES (?, ?, ?, ?, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(sessionId, characterId, narration, rollNarration, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges);
+type SeedChoice = Omit<Choice, 'difficulty' | 'stat'> & { difficulty: string; stat: string };
+
+function seedTurn(sessionId: string, characterId: string | null, narration: string, choices: SeedChoice[], actionAttempt: string | null, actionStat: string | null, actionSuccess: number | null, actionRoll: number | null, actionStatBonus: number | null, turnType: string = 'normal', imageUrl: string | null = null, actionDifficultyTarget: number | null = null, rollNarration: string | null = null, currentTensionLevel: string | null = null, hpChanges: string | null = null, inventoryChanges: string | null = null, actionImpact: Impact | null = null, actionDetails: {
+  itemBonus?: number;
+  helperBonus?: number;
+  helperCharacterName?: string;
+  choiceItemBonus?: number;
+  choiceItemName?: string;
+  choiceItemOwnerName?: string;
+  characterBonus?: number;
+  characterBonusLabel?: string;
+} = {}) {
+  const info = db.prepare(`INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionChoiceItemBonus, actionChoiceItemName, actionChoiceItemOwnerName, actionCharacterBonus, actionCharacterBonusLabel, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges)
+    VALUES (?, ?, ?, ?, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(
+      sessionId, characterId, narration, rollNarration, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus,
+      actionDetails.itemBonus ?? null,
+      actionDetails.helperBonus ?? null,
+      actionDetails.helperCharacterName ?? null,
+      actionDetails.choiceItemBonus ?? null,
+      actionDetails.choiceItemName ?? null,
+      actionDetails.choiceItemOwnerName ?? null,
+      actionDetails.characterBonus ?? null,
+      actionDetails.characterBonusLabel ?? null,
+      actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges
+    );
   const turnId = info.lastInsertRowid;
   for (const c of choices) {
-    db.prepare(`INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue, narration) VALUES (?, ?, ?, ?, ?, ?)`)
-      .run(turnId, c.label, c.difficulty, c.stat, c.difficultyValue ?? null, c.narration ?? null);
+    db.prepare(`INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue, narration, flavor, helperCharacterName, itemOwnerName, itemName, environmentFeature) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(
+        turnId, c.label, c.difficulty, c.stat, c.difficultyValue ?? null, c.narration ?? null,
+        c.flavor ?? null, c.helperCharacterName ?? null, c.itemOwnerName ?? null, c.itemName ?? null, c.environmentFeature ?? null
+      );
   }
 }
 
@@ -313,6 +340,8 @@ seedTurn(S6, 'seed-s6-c2', 'Yenna and Rutger fight on alone. Yenna\'s last spell
   { characterId: 'seed-s6-c3', characterName: 'Rutger', change: -3, newHp: 0, maxHp: 12 },
 ]));
 
+seedMechanicsShowcase(db);
+
 // Update session active characters
 db.prepare('UPDATE sessions SET activeCharacterId = ? WHERE id = ?').run('seed-s1-c2', S1);
 db.prepare('UPDATE sessions SET activeCharacterId = ? WHERE id = ?').run('seed-s2-c1', S2);
@@ -328,3 +357,4 @@ console.log(`  Session 3 (${S3}): The Merchant's Mystery - 4 chars, 6 turns`);
 console.log(`  Session 4 (${S4}): ZUG-MA-GEDDON - The Endless Arena - 3 chars, 5 turns`);
 console.log(`  Session 5 (${S5}): The Shattered Crown - 4 chars, 4 turns (DM prep + intrigue)`);
 console.log(`  Session 6 (${S6}): The Tomb of Endless Dark - 4 chars, 13 turns (GAME OVER - hard, 1 rescue used)`);
+console.log('  Session 7 (seed-session-mechanics-showcase): Mechanics Showcase - 4 chars, 4 turns');

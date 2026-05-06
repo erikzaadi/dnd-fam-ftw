@@ -9,6 +9,7 @@ const choices = [
 export class MockNarrationProvider implements NarrationProvider {
   async generateTurn(input: NarrationInput): Promise<NarrationOutput> {
     const actor = input.actingCharacterName ?? 'The adventurer';
+    const grantsBridgeToken = input.actionAttempt === 'Time the jump while Zara steadies the spell';
     return {
       narration: `${actor} acts decisively: ${input.actionAttempt}. The mock DM confirms the adventure moves forward.`,
       rollNarration: input.actionResult.roll
@@ -18,7 +19,15 @@ export class MockNarrationProvider implements NarrationProvider {
       imagePrompt: null,
       imageSuggested: false,
       currentTensionLevel: 'medium',
-      suggestedInventoryAdd: null,
+      suggestedInventoryAdd: grantsBridgeToken
+        ? {
+          name: 'Silver Bridge Token',
+          description: 'A small token awarded by the clockwork bridge keeper.',
+          statBonuses: {},
+          transferable: true,
+          consumable: false,
+        }
+        : null,
       suggestedInventoryRemove: null,
       suggestedInventoryUpdate: null,
       suggestedRevive: null,

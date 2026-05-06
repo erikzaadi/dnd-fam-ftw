@@ -148,7 +148,7 @@ export const StoryStage = ({
         {narration ? (
           <div
             aria-label="Story narration"
-            className="backdrop-blur-md bg-slate-950/55 rounded-[24px] p-8 lg:p-12 w-[78%] max-h-[75%] min-h-0 flex flex-col items-start justify-start cursor-pointer hover:bg-slate-950/65 transition-colors overflow-hidden"
+            className="backdrop-blur-md bg-slate-950/55 rounded-[24px] p-8 lg:p-12 w-[78%] h-[75%] min-h-0 flex flex-col items-start justify-start cursor-pointer hover:bg-slate-950/65 transition-colors overflow-hidden"
             onClick={e => {
               e.stopPropagation();
               onFullscreenNarration(narration);

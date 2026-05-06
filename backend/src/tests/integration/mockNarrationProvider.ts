@@ -13,6 +13,7 @@ export const FIXED_NARRATION_OUTPUT: NarrationOutput = {
   currentTensionLevel: 'medium',
   suggestedInventoryAdd: null,
   suggestedInventoryRemove: null,
+  suggestedInventoryUpdate: null,
   suggestedRevive: null,
   suggestedHeal: null,
   suggestedDamage: null,
