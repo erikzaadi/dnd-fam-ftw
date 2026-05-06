@@ -41,6 +41,20 @@ export const createSessionRouter = () => {
     res.json(sessions);
   }));
 
+  router.post('/session/quick-start', asyncHandler(async (req, res) => {
+    const limits = StateService.getNamespaceLimits(req.namespaceId);
+    if (limits.maxSessions !== null) {
+      const count = StateService.countSessionsInNamespace(req.namespaceId);
+      if (count >= limits.maxSessions) {
+        res.status(403).json({ error: 'session_limit', message: `This adventure group has reached its limit of ${limits.maxSessions} session(s). Ask the DM to remove old sessions.` });
+        return;
+      }
+    }
+    const id = StateService.cloneOnboardingSession(req.namespaceId);
+    broadcastSessionChanged(req.namespaceId, id, 'created');
+    res.json({ id });
+  }));
+
   router.delete('/session/:id', asyncHandler(async (req, res) => {
     const sessionId = req.params.id as string;
     const namespaceId = StateService.getSessionNamespaceId(sessionId) ?? req.namespaceId;

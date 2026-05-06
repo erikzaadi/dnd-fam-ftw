@@ -1,4 +1,4 @@
-import type { Choice, ActionAttempt, Session } from '@dnd-fam-ftw/shared';
+import type { Choice, ActionAttempt, ScenePressure, Session } from '@dnd-fam-ftw/shared';
 
 export type * from '@dnd-fam-ftw/shared';
 
@@ -25,6 +25,7 @@ export interface SessionState extends Session {
 
 export interface AIInput extends SessionState, ActionAttempt {
   characterId: string;
+  scenePressure?: ScenePressure;
   interventionRescue?: boolean;
   sanctuaryRecovery?: boolean;
 }

@@ -115,6 +115,13 @@ test('settings', async ({ page }) => {
   await screenshotViewports(page, 'settings');
 });
 
+test('get-me-rollin', async ({ page }) => {
+  await page.goto('/get-me-rollin');
+  // Wait for stat icons to load before screenshotting
+  await page.waitForSelector('img[src*="icon_might"]', { state: 'visible' });
+  await screenshotViewports(page, 'get-me-rollin');
+});
+
 test('session banner hidden', async ({ page, request }) => {
   test.setTimeout(60_000);
   const session = await getSessionOrFail(request, SESSIONS.standard);

@@ -27,6 +27,7 @@ export function toNarrationInput(input: AIInput): NarrationInput {
   return {
     scene: input.scene,
     storySummary: input.storySummary || undefined,
+    ...(input.scenePressure && { scenePressure: input.scenePressure }),
     actingCharacterName: actingChar?.name,
     nextCharacterName: nextChar?.name,
     party: input.party.map(c => ({

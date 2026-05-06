@@ -196,6 +196,10 @@ export class StateService {
     return sessionRepository.countSessionsInNamespace(namespaceId);
   }
 
+  public static cloneOnboardingSession(namespaceId: string): string {
+    return sessionRepository.cloneOnboardingSession(namespaceId);
+  }
+
   public static recordTtsUsage(namespaceId: string, voice: string, characterCount: number, provider: string = 'openai'): void {
     usageRepository.recordTtsUsage(namespaceId, voice, characterCount, provider);
   }

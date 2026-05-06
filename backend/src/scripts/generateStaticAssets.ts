@@ -1,12 +1,22 @@
 /**
  * One-time script to generate static avatar images for special game events.
- * Run from backend/: npx tsx src/scripts/generateStaticAssets.ts
+ * Run from backend/: npx tsx --env-file=../.env src/scripts/generateStaticAssets.ts
  *
  * Generates into frontend/public/images/:
- *   intervention_dragon.png  - dramatic dragon rescue
- *   sanctuary_light.png      - divine sanctuary light
- *   dm_thinking.png          - DM thinking placeholder
- *   home_banner.png          - home page banner
+ *   intervention_dragon.png         - dramatic dragon rescue
+ *   sanctuary_light.png             - divine sanctuary light
+ *   dm_thinking.png                 - DM thinking placeholder
+ *   home_banner.png                 - home page banner
+ *   onboarding/preview.png          - onboarding session preview (wide)
+ *   onboarding/scene_inn.png        - onboarding turn 0: the Breadcrumbs Inn
+ *   onboarding/scene_brom.png       - onboarding turn 1: Brom shakes the tree
+ *   onboarding/scene_finn.png       - onboarding turn 2: Finn scouts the camp
+ *   onboarding/scene_zara.png       - onboarding turn 3: Zara's Dazzle Burst
+ *   onboarding/scene_mira.png       - onboarding turn 4: Mira and the crying goblin
+ *   onboarding/avatar_brom.png      - Brom Ironbread portrait
+ *   onboarding/avatar_finn.png      - Finn Quickcrust portrait
+ *   onboarding/avatar_zara.png      - Zara Spellsworth portrait
+ *   onboarding/avatar_mira.png      - Mira Warmheal portrait
  */
 
 import dotenv from 'dotenv';
@@ -81,6 +91,57 @@ const ASSETS: Array<{ filename: string; prompt: string; size?: '1024x1024' | '17
     size: '1024x1024',
     prompt: 'Fantasy RPG icon: an ancient blank parchment partially unrolled, aged yellow-brown with worn wooden handles, soft golden magical glow above the empty surface, centered on a dark background, warm candlelight, painterly fantasy style, high detail, icon composition',
   },
+  // ── Onboarding session: A Crumby Situation ────────────────────────────────
+  {
+    filename: 'onboarding/preview.png',
+    size: '1792x1024',
+    prompt: 'Wide cinematic fantasy scene: a warm forest clearing at golden hour, a colourful bakery cart loaded with fresh bread and pastries stands recovered in the center, four cheerful adventurers celebrating nearby - a stocky human fighter, a tiny halfling rogue, a graceful elf mage, and a warm human cleric - a cosy lantern-lit inn visible through the trees behind them, whimsical lighthearted fantasy style, storybook illustration, warm amber and green tones',
+  },
+  {
+    filename: 'onboarding/scene_inn.png',
+    size: '1024x1024',
+    prompt: 'Fantasy illustration: a cosy warm forest inn at dusk, a worried baker woman in flour-dusted apron wringing her hands outside the front door, a trail of white flour disappearing into a dark mysterious forest path, amber light glowing from the inn windows, a hand-painted inn sign above the door, whimsical lighthearted storybook art style',
+  },
+  {
+    filename: 'onboarding/scene_brom.png',
+    size: '1024x1024',
+    prompt: 'Fantasy illustration: a stocky cheerful human fighter with a big grin bear-hugging a large oak tree trunk, leaves and acorns tumbling down around him, a tiny green forest trickster safely peeking from behind a nearby bush with a surprised expression, forest clearing with golden sunlight, playful slapstick comedy moment, whimsical lighthearted storybook art style',
+  },
+  {
+    filename: 'onboarding/scene_finn.png',
+    size: '1024x1024',
+    prompt: 'Fantasy illustration: a tiny nimble halfling rogue in dark leather armour crouched silently in dense forest undergrowth, peering toward a ring of tiny green forest trickster tents in a lit clearing ahead, a satisfied expression on his face with two golden croissants tucked under his arm, warm campfire glow in the distance, whimsical lighthearted storybook art style',
+  },
+  {
+    filename: 'onboarding/scene_zara.png',
+    size: '1024x1024',
+    prompt: 'Fantasy illustration: a tall elegant female elf mage casting a brilliant burst of dazzling sparkling multicoloured light above a forest trickster camp, tiny green tricksters stumbling around harmlessly with bewildered dazzled expressions, a bakery cart visible in the center of the camp, the female mage standing tall and satisfied, magical sparkling light effects, whimsical lighthearted storybook art style',
+  },
+  {
+    filename: 'onboarding/scene_mira.png',
+    size: '1024x1024',
+    prompt: 'Fantasy illustration: a warm kind human female cleric in white and gold robes kneeling gently to eye level with a tiny green forest trickster wearing a croissant as a hat, the trickster shyly offering a glass jar with a sheepish expression, soft warm light in a forest clearing, a gentle and funny moment, whimsical lighthearted storybook art style',
+  },
+  {
+    filename: 'onboarding/avatar_brom.png',
+    size: '1024x1024',
+    prompt: 'Fantasy RPG character portrait: a stocky cheerful muscular human fighter, broad shoulders, short beard, kind enthusiastic eyes, practical battered plate armour, casually resting a battle axe on his shoulder, centered square portrait composition, warm amber tones, painterly fantasy storybook style, simple dark background',
+  },
+  {
+    filename: 'onboarding/avatar_finn.png',
+    size: '1024x1024',
+    prompt: 'Fantasy RPG character portrait: a small nimble halfling rogue with large bright eyes and a mischievous grin, curly brown hair, light leather armour with many pockets, crumbs visible on his shirt, looking slightly guilty but charming, centered square portrait composition, warm earthy tones, painterly fantasy storybook style, simple dark background',
+  },
+  {
+    filename: 'onboarding/avatar_zara.png',
+    size: '1024x1024',
+    prompt: 'Fantasy RPG character portrait: single portrait of one female elf mage, tall and elegant with sharp precise features, silver-white long hair, cool blue and silver mage robes, holding a glowing arcane wand, expression of calm focused intensity, centered bust-up composition against a plain dark background, warm painterly storybook illustration style, single image no panels no collage no multiple views no reference sheet no editor UI no software interface no rulers no toolbars',
+  },
+  {
+    filename: 'onboarding/avatar_mira.png',
+    size: '1024x1024',
+    prompt: 'Fantasy RPG character portrait: a warm-faced human female cleric with kind eyes and a gentle reassuring smile, brown hair in a practical braid, simple white and gold clerical robes with a holy symbol, holding a small healing potion, centered square portrait composition, warm golden and white tones, painterly fantasy storybook style, simple dark background',
+  },
 ];
 
 async function generate(asset: { filename: string; prompt: string; size?: '1024x1024' | '1792x1024' | '1024x1792' }) {
@@ -89,6 +150,7 @@ async function generate(asset: { filename: string; prompt: string; size?: '1024x
     console.log(`[skip] ${asset.filename} already exists`);
     return;
   }
+  fs.mkdirSync(path.dirname(outPath), { recursive: true });
 
   console.log(`[gen]  ${asset.filename} ...`);
   const response = await openai.images.generate({

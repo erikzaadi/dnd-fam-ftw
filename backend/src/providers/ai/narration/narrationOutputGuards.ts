@@ -35,6 +35,10 @@ function completedPortalWorthyChallenge(input: NarrationInput): boolean {
     return false;
   }
 
+  if (input.scenePressure) {
+    return input.scenePressure.portalEligibleThisTurn;
+  }
+
   const impact = input.actionResult.impact;
   const completedStrongOutcome = impact === 'strong' || impact === 'extreme';
   const completedDifficultRoll = (input.actionResult.difficultyTarget ?? 0) >= 13;
@@ -63,14 +67,22 @@ function canonicalizeItemChoices(input: NarrationInput, output: NarrationOutput)
   }
 }
 
+function normalizeNarrationMetadata(input: NarrationInput, output: NarrationOutput): void {
+  if (input.gameMode === 'zug-ma-geddon' || input.scenePressure?.kind === 'combat') {
+    output.currentTensionLevel = 'high';
+  }
+
+  for (const choice of output.choices) {
+    if (choice.flavor === 'environment' && !choice.environmentFeature) {
+      choice.flavor = 'standard';
+    }
+  }
+}
+
 export function validateNarrationOutput(input: NarrationInput, output: NarrationOutput): string[] {
   const errors: string[] = [];
   if (hasPortalChoice(output) && !completedPortalWorthyChallenge(input)) {
     errors.push('Portal, shortcut, or teleport choices require this turn to complete combat or a difficult challenge.');
-  }
-
-  if ((input.gameMode === 'zug-ma-geddon') && output.currentTensionLevel !== 'high') {
-    errors.push('zug-ma-geddon turns must keep currentTensionLevel high.');
   }
 
   if (output.suggestedHeal?.length && !HEALING_ACTION_RE.test(input.actionAttempt)) {
@@ -91,10 +103,6 @@ export function validateNarrationOutput(input: NarrationInput, output: Narration
         errors.push('Item choices must reference an existing itemOwnerName and itemName from inventory.');
       }
     }
-
-    if (choice.flavor === 'environment' && !choice.environmentFeature) {
-      errors.push('Environment choices must include environmentFeature.');
-    }
   }
 
   return errors;
@@ -107,6 +115,7 @@ export function parseNarrationOutput(input: NarrationInput, raw: unknown): { suc
   }
 
   canonicalizeItemChoices(input, parsed.data);
+  normalizeNarrationMetadata(input, parsed.data);
   const guardErrors = validateNarrationOutput(input, parsed.data);
   if (guardErrors.length > 0) {
     return { success: false, error: guardErrors.join(' ') };

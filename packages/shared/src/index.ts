@@ -6,6 +6,8 @@ export type {
   TensionLevel,
   Impact,
   ChoiceFlavor,
+  ScenePressureKind,
+  ScenePressure,
   InventoryItem,
   Character,
   InterventionState,

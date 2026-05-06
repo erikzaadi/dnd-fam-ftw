@@ -22,15 +22,27 @@ Do not run token-heavy verification commands yourself unless explicitly asked. T
 Manual verification checklist from repo root:
 
 ```bash
-npm run lint          # all linters: backend + frontend + workflows + bash
+npm run lint          # all linters: shared → backend → frontend → workflows → bash
 npm test              # all tests
-
-# Type checks must run from each package directory:
-cd backend && npx tsc --noEmit
-cd frontend && npx tsc -b
+npm run tsc           # type-check all packages: shared → backend → frontend
 ```
 
-Targeted variants: `npm run lint:backend`, `npm run lint:frontend`, `npm run lint:workflows`, `npm run lint:bash`, `npm run test:backend`, `npm run test:frontend`.
+Targeted variants:
+
+| Script | What it checks |
+|---|---|
+| `npm run lint:shared` | ESLint on `packages/shared/src` |
+| `npm run lint:backend` | ESLint on `backend/src` |
+| `npm run lint:frontend` | ESLint on `frontend/src` |
+| `npm run lint:workflows` | actionlint + yamllint + shellcheck on CI workflows |
+| `npm run lint:bash` | shellcheck on deploy scripts |
+| `npm run tsc:shared` | TypeScript check on `packages/shared` |
+| `npm run tsc:backend` | TypeScript check on `backend` |
+| `npm run tsc:frontend` | TypeScript check on `frontend` |
+| `npm run test:backend` | Backend unit tests |
+| `npm run test:frontend` | Frontend unit tests |
+
+Both `lint` and `tsc` follow the same package order: shared → backend → frontend (shared is a dependency of both others). After installing new deps in `packages/shared`, run `npm run install:all` from the root.
 
 ## Project layout
 
@@ -137,6 +149,16 @@ When adding CLI subcommands or flags, also update `scripts/cli-completion.bash`.
 ## Image storage
 
 Controlled by `IMAGE_STORAGE_PROVIDER` env var (`local` or `s3`). Never call `fs` directly for images - always use `imageService.ts`. `savingsMode = true` skips image generation.
+
+## Static image assets
+
+`backend/src/scripts/generateStaticAssets.ts` is a one-time DALL-E generation script for bundled frontend images (intervention dragon, sanctuary light, home banner, UI icons, etc.). Output goes to `frontend/public/images/`. The script is idempotent - it skips files that already exist. Run from `backend/`:
+
+```bash
+npx tsx --env-file=../.env src/scripts/generateStaticAssets.ts
+```
+
+Add new entries to the `ASSETS` array in that file when new static images are needed (e.g. onboarding scene images). Commit the generated PNG files - they are intentional static assets, not build artifacts.
 
 ## Character history
 

@@ -5,7 +5,7 @@ import type { Character, TurnResult } from '../../types';
 import type { TtsSettings } from '../../tts/ttsTypes';
 
 vi.mock('../../lib/api', () => ({
-  imgSrc: (url: string | null | undefined) => url ?? '',
+  imgSrc: (url: string | null | undefined) => url ?? null,
 }));
 vi.mock('./StatIcon', () => ({ StatImg: () => null }));
 vi.mock('./D20', () => ({ D20: () => null }));

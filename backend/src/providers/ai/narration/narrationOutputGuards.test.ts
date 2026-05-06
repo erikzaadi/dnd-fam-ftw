@@ -114,6 +114,69 @@ describe('parseNarrationOutput', () => {
     expect(result.success).toBe(true);
   });
 
+  it('rejects portal choices when structured scene pressure says they are not earned yet', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      actionAttempt: 'Strike the shadow monster',
+      actionResult: {
+        success: true,
+        summary: 'Pip lands a normal hit.',
+        difficultyTarget: 12,
+        impact: 'normal',
+      },
+      scenePressure: {
+        kind: 'combat',
+        pressureTurns: 1,
+        successfulPressureTurns: 1,
+        previousTensionLevels: ['high'],
+        portalEligibleThisTurn: false,
+        reason: 'Portal transition not earned by current turn pressure.',
+      },
+    }, output({
+      narration: 'The monster staggers, and a portal flares behind it.',
+      choices: [
+        { label: 'Dive through the shimmering portal', difficulty: 'easy', stat: 'mischief', difficultyValue: 1 },
+        { label: 'Press the attack', difficulty: 'normal', stat: 'might', difficultyValue: 12 },
+        { label: 'Guard the party', difficulty: 'normal', stat: 'might', difficultyValue: 11 },
+      ],
+    }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('complete combat or a difficult challenge');
+    }
+  });
+
+  it('accepts portal choices when structured scene pressure says this turn earned one', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      actionAttempt: 'Strike the shadow monster',
+      actionResult: {
+        success: true,
+        summary: 'Pip lands a decisive final blow.',
+        difficultyTarget: 14,
+        impact: 'strong',
+      },
+      scenePressure: {
+        kind: 'combat',
+        pressureTurns: 2,
+        successfulPressureTurns: 2,
+        previousTensionLevels: ['medium', 'high'],
+        portalEligibleThisTurn: true,
+        reason: 'Current turn earned a fast transition after sustained pressure.',
+      },
+    }, output({
+      narration: 'The monster collapses, and a summoned spirit opens a bright shortcut.',
+      choices: [
+        { label: 'Take the shortcut', difficulty: 'easy', stat: 'mischief', difficultyValue: 1 },
+        { label: 'Question the spirit', difficulty: 'normal', stat: 'mischief', difficultyValue: 10 },
+        { label: 'Guard the party', difficulty: 'normal', stat: 'might', difficultyValue: 11 },
+      ],
+    }));
+
+    expect(result.success).toBe(true);
+  });
+
   it('rejects portal choices after healing even when the existing story already established a portal', () => {
     const result = parseNarrationOutput({
       ...input,
@@ -140,18 +203,39 @@ describe('parseNarrationOutput', () => {
     }
   });
 
-  it('rejects zug-ma-geddon output below high tension', () => {
+  it('normalizes zug-ma-geddon output to high tension', () => {
     const result = parseNarrationOutput({ ...input, gameMode: 'zug-ma-geddon' }, output({
       currentTensionLevel: 'medium',
     }));
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toContain('zug-ma-geddon');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.currentTensionLevel).toBe('high');
     }
   });
 
-  it('rejects environment choices without an environment feature', () => {
+  it('normalizes combat scene pressure to high tension', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      scenePressure: {
+        kind: 'combat',
+        pressureTurns: 1,
+        successfulPressureTurns: 0,
+        previousTensionLevels: ['medium'],
+        portalEligibleThisTurn: false,
+        reason: 'Combat pressure should drive high tension.',
+      },
+    }, output({
+      currentTensionLevel: 'medium',
+    }));
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.currentTensionLevel).toBe('high');
+    }
+  });
+
+  it('downgrades environment choices without an environment feature', () => {
     const result = parseNarrationOutput(input, output({
       choices: [
         { label: 'Leap across the crumbling stair', difficulty: 'normal', stat: 'might', difficultyValue: 11, flavor: 'environment' },
@@ -160,9 +244,9 @@ describe('parseNarrationOutput', () => {
       ],
     }));
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toContain('environmentFeature');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.choices[0].flavor).toBe('standard');
     }
   });
 

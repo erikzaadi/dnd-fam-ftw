@@ -1,5 +1,5 @@
 import { broadcastSessionChanged, broadcastUpdate } from '../realtime/sessionEvents.js';
-import type { ActionAttempt, AIInput, Difficulty, SessionState, Stat } from '../types.js';
+import type { ActionAttempt, AIInput, Difficulty, SessionState, Stat, TurnResult } from '../types.js';
 import { AiDmService } from './aiDmService.js';
 import { GameEngine } from './gameEngine.js';
 import { StateService } from './stateService.js';
@@ -26,6 +26,76 @@ export interface TurnActionRequest {
   targetCharacterId?: string;
   targetCharId?: string;
   actionType?: 'use_item' | 'give_item';
+}
+
+const PRESSURE_RE = /\b(ambush|battle|boss|brawl|challenge|chase|combat|conflict|defeat|disarm|duel|enemy|escape|fight|foe|guard|guardian|hazard|monster|obstacle|puzzle|riddle|ritual|shadow|shadows|sneak|spectral|strike|trap|wolf|wolves)\b/i;
+const COMBAT_RE = /\b(ambush|attack|battle|boss|brawl|combat|duel|enemy|fight|foe|monster|strike|wolf|wolves)\b/i;
+const HEALING_RE = /\b(heal|healing|restore|restoring|revive|reviving|mend|mending|soothe|soothing|recover|recovery|rest|resting|sleep|sleeping|eat|eating|meal|care|treat|treating|medicine|potion|bandage|sanctuary)\b/i;
+
+type ScenePressure = NonNullable<AIInput['scenePressure']>;
+
+function turnPressureKind(turn: TurnResult): ScenePressure['kind'] {
+  const text = [
+    turn.narration,
+    turn.lastAction?.actionAttempt,
+    turn.rollNarration,
+    ...(turn.choices ?? []).map(choice => `${choice.label} ${choice.narration ?? ''}`),
+  ].join(' ');
+
+  if (COMBAT_RE.test(text)) {
+    return 'combat';
+  }
+  if (PRESSURE_RE.test(text) || turn.currentTensionLevel === 'high') {
+    return 'challenge';
+  }
+  if (turn.currentTensionLevel === 'low') {
+    return 'calm';
+  }
+  return 'unknown';
+}
+
+function buildScenePressure(
+  history: TurnResult[],
+  currentAction: ActionAttempt,
+  currentScene: string,
+): ScenePressure {
+  const recent = history.slice(-4);
+  const previousTensionLevels = recent
+    .map(turn => turn.currentTensionLevel)
+    .filter((level): level is ScenePressure['previousTensionLevels'][number] => !!level);
+  const recentKinds = recent.map(turnPressureKind);
+  const currentText = `${currentAction.actionAttempt} ${currentScene}`;
+  const currentKind: ScenePressure['kind'] = COMBAT_RE.test(currentText)
+    ? 'combat'
+    : PRESSURE_RE.test(currentText)
+      ? 'challenge'
+      : 'unknown';
+  const kind: ScenePressure['kind'] = currentKind !== 'unknown'
+    ? currentKind
+    : recentKinds.find(k => k === 'combat') ?? recentKinds.find(k => k === 'challenge') ?? recentKinds.at(-1) ?? 'unknown';
+  const pressureTurns = [...recentKinds, currentKind].filter(k => k === 'combat' || k === 'challenge').length;
+  const successfulPressureTurns = recent.filter(turn => {
+    const lastAction = turn.lastAction;
+    return !!lastAction?.actionResult.success && (turnPressureKind(turn) === 'combat' || turnPressureKind(turn) === 'challenge');
+  }).length + (currentAction.actionResult.success && (currentKind === 'combat' || currentKind === 'challenge') ? 1 : 0);
+  const impact = currentAction.actionResult.impact;
+  const strongCurrentSuccess = currentAction.actionResult.success && (impact === 'strong' || impact === 'extreme');
+  const difficultCurrentSuccess = currentAction.actionResult.success && (currentAction.actionResult.difficultyTarget ?? 0) >= 13;
+  const portalEligibleThisTurn = !HEALING_RE.test(currentAction.actionAttempt) && (
+    (pressureTurns >= 2 && (strongCurrentSuccess || difficultCurrentSuccess)) ||
+    (pressureTurns >= 1 && impact === 'extreme')
+  );
+
+  return {
+    kind,
+    pressureTurns,
+    successfulPressureTurns,
+    previousTensionLevels,
+    portalEligibleThisTurn,
+    reason: portalEligibleThisTurn
+      ? 'Current turn earned a fast transition after sustained pressure.'
+      : 'Portal transition not earned by current turn pressure.',
+  };
 }
 
 export type TurnActionResult =
@@ -90,7 +160,8 @@ export const executeTurnAction = async (
     }
 
     const nextCharIdForItem = GameEngine.getNextActiveCharacter(itemState.party, actingCharId);
-    const aiInput: AIInput = { ...itemState, ...itemAttempt, activeCharacterId: nextCharIdForItem, characterId: actingCharId };
+    const itemHistory = await StateService.getTurnHistory(sessionId);
+    const aiInput: AIInput = { ...itemState, ...itemAttempt, activeCharacterId: nextCharIdForItem, characterId: actingCharId, scenePressure: buildScenePressure(itemHistory, itemAttempt, itemState.scene) };
     broadcastUpdate(sessionId, 'dm_narrating', { action, statUsed, difficulty, difficultyValue, character });
     const turnResult = await AiDmService.generateTurnResult(aiInput, session.useLocalAI);
 
@@ -175,7 +246,7 @@ export const executeTurnAction = async (
     characterEdge,
   );
   const nextCharId = GameEngine.getNextActiveCharacter(session.party, actingCharId);
-  const aiInput: AIInput = { ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId };
+  const aiInput: AIInput = { ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId, scenePressure: buildScenePressure(history, actionAttempt, session.scene) };
 
   const turnResult = await AiDmService.generateTurnResult(aiInput, session.useLocalAI);
   const newState = GameEngine.updateState(session, actionAttempt, turnResult as unknown as Record<string, unknown>);

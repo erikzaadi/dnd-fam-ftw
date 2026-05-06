@@ -131,6 +131,28 @@ describe('toNarrationInput', () => {
     expect(out.recentHistory[0]).toBe('Turn 1.');
   });
 
+  it('passes structured scenePressure through', () => {
+    const out = toNarrationInput(makeAIInput({
+      scenePressure: {
+        kind: 'combat',
+        pressureTurns: 2,
+        successfulPressureTurns: 1,
+        previousTensionLevels: ['high'],
+        portalEligibleThisTurn: true,
+        reason: 'Current turn earned a fast transition after sustained pressure.',
+      },
+    }));
+
+    expect(out.scenePressure).toEqual({
+      kind: 'combat',
+      pressureTurns: 2,
+      successfulPressureTurns: 1,
+      previousTensionLevels: ['high'],
+      portalEligibleThisTurn: true,
+      reason: 'Current turn earned a fast transition after sustained pressure.',
+    });
+  });
+
   it('summarizes previous choice flavor patterns', () => {
     const out = toNarrationInput(makeAIInput({
       actionAttempt: 'Sprint across the falling stones',

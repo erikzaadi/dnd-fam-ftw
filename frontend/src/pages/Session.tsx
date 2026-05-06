@@ -23,6 +23,8 @@ import { narrationTtsService } from '../tts/narrationTtsService';
 import { useCapabilities } from '../hooks/useCapabilities';
 import { NarrationTtsButton } from '../components/NarrationTtsButton';
 import { KeybindingsHelp } from '../components/KeybindingsHelp';
+import { OnboardingOverlay } from '../components/OnboardingOverlay';
+import { useOnboardingTutorial } from '../hooks/useOnboardingTutorial';
 import { getRollImpactOutcome } from '../lib/rollOutcome';
 
 interface LastSubmittedAction {
@@ -71,6 +73,10 @@ export const SessionPage = () => {
   const [currentTensionLevel, setCurrentTensionLevel] = useState<'low' | 'medium' | 'high' | null>(null);
   const [showBanner, setShowBanner] = useState(true);
   const [storyFocusRequest, setStoryFocusRequest] = useState(0);
+  const { step: tutorialStep, advance: advanceTutorial } = useOnboardingTutorial({
+    isLoading: loading,
+    lastRollVisible: !!lastRoll,
+  });
   const displayTurnRef = useRef<TurnResult | null>(null);
   const pendingStoryFocusRef = useRef(false);
 
@@ -503,7 +509,7 @@ export const SessionPage = () => {
 
       {/* Top-right controls */}
       {showBanner ? (
-        <div className="fixed top-3 right-4 z-[70] flex items-center gap-1.5 pointer-events-auto">
+        <div className="fixed top-3 right-4 z-[70] flex items-center gap-1.5 pointer-events-auto" data-tutorial="top-controls">
           <div className="relative group">
             <button
               onClick={() => setShowBanner(false)}
@@ -559,7 +565,7 @@ export const SessionPage = () => {
 
       <div className={`grid gap-4 px-4 pb-4 h-dvh overflow-hidden grid-cols-1 grid-rows-[minmax(0,2fr)_minmax(0,3fr)] xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-rows-[1fr] ${showBanner ? 'pt-40 sm:pt-28' : 'pt-3'}`}>
         {/* Story Stage */}
-        <div className="min-h-0">
+        <div className="min-h-0" data-tutorial="story-box">
           <StoryStage
             history={history}
             viewedTurnIdx={viewedTurnIdx}
@@ -576,7 +582,7 @@ export const SessionPage = () => {
         </div>
 
         {/* Chronicle / Action area: bottom-left on md, center col on xl */}
-        <div className="min-h-0">
+        <div className="min-h-0" data-tutorial="action-dock">
           {showChronicle ? (
             <ChronicleDrawer
               history={history}
@@ -783,6 +789,8 @@ export const SessionPage = () => {
           }}
         />
       )}
+      <OnboardingOverlay step={tutorialStep} onAdvance={advanceTutorial} />
+
       {showKeybindingsHelp && (
         <KeybindingsHelp
           onClose={() => setShowKeybindingsHelp(false)}

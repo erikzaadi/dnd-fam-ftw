@@ -142,7 +142,7 @@ export const SessionHud = ({ session, onCharacterClick }: SessionHudProps) => (
     <h1 className="text-amber-500 text-lg md:text-2xl xl:text-3xl font-display font-black italic tracking-tight shrink-0 bg-slate-950/60 backdrop-blur-md ml-4 px-4 py-2 rounded-2xl pointer-events-auto self-start">
       {session.displayName}
     </h1>
-    <div className="pointer-events-auto ml-4 sm:ml-0">
+    <div className="pointer-events-auto ml-4 sm:ml-0" data-tutorial="party-box">
       <PartyBox
         party={session.party}
         activeCharacterId={session.activeCharacterId}

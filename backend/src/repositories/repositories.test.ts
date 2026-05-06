@@ -10,6 +10,7 @@ import { sessionRepository } from './sessionRepository.js';
 import { turnHistoryRepository } from './turnHistoryRepository.js';
 import { usageRepository } from './usageRepository.js';
 import { userRepository } from './userRepository.js';
+import { seedOnboarding, ONBOARDING_TEMPLATE_SESSION_ID } from '../scripts/seedOnboarding.js';
 import type { SessionState } from '../types.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-repository-test-${Date.now()}.sqlite`);
@@ -208,5 +209,85 @@ describe('usageRepository', () => {
     usageRepository.recordTtsUsage('local', 'voice-a', 99);
 
     expect(usageRepository.getTtsUsage(namespaceId)).toEqual({ requestCount: 2, characterCount: 50 });
+  });
+});
+
+describe('sessionRepository.cloneOnboardingSession', () => {
+  beforeAll(() => {
+    seedOnboarding(getDb());
+  });
+
+  it('throws when template is missing', () => {
+    getDb().prepare('DELETE FROM turn_choices WHERE turnId IN (SELECT id FROM turn_history WHERE sessionId = ?)').run(ONBOARDING_TEMPLATE_SESSION_ID);
+    getDb().prepare('DELETE FROM turn_history WHERE sessionId = ?').run(ONBOARDING_TEMPLATE_SESSION_ID);
+    getDb().prepare('DELETE FROM inventory WHERE characterId IN (SELECT id FROM characters WHERE sessionId = ?)').run(ONBOARDING_TEMPLATE_SESSION_ID);
+    getDb().prepare('DELETE FROM characters WHERE sessionId = ?').run(ONBOARDING_TEMPLATE_SESSION_ID);
+    getDb().prepare('DELETE FROM sessions WHERE id = ?').run(ONBOARDING_TEMPLATE_SESSION_ID);
+
+    expect(() => sessionRepository.cloneOnboardingSession('local')).toThrow('Onboarding template not found');
+
+    seedOnboarding(getDb());
+  });
+
+  it('produces a new session with a fresh ID in the target namespace', () => {
+    const newId = sessionRepository.cloneOnboardingSession('local');
+    expect(newId).toBeTruthy();
+    expect(newId).not.toBe(ONBOARDING_TEMPLATE_SESSION_ID);
+
+    const row = getDb().prepare('SELECT namespace_id, displayName, difficulty, preview_image_url FROM sessions WHERE id = ?').get(newId) as { namespace_id: string; displayName: string; difficulty: string; preview_image_url: string | null };
+    expect(row.namespace_id).toBe('local');
+    expect(row.displayName).toBe('A Crumby Situation');
+    expect(row.difficulty).toBe('easy');
+    expect(row.preview_image_url).toBe('/images/onboarding/preview.png');
+  });
+
+  it('copies all 4 characters with correct stats and avatar URLs', () => {
+    const newId = sessionRepository.cloneOnboardingSession('local');
+    const chars = getDb().prepare('SELECT name, class, might, magic, mischief, avatarUrl FROM characters WHERE sessionId = ? ORDER BY rowid ASC').all(newId) as { name: string; class: string; might: number; magic: number; mischief: number; avatarUrl: string | null }[];
+    expect(chars).toHaveLength(4);
+    expect(chars[0]).toMatchObject({ name: 'Brom Ironbread', class: 'Fighter', might: 5, magic: 1, mischief: 1 });
+    expect(chars[1]).toMatchObject({ name: 'Finn Quickcrust', class: 'Rogue', mischief: 5 });
+    expect(chars[2]).toMatchObject({ name: 'Zara Spellsworth', class: 'Mage', magic: 5, avatarUrl: '/images/onboarding/avatar_zara.png' });
+    expect(chars[3]).toMatchObject({ name: 'Mira Warmheal', class: 'Cleric' });
+  });
+
+  it('copies inventory items per character', () => {
+    const newId = sessionRepository.cloneOnboardingSession('local');
+    const chars = getDb().prepare('SELECT id FROM characters WHERE sessionId = ? ORDER BY rowid ASC').all(newId) as { id: string }[];
+    const miraItems = getDb().prepare('SELECT name FROM inventory WHERE characterId = ?').all(chars[3].id) as { name: string }[];
+    const zaraItems = getDb().prepare('SELECT name FROM inventory WHERE characterId = ?').all(chars[2].id) as { name: string }[];
+    expect(miraItems.some(i => i.name.includes('Healing Potion'))).toBe(true);
+    expect(zaraItems.some(i => i.name.includes('Arcane Crouton'))).toBe(true);
+  });
+
+  it('copies all 5 turns with choices and scene image URLs', () => {
+    const newId = sessionRepository.cloneOnboardingSession('local');
+    const turns = getDb().prepare('SELECT id, imageUrl FROM turn_history WHERE sessionId = ? ORDER BY id ASC').all(newId) as { id: number; imageUrl: string | null }[];
+    expect(turns).toHaveLength(5);
+    expect(turns[0].imageUrl).toBe('/images/onboarding/scene_inn.png');
+    expect(turns[1].imageUrl).toBe('/images/onboarding/scene_brom.png');
+
+    const choices = getDb().prepare('SELECT label FROM turn_choices WHERE turnId = ?').all(turns[0].id) as { label: string }[];
+    expect(choices).toHaveLength(3);
+  });
+
+  it('maps activeCharacterId to the cloned character ID', () => {
+    const newId = sessionRepository.cloneOnboardingSession('local');
+    const session = getDb().prepare('SELECT activeCharacterId FROM sessions WHERE id = ?').get(newId) as { activeCharacterId: string };
+    const char = getDb().prepare('SELECT id FROM characters WHERE id = ?').get(session.activeCharacterId) as { id: string } | undefined;
+    expect(char).toBeDefined();
+  });
+
+  it('produces independent sessions when cloned twice', () => {
+    const id1 = sessionRepository.cloneOnboardingSession('local');
+    const id2 = sessionRepository.cloneOnboardingSession('local');
+    expect(id1).not.toBe(id2);
+
+    const chars1 = getDb().prepare('SELECT id FROM characters WHERE sessionId = ?').all(id1) as { id: string }[];
+    const chars2 = getDb().prepare('SELECT id FROM characters WHERE sessionId = ?').all(id2) as { id: string }[];
+    const ids1 = new Set(chars1.map(c => c.id));
+    for (const c of chars2) {
+      expect(ids1.has(c.id)).toBe(false);
+    }
   });
 });

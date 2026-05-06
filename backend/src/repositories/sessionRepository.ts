@@ -312,4 +312,84 @@ export const sessionRepository = {
     const db = getDb();
     db.prepare('UPDATE sessions SET storySummary = ? WHERE id = ?').run(summary, sessionId);
   },
+
+  cloneOnboardingSession(namespaceId: string): string {
+    const db = getDb();
+    const templateId = 'onboarding-template';
+
+    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(templateId) as {
+      scene: string; sceneId: string; worldDescription: string | null; dm_prep: string | null;
+      turn: number; activeCharacterId: string; tone: string; displayName: string;
+      difficulty: string; gameMode: string; savingsMode: number; useLocalAI: number;
+      storySummary: string; preview_image_url: string | null;
+    } | undefined;
+    if (!session) {
+      throw new Error('Onboarding template not found - run seed first');
+    }
+
+    const newSessionId = createId();
+
+    db.prepare(`INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, turn, activeCharacterId, tone, displayName, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, rescues_used, game_over, storySummary, preview_image_url, namespace_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?)`)
+      .run(newSessionId, session.scene, session.sceneId, session.worldDescription, session.dm_prep, session.turn, '', session.tone, session.displayName, session.difficulty, session.gameMode, session.savingsMode, session.useLocalAI, session.storySummary, session.preview_image_url, namespaceId);
+
+    const chars = db.prepare('SELECT * FROM characters WHERE sessionId = ? ORDER BY rowid ASC').all(templateId) as {
+      id: string; name: string; class: string; species: string; quirk: string;
+      hp: number; max_hp: number; might: number; magic: number; mischief: number;
+      avatarUrl: string | null; status: string | null;
+    }[];
+
+    const charIdMap = new Map<string, string>();
+    for (const char of chars) {
+      const newCharId = createId();
+      charIdMap.set(char.id, newCharId);
+
+      db.prepare(`INSERT INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(newCharId, newSessionId, char.name, char.class, char.species, char.quirk, char.hp, char.max_hp, char.might, char.magic, char.mischief, char.avatarUrl, char.status ?? 'active');
+
+      const items = db.prepare('SELECT * FROM inventory WHERE characterId = ?').all(char.id) as {
+        name: string; description: string; healValue: number | null;
+        statBonuses: string | null; consumable: number; transferable: number;
+      }[];
+      for (const item of items) {
+        db.prepare(`INSERT INTO inventory (characterId, itemId, name, description, healValue, statBonuses, consumable, transferable)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+          .run(newCharId, createId(), item.name, item.description, item.healValue, item.statBonuses, item.consumable, item.transferable);
+      }
+    }
+
+    const newActiveCharId = charIdMap.get(session.activeCharacterId) ?? '';
+    db.prepare('UPDATE sessions SET activeCharacterId = ? WHERE id = ?').run(newActiveCharId, newSessionId);
+
+    const turns = db.prepare('SELECT * FROM turn_history WHERE sessionId = ? ORDER BY id ASC').all(templateId) as {
+      id: number; characterId: string | null; narration: string; rollNarration: string | null;
+      imagePrompt: string | null; imageSuggested: number; imageUrl: string | null;
+      actionAttempt: string | null; actionStat: string | null; actionSuccess: number | null;
+      actionRoll: number | null; actionStatBonus: number | null; actionImpact: string | null;
+      actionDifficultyTarget: number | null; turnType: string; currentTensionLevel: string | null;
+      hpChanges: string | null; inventoryChanges: string | null;
+    }[];
+
+    for (const turn of turns) {
+      const newCharId = turn.characterId ? (charIdMap.get(turn.characterId) ?? null) : null;
+      const info = db.prepare(`INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(newSessionId, newCharId, turn.narration, turn.rollNarration, turn.imagePrompt, turn.imageSuggested, turn.imageUrl, turn.actionAttempt, turn.actionStat, turn.actionSuccess, turn.actionRoll, turn.actionStatBonus, turn.actionImpact, turn.actionDifficultyTarget, turn.turnType, turn.currentTensionLevel, turn.hpChanges, turn.inventoryChanges);
+
+      const newTurnId = info.lastInsertRowid;
+      const choices = db.prepare('SELECT * FROM turn_choices WHERE turnId = ?').all(turn.id) as {
+        label: string; difficulty: string; stat: string; difficultyValue: number | null;
+        narration: string | null; flavor: string | null; helperCharacterName: string | null;
+        itemOwnerName: string | null; itemName: string | null; environmentFeature: string | null;
+      }[];
+      for (const choice of choices) {
+        db.prepare(`INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue, narration, flavor, helperCharacterName, itemOwnerName, itemName, environmentFeature)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+          .run(newTurnId, choice.label, choice.difficulty, choice.stat, choice.difficultyValue, choice.narration, choice.flavor, choice.helperCharacterName, choice.itemOwnerName, choice.itemName, choice.environmentFeature);
+      }
+    }
+
+    return newSessionId;
+  },
 };

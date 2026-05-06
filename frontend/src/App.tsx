@@ -7,6 +7,7 @@ import { CharacterAssembly } from './pages/CharacterAssembly';
 import { SessionRecap } from './pages/SessionRecap';
 import { Settings } from './pages/Settings';
 import { HowToPlay } from './pages/HowToPlay';
+import { GetMeRollin } from './pages/GetMeRollin';
 import { Login } from './pages/Login';
 import { NamespacePicker } from './pages/NamespacePicker';
 import { RequestInvite } from './pages/RequestInvite';
@@ -38,6 +39,7 @@ function AppRoutes() {
         <Route path="/" element={<Home />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/how-to-play" element={<HowToPlay />} />
+        <Route path="/get-me-rollin" element={<GetMeRollin />} />
         <Route path="/create-session" element={<CreateSession />} />
         <Route path="/session/:id" element={<SessionPage />} />
         <Route path="/session/:id/recap" element={<SessionRecap />} />

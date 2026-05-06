@@ -6,6 +6,16 @@ export type Difficulty = 'easy' | 'normal' | 'hard';
 export type TensionLevel = 'low' | 'medium' | 'high';
 export type Impact = 'normal' | 'strong' | 'extreme';
 export type ChoiceFlavor = 'standard' | 'spotlight' | 'combo' | 'social' | 'item' | 'environment';
+export type ScenePressureKind = 'combat' | 'challenge' | 'calm' | 'unknown';
+
+export interface ScenePressure {
+  kind: ScenePressureKind;
+  pressureTurns: number;
+  successfulPressureTurns: number;
+  previousTensionLevels: TensionLevel[];
+  portalEligibleThisTurn: boolean;
+  reason: string;
+}
 
 export interface InventoryItem {
   id: string;

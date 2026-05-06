@@ -13,6 +13,7 @@ import { StateService } from '../services/stateService.js';
 import { ImageService } from '../services/imageService.js';
 import type { Choice, Impact } from '../types.js';
 import { MECHANICS_SHOWCASE_SESSION_ID, seedMechanicsShowcase } from './seedMechanicsShowcase.js';
+import { seedOnboarding } from './seedOnboarding.js';
 
 dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '.env'), quiet: true });
 
@@ -341,6 +342,7 @@ seedTurn(S6, 'seed-s6-c2', 'Yenna and Rutger fight on alone. Yenna\'s last spell
 ]));
 
 seedMechanicsShowcase(db);
+seedOnboarding(db);
 
 // Update session active characters
 db.prepare('UPDATE sessions SET activeCharacterId = ? WHERE id = ?').run('seed-s1-c2', S1);
@@ -358,3 +360,4 @@ console.log(`  Session 4 (${S4}): ZUG-MA-GEDDON - The Endless Arena - 3 chars, 5
 console.log(`  Session 5 (${S5}): The Shattered Crown - 4 chars, 4 turns (DM prep + intrigue)`);
 console.log(`  Session 6 (${S6}): The Tomb of Endless Dark - 4 chars, 13 turns (GAME OVER - hard, 1 rescue used)`);
 console.log(`  Session 7 (${MECHANICS_SHOWCASE_SESSION_ID}): Mechanics Showcase - 4 chars, 4 turns`);
+console.log(`  Session 8 (onboarding-template): A Crumby Situation - 4 chars, 4 pre-played turns (onboarding template)`);

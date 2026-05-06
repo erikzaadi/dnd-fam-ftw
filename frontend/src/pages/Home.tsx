@@ -507,6 +507,26 @@ export const Home = () => {
               <p className="text-slate-400 font-black uppercase italic tracking-tighter text-xl md:text-2xl">REALM LIMIT REACHED</p>
               <p className="text-slate-500 text-sm mt-1">{sessionLimit.current} / {sessionLimit.max} realms - delete one to start another</p>
             </div>
+          ) : activeSessions.length === 0 ? (
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => navigate('/get-me-rollin')}
+                className="px-6 py-3 md:py-6 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-lg md:text-4xl font-black shadow-[0_8px_0_rgb(146,64,14)] md:shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter w-full flex items-center justify-center gap-3"
+              >
+                <img
+                  src={imgSrc('/images/icon_dice.png')}
+                  className="w-8 h-8 md:w-14 md:h-14 rounded-full object-cover animate-dice-shake flex-shrink-0"
+                  alt=""
+                />
+                GET ME ROLLIN'
+              </button>
+              <button
+                onClick={() => navigate('/create-session')}
+                className="px-6 py-3 bg-slate-800 hover:bg-slate-700 border-2 border-slate-700 rounded-[32px] text-base font-black uppercase italic tracking-tighter w-full transition-colors text-slate-300"
+              >
+                Build Your Own Realm{sessionLimit ? ` (${sessionLimit.current}/${sessionLimit.max})` : ''}
+              </button>
+            </div>
           ) : (
             <button
               onClick={() => navigate('/create-session')}
