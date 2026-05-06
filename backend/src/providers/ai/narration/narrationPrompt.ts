@@ -174,12 +174,13 @@ CRITICAL -Character Revival (downed → alive):
 - Only set suggestedRevive: null when NO downed character is being revived.
 
 CRITICAL - Healing (Active and Passive):
-- Set suggestedHeal whenever a character is healed by ANY means: spells, druidic restoration, divine power, natural abilities, potions, food, rest, sleep, meditation, sanctuary, or any recovery narrative.
+- Set suggestedHeal only when the submitted action is actually healing, reviving, resting, eating, sleeping, receiving care, or otherwise explicitly recovering.
+- Do NOT grant HP just because the roll was high, the action was triumphant, the party escaped danger, teleported, found a shortcut, or reached a safer place.
+- Set suggestedHeal whenever an explicitly healing/recovery action heals a character by supported means: spells, druidic restoration, divine power, natural abilities, potions, food, rest, sleep, meditation, sanctuary, or care.
 - The "characterName" in each suggestedHeal entry MUST be the character RECEIVING the healing -NOT the one casting/performing it. If Druid heals Warrior, characterName = "Warrior's exact name".
 - Active healing (character uses a healing ability/spell targeting someone): include ONLY the healed character(s). hp = 3-6 standard, up to max for powerful healing.
 - Passive/rest healing (resting, camping, eating, sleeping, peaceful moment): include ALL active party members. hp 2-3 brief rest, 4-6 proper camp, 6-8 long sleep.
-- Also set suggestedHeal if the action SUCCEEDED with roll >= 18 and the narration involves any recovery or triumph.
-- Also consider suggestedHeal, an unusually strong clue, advantage, or earned item when the action SUCCEEDED with actionResult.impact "strong" or "extreme" and the story supports it.
+- For strong/extreme successes, consider bigger rewards such as an unusually strong clue, advantage, or earned item. Use suggestedHeal only when the action itself was healing/recovery.
 - Only include characters with status "active" in suggestedHeal -if the target is "downed", use suggestedRevive instead (not suggestedHeal).
 - NEVER narrate healing happening and return suggestedHeal: null -that leaves the character's HP unchanged despite the story.
 - Examples: "channels restoration magic on [target]", "heals wounds", "divine light mends injuries", "rest by the fire", "drink a healing potion", "latent magic restores vigor", "herbs restore strength".

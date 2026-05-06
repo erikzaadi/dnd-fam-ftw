@@ -288,10 +288,10 @@ test('session mechanics showcase visual asserts', async ({ page, request }) => {
   for (const label of ['Team Up', 'Gear', 'Social', 'Obstacle']) {
     await expect(page.getByText(label, { exact: true })).toBeVisible();
   }
-  for (const bonus of ['+2 help', '+2 gear', '+2 social']) {
+  for (const bonus of ['+2 help (Zara)', '+2 gear (🪢 Anchor)', '+2 social']) {
     await expect(page.getByText(bonus, { exact: true })).toBeVisible();
   }
-  for (const pill of ['with Zara', 'Anchor Rope', 'swinging counterweights']) {
+  for (const pill of ['with Zara', '🪢 Anchor Rope', 'swinging counterweights']) {
     await expect(page.getByText(pill, { exact: true })).toBeVisible();
   }
 

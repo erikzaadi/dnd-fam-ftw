@@ -14,6 +14,7 @@ import { parseSpeechIntent } from '../../stt/speechIntent';
 import { SpeechActionButton } from './SpeechActionButton';
 import { SpeechConfirmDialog } from './SpeechConfirmDialog';
 import { Tooltip } from '../Tooltip';
+import { formatCharacterBonusLabel, formatChoiceItemBonusLabel, formatHelperBonusLabel } from './rollBonusLabels';
 interface ActionDockProps {
   turn: TurnResult | null;
   loading: boolean;
@@ -414,15 +415,15 @@ export const ActionDock = ({
                                 <span className={statBonus > 0 ? 'text-amber-400' : (STAT_TEXT_COLORS[choice.stat] ?? 'text-slate-300')}>{statTotal}</span>
                                 <span className="text-slate-400"> vs {target}</span>
                               </span>
-                              {helperBonus > 0 && (
-                                <span className="text-xs font-black text-cyan-300">+{helperBonus} help</span>
-                              )}
-                              {choiceItemBonus > 0 && (
-                                <span className="text-xs font-black text-amber-300">+{choiceItemBonus} gear</span>
-                              )}
-                              {characterBonus > 0 && (
-                                <span className="text-xs font-black text-fuchsia-300">+{characterBonus} {characterBonusLabel}</span>
-                              )}
+			      {helperBonus > 0 && (
+				<span className="text-xs font-black text-cyan-300">+{formatHelperBonusLabel(helperBonus, choice.helperCharacterName)}</span>
+			      )}
+			      {choiceItemBonus > 0 && (
+				<span className="text-xs font-black text-amber-300">+{formatChoiceItemBonusLabel(choiceItemBonus, choice.itemName)}</span>
+			      )}
+			      {characterBonus > 0 && (
+				<span className="text-xs font-black text-fuchsia-300">+{formatCharacterBonusLabel(characterBonus, characterBonusLabel)}</span>
+			      )}
                               <span className={`text-xs font-black uppercase tracking-widest ${risk.color}`}>{risk.label}</span>
                               <span className="text-xs text-slate-500 font-black ml-auto">{prob}%</span>
                             </>

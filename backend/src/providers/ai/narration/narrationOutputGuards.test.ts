@@ -118,7 +118,7 @@ describe('parseNarrationOutput', () => {
   });
 
   it('allows more than two bonus-bearing choices without discarding a successful party heal', () => {
-    const result = parseNarrationOutput(input, output({
+    const result = parseNarrationOutput({ ...input, actionAttempt: 'Heal the party' }, output({
       narration: 'Pip chants a bright healing rhyme, and the whole party steadies themselves.',
       choices: [
         { label: 'Use Pip\'s rogue nerve', difficulty: 'normal', stat: 'mischief', difficultyValue: 11, flavor: 'spotlight' },
@@ -131,6 +131,55 @@ describe('parseNarrationOutput', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.suggestedHeal).toEqual([{ characterName: 'Pip', hp: 3 }]);
+    }
+  });
+
+  it('rejects healing state changes when the action was not healing or recovery', () => {
+    const result = parseNarrationOutput({ ...input, actionAttempt: 'Teleport the party through the portal' }, output({
+      narration: 'Pip guides the party through a bright portal to a safer path.',
+      suggestedHeal: [{ characterName: 'Pip', hp: 2 }],
+    }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('suggestedHeal');
+    }
+  });
+
+  it('canonicalizes item choice names when the model omits the leading emoji', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      inventory: [
+	{ ownerName: 'Pip', name: '🧭 Brass Compass', description: 'Points to safe paths', statBonuses: {} },
+      ],
+    }, output({
+      choices: [
+	{ label: 'Follow the Brass Compass', difficulty: 'easy', stat: 'mischief', difficultyValue: 8, flavor: 'item', itemOwnerName: 'Pip', itemName: 'Brass Compass' },
+	{ label: 'Check for traps', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+	{ label: 'Call for help', difficulty: 'easy', stat: 'magic', difficultyValue: 7 },
+      ],
+    }));
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.choices[0].itemName).toBe('🧭 Brass Compass');
+    }
+  });
+
+  it('downgrades invalid item choices instead of discarding the resolved turn', () => {
+    const result = parseNarrationOutput(input, output({
+      choices: [
+	{ label: 'Ring your bell to call for aid', difficulty: 'hard', stat: 'might', difficultyValue: 15, flavor: 'item', itemOwnerName: 'Oswin Bell', itemName: 'Bell of Summoning' },
+	{ label: 'Check for traps', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+	{ label: 'Call for help', difficulty: 'easy', stat: 'magic', difficultyValue: 7 },
+      ],
+    }));
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.choices[0].flavor).toBe('standard');
+      expect(result.data.choices[0].itemOwnerName).toBeUndefined();
+      expect(result.data.choices[0].itemName).toBeUndefined();
     }
   });
 });

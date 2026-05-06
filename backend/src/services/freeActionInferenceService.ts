@@ -5,7 +5,7 @@ export const CHOICE_ITEM_BONUS = 2;
 export const CHARACTER_EDGE_BONUS = 2;
 
 const FREE_ACTION_MAX_INFERRED_BONUSES = 2;
-const SOCIAL_ACTION_RE = /\b(charm|convince|persuade|deceive|trick|lie|bluff|negotiate|bargain|barter|haggle|intimidate|threaten|appeal|plead|comfort|reassure|taunt|distract|perform|sing|talk|speak|ask|question|interrogate|befriend)\b/i;
+const SOCIAL_ACTION_RE = /\b(charm|convince|persuade|deceive|trick|lie|bluff|negotiate|bargain|barter|haggle|intimidate|threaten|appeal|plead|comfort|reassure|taunt|distract|perform|sing|talk|speak|ask|question|interrogate|befriend|heal|healing|restore|restoring|mend|mending|soothe|soothing|aid|help|support|rally|encourage|teleport|teleporting|transport|transporting|relocate|relocating|evacuate|evacuating|portal|gateway|waygate)\b/i;
 const SPOTLIGHT_ACTION_RE = /\b(signature|instinct|training|heritage|background|memory|quirk|talent|specialty|speciality|faith|divine|holy|sneak|stealth|shadow|arcane|spell|rage|brute|protect|shield)\b/i;
 
 export type InferredFreeActionBonuses = {

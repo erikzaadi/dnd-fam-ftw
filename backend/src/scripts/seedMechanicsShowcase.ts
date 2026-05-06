@@ -84,13 +84,13 @@ export function seedMechanicsShowcase(db: DB): void {
   seedChar(db, MECHANICS_SHOWCASE_SESSION_ID, 'seed-s7-c3', 'Mira Ironleaf', 'Ranger', 'Human', 'Names every useful knot', 3, 1, 3, 9, 10);
   seedChar(db, MECHANICS_SHOWCASE_SESSION_ID, 'seed-s7-c4', 'Oswin Bell', 'Cleric', 'Human', 'Apologizes before ringing any bell', 2, 4, 1, 9, 10);
 
-  seedItem(db, 'seed-s7-c1', 's7-brass-compass', 'Brass Compass', 'Points toward hidden mechanisms', JSON.stringify({ mischief: 1 }), 0);
-  seedItem(db, 'seed-s7-c2', 's7-moon-lens', 'Moon Lens', 'Focuses pale light onto invisible marks', JSON.stringify({ magic: 1 }), 0);
-  seedItem(db, 'seed-s7-c3', 's7-anchor-rope', 'Anchor Rope', 'Locks onto stone when thrown carefully', null, 1);
+  seedItem(db, 'seed-s7-c1', 's7-brass-compass', '🧭 Brass Compass', 'Points toward hidden mechanisms', JSON.stringify({ mischief: 1 }), 0);
+  seedItem(db, 'seed-s7-c2', 's7-moon-lens', '🌙 Moon Lens', 'Focuses pale light onto invisible marks', JSON.stringify({ magic: 1 }), 0);
+  seedItem(db, 'seed-s7-c3', 's7-anchor-rope', '🪢 Anchor Rope', 'Locks onto stone when thrown carefully', null, 1);
 
   const choices: SeedChoice[] = [
     { label: 'Time the jump while Zara steadies the spell', difficulty: 'normal', stat: 'mischief', difficultyValue: 13, narration: 'A clean team-up can cross the moving gears.', flavor: 'combo', helperCharacterName: 'Zara Brightspell' },
-    { label: 'Hook Mira\'s anchor rope to the gear rail', difficulty: 'normal', stat: 'mischief', difficultyValue: 13, narration: 'Marked gear can make the crossing safer.', flavor: 'item', itemOwnerName: 'Mira Ironleaf', itemName: 'Anchor Rope' },
+    { label: 'Hook Mira\'s anchor rope to the gear rail', difficulty: 'normal', stat: 'mischief', difficultyValue: 13, narration: 'Marked gear can make the crossing safer.', flavor: 'item', itemOwnerName: 'Mira Ironleaf', itemName: '🪢 Anchor Rope' },
     { label: 'Charm the bridge keeper with Pip\'s checklist', difficulty: 'normal', stat: 'mischief', difficultyValue: 12, narration: 'A social read can turn suspicion into help.', flavor: 'social' },
     { label: 'Duck under the swinging counterweights', difficulty: 'hard', stat: 'might', difficultyValue: 16, narration: 'The machinery itself becomes the obstacle.', flavor: 'environment', environmentFeature: 'swinging counterweights' },
   ];
@@ -104,7 +104,7 @@ export function seedMechanicsShowcase(db: DB): void {
   seedTurn(db, MECHANICS_SHOWCASE_SESSION_ID, 'seed-s7-c1',
     'Pip reads every moving gear, every blinking rune, every warning bell, and every line of Zara\'s hurried chalk notes while the Clockwork Bridge unfolds into a long sequence of platforms, rails, pressure plates, light lenses, brass teeth, suspended counterweights, whispering bridge-keeper instructions, and tiny safe footholds that must be crossed in exact order before the whole span resets itself with a ringing snap.',
     choices, 'Hook Mira\'s anchor rope to the gear rail', 'mischief', 1, 11, 4, 13, 'The rope catches cleanly.', 'medium',
-    null, 'normal', { itemBonus: 1, choiceItemBonus: 2, choiceItemName: 'Anchor Rope', choiceItemOwnerName: 'Mira Ironleaf' });
+    null, 'normal', { itemBonus: 1, choiceItemBonus: 2, choiceItemName: '🪢 Anchor Rope', choiceItemOwnerName: 'Mira Ironleaf' });
   seedTurn(db, MECHANICS_SHOWCASE_SESSION_ID, 'seed-s7-c1',
     'Pip\'s checklist is approved.',
     choices, 'Charm the bridge keeper with Pip\'s checklist', 'mischief', 1, 10, 4, 12, 'The checklist does the talking.', 'medium',

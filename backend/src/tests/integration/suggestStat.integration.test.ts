@@ -68,4 +68,38 @@ describe('suggest-stat integration', () => {
       flavor: 'social',
     });
   });
+
+  it('treats party healing free-text actions as social support', async () => {
+    await insertSessionState(makeTestSession({ id: 'suggest-stat-heal-session' }));
+
+    const suggestion = await suggestStatForSessionAction('suggest-stat-heal-session', {
+      action: 'Heal the entire party',
+      characterClass: 'Cleric',
+      characterQuirk: 'Hums lullabies',
+    });
+
+    expect(suggestion).toMatchObject({
+      stat: 'magic',
+      characterBonus: 2,
+      characterBonusLabel: 'social edge',
+      flavor: 'social',
+    });
+  });
+
+  it('treats party teleport free-text actions as social support', async () => {
+    await insertSessionState(makeTestSession({ id: 'suggest-stat-teleport-session' }));
+
+    const suggestion = await suggestStatForSessionAction('suggest-stat-teleport-session', {
+      action: 'Teleport the party using your magic through the portal',
+      characterClass: 'Mage',
+      characterQuirk: 'Times every spell with a wink',
+    });
+
+    expect(suggestion).toMatchObject({
+      stat: 'magic',
+      characterBonus: 2,
+      characterBonusLabel: 'social edge',
+      flavor: 'social',
+    });
+  });
 });

@@ -5,6 +5,7 @@ import { StatImg } from './StatIcon';
 import { TtsButton } from '../TtsButton';
 import type { TtsSettings } from '../../tts/ttsTypes';
 import { STAT_COLORS } from '../../lib/statColors';
+import { formatCharacterBonusLabel, formatChoiceItemBonusLabel, formatHelperBonusLabel } from './rollBonusLabels';
 
 interface LastSubmittedAction {
   label: string;
@@ -115,15 +116,15 @@ export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings }: DmDec
                 </div>
                 {(helperBonus > 0 || choiceItemBonus > 0 || characterBonus > 0) && (
 		  <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-black">
-		    {helperBonus > 0 && (
-		      <span className="text-cyan-300">+{helperBonus} help</span>
-		    )}
-		    {choiceItemBonus > 0 && (
-		      <span className="text-amber-300">+{choiceItemBonus} gear</span>
-		    )}
-		    {characterBonus > 0 && (
-		      <span className="text-fuchsia-300">+{characterBonus} {lastSubmittedAction.characterBonusLabel}</span>
-		    )}
+			    {helperBonus > 0 && (
+			      <span className="text-cyan-300">+{formatHelperBonusLabel(helperBonus, lastSubmittedAction.helperCharacterName)}</span>
+			    )}
+			    {choiceItemBonus > 0 && (
+			      <span className="text-amber-300">+{formatChoiceItemBonusLabel(choiceItemBonus, lastSubmittedAction.choiceItemName)}</span>
+			    )}
+			    {characterBonus > 0 && (
+			      <span className="text-fuchsia-300">+{formatCharacterBonusLabel(characterBonus, lastSubmittedAction.characterBonusLabel)}</span>
+			    )}
 		  </div>
                 )}
               </div>

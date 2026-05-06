@@ -13,6 +13,8 @@ The repo does not use npm workspaces. The shared package is linked from backend/
 
 All env vars live in the root `.env`.
 
+When debugging a pasted local session URL, fetch the JSON history first. Convert `http://localhost:5173/session/<id>` to `/api/session/<id>/history` on the frontend dev server, or use `http://localhost:3001/session/<id>/history` against the backend directly when it is running.
+
 ## Before committing
 
 Do not run token-heavy verification commands yourself unless explicitly asked. This includes `npm test`, `npm run test:*`, `npm run build`, `npm run lint`, `npm run lint:*`, `npx tsc`, and package-specific variants. Ask the user to run the relevant command manually instead.

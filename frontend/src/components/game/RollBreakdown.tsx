@@ -1,4 +1,5 @@
 import { imgSrc } from '../../lib/api';
+import { formatCharacterBonusLabel, formatChoiceItemBonusLabel, formatHelperBonusLabel } from './rollBonusLabels';
 
 interface RollBreakdownProps {
   roll: number;
@@ -59,22 +60,22 @@ export const RollBreakdown = ({
           </>
         )}
         {(helperBonus ?? 0) > 0 && (
-          <>
-            <span className="text-slate-600">+</span>
-            <span className="text-cyan-300">{helperBonus} help{helperCharacterName ? ` (${helperCharacterName.split(' ')[0]})` : ''}</span>
-          </>
+	  <>
+	    <span className="text-slate-600">+</span>
+	    <span className="text-cyan-300">{formatHelperBonusLabel(helperBonus ?? 0, helperCharacterName)}</span>
+	  </>
         )}
         {(choiceItemBonus ?? 0) > 0 && (
-          <>
-            <span className="text-slate-600">+</span>
-            <span className="text-amber-300">{choiceItemBonus} gear{choiceItemName ? ` (${choiceItemName.replace(/^\S+\s*/, '').split(' ')[0]})` : ''}</span>
-          </>
+	  <>
+	    <span className="text-slate-600">+</span>
+	    <span className="text-amber-300">{formatChoiceItemBonusLabel(choiceItemBonus ?? 0, choiceItemName)}</span>
+	  </>
         )}
         {(characterBonus ?? 0) > 0 && (
-          <>
-            <span className="text-slate-600">+</span>
-            <span className="text-fuchsia-300">{characterBonus} {characterBonusLabel ?? 'edge'}</span>
-          </>
+	  <>
+	    <span className="text-slate-600">+</span>
+	    <span className="text-fuchsia-300">{formatCharacterBonusLabel(characterBonus ?? 0, characterBonusLabel)}</span>
+	  </>
         )}
         <span className="text-slate-600">=</span>
         <span className={success ? 'text-emerald-400' : 'text-rose-400'}>{total}</span>
