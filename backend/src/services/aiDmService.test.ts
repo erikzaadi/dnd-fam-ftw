@@ -131,6 +131,21 @@ describe('toNarrationInput', () => {
     expect(out.recentHistory[0]).toBe('Turn 1.');
   });
 
+  it('summarizes previous choice flavor patterns', () => {
+    const out = toNarrationInput(makeAIInput({
+      actionAttempt: 'Sprint across the falling stones',
+      lastChoices: [
+        { label: 'Sprint across the falling stones', difficulty: 'normal', stat: 'might', difficultyValue: 11, flavor: 'environment', environmentFeature: 'falling bridge stones' },
+        { label: 'Ask Zara for a timing spell', difficulty: 'easy', stat: 'magic', difficultyValue: 8, flavor: 'combo', helperCharacterName: 'Zara' },
+        { label: 'Take the careful path', difficulty: 'normal', stat: 'mischief', difficultyValue: 11, flavor: 'environment', environmentFeature: 'falling bridge stones' },
+      ],
+    }));
+
+    expect(out.previousChoiceFlavors).toEqual(['environment', 'combo']);
+    expect(out.selectedChoiceFlavor).toBe('environment');
+    expect(out.selectedEnvironmentFeature).toBe('falling bridge stones');
+  });
+
   it('statUsed "none" becomes undefined', () => {
     const out = toNarrationInput(makeAIInput({ actionResult: { success: true, roll: 0, statUsed: 'none' } }));
     expect(out.actionResult.statUsed).toBeUndefined();

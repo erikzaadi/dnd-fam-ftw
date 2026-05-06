@@ -67,6 +67,9 @@ export type NarrationInput = {
     summary: string;
   };
   recentHistory: string[];
+  previousChoiceFlavors?: ChoiceFlavor[];
+  selectedChoiceFlavor?: ChoiceFlavor;
+  selectedEnvironmentFeature?: string;
   tone: string;
   gameMode?: GameMode;
   dmPrep?: string;

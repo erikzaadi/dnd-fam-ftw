@@ -7,6 +7,10 @@ export function toNarrationInput(input: AIInput): NarrationInput {
   const actingChar = input.party.find(c => c.id === input.characterId);
   const nextChar = input.party.find(c => c.id === input.activeCharacterId);
   const characterNameById = new Map(input.party.map(c => [c.id, c.name]));
+  const selectedChoice = input.lastChoices.find(choice => choice.label === input.actionAttempt);
+  const previousChoiceFlavors = input.lastChoices
+    .map(choice => choice.flavor ?? 'standard')
+    .filter((flavor, index, flavors) => flavors.indexOf(flavor) === index);
   const roll = input.actionResult.roll;
   const statBonus = input.actionResult.statBonus ?? 0;
   const itemBonus = input.actionResult.itemBonus ?? 0;
@@ -76,6 +80,9 @@ export function toNarrationInput(input: AIInput): NarrationInput {
         : `The action failed${input.actionResult.impact && input.actionResult.impact !== 'normal' ? ` with ${input.actionResult.impact} impact` : ''}.`,
     },
     recentHistory: input.recentHistory ?? [],
+    ...(previousChoiceFlavors.length > 0 && { previousChoiceFlavors }),
+    ...(selectedChoice?.flavor && { selectedChoiceFlavor: selectedChoice.flavor }),
+    ...(selectedChoice?.environmentFeature && { selectedEnvironmentFeature: selectedChoice.environmentFeature }),
     tone: input.tone,
     gameMode: input.gameMode,
     ...(input.dmPrep && { dmPrep: input.dmPrep }),

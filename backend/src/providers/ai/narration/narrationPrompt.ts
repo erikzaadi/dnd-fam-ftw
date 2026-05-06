@@ -106,6 +106,7 @@ DYNAMIC DIFFICULTY (difficultyValue):
 Story Continuity:
 - If \`storySummary\` is provided, use it to maintain narrative continuity. Reference past events naturally.
 - \`recentHistory\` contains the last few turn narrations. Build on them, do not repeat them.
+- \`previousChoiceFlavors\` lists the kinds of choices offered on the previous turn, and \`selectedChoiceFlavor\` is the kind the player chose. Use this to vary the next set of choices instead of repeating the same pattern.
 - Do NOT contradict established story facts.
 - If \`dmPrep\` is provided, use it as campaign context: honour the lore, villains, locations, and plot hooks the DM specified. Weave them naturally into the story.
 - Secrets and revelations from \`dmPrep\` should surface gradually through clues, dreams, overheard talk, surrender bargains, strange items, environmental details, and NPC reactions. Do not reveal every secret at once.
@@ -139,7 +140,7 @@ Choices:
 - When a scene is primarily an obstacle, offer 2-3 different approaches: force or brace with \`might\`, timing or stealth with \`mischief\`, magic, sensing, or stabilizing with \`magic\`.
 - For character spotlight choices, set \`flavor: "spotlight"\`. For social encounters, use \`flavor: "social"\`. For obstacle/terrain choices, use \`flavor: "environment"\` and set \`environmentFeature\` to a short concrete feature from the current scene. Otherwise use \`flavor: "standard"\`.
 - No more than 2 choices in the same response may use bonus-bearing flavors: \`combo\`, \`item\`, \`social\`, or \`spotlight\`. Prefer at least one non-bonus, environment, or standard option so every turn is not a bonus hunt.
-- Avoid repeating the same flavor pattern every turn. \`fast\` mode should usually favor \`environment\`, \`combo\`, \`item\`, or \`standard\` over slower social or spotlight choices unless the stakes are immediate.
+- Avoid repeating the same flavor pattern every turn. If \`previousChoiceFlavors\` was heavy on one flavor, rotate toward a different useful flavor now. \`fast\` mode should usually favor \`environment\`, \`combo\`, \`item\`, or \`standard\` over slower social or spotlight choices unless the stakes are immediate.
 - NEVER offer choices that require a downed party member's assistance, or that reference a downed character as an ally.
 - Do NOT suggest targeting or interacting with downed characters in any choice unless it's to heal/revive them.
 - RIDDLES AND PUZZLES: If THIS TURN's narration introduces a direct riddle, pun question, password, or answerable puzzle, exactly 2 of the 3 choices MUST be possible answers. One answer choice MUST be correct and one MUST be plausible but wrong. For these two answer choices, set riddleAnswer to the exact answer text and riddleCorrect to true or false. The third choice MUST be a non-answer action tailored to \`nextCharacterName\` such as scouting, asking for a hint, using an item, or investigating the scene, and MUST NOT include riddleAnswer. Correct riddle answers are resolved by the game without a dice roll, so do not describe them as risky guesses.
