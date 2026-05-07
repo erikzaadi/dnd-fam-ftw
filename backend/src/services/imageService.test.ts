@@ -60,9 +60,27 @@ describe('ImageService.generateImage', () => {
     expect(provider.calls).toHaveLength(1);
     expect(provider.calls[0]).toContain('A dragon attacks');
     expect(provider.calls[0]).toContain('Finished standalone fantasy illustration');
-    expect(provider.calls[0]).toContain('No captions, lettering, logos, borders');
+    expect(provider.calls[0]).toContain('No text or pseudo-text anywhere in the image');
+    expect(provider.calls[0]).toContain('No captions, lettering, numbers, logos');
+    expect(provider.calls[0]).toContain('Dungeons and Dragons adventure moment');
     expect(storage.stored.size).toBe(1);
     expect(result!.url).toMatch(/^http:\/\/mock-storage\//);
+  });
+
+  it('rewrites text-prone scene props into blank visual props', async () => {
+    const storage = makeMockStorage();
+    const provider = makeMockImageProvider();
+    await ImageService.generateImage('A wizard studies a spellbook beside a map, rune plaque, banner, and character card', 'sess-text-risk', 1, false, provider, storage);
+    const finalPrompt = provider.calls[0];
+    expect(finalPrompt).toContain('plain unmarked props');
+    expect(finalPrompt).toContain('plain unmarked parchment chart');
+    expect(finalPrompt).toContain('abstract magical glow');
+    expect(finalPrompt).toContain('plain cloth standards');
+    expect(finalPrompt).toContain('plain unmarked tokens');
+    expect(finalPrompt).not.toContain('spellbook');
+    expect(finalPrompt).not.toContain('rune plaque');
+    expect(finalPrompt).not.toContain('beside a map');
+    expect(finalPrompt).not.toContain('banner, and character card');
   });
 
   it('cache hit: skips provider and returns cached URL', async () => {
@@ -135,9 +153,12 @@ describe('ImageService.generateAvatar', () => {
     const result = await ImageService.generateAvatar(char, 'sess-avatar-1', false, provider, storage);
     expect(result.url).toBeTruthy();
     expect(result.prompt).toContain('halfling rogue');
-    expect(result.prompt).toContain('fantasy illustration');
-    expect(result.prompt).toContain('Close-up of a');
-    expect(result.prompt).toContain('No captions, lettering, logos, borders');
+    expect(result.prompt).toContain('Close-up bust view of one');
+    expect(result.prompt).toContain('face and shoulders crop');
+    expect(result.prompt).toContain('not a figurine, game piece, card art, printed portrait, framed artwork, or display object');
+    expect(result.prompt).toContain('No text or pseudo-text anywhere in the image');
+    expect(result.prompt).not.toContain('fantasy RPG character');
+    expect(result.prompt).not.toContain('portrait composition');
     expect(provider.calls).toHaveLength(1);
     expect(storage.stored.size).toBe(1);
   });
@@ -146,7 +167,7 @@ describe('ImageService.generateAvatar', () => {
     const provider = makeMockImageProvider();
     const char = { name: 'Pip', class: 'Rogue', species: 'Halfling', quirk: 'Talks to plants' };
     const prompt = buildImagePrompt(
-      `Close-up of a ${char.species.toLowerCase()} ${char.class.toLowerCase()} fantasy RPG character standing on a dark atmospheric background with dramatic rim lighting. The character fills the frame directly. The character visibly has expressive theatrical posture.`,
+      `Close-up bust view of one ${char.species.toLowerCase()} ${char.class.toLowerCase()} adventurer standing in a dark atmospheric fantasy location with dramatic rim lighting. Face, shoulders, costume, and expression fill the frame directly. The character visibly has expressive theatrical posture.`,
       IMAGE_PROMPT_STYLE.avatar,
     );
     const hash = crypto.createHash('md5').update(prompt).digest('hex');
@@ -202,7 +223,8 @@ describe('ImageService.generateSessionPreview', () => {
     expect(provider.calls[0]).toContain('Elf Wizard with small gleaming trinkets and subtle magical aura');
     expect(provider.calls[0]).toContain('goblin king, glowing cheese artifact, mushroom cave throne');
     expect(provider.calls[0]).toContain('full-bleed');
-    expect(provider.calls[0]).toContain('No captions, lettering, logos, borders');
+    expect(provider.calls[0]).toContain('No text or pseudo-text anywhere in the image');
+    expect(provider.calls[0]).toContain('not a book page, parchment sheet, manuscript, title card, poster, trading card');
     expect(provider.calls[0]).not.toContain('talks to books');
     expect(provider.calls[0]).not.toContain('collects cursed spoons');
     expect(provider.calls[0]).not.toContain('storybook');

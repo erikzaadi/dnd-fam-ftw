@@ -31,7 +31,7 @@ dotenv.config({ path: path.join(__dirname, '..', '..', '..', '.env'), quiet: tru
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const OUT_DIR = path.join(__dirname, '..', '..', '..', 'frontend', 'public', 'images');
 
-const STATIC_ASSET_GUARDRAIL = 'Finished standalone fantasy artwork. Single edge-to-edge image. Blank unmarked surfaces only. No lettering, numbers, logos, captions, borders, frames, panels, menus, toolbars, editor controls, crop handles, rulers, guides, or software interface elements.';
+const STATIC_ASSET_GUARDRAIL = 'Finished standalone fantasy artwork. No text or pseudo-text anywhere in the image. Single full-bleed edge-to-edge image. Continuous in-world scene only, not a poster, card, framed artwork, page, manuscript, or UI screenshot. All books, scrolls, maps, signs, banners, plaques, cards, dice faces, and carved surfaces are plain blank visual props with no visible marks. No lettering, numbers, logos, watermarks, signatures, captions, borders, frames, panels, menus, toolbars, editor controls, crop handles, rulers, guides, or software interface elements.';
 
 const ASSETS: Array<{ filename: string; prompt: string; size?: '1024x1024' | '1792x1024' | '1024x1792' }> = [
   {
@@ -44,7 +44,7 @@ const ASSETS: Array<{ filename: string; prompt: string; size?: '1024x1024' | '17
   },
   {
     filename: 'dm_thinking.png',
-    prompt: 'Fantasy style: a mysterious hooded dungeon master figure at a candlelit table with a closed unmarked arcane tome and glowing blank dice, candlelight flickering in a shadowy tavern, dramatic moody lighting, mystical atmosphere, fantasy illustration, dark and atmospheric storybook art',
+    prompt: 'Fantasy style: a mysterious hooded dungeon master figure at a candlelit table with a closed plain arcane tome and smooth glowing dice with blank faces, candlelight flickering in a shadowy tavern, dramatic moody lighting, mystical atmosphere, fantasy illustration, dark and atmospheric storybook art',
   },
   {
     filename: 'home_banner.png',
@@ -59,37 +59,37 @@ const ASSETS: Array<{ filename: string; prompt: string; size?: '1024x1024' | '17
   {
     filename: 'icon_dice.png',
     size: '1024x1024',
-    prompt: 'Fantasy RPG icon: a glowing blank twenty-sided die with deep navy blue facets and shimmering gold edges, centered on a dark background, magical golden light radiating from within, painterly fantasy style, high detail, dramatic lighting, icon composition',
+    prompt: 'Fantasy adventure icon: a glowing twenty-sided die with smooth blank facets and shimmering gold edges, centered on a dark background, magical golden light radiating from within, painterly fantasy style, high detail, dramatic lighting, icon composition',
   },
   {
     filename: 'icon_inventory.png',
     size: '1024x1024',
-    prompt: 'Fantasy RPG icon: a worn leather adventurer backpack stuffed with unmarked parchment rolls, a canteen, and a bedroll, centered on a dark background, warm amber candlelight glow, painterly fantasy style, high detail, icon composition',
+    prompt: 'Fantasy adventure icon: a worn leather adventurer backpack stuffed with plain parchment rolls, a canteen, and a bedroll, centered on a dark background, warm amber candlelight glow, painterly fantasy style, high detail, icon composition',
   },
   {
     filename: 'icon_magic.png',
     size: '1024x1024',
-    prompt: 'Fantasy RPG icon: an ornate wooden magic wand with a glowing crystal tip crackling with sparks of purple and blue arcane energy, centered on a dark background, magical light emanating outward, painterly fantasy style, high detail, icon composition',
+    prompt: 'Fantasy adventure icon: an ornate wooden magic wand with a glowing crystal tip crackling with sparks of purple and blue arcane energy, centered on a dark background, magical light emanating outward, painterly fantasy style, high detail, icon composition',
   },
   {
     filename: 'icon_might.png',
     size: '1024x1024',
-    prompt: 'Fantasy RPG icon: a gleaming broad sword with a golden cross-guard embedded upright in stone, radiant white and gold light shining along the blade, centered on a dark background, painterly fantasy style, high detail, heroic and powerful, icon composition',
+    prompt: 'Fantasy adventure icon: a gleaming broad sword with a golden cross-guard embedded upright in stone, radiant white and gold light shining along the blade, centered on a dark background, painterly fantasy style, high detail, heroic and powerful, icon composition',
   },
   {
     filename: 'icon_mischief.png',
     size: '1024x1024',
-    prompt: 'Fantasy RPG icon: a slender rogue dagger with a curved blade balanced against a smiling theatrical drama mask, a blank playing card and coin glinting nearby, centered on a dark background, green and gold tones, painterly fantasy style, high detail, icon composition',
+    prompt: 'Fantasy adventure icon: a slender rogue dagger with a curved blade balanced against a smiling theatrical drama mask, a smooth blank token and coin glinting nearby, centered on a dark background, green and gold tones, painterly fantasy style, high detail, icon composition',
   },
   {
     filename: 'icon_potion.png',
     size: '1024x1024',
-    prompt: 'Fantasy RPG icon: a round glass potion bottle filled with glowing crimson liquid, bubbles rising inside, cork stopper, magical red and pink light radiating outward, centered on a dark background, painterly fantasy style, high detail, icon composition',
+    prompt: 'Fantasy adventure icon: a round glass potion bottle filled with glowing crimson liquid, bubbles rising inside, cork stopper, magical red and pink light radiating outward, centered on a dark background, painterly fantasy style, high detail, icon composition',
   },
   {
     filename: 'icon_scroll.png',
     size: '1024x1024',
-    prompt: 'Fantasy RPG icon: an ancient blank parchment partially unrolled, aged yellow-brown with worn wooden handles, soft golden magical glow above the empty surface, centered on a dark background, warm candlelight, painterly fantasy style, high detail, icon composition',
+    prompt: 'Fantasy adventure icon: an ancient plain parchment partially unrolled, aged yellow-brown with worn wooden handles, soft golden magical glow above the empty surface, centered on a dark background, warm candlelight, painterly fantasy style, high detail, icon composition',
   },
   // ── Onboarding session: A Crumby Situation ────────────────────────────────
   {
@@ -100,7 +100,7 @@ const ASSETS: Array<{ filename: string; prompt: string; size?: '1024x1024' | '17
   {
     filename: 'onboarding/scene_inn.png',
     size: '1024x1024',
-    prompt: 'Fantasy illustration: a cosy warm forest inn at dusk, a worried baker woman in flour-dusted apron wringing her hands outside the front door, a trail of white flour disappearing into a dark mysterious forest path, amber light glowing from the inn windows, a hand-painted inn sign above the door, whimsical lighthearted storybook art style',
+    prompt: 'Fantasy illustration: a cosy warm forest inn at dusk, a worried baker woman in flour-dusted apron wringing her hands outside the front door, a trail of white flour disappearing into a dark mysterious forest path, amber light glowing from the inn windows, an unmarked wooden emblem above the door, whimsical lighthearted storybook art style',
   },
   {
     filename: 'onboarding/scene_brom.png',
@@ -125,22 +125,22 @@ const ASSETS: Array<{ filename: string; prompt: string; size?: '1024x1024' | '17
   {
     filename: 'onboarding/avatar_brom.png',
     size: '1024x1024',
-    prompt: 'Fantasy RPG character portrait: a stocky cheerful muscular human fighter, broad shoulders, short beard, kind enthusiastic eyes, practical battered plate armour, casually resting a battle axe on his shoulder, centered square portrait composition, warm amber tones, painterly fantasy storybook style, simple dark background',
+    prompt: 'Close-up bust view of one stocky cheerful muscular human fighter adventurer, broad shoulders, short beard, kind enthusiastic eyes, practical battered plate armour, casually resting a battle axe on his shoulder, face and shoulders fill the square frame, warm amber tones, painterly fantasy storybook style, simple dark background',
   },
   {
     filename: 'onboarding/avatar_finn.png',
     size: '1024x1024',
-    prompt: 'Fantasy RPG character portrait: a small nimble halfling rogue with large bright eyes and a mischievous grin, curly brown hair, light leather armour with many pockets, crumbs visible on his shirt, looking slightly guilty but charming, centered square portrait composition, warm earthy tones, painterly fantasy storybook style, simple dark background',
+    prompt: 'Close-up bust view of one small nimble halfling rogue adventurer with large bright eyes and a mischievous grin, curly brown hair, light leather armour with many pockets, crumbs visible on his shirt, looking slightly guilty but charming, face and shoulders fill the square frame, warm earthy tones, painterly fantasy storybook style, simple dark background',
   },
   {
     filename: 'onboarding/avatar_zara.png',
     size: '1024x1024',
-    prompt: 'Fantasy RPG character portrait: single portrait of one female elf mage, tall and elegant with sharp precise features, silver-white long hair, cool blue and silver mage robes, holding a glowing arcane wand, expression of calm focused intensity, centered bust-up composition against a plain dark background, warm painterly storybook illustration style, single image no panels no collage no multiple views no reference sheet no editor UI no software interface no rulers no toolbars',
+    prompt: 'Close-up bust view of one female elf mage adventurer, tall and elegant with sharp precise features, silver-white long hair, cool blue and silver mage robes, holding a glowing arcane wand, expression of calm focused intensity, face and shoulders fill the square frame against a plain dark background, warm painterly storybook illustration style',
   },
   {
     filename: 'onboarding/avatar_mira.png',
     size: '1024x1024',
-    prompt: 'Fantasy RPG character portrait: a warm-faced human female cleric with kind eyes and a gentle reassuring smile, brown hair in a practical braid, simple white and gold clerical robes with a holy symbol, holding a small healing potion, centered square portrait composition, warm golden and white tones, painterly fantasy storybook style, simple dark background',
+    prompt: 'Close-up bust view of one warm-faced human female cleric adventurer with kind eyes and a gentle reassuring smile, brown hair in a practical braid, simple white and gold clerical robes with an abstract glowing pendant, holding a small healing potion, face and shoulders fill the square frame, warm golden and white tones, painterly fantasy storybook style, simple dark background',
   },
 ];
 

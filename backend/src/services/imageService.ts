@@ -29,29 +29,31 @@ export type SceneImageContext = {
 
 const IMAGE_COMPOSITION_GUARDRAIL = [
   'Finished standalone fantasy illustration.',
-  'Single edge-to-edge image filling the square frame.',
-  'Continuous painted scene only, not a book page, parchment sheet, manuscript, title card, poster, trading card, gallery mat, or framed illustration.',
+  'No text or pseudo-text anywhere in the image.',
+  'Single full-bleed image filling the entire square frame from edge to edge.',
+  'Continuous painted in-world scene only, not a book page, parchment sheet, manuscript, title card, poster, trading card, gallery mat, collectible card, tabletop card, character card, or framed illustration.',
   'One shared camera view with every figure occupying the same physical environment.',
   'Only the described characters, creatures, props, and environment are visible.',
-  'Blank unmarked surfaces; no readable symbols or markings.',
-  'No captions, lettering, logos, borders, mats, picture frames, panels, split views, grids, tables, stat blocks, character sheets, reference sheets, portrait cards, character cards, name labels under figures, name tags, labels under figures, header bands, footer bands, blank margins, menus, toolbars, editor controls, crop handles, selection boxes, rulers, guides, or software interface elements.',
-  'No artist hands, brushes, paint palettes, color swatches, easels, stretched canvas, linen texture, canvas wrap, painting mounted on wall, artwork displayed in gallery, art supplies, or image-creation process visible.',
+  'All books, scrolls, maps, signs, banners, plaques, cards, and carved surfaces are plain blank visual props with no visible marks.',
+  'No captions, lettering, numbers, logos, watermarks, signatures, borders, mats, picture frames, panels, split views, grids, tables, stat blocks, character sheets, reference sheets, portrait cards, character cards, name labels under figures, name tags, labels under figures, header bands, footer bands, blank margins, menus, toolbars, editor controls, crop handles, selection boxes, rulers, guides, or software interface elements.',
+  'No artist hands, brushes, paint palettes, color swatches, easels, stretched canvas, linen texture, canvas wrap, painting mounted on wall, artwork displayed in gallery, display box, pedestal base, art supplies, or image-creation process visible.',
 ].join(' ');
 
 export const IMAGE_PROMPT_STYLE = {
-  avatar: 'Highly detailed digital fantasy character illustration, sharp rendering, centered close-up composition. The character is a real being in the scene, not a painting, print, or artwork mounted on any surface.',
-  scene: 'Fantasy scene illustration, detailed fantasy art, cinematic lighting, vibrant colors.',
+  avatar: 'Highly detailed digital fantasy adventurer bust view, sharp rendering, tight centered face and shoulders crop. The character is a real living being in the image, not a figurine, game piece, card art, printed portrait, framed artwork, or display object.',
+  scene: 'Dungeons and Dragons adventure moment, detailed fantasy art, cinematic lighting, vibrant colors, painterly storybook energy.',
   preview: 'Painterly fantasy adventure art, cinematic lighting, vibrant colors, full-bleed landscape composition with no margins.',
 } as const;
 
 function sanitizeVisualPrompt(prompt: string): string {
   return prompt
     .replace(/\b(readable\s+)?(text|words?|letters?|numbers?|captions?|labels?|headlines?|titles?|typography|font|writing|written\s+text)\b/gi, 'plain unmarked visual detail')
-    .replace(/\b(signboards?|signs?|plaques?|inscriptions?|carved\s+writing|book\s+pages?)\b/gi, 'unmarked weathered surfaces')
+    .replace(/\b(signboards?|signs?|plaques?|inscriptions?|carved\s+writing|(?:spell|story|note)?books?|journals?|diar(?:y|ies)|book\s+pages?)\b/gi, 'plain unmarked props')
     .replace(/\b(runes?|glyphs?|sigils?|symbols?)\b/gi, 'abstract magical glow')
     .replace(/\b(scrolls?)\b/gi, 'blank parchment')
-    .replace(/\b(maps?)\b/gi, 'unmarked parchment chart')
+    .replace(/\b(maps?)\b/gi, 'a plain unmarked parchment chart')
     .replace(/\b(banners?)\b/gi, 'plain cloth standards')
+    .replace(/\b(cards?|playing\s+cards?|trading\s+cards?|character\s+cards?)\b/gi, 'plain unmarked tokens')
     .replace(/\b(UI|interface|menus?|toolbars?|panels?|sliders?|crop\s+handles?|selection\s+boxes?|rulers?|guides?|editing\s+controls?|image\s+editor|photoshop)\b/gi, 'finished artwork composition')
     .replace(/\b(picture\s+frames?|photo\s+frames?|borders?|mats?|caption\s+bands?|page\s+layout|poster\s+layout|split\s+views?|collage|diptych|triptych)\b/gi, 'edge-to-edge scene composition');
 }
@@ -74,7 +76,7 @@ export class ImageService {
     const visualQuirk = this.getSafeVisualQuirk(char.quirk);
     const quirkPart = visualQuirk ? ` The character visibly has ${visualQuirk}.` : '';
     const prompt = buildImagePrompt(
-      `Close-up of a ${genderDesc}${char.species.toLowerCase()} ${char.class.toLowerCase()} fantasy RPG character standing on a dark atmospheric background with dramatic rim lighting. The character fills the frame directly.${quirkPart}`,
+      `Close-up bust view of one ${genderDesc}${char.species.toLowerCase()} ${char.class.toLowerCase()} adventurer standing in a dark atmospheric fantasy location with dramatic rim lighting. Face, shoulders, costume, and expression fill the frame directly.${quirkPart}`,
       IMAGE_PROMPT_STYLE.avatar,
     );
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
