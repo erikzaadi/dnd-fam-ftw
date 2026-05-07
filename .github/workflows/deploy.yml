@@ -190,9 +190,21 @@ jobs:
 
           # shellcheck disable=SC2029
           ssh "$SSH_USER@$LIGHTSAIL_HOST" "sudo systemctl restart $SERVICE_NAME"
-          sleep 3
           # shellcheck disable=SC2029
-          ssh "$SSH_USER@$LIGHTSAIL_HOST" "systemctl is-active $SERVICE_NAME"
+          ssh "$SSH_USER@$LIGHTSAIL_HOST" "
+            for i in \$(seq 1 15); do
+              status=\$(systemctl is-active $SERVICE_NAME)
+              if [ \"\$status\" = 'active' ]; then
+                echo \"$SERVICE_NAME is active\"
+                exit 0
+              fi
+              echo \"Attempt \$i: \$status - waiting...\"
+              sleep 2
+            done
+            echo '$SERVICE_NAME failed to become active'
+            systemctl status $SERVICE_NAME --no-pager || true
+            exit 1
+          "
 
       # ── Frontend ─────────────────────────────────────────────────────────────
 
