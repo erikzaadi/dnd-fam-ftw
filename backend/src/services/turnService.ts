@@ -30,7 +30,6 @@ export interface TurnActionRequest {
 
 const PRESSURE_RE = /\b(ambush|battle|boss|brawl|challenge|chase|combat|conflict|defeat|disarm|duel|enemy|escape|fight|foe|guard|guardian|hazard|monster|obstacle|puzzle|riddle|ritual|shadow|shadows|sneak|spectral|strike|trap|wolf|wolves)\b/i;
 const COMBAT_RE = /\b(ambush|attack|battle|boss|brawl|combat|duel|enemy|fight|foe|monster|strike|wolf|wolves)\b/i;
-const HEALING_RE = /\b(heal|healing|restore|restoring|revive|reviving|mend|mending|soothe|soothing|recover|recovery|rest|resting|sleep|sleeping|eat|eating|meal|care|treat|treating|medicine|potion|bandage|sanctuary)\b/i;
 
 type ScenePressure = NonNullable<AIInput['scenePressure']>;
 
@@ -78,23 +77,12 @@ function buildScenePressure(
     const lastAction = turn.lastAction;
     return !!lastAction?.actionResult.success && (turnPressureKind(turn) === 'combat' || turnPressureKind(turn) === 'challenge');
   }).length + (currentAction.actionResult.success && (currentKind === 'combat' || currentKind === 'challenge') ? 1 : 0);
-  const impact = currentAction.actionResult.impact;
-  const strongCurrentSuccess = currentAction.actionResult.success && (impact === 'strong' || impact === 'extreme');
-  const difficultCurrentSuccess = currentAction.actionResult.success && (currentAction.actionResult.difficultyTarget ?? 0) >= 13;
-  const portalEligibleThisTurn = !HEALING_RE.test(currentAction.actionAttempt) && (
-    (pressureTurns >= 2 && (strongCurrentSuccess || difficultCurrentSuccess)) ||
-    (pressureTurns >= 1 && impact === 'extreme')
-  );
-
   return {
     kind,
     pressureTurns,
     successfulPressureTurns,
     previousTensionLevels,
-    portalEligibleThisTurn,
-    reason: portalEligibleThisTurn
-      ? 'Current turn earned a fast transition after sustained pressure.'
-      : 'Portal transition not earned by current turn pressure.',
+    reason: 'Scene pressure computed.',
   };
 }
 

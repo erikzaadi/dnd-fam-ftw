@@ -34,7 +34,7 @@ const IMAGE_COMPOSITION_GUARDRAIL = [
   'One shared camera view with every figure occupying the same physical environment.',
   'Only the described characters, creatures, props, and environment are visible.',
   'Blank unmarked surfaces; no readable symbols or markings.',
-  'No captions, lettering, logos, borders, mats, picture frames, panels, split views, grids, contact sheets, character sheets, portrait cards, labels under figures, header bands, footer bands, blank margins, menus, toolbars, editor controls, crop handles, selection boxes, rulers, guides, or software interface elements.',
+  'No captions, lettering, logos, borders, mats, picture frames, panels, split views, grids, tables, stat blocks, character sheets, reference sheets, portrait cards, character cards, name labels under figures, name tags, labels under figures, header bands, footer bands, blank margins, menus, toolbars, editor controls, crop handles, selection boxes, rulers, guides, or software interface elements.',
   'No artist hands, brushes, paint palettes, color swatches, easels, stretched canvas, linen texture, canvas wrap, painting mounted on wall, artwork displayed in gallery, art supplies, or image-creation process visible.',
 ].join(' ');
 

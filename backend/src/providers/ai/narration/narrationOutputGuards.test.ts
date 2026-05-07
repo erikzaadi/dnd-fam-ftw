@@ -36,173 +36,6 @@ const output = (overrides: Partial<NarrationOutput> = {}): NarrationOutput => ({
 });
 
 describe('parseNarrationOutput', () => {
-  it('rejects portal choices when this turn did not complete combat or a difficult challenge', () => {
-    const result = parseNarrationOutput(input, output({
-      narration: 'A portal opens with a low violet hum.',
-      choices: [
-        { label: 'Enter the portal', difficulty: 'easy', stat: 'magic', difficultyValue: 1 },
-        { label: 'Check the threshold', difficulty: 'easy', stat: 'mischief', difficultyValue: 6 },
-        { label: 'Brace and charge through', difficulty: 'normal', stat: 'might', difficultyValue: 10 },
-      ],
-    }));
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toContain('complete combat or a difficult challenge');
-    }
-  });
-
-  it('accepts portal choices after a successful difficult challenge', () => {
-    const result = parseNarrationOutput({
-      ...input,
-      actionAttempt: 'Disarm the collapsing bridge trap',
-      actionResult: {
-        success: true,
-        summary: 'Pip disarmed the bridge trap before it could collapse.',
-        difficultyTarget: 14,
-        impact: 'strong',
-      },
-    }, output({
-      narration: 'A cloaked figure gestures sharply and opens a portal beside the fallen foe.',
-      choices: [
-        { label: 'Enter the portal', difficulty: 'easy', stat: 'magic', difficultyValue: 1 },
-        { label: 'Question the figure', difficulty: 'normal', stat: 'mischief', difficultyValue: 10 },
-        { label: 'Guard the party', difficulty: 'normal', stat: 'might', difficultyValue: 11 },
-      ],
-    }));
-
-    expect(result.success).toBe(true);
-  });
-
-  it('accepts portal choices after completed combat', () => {
-    const result = parseNarrationOutput({
-      ...input,
-      actionAttempt: 'Defeat the spectral wolves',
-      actionResult: {
-        success: true,
-        summary: 'The spectral wolves fall back and the combat ends in victory.',
-      },
-    }, output({
-      narration: 'A cloaked figure appears, gesturing towards an ethereal portal shimmering with light.',
-      choices: [
-        { label: 'Follow the portal to the unknown', difficulty: 'easy', stat: 'magic', difficultyValue: 1 },
-        { label: 'Question the figure', difficulty: 'normal', stat: 'mischief', difficultyValue: 10 },
-        { label: 'Guard the party', difficulty: 'normal', stat: 'might', difficultyValue: 11 },
-      ],
-    }));
-
-    expect(result.success).toBe(true);
-  });
-
-  it('accepts portal choices when a sprite urges the party toward the portal after combat', () => {
-    const result = parseNarrationOutput({
-      ...input,
-      actionAttempt: 'Strike the shadow monster',
-      actionResult: {
-        success: true,
-        summary: 'Pip lands the final blow and the monster is defeated.',
-      },
-    }, output({
-      narration: 'A shimmering portal opens behind the foe, and Fiddlewick the sprite chirps excitedly, urging the party to seize the opportunity.',
-      choices: [
-        { label: 'Dive through the shimmering portal', difficulty: 'easy', stat: 'mischief', difficultyValue: 1, flavor: 'environment', environmentFeature: 'shimmering portal' },
-        { label: 'Question Fiddlewick first', difficulty: 'normal', stat: 'mischief', difficultyValue: 10 },
-        { label: 'Guard the party', difficulty: 'normal', stat: 'might', difficultyValue: 11 },
-      ],
-    }));
-
-    expect(result.success).toBe(true);
-  });
-
-  it('rejects portal choices when structured scene pressure says they are not earned yet', () => {
-    const result = parseNarrationOutput({
-      ...input,
-      actionAttempt: 'Strike the shadow monster',
-      actionResult: {
-        success: true,
-        summary: 'Pip lands a normal hit.',
-        difficultyTarget: 12,
-        impact: 'normal',
-      },
-      scenePressure: {
-        kind: 'combat',
-        pressureTurns: 1,
-        successfulPressureTurns: 1,
-        previousTensionLevels: ['high'],
-        portalEligibleThisTurn: false,
-        reason: 'Portal transition not earned by current turn pressure.',
-      },
-    }, output({
-      narration: 'The monster staggers, and a portal flares behind it.',
-      choices: [
-        { label: 'Dive through the shimmering portal', difficulty: 'easy', stat: 'mischief', difficultyValue: 1 },
-        { label: 'Press the attack', difficulty: 'normal', stat: 'might', difficultyValue: 12 },
-        { label: 'Guard the party', difficulty: 'normal', stat: 'might', difficultyValue: 11 },
-      ],
-    }));
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toContain('complete combat or a difficult challenge');
-    }
-  });
-
-  it('accepts portal choices when structured scene pressure says this turn earned one', () => {
-    const result = parseNarrationOutput({
-      ...input,
-      actionAttempt: 'Strike the shadow monster',
-      actionResult: {
-        success: true,
-        summary: 'Pip lands a decisive final blow.',
-        difficultyTarget: 14,
-        impact: 'strong',
-      },
-      scenePressure: {
-        kind: 'combat',
-        pressureTurns: 2,
-        successfulPressureTurns: 2,
-        previousTensionLevels: ['medium', 'high'],
-        portalEligibleThisTurn: true,
-        reason: 'Current turn earned a fast transition after sustained pressure.',
-      },
-    }, output({
-      narration: 'The monster collapses, and a summoned spirit opens a bright shortcut.',
-      choices: [
-        { label: 'Take the shortcut', difficulty: 'easy', stat: 'mischief', difficultyValue: 1 },
-        { label: 'Question the spirit', difficulty: 'normal', stat: 'mischief', difficultyValue: 10 },
-        { label: 'Guard the party', difficulty: 'normal', stat: 'might', difficultyValue: 11 },
-      ],
-    }));
-
-    expect(result.success).toBe(true);
-  });
-
-  it('rejects portal choices after healing even when the existing story already established a portal', () => {
-    const result = parseNarrationOutput({
-      ...input,
-      actionAttempt: 'Heal the whole party',
-      storySummary: 'A shimmering portal waits at the edge of the bridge.',
-      actionResult: {
-        success: true,
-        summary: 'Pip restores the party with a careful healing spell.',
-        difficultyTarget: 14,
-        impact: 'strong',
-      },
-    }, output({
-      narration: 'Pip takes a moment to steady the party.',
-      choices: [
-        { label: 'Step through the portal', difficulty: 'easy', stat: 'magic', difficultyValue: 8 },
-        { label: 'Check the threshold', difficulty: 'normal', stat: 'mischief', difficultyValue: 10 },
-        { label: 'Guard the party', difficulty: 'normal', stat: 'might', difficultyValue: 11 },
-      ],
-    }));
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toContain('complete combat or a difficult challenge');
-    }
-  });
-
   it('normalizes zug-ma-geddon output to high tension', () => {
     const result = parseNarrationOutput({ ...input, gameMode: 'zug-ma-geddon' }, output({
       currentTensionLevel: 'medium',
@@ -222,7 +55,6 @@ describe('parseNarrationOutput', () => {
         pressureTurns: 1,
         successfulPressureTurns: 0,
         previousTensionLevels: ['medium'],
-        portalEligibleThisTurn: false,
         reason: 'Combat pressure should drive high tension.',
       },
     }, output({
@@ -267,15 +99,31 @@ describe('parseNarrationOutput', () => {
     }
   });
 
-  it('rejects healing state changes when the action was not healing or recovery', () => {
-    const result = parseNarrationOutput({ ...input, actionAttempt: 'Teleport the party through the portal' }, output({
-      narration: 'Pip guides the party through a bright portal to a safer path.',
+  it('strips suggestedHeal when the action was not healing or recovery', () => {
+    const result = parseNarrationOutput({ ...input, actionAttempt: 'Strike the enemy' }, output({
+      narration: 'Pip lands a solid blow.',
       suggestedHeal: [{ characterName: 'Pip', hp: 2 }],
     }));
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toContain('suggestedHeal');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.suggestedHeal).toBeNull();
+    }
+  });
+
+  it('downgrades combo choices with an invalid helper to standard', () => {
+    const result = parseNarrationOutput(input, output({
+      choices: [
+        { label: 'Team up with Zara', difficulty: 'easy', stat: 'magic', difficultyValue: 8, flavor: 'combo', helperCharacterName: 'Zara' },
+        { label: 'Check for traps', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+        { label: 'Call for help', difficulty: 'easy', stat: 'magic', difficultyValue: 7 },
+      ],
+    }));
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.choices[0].flavor).toBe('standard');
+      expect(result.data.choices[0].helperCharacterName).toBeUndefined();
     }
   });
 

@@ -13,7 +13,6 @@ export interface ScenePressure {
   pressureTurns: number;
   successfulPressureTurns: number;
   previousTensionLevels: TensionLevel[];
-  portalEligibleThisTurn: boolean;
   reason: string;
 }
 

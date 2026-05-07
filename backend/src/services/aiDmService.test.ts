@@ -138,8 +138,7 @@ describe('toNarrationInput', () => {
         pressureTurns: 2,
         successfulPressureTurns: 1,
         previousTensionLevels: ['high'],
-        portalEligibleThisTurn: true,
-        reason: 'Current turn earned a fast transition after sustained pressure.',
+        reason: 'Scene pressure computed.',
       },
     }));
 
@@ -148,8 +147,7 @@ describe('toNarrationInput', () => {
       pressureTurns: 2,
       successfulPressureTurns: 1,
       previousTensionLevels: ['high'],
-      portalEligibleThisTurn: true,
-      reason: 'Current turn earned a fast transition after sustained pressure.',
+      reason: 'Scene pressure computed.',
     });
   });
 

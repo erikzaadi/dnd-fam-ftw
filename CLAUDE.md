@@ -150,6 +150,10 @@ When adding CLI subcommands or flags, also update `scripts/cli-completion.bash`.
 
 Controlled by `IMAGE_STORAGE_PROVIDER` env var (`local` or `s3`). Never call `fs` directly for images - always use `imageService.ts`. `savingsMode = true` skips image generation.
 
+## Image prompt architecture
+
+All image prompts are built via `buildImagePrompt()` in `imageService.ts`, which prepends `IMAGE_COMPOSITION_GUARDRAIL` (a long inline negative-instruction string) to every prompt. This is the only mechanism that works with OpenAI/DALL-E - the `DEFAULT_NEGATIVE_PROMPT` in `ImageProvider.ts` is passed as a separate field but DALL-E 3 has no negative prompt parameter and silently ignores it. `DEFAULT_NEGATIVE_PROMPT` is only effective for LocalAI (Stable Diffusion). To suppress unwanted image content when using DALL-E, add the instruction to `IMAGE_COMPOSITION_GUARDRAIL`, not to `DEFAULT_NEGATIVE_PROMPT`.
+
 ## Static image assets
 
 `backend/src/scripts/generateStaticAssets.ts` is a one-time DALL-E generation script for bundled frontend images (intervention dragon, sanctuary light, home banner, UI icons, etc.). Output goes to `frontend/public/images/`. The script is idempotent - it skips files that already exist. Run from `backend/`:

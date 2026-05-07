@@ -363,7 +363,7 @@ Game mode is set at realm creation alongside difficulty. It controls the **pacin
 
 | Mode | Pacing |
 |------|--------|
-| **Fast** | Narration under 3 sentences. Immediate action, frequent conflict, skip slow descriptions. Tension escalates quickly. Prioritises combat, traps, and danger. After a combat victory (when no DM Prep is set), a brief NPC may appear in the narration and offer or activate a portal/shortcut toward the next challenge. Portal choices are valid only on turns where that NPC explicitly appears in the narration. |
+| **Fast** | Narration under 3 sentences. Immediate action, frequent conflict, skip slow descriptions. Tension escalates quickly. Prioritises combat, traps, and danger. |
 | **Balanced** | Mix of exploration and action. Moderate pacing. Tension escalates at a natural rate. |
 | **Cinematic** | Rich descriptions, character moments, slower pacing. Tension builds deliberately. |
 | **ZUG-MA-GEDDON** | Straight to battle. Every turn is chaos. Maximum tension always. The AI is instructed to generate non-stop combat encounters and escalate without mercy. Not for the faint of heart. |
