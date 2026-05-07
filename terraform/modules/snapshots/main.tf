@@ -13,6 +13,23 @@ resource "aws_s3_bucket_public_access_block" "snapshots" {
   restrict_public_buckets = true
 }
 
+resource "aws_s3_bucket_lifecycle_configuration" "snapshots" {
+  bucket = aws_s3_bucket.snapshots.id
+
+  rule {
+    id     = "expire-db-backups"
+    status = "Enabled"
+
+    filter {
+      prefix = "db-backups/"
+    }
+
+    expiration {
+      days = 90
+    }
+  }
+}
+
 resource "aws_iam_user" "ci" {
   name = "dnd-fam-ftw-ci"
 }

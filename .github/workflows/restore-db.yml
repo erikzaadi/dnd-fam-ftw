@@ -1,0 +1,106 @@
+# Restore a SQLite database backup from S3.
+# Manual only - never triggered automatically.
+#
+# Required secrets in the 'production' environment (shared with deploy workflow):
+#   AWS_ACCESS_KEY_ID     - from terraform output app_access_key_id
+#   AWS_SECRET_ACCESS_KEY - from terraform output app_secret_access_key
+#   LIGHTSAIL_INSTANCE_NAME
+#   LIGHTSAIL_HOST
+#   SSH_PRIVATE_KEY
+# Required variable in the 'production' environment:
+#   SNAPSHOTS_BUCKET_NAME - same bucket as VISUAL_SNAPSHOTS_BUCKET in the 'ci' environment
+#
+# Provide backup_date in YYYY-MM-DD format matching an existing backup.
+# To list available backups: aws s3 ls s3://<bucket>/db-backups/
+
+name: Restore DB
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_date:
+        description: "Backup date to restore (YYYY-MM-DD, e.g. 2026-05-04)"
+        type: string
+        required: true
+
+env:
+  AWS_REGION: eu-west-1
+  DB_PATH: /mnt/dnd-fam-ftw-data/app.db
+  SERVICE_NAME: dnd-fam-ftw
+  SSH_USER: ubuntu
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Download backup from S3
+        run: |
+          BACKUP_FILE="app-${{ inputs.backup_date }}.db"
+          aws s3 cp \
+            "s3://${{ vars.SNAPSHOTS_BUCKET_NAME }}/db-backups/$BACKUP_FILE" \
+            "/tmp/$BACKUP_FILE"
+          echo "BACKUP_FILE=$BACKUP_FILE" >> "$GITHUB_ENV"
+
+      - name: Open SSH for this runner
+        id: ssh_access
+        run: |
+          RUNNER_IP=$(curl -s https://checkip.amazonaws.com)
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws lightsail open-instance-public-ports \
+            --no-cli-pager \
+            --instance-name "${{ secrets.LIGHTSAIL_INSTANCE_NAME }}" \
+            --port-info fromPort=22,toPort=22,protocol=TCP,cidrs="[\"$RUNNER_IP/32\"]"
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.LIGHTSAIL_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Transfer backup to server
+        run: |
+          scp "/tmp/$BACKUP_FILE" "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}:/tmp/$BACKUP_FILE"
+
+      - name: Stop service, restore DB, restart service
+        run: |
+          # shellcheck disable=SC2029
+          ssh "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}" "
+            set -e
+            sudo systemctl stop $SERVICE_NAME
+            sudo cp $DB_PATH ${DB_PATH}.pre-restore-$(date -u +\"%Y%m%dT%H%M%SZ\")
+            sudo cp /tmp/$BACKUP_FILE $DB_PATH
+            sudo chown ubuntu:ubuntu $DB_PATH
+            rm /tmp/$BACKUP_FILE
+            sudo systemctl start $SERVICE_NAME
+            sleep 3
+            systemctl is-active $SERVICE_NAME
+          "
+
+      - name: Close SSH for this runner
+        if: always()
+        run: |
+          aws lightsail close-instance-public-ports \
+            --no-cli-pager \
+            --instance-name "${{ secrets.LIGHTSAIL_INSTANCE_NAME }}" \
+            --port-info fromPort=22,toPort=22,protocol=TCP,cidrs="[\"${{ steps.ssh_access.outputs.runner_ip }}/32\"]"
+
+      - name: Notify on failure
+        if: failure()
+        uses: ./.github/actions/notify-pushover
+        with:
+          status: failure
+          token: ${{ secrets.PUSHOVER_TOKEN }}
+          user: ${{ secrets.PUSHOVER_USER }}
+          title: Restore DB

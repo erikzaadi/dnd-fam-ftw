@@ -12,3 +12,8 @@ variable "hosted_zone_id" {
   description = "Route 53 hosted zone ID - used to scope the certbot DNS policy"
   type        = string
 }
+
+variable "snapshots_bucket_name" {
+  description = "S3 snapshots bucket name - used to scope the db-backups IAM policy"
+  type        = string
+}

@@ -1,0 +1,91 @@
+# Weekly SQLite database backup to S3.
+# Runs every Sunday at 02:00 UTC, or manually via workflow_dispatch.
+#
+# Required secrets in the 'production' environment (shared with deploy workflow):
+#   AWS_ACCESS_KEY_ID     - from terraform output app_access_key_id
+#   AWS_SECRET_ACCESS_KEY - from terraform output app_secret_access_key
+#   LIGHTSAIL_INSTANCE_NAME
+#   LIGHTSAIL_HOST
+#   SSH_PRIVATE_KEY
+# Required variable in the 'production' environment (Actions Variable, not Secret):
+#   SNAPSHOTS_BUCKET_NAME - same bucket as VISUAL_SNAPSHOTS_BUCKET in the 'ci' environment
+#
+# Backups are stored at s3://<SNAPSHOTS_BUCKET_NAME>/db-backups/app-YYYY-MM-DD.db
+# A 90-day lifecycle rule on the bucket expires old backups automatically.
+
+name: Backup DB
+
+on:
+  schedule:
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: eu-west-1
+  DB_PATH: /mnt/dnd-fam-ftw-data/app.db
+  SSH_USER: ubuntu
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Open SSH for this runner
+        id: ssh_access
+        run: |
+          RUNNER_IP=$(curl -s https://checkip.amazonaws.com)
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws lightsail open-instance-public-ports \
+            --no-cli-pager \
+            --instance-name "${{ secrets.LIGHTSAIL_INSTANCE_NAME }}" \
+            --port-info fromPort=22,toPort=22,protocol=TCP,cidrs="[\"$RUNNER_IP/32\"]"
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.LIGHTSAIL_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Backup DB on server
+        run: |
+          BACKUP_FILE="app-$(date -u +"%Y-%m-%d").db"
+          # shellcheck disable=SC2029
+          ssh "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}" "cp $DB_PATH /tmp/$BACKUP_FILE"
+          scp "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}:/tmp/$BACKUP_FILE" "/tmp/$BACKUP_FILE"
+          # shellcheck disable=SC2029
+          ssh "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}" "rm /tmp/$BACKUP_FILE"
+          echo "BACKUP_FILE=$BACKUP_FILE" >> "$GITHUB_ENV"
+
+      - name: Upload backup to S3
+        run: |
+          aws s3 cp "/tmp/$BACKUP_FILE" \
+            "s3://${{ vars.SNAPSHOTS_BUCKET_NAME }}/db-backups/$BACKUP_FILE"
+          echo "Uploaded db-backups/$BACKUP_FILE"
+
+      - name: Close SSH for this runner
+        if: always()
+        run: |
+          aws lightsail close-instance-public-ports \
+            --no-cli-pager \
+            --instance-name "${{ secrets.LIGHTSAIL_INSTANCE_NAME }}" \
+            --port-info fromPort=22,toPort=22,protocol=TCP,cidrs="[\"${{ steps.ssh_access.outputs.runner_ip }}/32\"]"
+
+      - name: Notify on failure
+        if: failure()
+        uses: ./.github/actions/notify-pushover
+        with:
+          status: failure
+          token: ${{ secrets.PUSHOVER_TOKEN }}
+          user: ${{ secrets.PUSHOVER_USER }}
+          title: Backup DB

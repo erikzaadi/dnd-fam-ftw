@@ -68,10 +68,11 @@ module "snapshots" {
 }
 
 module "iam" {
-  source               = "./modules/iam"
-  image_bucket_name    = var.image_bucket_name
-  ssm_parameter_prefix = var.ssm_parameter_prefix
-  hosted_zone_id       = data.aws_route53_zone.main.zone_id
+  source                = "./modules/iam"
+  image_bucket_name     = var.image_bucket_name
+  ssm_parameter_prefix  = var.ssm_parameter_prefix
+  hosted_zone_id        = data.aws_route53_zone.main.zone_id
+  snapshots_bucket_name = var.snapshots_bucket_name
 }
 
 # App IAM credentials - stored in SSM so deploy workflows read them automatically

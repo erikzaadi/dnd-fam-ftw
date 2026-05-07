@@ -18,6 +18,25 @@ data "aws_iam_policy_document" "app" {
     resources = ["arn:aws:s3:::${var.image_bucket_name}"]
   }
 
+  # DB backup bucket access
+  statement {
+    actions = [
+      "s3:PutObject",
+      "s3:GetObject",
+    ]
+    resources = ["arn:aws:s3:::${var.snapshots_bucket_name}/db-backups/*"]
+  }
+
+  statement {
+    actions   = ["s3:ListBucket"]
+    resources = ["arn:aws:s3:::${var.snapshots_bucket_name}"]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["db-backups/*"]
+    }
+  }
+
   # SSM secrets access
   statement {
     actions = [
