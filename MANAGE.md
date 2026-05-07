@@ -230,5 +230,24 @@ GitHub Actions handles automated deploys. Workflows live in `.github/workflows/`
 | `metrics.yml` | Sunday 10:00 UTC, manual | Gathers usage metrics + pending invite requests, AI summary via Pushover |
 | `visual-snapshots.yml` | `v*` tag, manual | Runs Playwright visual snapshot tests against a seeded prod instance; compare against S3 baselines. First run: dispatch with `update_snapshots=true` to generate baselines. |
 | `renew-cert.yml` | Scheduled (monthly) | Renews the Let's Encrypt cert via `certbot renew` |
+| `backup-db.yml` | Sunday 02:00 UTC, manual | Copies the SQLite DB from the instance and uploads to `s3://<SNAPSHOTS_BUCKET_NAME>/db-backups/`. Backups expire after 90 days. |
+| `restore-db.yml` | Manual only | Downloads a backup from S3, stops the service, overwrites the DB, restarts. Input: `backup_date` (YYYY-MM-DD). |
 
 Required GitHub secrets (in the `production` environment): `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `LIGHTSAIL_INSTANCE_NAME`, `LIGHTSAIL_HOST`, `SSH_PRIVATE_KEY`, `API_DOMAIN`, `FRONTEND_DOMAIN`, `FRONTEND_BUCKET_NAME`, `IMAGE_BUCKET_NAME`, `CF_DIST_ID`.
+Required GitHub variable (in the `production` environment): `SNAPSHOTS_BUCKET_NAME`.
+
+### Inspecting a backup locally
+
+Download a backup and run CLI commands against it:
+
+```bash
+# List available backups
+aws s3 ls s3://<SNAPSHOTS_BUCKET_NAME>/db-backups/
+
+# Download a backup
+aws s3 cp s3://<SNAPSHOTS_BUCKET_NAME>/db-backups/app-YYYY-MM-DD.db ./app-backup.db
+
+# Run CLI against the backup (full path required)
+SQLITE_DB_PATH=${PWD}/app-backup.db ./dnd-fam-ftw-cli namespaces list
+SQLITE_DB_PATH=${PWD}/app-backup.db ./dnd-fam-ftw-cli sessions list --json
+```
