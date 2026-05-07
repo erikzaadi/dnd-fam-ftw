@@ -68,3 +68,7 @@ export const broadcastSessionListUpdate = (namespaceId: string | undefined, type
 export const broadcastSessionChanged = (namespaceId: string | undefined, sessionId: string, action: 'created' | 'updated' | 'deleted') => {
   broadcastSessionListUpdate(namespaceId, 'session_changed', { sessionId, action });
 };
+
+export const broadcastInstantStartReady = (namespaceId: string | undefined, sessionId: string) => {
+  broadcastSessionListUpdate(namespaceId, 'instant_start_ready', { sessionId });
+};

@@ -41,10 +41,11 @@ export const sessionRepository = {
     namespaceId: string = 'local',
     gameMode: 'cinematic' | 'balanced' | 'fast' = 'balanced',
     dmPrep?: string,
+    initialDisplayName?: string,
   ): Promise<SessionState> {
     const db = getDb();
     const id = createId();
-    const displayName = await generateSessionDisplayName(worldDescription, useLocalAI);
+    const displayName = initialDisplayName ?? await generateSessionDisplayName(worldDescription, useLocalAI);
 
     db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, turn, tone, displayName, difficulty, gameMode, useLocalAI, savingsMode, namespace_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(id, "A New Realm", "start-1", worldDescription || null, dmPrep || null, null, 1, "thrilling adventure", displayName, difficulty, gameMode, useLocalAI ? 1 : 0, savingsMode ? 1 : 0, namespaceId);

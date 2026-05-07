@@ -2,6 +2,7 @@ import { Router } from 'express';
 import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { broadcastSessionChanged, broadcastSessionListUpdate, broadcastUpdate } from '../realtime/sessionEvents.js';
+import { buildInstantStartParty, runInstantStartBackground } from '../services/instantStartService.js';
 import { AiDmService } from '../services/aiDmService.js';
 import { ImageService } from '../services/imageService.js';
 import { SettingsService } from '../services/settingsService.js';
@@ -53,6 +54,42 @@ export const createSessionRouter = () => {
     const id = StateService.cloneOnboardingSession(req.namespaceId);
     broadcastSessionChanged(req.namespaceId, id, 'created');
     res.json({ id });
+  }));
+
+  router.post('/session/instant-start', asyncHandler(async (req, res) => {
+    const limits = StateService.getNamespaceLimits(req.namespaceId);
+    if (limits.maxSessions !== null) {
+      const count = StateService.countSessionsInNamespace(req.namespaceId);
+      if (count >= limits.maxSessions) {
+        res.status(403).json({ error: 'session_limit', message: `This adventure group has reached its limit of ${limits.maxSessions} session(s). Ask the DM to remove old sessions.` });
+        return;
+      }
+    }
+
+    const settings = SettingsService.get();
+    const savingsMode = !settings.imagesEnabled;
+    const useLocalAI = settings.defaultUseLocalAI;
+    const randomPace = Math.random() < 0.5 ? 'fast' : 'balanced';
+
+    const session = await StateService.createSession(
+      undefined,
+      'normal',
+      useLocalAI,
+      savingsMode,
+      req.namespaceId,
+      randomPace,
+      undefined,
+      'A New Realm',
+    );
+
+    session.party = buildInstantStartParty(session.id);
+    session.activeCharacterId = session.party[0].id;
+    await StateService.updateSession(session.id, session);
+
+    broadcastSessionChanged(req.namespaceId, session.id, 'created');
+    res.json({ id: session.id, savingsMode });
+
+    void runInstantStartBackground(session.id, session, req.namespaceId);
   }));
 
   router.delete('/session/:id', asyncHandler(async (req, res) => {
