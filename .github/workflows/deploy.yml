@@ -134,13 +134,8 @@ jobs:
             backend/dist/ "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}:$CURRENT_DIR/dist/"
           rsync -avz --delete \
             backend/public/ "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}:$CURRENT_DIR/public/"
-          rsync -avz --delete \
+          rsync -avz --delete --copy-unsafe-links \
             backend/node_modules/ "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}:$CURRENT_DIR/node_modules/"
-          rsync -avz --delete \
-            packages/shared/dist/ "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}:$CURRENT_DIR/packages/shared/dist/"
-          rsync -avz \
-            packages/shared/package.json \
-            "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}:$CURRENT_DIR/packages/shared/"
           rsync -avz \
             backend/package.json \
             backend/package-lock.json \
