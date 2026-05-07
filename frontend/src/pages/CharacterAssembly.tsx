@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Character, Session } from '../types';
 import { apiFetch, imgSrc } from '../lib/api';
+import { RANDOM_NAMES, RANDOM_CLASSES, RANDOM_SPECIES, RANDOM_QUIRKS, pickRandom } from '@dnd-fam-ftw/shared';
 import { CharacterPopup } from '../components/CharacterPopup';
 import { CharacterForm } from '../components/CharacterForm';
 import { CharacterImportModal } from '../components/CharacterImportModal';
@@ -24,7 +25,23 @@ export const CharacterAssembly = () => {
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
   const [editingChar, setEditingChar] = useState<Character | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<{ name: string; class: string; species: string; quirk: string } | null>(null);
   const partyChangedRef = useRef(false);
+
+  const generateSuggestions = useCallback(() => {
+    const usedNames = session?.party.map(c => c.name) ?? [];
+    const usedQuirks = session?.party.map(c => c.quirk) ?? [];
+    try {
+      setSuggestions({
+        name: pickRandom(RANDOM_NAMES, usedNames),
+        class: pickRandom(RANDOM_CLASSES),
+        species: pickRandom(RANDOM_SPECIES),
+        quirk: pickRandom(RANDOM_QUIRKS, usedQuirks),
+      });
+    } catch {
+      setSuggestions(null);
+    }
+  }, [session]);
 
   const toggleSavingsMode = async () => {
     if (!session) {
@@ -213,8 +230,8 @@ export const CharacterAssembly = () => {
       <SiteHeader />
       {fullscreenImage && <FullscreenImage url={fullscreenImage} onClose={() => setFullscreenImage(null)} />}
       {isCreating && <CharacterForm onSave={saveCharacter} onCancel={() => {
-        setIsCreating(false); setEditingChar(null);
-      }} isLoading={loading} initialValues={editingChar} />}
+        setIsCreating(false); setEditingChar(null); setSuggestions(null);
+      }} isLoading={loading} initialValues={editingChar} suggestions={suggestions ?? undefined} onRandomize={generateSuggestions} />}
       {showImportModal && <CharacterImportModal characters={importableCharacters} onImport={importCharacter} onClose={() => setShowImportModal(false)} loading={loading} />}
       {viewingChar && <CharacterPopup character={viewingChar} onClose={() => setViewingChar(null)} onAvatarClick={(url) => {
         setViewingChar(null); setFullscreenImage(url);
@@ -256,7 +273,7 @@ export const CharacterAssembly = () => {
                     </div>
                     <div className="flex gap-1 ml-2">
                       <button onClick={() => {
-                        setEditingChar(c); setIsCreating(true); 
+                        setEditingChar(c); setSuggestions(null); setIsCreating(true);
                       }} className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-700 text-amber-500 hover:bg-amber-500/20 text-xs transition-colors">✎</button>
                       <button onClick={() => removeCharacter(c.id)} className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-700 text-rose-500 hover:bg-rose-500/20 text-xs transition-colors">✕</button>
                     </div>
@@ -268,7 +285,7 @@ export const CharacterAssembly = () => {
 
           <div className="flex gap-4">
             <button onClick={() => {
-              setEditingChar(null); setIsCreating(true); 
+              setEditingChar(null); generateSuggestions(); setIsCreating(true);
             }} className="flex-1 py-6 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm transition-all">+ Create New Hero</button>
             {importableCharacters.length > 0 && (
               <button onClick={() => setShowImportModal(true)} className="flex-1 py-6 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm transition-all">+ Import Hero</button>
