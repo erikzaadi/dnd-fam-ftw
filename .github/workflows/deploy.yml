@@ -132,6 +132,8 @@ jobs:
             backend/public/ "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}:$CURRENT_DIR/public/"
           rsync -avz --delete \
             backend/node_modules/ "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}:$CURRENT_DIR/node_modules/"
+          # shellcheck disable=SC2029
+          ssh "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}" "mkdir -p $CURRENT_DIR/packages/shared"
           rsync -avz --delete \
             packages/shared/ "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}:$CURRENT_DIR/packages/shared/"
           rsync -avz \
