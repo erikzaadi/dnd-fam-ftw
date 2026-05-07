@@ -28,6 +28,13 @@ rsync -avz --force --delete \
     --exclude='backend/public/generated/' \
     --exclude='backend/data/generated-images/' \
     --exclude='tts-sample*/' \
+    --filter='+ /packages/' \
+    --filter='+ /packages/shared/' \
+    --filter='+ /packages/shared/src/***' \
+    --filter='+ /packages/shared/package.json' \
+    --filter='+ /packages/shared/package-lock.json' \
+    --filter='+ /packages/shared/tsconfig.json' \
+    --filter='+ /packages/shared/tsconfig.build.json' \
     --filter='+ /backend/***' \
     --filter='+ /frontend/***' \
     --filter='+ /scripts/***' \

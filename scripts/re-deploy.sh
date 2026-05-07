@@ -23,13 +23,15 @@ sudo rm -rf frontend/node_modules/.vite
 # 3. Ensure dependencies are up to date
 npm run install:all
 
-# 4. Build the frontend (with /dnd-fam-ftw/ prefix for local laptop deployment)
+# 4. Build shared, frontend, and backend
+echo "Building shared..."
+npm run build:shared
+
 echo "Building frontend..."
 VITE_BASE_PATH=/dnd-fam-ftw/ npm run build
 
-# 4. Build the backend
 echo "Building backend..."
-npm run build:backend
+npm run build --prefix backend
 
 # 5. Force kill any lingering node/tsx processes
 # echo "Ensuring old backend processes are terminated..."
