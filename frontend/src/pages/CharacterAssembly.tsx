@@ -10,6 +10,7 @@ import { FullscreenImage } from '../components/FullscreenImage';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DmFooter } from '../components/DmFooter';
 import { SiteHeader } from '../components/SiteHeader';
+import { useSessionEvents } from '../hooks/useSessionEvents';
 
 export const CharacterAssembly = () => {
   const { id } = useParams<{ id: string }>();
@@ -27,6 +28,21 @@ export const CharacterAssembly = () => {
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<{ name: string; class: string; species: string; quirk: string } | null>(null);
   const partyChangedRef = useRef(false);
+
+  useSessionEvents({
+    sessionId: id ?? '',
+    onPartyUpdate: (updatedSession) => {
+      if (updatedSession) {
+        setSession(updatedSession);
+      }
+    },
+    onNarrating: () => {},
+    onTurnComplete: () => {},
+    onImageReady: () => {},
+    onIntervention: () => {},
+    onSanctuaryRecovery: () => {},
+    onGameOver: () => {},
+  });
 
   const generateSuggestions = useCallback(() => {
     const usedNames = session?.party.map(c => c.name) ?? [];
