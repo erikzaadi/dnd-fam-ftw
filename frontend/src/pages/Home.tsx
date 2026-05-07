@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DmFooter } from '../components/DmFooter';
 import { FullscreenImage } from '../components/FullscreenImage';
+import { InstantStartLoader } from '../components/InstantStartLoader';
 import { SiteHeader } from '../components/SiteHeader';
 import { Tooltip } from '../components/Tooltip';
 import { apiFetch, apiUrl, imgSrc } from '../lib/api';
@@ -354,6 +355,8 @@ export const Home = () => {
   const [sessionLimit, setSessionLimit] = useState<{ max: number; current: number } | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
   const [editSession, setEditSession] = useState<{ id: string; displayName: string; difficulty: string; gameMode: string; dmPrep?: string; worldDescription?: string } | null>(null);
+  const [instantStartPending, setInstantStartPending] = useState<string | null>(null);
+  const instantStartPendingRef = useRef<string | null>(null);
   const navigate = useNavigate();
   const cardRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -373,6 +376,37 @@ export const Home = () => {
       })
       .catch(() => { /* limits unavailable, proceed without */ });
   }, []);
+
+  useEffect(() => {
+    instantStartPendingRef.current = instantStartPending;
+  }, [instantStartPending]);
+
+  const handleInstantStart = async () => {
+    const res = await apiFetch('/session/instant-start', { method: 'POST' });
+    if (!res.ok) {
+      return;
+    }
+    const data = await res.json() as { id: string };
+    setInstantStartPending(data.id);
+  };
+
+  useEffect(() => {
+    if (!instantStartPending) {
+      return;
+    }
+    const timeout = setTimeout(async () => {
+      const pendingId = instantStartPendingRef.current;
+      if (!pendingId) {
+        return;
+      }
+      const check = await apiFetch(`/session/${pendingId}`).catch(() => null);
+      if (check?.ok) {
+        setInstantStartPending(null);
+        navigate(`/session/${pendingId}`);
+      }
+    }, 90_000);
+    return () => clearTimeout(timeout);
+  }, [instantStartPending, navigate]);
 
   useEffect(() => {
     loadSessions();
@@ -404,7 +438,17 @@ export const Home = () => {
       es = new EventSource(apiUrl('/sessions/events'), { withCredentials: true });
       es.onmessage = (e: MessageEvent) => {
         lastMessageAt = Date.now();
-        const data = JSON.parse(e.data) as { type?: string };
+        const data = JSON.parse(e.data) as { type?: string; sessionId?: string };
+        const pending = instantStartPendingRef.current;
+        if (
+          pending &&
+          (data.type === 'preview_image_available' || data.type === 'instant_start_ready') &&
+          data.sessionId === pending
+        ) {
+          setInstantStartPending(null);
+          navigate(`/session/${pending}`);
+          return;
+        }
         if (data.type === 'session_changed' || data.type === 'preview_image_available') {
           refresh();
         }
@@ -427,7 +471,7 @@ export const Home = () => {
       clearTimeout(reconnectTimer);
       clearInterval(staleTimer);
     };
-  }, [loadLimits, loadSessions]);
+  }, [loadLimits, loadSessions, navigate]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -468,6 +512,7 @@ export const Home = () => {
 
   return (
     <div className="h-[100dvh] bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col overflow-hidden">
+      {instantStartPending && <InstantStartLoader />}
       {confirmDialog && (
         <ConfirmDialog
           message={confirmDialog.message}
@@ -521,6 +566,13 @@ export const Home = () => {
                 GET ME ROLLIN'
               </button>
               <button
+                onClick={handleInstantStart}
+                disabled={!!instantStartPending}
+                className="px-6 py-3 bg-violet-900 hover:bg-violet-800 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-violet-700 rounded-[32px] text-base font-black uppercase italic tracking-tighter w-full transition-colors text-violet-200"
+              >
+                Roll the Bones
+              </button>
+              <button
                 onClick={() => navigate('/create-session')}
                 className="px-6 py-3 bg-slate-800 hover:bg-slate-700 border-2 border-slate-700 rounded-[32px] text-base font-black uppercase italic tracking-tighter w-full transition-colors text-slate-300"
               >
@@ -528,17 +580,26 @@ export const Home = () => {
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => navigate('/create-session')}
-              className="px-6 py-3 md:py-6 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-lg md:text-4xl font-black shadow-[0_8px_0_rgb(146,64,14)] md:shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter w-full flex items-center justify-center gap-3"
-            >
-              <img
-                src={imgSrc('/images/icon_dice.png')}
-                className="w-8 h-8 md:w-14 md:h-14 rounded-full object-cover animate-dice-shake flex-shrink-0"
-                alt=""
-              />
-              START A NEW REALM{sessionLimit ? ` (${sessionLimit.current}/${sessionLimit.max})` : ''}
-            </button>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => navigate('/create-session')}
+                className="px-6 py-3 md:py-6 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-lg md:text-4xl font-black shadow-[0_8px_0_rgb(146,64,14)] md:shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter w-full flex items-center justify-center gap-3"
+              >
+                <img
+                  src={imgSrc('/images/icon_dice.png')}
+                  className="w-8 h-8 md:w-14 md:h-14 rounded-full object-cover animate-dice-shake flex-shrink-0"
+                  alt=""
+                />
+                START A NEW REALM{sessionLimit ? ` (${sessionLimit.current}/${sessionLimit.max})` : ''}
+              </button>
+              <button
+                onClick={handleInstantStart}
+                disabled={!!instantStartPending}
+                className="px-6 py-3 bg-violet-900 hover:bg-violet-800 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-violet-700 rounded-[32px] text-base font-black uppercase italic tracking-tighter w-full transition-colors text-violet-200"
+              >
+                Roll the Bones
+              </button>
+            </div>
           )}
 
           {/* Sessions list */}

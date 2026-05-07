@@ -190,3 +190,5 @@ export interface Capabilities {
   hasCloudAI: boolean;
   hasTts: boolean;
 }
+
+export type SessionListEventType = 'connected' | 'heartbeat' | 'session_changed' | 'preview_image_available' | 'instant_start_ready';
