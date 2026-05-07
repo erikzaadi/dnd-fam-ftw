@@ -1,3 +1,5 @@
+export { RANDOM_NAMES, RANDOM_SPECIES, RANDOM_CLASSES, RANDOM_QUIRKS, pickRandom } from './data/characterRandomizers.js';
+
 export type {
   CharacterStatus,
   GameMode,
