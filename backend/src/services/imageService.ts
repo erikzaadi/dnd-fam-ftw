@@ -29,17 +29,17 @@ export type SceneImageContext = {
 
 const IMAGE_COMPOSITION_GUARDRAIL = [
   'Finished standalone fantasy illustration.',
-  'Single edge-to-edge image filling the square canvas.',
+  'Single edge-to-edge image filling the square frame.',
   'Continuous painted scene only, not a book page, parchment sheet, manuscript, title card, poster, trading card, gallery mat, or framed illustration.',
   'One shared camera view with every figure occupying the same physical environment.',
   'Only the described characters, creatures, props, and environment are visible.',
   'Blank unmarked surfaces; no readable symbols or markings.',
   'No captions, lettering, logos, borders, mats, picture frames, panels, split views, grids, contact sheets, character sheets, portrait cards, labels under figures, header bands, footer bands, blank margins, menus, toolbars, editor controls, crop handles, selection boxes, rulers, guides, or software interface elements.',
-  'No artist hands, brushes, paint palettes, color swatches, easels, canvases, art supplies, or image-creation process visible.',
+  'No artist hands, brushes, paint palettes, color swatches, easels, stretched canvas, linen texture, canvas wrap, painting mounted on wall, artwork displayed in gallery, art supplies, or image-creation process visible.',
 ].join(' ');
 
 export const IMAGE_PROMPT_STYLE = {
-  avatar: 'Final rendered fantasy character portrait, painterly detail, centered portrait composition, no studio or painting tools.',
+  avatar: 'Highly detailed digital fantasy character illustration, sharp rendering, centered close-up composition. The character is a real being in the scene, not a painting, print, or artwork mounted on any surface.',
   scene: 'Fantasy scene illustration, detailed fantasy art, cinematic lighting, vibrant colors.',
   preview: 'Painterly fantasy adventure art, cinematic lighting, vibrant colors, full-bleed landscape composition with no margins.',
 } as const;
@@ -72,9 +72,9 @@ export class ImageService {
   ): Promise<{ url: string; prompt: string; storageKey: string; storageProvider: string }> {
     const genderDesc = char.gender ? `${char.gender} ` : '';
     const visualQuirk = this.getSafeVisualQuirk(char.quirk);
-    const quirkPart = visualQuirk ? ` The portrait includes ${visualQuirk}.` : '';
+    const quirkPart = visualQuirk ? ` The character visibly has ${visualQuirk}.` : '';
     const prompt = buildImagePrompt(
-      `Close-up portrait of a ${genderDesc}${char.species.toLowerCase()} ${char.class.toLowerCase()} fantasy RPG character on a dark atmospheric background with dramatic rim lighting.${quirkPart}`,
+      `Close-up of a ${genderDesc}${char.species.toLowerCase()} ${char.class.toLowerCase()} fantasy RPG character standing on a dark atmospheric background with dramatic rim lighting. The character fills the frame directly.${quirkPart}`,
       IMAGE_PROMPT_STYLE.avatar,
     );
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');

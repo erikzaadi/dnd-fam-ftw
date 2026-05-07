@@ -5,7 +5,7 @@ import { StateService } from './stateService.js';
 import { StorySummaryService } from './storySummaryService.js';
 import { broadcastInstantStartReady, broadcastUpdate } from '../realtime/sessionEvents.js';
 import { refreshDmPrepImageBriefAndPreview, triggerPreviewRegen } from './sessionPreviewService.js';
-import { pickRandomPartyArchetypes, pickWorldSeed } from '../data/instantStartArchetypes.js';
+import { pickRandomPartyArchetypes, type WorldSeed } from '../data/instantStartArchetypes.js';
 import type { Character, SessionState } from '../types.js';
 
 export function buildInstantStartParty(sessionId: string): Character[] {
@@ -32,6 +32,7 @@ export async function runInstantStartBackground(
   sessionId: string,
   session: SessionState,
   namespaceId: string,
+  seed: WorldSeed,
 ): Promise<void> {
   const avatarPromises = session.party.map(async char => {
     try {
@@ -59,8 +60,6 @@ export async function runInstantStartBackground(
   });
 
   const realmPromise = async () => {
-    const seed = pickWorldSeed();
-
     const withRealm = await StateService.getSession(sessionId);
     if (!withRealm) {
       return;
@@ -143,8 +142,9 @@ export async function runInstantStartBackground(
     triggerPreviewRegen(sessionId, session.useLocalAI, namespaceId);
   };
 
-  await Promise.allSettled([
-    Promise.allSettled(avatarPromises),
-    realmPromise(),
-  ]);
+  // Critical path first: realm setup, first turn, and navigation signal.
+  // Avatars compete for the same API rate limit slots so they start only after
+  // the navigation event has already been broadcast.
+  await realmPromise();
+  await Promise.allSettled(avatarPromises);
 }

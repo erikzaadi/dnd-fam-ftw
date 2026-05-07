@@ -42,9 +42,10 @@ export const sessionRepository = {
     gameMode: 'cinematic' | 'balanced' | 'fast' = 'balanced',
     dmPrep?: string,
     initialDisplayName?: string,
+    initialId?: string,
   ): Promise<SessionState> {
     const db = getDb();
-    const id = createId();
+    const id = initialId ?? createId();
     const displayName = initialDisplayName ?? await generateSessionDisplayName(worldDescription, useLocalAI);
 
     db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, turn, tone, displayName, difficulty, gameMode, useLocalAI, savingsMode, namespace_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')

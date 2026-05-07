@@ -136,7 +136,7 @@ describe('ImageService.generateAvatar', () => {
     expect(result.url).toBeTruthy();
     expect(result.prompt).toContain('halfling rogue');
     expect(result.prompt).toContain('fantasy illustration');
-    expect(result.prompt).toContain('Close-up portrait');
+    expect(result.prompt).toContain('Close-up of a');
     expect(result.prompt).toContain('No captions, lettering, logos, borders');
     expect(provider.calls).toHaveLength(1);
     expect(storage.stored.size).toBe(1);
@@ -146,7 +146,7 @@ describe('ImageService.generateAvatar', () => {
     const provider = makeMockImageProvider();
     const char = { name: 'Pip', class: 'Rogue', species: 'Halfling', quirk: 'Talks to plants' };
     const prompt = buildImagePrompt(
-      `Close-up portrait of a ${char.species.toLowerCase()} ${char.class.toLowerCase()} fantasy RPG character on a dark atmospheric background with dramatic rim lighting. The portrait includes expressive theatrical posture.`,
+      `Close-up of a ${char.species.toLowerCase()} ${char.class.toLowerCase()} fantasy RPG character standing on a dark atmospheric background with dramatic rim lighting. The character fills the frame directly. The character visibly has expressive theatrical posture.`,
       IMAGE_PROMPT_STYLE.avatar,
     );
     const hash = crypto.createHash('md5').update(prompt).digest('hex');

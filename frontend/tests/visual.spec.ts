@@ -102,6 +102,12 @@ function seedSessionsFixture(): void {
 }
 
 test('home', async ({ page }) => {
+  // Stub sessions so the snapshot is stable regardless of database state
+  await page.route('**/api/sessions', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([]),
+  }));
   await page.goto('/');
   await dismissAudioOverlay(page);
   await screenshotViewports(page, 'home');
@@ -125,7 +131,10 @@ test('instant-start-loader', async ({ page }) => {
   await dismissAudioOverlay(page);
   await page.getByRole('button', { name: /Roll the Bones/i }).click();
 
-  // Freeze the pun cycle at index 0 by stopping the interval - inject a stable pun
+  // Wait for the loader to mount before freezing the pun text
+  await expect(page.getByTestId('instant-start-loader')).toBeVisible({ timeout: 5_000 });
+
+  // Freeze the pun cycle at a stable value for the snapshot
   await page.evaluate(() => {
     const el = document.querySelector('[data-testid="instant-start-pun"]') ??
       Array.from(document.querySelectorAll('p')).find(p => p.textContent?.includes('...'));
@@ -134,7 +143,6 @@ test('instant-start-loader', async ({ page }) => {
     }
   });
 
-  await expect(page.getByText('Fate is deciding...')).toBeVisible({ timeout: 5_000 });
   await screenshotViewports(page, 'instant-start-loader');
 });
 

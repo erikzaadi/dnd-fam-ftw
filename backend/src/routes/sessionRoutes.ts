@@ -3,6 +3,8 @@ import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { broadcastSessionChanged, broadcastSessionListUpdate, broadcastUpdate } from '../realtime/sessionEvents.js';
 import { buildInstantStartParty, runInstantStartBackground } from '../services/instantStartService.js';
+import { pickWorldSeed } from '../data/instantStartArchetypes.js';
+import { createQuickStartId } from '../lib/ids.js';
 import { AiDmService } from '../services/aiDmService.js';
 import { ImageService } from '../services/imageService.js';
 import { SettingsService } from '../services/settingsService.js';
@@ -70,6 +72,8 @@ export const createSessionRouter = () => {
     const savingsMode = !settings.imagesEnabled;
     const useLocalAI = settings.defaultUseLocalAI;
     const randomPace = Math.random() < 0.5 ? 'fast' : 'balanced';
+    const seed = pickWorldSeed();
+    const sessionId = createQuickStartId();
 
     const session = await StateService.createSession(
       undefined,
@@ -79,7 +83,8 @@ export const createSessionRouter = () => {
       req.namespaceId,
       randomPace,
       undefined,
-      'A New Realm',
+      seed.displayName,
+      sessionId,
     );
 
     session.party = buildInstantStartParty(session.id);
@@ -89,7 +94,7 @@ export const createSessionRouter = () => {
     broadcastSessionChanged(req.namespaceId, session.id, 'created');
     res.json({ id: session.id, savingsMode });
 
-    void runInstantStartBackground(session.id, session, req.namespaceId);
+    void runInstantStartBackground(session.id, session, req.namespaceId, seed);
   }));
 
   router.delete('/session/:id', asyncHandler(async (req, res) => {

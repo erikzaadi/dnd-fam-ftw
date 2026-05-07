@@ -16,7 +16,7 @@ const PUNS = [
   'Debating whether goblins count as a warm-up...',
 ];
 
-const CYCLE_MS = 2500;
+const CYCLE_MS = 4500;
 
 export const InstantStartLoader = () => {
   const [punIndex, setPunIndex] = useState(0);

@@ -575,7 +575,7 @@ export const Home = () => {
                 disabled={!!instantStartPending}
                 className="px-6 py-3 bg-violet-900 hover:bg-violet-800 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-violet-700 rounded-[32px] text-base font-black uppercase italic tracking-tighter w-full transition-colors text-violet-200"
               >
-                Roll the Bones
+                Quick Start: Roll the Bones
               </button>
               <button
                 onClick={() => navigate('/create-session')}
@@ -602,7 +602,7 @@ export const Home = () => {
                 disabled={!!instantStartPending}
                 className="px-6 py-3 bg-violet-900 hover:bg-violet-800 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-violet-700 rounded-[32px] text-base font-black uppercase italic tracking-tighter w-full transition-colors text-violet-200"
               >
-                Roll the Bones
+                Quick Start: Roll the Bones
               </button>
             </div>
           )}
