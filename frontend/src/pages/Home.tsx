@@ -382,12 +382,17 @@ export const Home = () => {
   }, [instantStartPending]);
 
   const handleInstantStart = async () => {
-    const res = await apiFetch('/session/instant-start', { method: 'POST' });
-    if (!res.ok) {
-      return;
+    try {
+      const res = await apiFetch('/session/instant-start', { method: 'POST' });
+      if (!res.ok) {
+        console.error('[InstantStart] POST failed:', res.status, await res.text().catch(() => ''));
+        return;
+      }
+      const data = await res.json() as { id: string };
+      setInstantStartPending(data.id);
+    } catch (err) {
+      console.error('[InstantStart] Request failed:', err);
     }
-    const data = await res.json() as { id: string };
-    setInstantStartPending(data.id);
   };
 
   useEffect(() => {

@@ -29,7 +29,7 @@ export const InstantStartLoader = () => {
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/95 flex flex-col items-center justify-center gap-8 px-6">
+    <div data-testid="instant-start-loader" className="fixed inset-0 z-50 bg-slate-950/95 flex flex-col items-center justify-center gap-8 px-6">
       <img
         src={imgSrc('/images/icon_dice.png')}
         className="w-24 h-24 rounded-full object-cover animate-spin"

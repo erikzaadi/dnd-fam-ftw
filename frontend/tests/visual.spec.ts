@@ -107,6 +107,37 @@ test('home', async ({ page }) => {
   await screenshotViewports(page, 'home');
 });
 
+test('instant-start-loader', async ({ page }) => {
+  // Intercept the instant-start POST to return a fake pending session ID
+  // without triggering real background work. This keeps the loader visible
+  // indefinitely so we can snapshot it in a stable state.
+  await page.route('**/api/session/instant-start', route => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ id: 'visual-test-pending', savingsMode: false }),
+    });
+  });
+  // Prevent the SSE stream from ever sending a readiness event for this fake ID
+  await page.route('**/api/sessions/events', route => route.abort());
+
+  await page.goto('/');
+  await dismissAudioOverlay(page);
+  await page.getByRole('button', { name: /Roll the Bones/i }).click();
+
+  // Freeze the pun cycle at index 0 by stopping the interval - inject a stable pun
+  await page.evaluate(() => {
+    const el = document.querySelector('[data-testid="instant-start-pun"]') ??
+      Array.from(document.querySelectorAll('p')).find(p => p.textContent?.includes('...'));
+    if (el) {
+      el.textContent = 'Consulting the ancient dice...';
+    }
+  });
+
+  await expect(page.getByText('Fate is deciding...')).toBeVisible({ timeout: 5_000 });
+  await screenshotViewports(page, 'instant-start-loader');
+});
+
 test('settings', async ({ page }) => {
   await page.goto('/settings');
   await dismissAudioOverlay(page);
