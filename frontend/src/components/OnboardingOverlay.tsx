@@ -88,7 +88,8 @@ export const OnboardingOverlay = ({
   onAdvance: () => void;
 }) => {
   const storyBoxRect = useElementRect(step === 1 ? '[data-tutorial="story-box"]' : null);
-  const partyBoxRect = useElementRect(step === 2 || step === 3 ? '[data-tutorial="party-box"]' : null);
+  const partyBoxRect = useElementRect(step === 2 ? '[data-tutorial="party-box"]' : null);
+  const actionDockRect = useElementRect(step === 3 ? '[data-tutorial="action-input"]' : null);
   const topControlsRect = useElementRect(step === 6 ? '[data-tutorial="top-controls"]' : null);
 
   if (step === null || step === 4) {
@@ -130,16 +131,15 @@ export const OnboardingOverlay = ({
     );
   }
 
-  // Step 3: Action dock callout - anchored below the party box, arrow pointing down toward the dock
-  // (not above the dock, where it would be clipped by overflow-hidden parents)
+  // Step 3: Action dock callout - anchored above the action dock
   if (step === 3) {
-    const style: CSSProperties = partyBoxRect
+    const style: CSSProperties = actionDockRect
       ? {
-        top: partyBoxRect.bottom + 8,
-        left: partyBoxRect.left + partyBoxRect.width / 2,
-        transform: 'translateX(-50%)',
+        top: actionDockRect.top - 8,
+        left: actionDockRect.left + actionDockRect.width / 2,
+        transform: 'translate(-50%, -100%)',
       }
-      : { top: 80, left: '50%', transform: 'translateX(-50%)' };
+      : { bottom: 120, left: '50%', transform: 'translateX(-50%)' };
     return (
       <div className="fixed z-[150] pointer-events-none" style={style}>
         <div className="w-72 bg-slate-900/90 backdrop-blur-md border border-amber-600/40 rounded-2xl shadow-xl shadow-black/60 px-4 py-3 animate-in fade-in duration-300">

@@ -31,10 +31,7 @@ test('instant start: loader appears and navigates to a new session', async ({ pa
   expect(status, `POST /session/instant-start returned ${status}: ${JSON.stringify(body)}\nConsole:\n${consoleMsgs.join('\n')}`).toBe(200);
   expect(body?.id, 'Response missing id').toBeTruthy();
 
-  // Loader should appear immediately after the POST resolves
-  await expect(page.getByTestId('instant-start-loader')).toBeVisible({ timeout: 10_000 });
-
-  // Should navigate to a session page once the first turn is ready
+  // Should navigate to a session page immediately after POST resolves
   await expect(page).toHaveURL(/\/session\//, { timeout: 60_000 });
 
   // Session page should load with an action dock

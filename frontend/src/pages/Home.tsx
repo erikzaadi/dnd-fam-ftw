@@ -125,7 +125,7 @@ const EditSessionModal = ({
         </div>
 
         <div className="flex flex-col gap-2">
-          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">World Description</span>
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Realm Description</span>
           <textarea
             value={worldDescription}
             onChange={e => setWorldDescription(e.target.value)}
@@ -355,8 +355,8 @@ export const Home = () => {
   const [sessionLimit, setSessionLimit] = useState<{ max: number; current: number } | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
   const [editSession, setEditSession] = useState<{ id: string; displayName: string; difficulty: string; gameMode: string; dmPrep?: string; worldDescription?: string } | null>(null);
-  const [instantStartPending, setInstantStartPending] = useState<string | null>(null);
-  const instantStartPendingRef = useRef<string | null>(null);
+  const [instantStartLoading, setInstantStartLoading] = useState(false);
+  const instantStartEsRef = useRef<EventSource | null>(null);
   const navigate = useNavigate();
   const cardRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -377,41 +377,53 @@ export const Home = () => {
       .catch(() => { /* limits unavailable, proceed without */ });
   }, []);
 
-  useEffect(() => {
-    instantStartPendingRef.current = instantStartPending;
-  }, [instantStartPending]);
-
   const handleInstantStart = async () => {
+    instantStartEsRef.current?.close();
+    setInstantStartLoading(true);
     try {
       const res = await apiFetch('/session/instant-start', { method: 'POST' });
       if (!res.ok) {
         console.error('[InstantStart] POST failed:', res.status, await res.text().catch(() => ''));
         return;
       }
-      const data = await res.json() as { id: string };
-      setInstantStartPending(data.id);
+      const { id } = await res.json() as { id: string };
+
+      // Check if the background job already finished before we got here (fast mock provider)
+      const histRes = await apiFetch(`/session/${id}/history`).catch(() => null);
+      if (histRes?.ok) {
+        const hist = await histRes.json() as unknown[];
+        if (hist.length > 0) {
+          navigate(`/session/${id}`);
+          return;
+        }
+      }
+
+      // Not ready yet: wait for the session-specific turn_complete SSE event
+      await new Promise<void>((resolve) => {
+        const es = new EventSource(apiUrl(`/session/${id}/events`), { withCredentials: true });
+        instantStartEsRef.current = es;
+        es.onmessage = (e: MessageEvent) => {
+          const data = JSON.parse(e.data) as { type?: string };
+          if (data.type === 'turn_complete') {
+            es.close();
+            instantStartEsRef.current = null;
+            resolve();
+          }
+        };
+        es.onerror = () => {
+          es.close();
+          instantStartEsRef.current = null;
+          resolve();
+        };
+      });
+
+      navigate(`/session/${id}`);
     } catch (err) {
       console.error('[InstantStart] Request failed:', err);
+    } finally {
+      setInstantStartLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (!instantStartPending) {
-      return;
-    }
-    const timeout = setTimeout(async () => {
-      const pendingId = instantStartPendingRef.current;
-      if (!pendingId) {
-        return;
-      }
-      const check = await apiFetch(`/session/${pendingId}`).catch(() => null);
-      if (check?.ok) {
-        setInstantStartPending(null);
-        navigate(`/session/${pendingId}`);
-      }
-    }, 90_000);
-    return () => clearTimeout(timeout);
-  }, [instantStartPending, navigate]);
 
   useEffect(() => {
     loadSessions();
@@ -443,17 +455,7 @@ export const Home = () => {
       es = new EventSource(apiUrl('/sessions/events'), { withCredentials: true });
       es.onmessage = (e: MessageEvent) => {
         lastMessageAt = Date.now();
-        const data = JSON.parse(e.data) as { type?: string; sessionId?: string };
-        const pending = instantStartPendingRef.current;
-        if (
-          pending &&
-          (data.type === 'preview_image_available' || data.type === 'instant_start_ready') &&
-          data.sessionId === pending
-        ) {
-          setInstantStartPending(null);
-          navigate(`/session/${pending}`);
-          return;
-        }
+        const data = JSON.parse(e.data) as { type?: string };
         if (data.type === 'session_changed' || data.type === 'preview_image_available') {
           refresh();
         }
@@ -517,7 +519,7 @@ export const Home = () => {
 
   return (
     <div className="h-[100dvh] bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col overflow-hidden">
-      {instantStartPending && <InstantStartLoader />}
+      {instantStartLoading && <InstantStartLoader />}
       {confirmDialog && (
         <ConfirmDialog
           message={confirmDialog.message}
@@ -580,7 +582,7 @@ export const Home = () => {
                     </button>
                     <button
                       onClick={handleInstantStart}
-                      disabled={!!instantStartPending}
+                      disabled={instantStartLoading}
                       className="flex-1 px-6 py-4 bg-violet-900 hover:bg-violet-800 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-violet-700 rounded-[32px] text-base font-black uppercase italic tracking-tighter transition-colors text-violet-200 flex items-center justify-center gap-3"
                     >
                       <img
@@ -607,7 +609,7 @@ export const Home = () => {
                 {!showGettingStarted && (
                   <button
                     onClick={handleInstantStart}
-                    disabled={!!instantStartPending}
+                    disabled={instantStartLoading}
                     className="px-6 py-3 bg-violet-900 hover:bg-violet-800 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-violet-700 rounded-[32px] text-base font-black uppercase italic tracking-tighter w-full transition-colors text-violet-200"
                   >
                     Quick Start: Roll the Bones

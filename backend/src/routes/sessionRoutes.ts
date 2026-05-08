@@ -76,7 +76,7 @@ export const createSessionRouter = () => {
     const sessionId = createQuickStartId();
 
     const session = await StateService.createSession(
-      undefined,
+      seed.worldDescription,
       'normal',
       useLocalAI,
       savingsMode,

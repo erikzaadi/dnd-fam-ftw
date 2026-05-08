@@ -324,7 +324,7 @@ export const ActionDock = ({
       </div>
 
       {/* Actions */}
-      <div className="flex flex-col gap-3 px-4 pb-4">
+      <div className="flex flex-col gap-3 px-4 pb-4" data-tutorial="action-input">
 
         {/* Downed state OR action area */}
         {isDown ? (

@@ -3,7 +3,7 @@ import { AiDmService } from './aiDmService.js';
 import { ImageService } from './imageService.js';
 import { StateService } from './stateService.js';
 import { StorySummaryService } from './storySummaryService.js';
-import { broadcastInstantStartReady, broadcastUpdate } from '../realtime/sessionEvents.js';
+import { broadcastInstantStartReady, broadcastSessionChanged, broadcastUpdate } from '../realtime/sessionEvents.js';
 import { refreshDmPrepImageBriefAndPreview } from './sessionPreviewService.js';
 import { pickRandomPartyArchetypes, type WorldSeed } from '../data/instantStartArchetypes.js';
 import type { Character, SessionState } from '../types.js';
@@ -69,6 +69,7 @@ export async function runInstantStartBackground(
   withRealm.worldDescription = seed.worldDescription;
   withRealm.displayName = seed.displayName;
   await StateService.updateSession(sessionId, withRealm);
+  broadcastSessionChanged(namespaceId, sessionId, 'updated');
 
   const dmPrep = await StorySummaryService.generateCampaignBrief(
     sessionId,
