@@ -120,10 +120,7 @@ jobs:
 
       - uses: ./.github/actions/setup-playwright
         with:
-          install-command: |
-            cd packages/shared && npm ci && npm run build && cd ..
-            cd backend && npm ci
-            cd ../frontend && npm ci
+          install-command: npm run ci:all && npm run build --prefix packages/shared
 
       - name: Run e2e tests
         run: cd frontend && npm run test:e2e
