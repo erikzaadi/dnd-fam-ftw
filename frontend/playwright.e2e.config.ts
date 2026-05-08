@@ -28,7 +28,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `cd ../backend && ${backendEnv} npm run cli -- sessions seed && ${backendEnv} npm run dev`,
+      command: `cd ../backend && ${backendEnv} ./node_modules/.bin/tsx src/scripts/cli.ts sessions seed && ${backendEnv} ./node_modules/.bin/tsx watch src/index.ts`,
       url: `http://localhost:${BACKEND_PORT}/health`,
       timeout: 120_000,
       reuseExistingServer: false,
