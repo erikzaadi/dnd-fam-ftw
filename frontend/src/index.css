@@ -9,7 +9,7 @@
   --font-narrative: 'Lora', serif;
   --animate-border-pulse: border-pulse 2.5s ease-in-out infinite;
   --animate-ken-burns: ken-burns 24s ease-in-out infinite alternate;
-  --animate-dice-spin: dice-spin 1.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-dice-spin: dice-spin 3s linear infinite;
   --animate-dice-shake: dice-shake 7s ease-in-out infinite;
 
 }

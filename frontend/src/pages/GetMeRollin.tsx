@@ -46,7 +46,7 @@ export const GetMeRollin = () => {
       setError('Something went wrong. Try again in a moment.');
       return;
     }
-    localStorage.setItem('onboarding_tutorial_step', '1');
+    localStorage.setItem('onboarding_session_id', data.id);
     navigate(`/session/${data.id}`);
   };
 

@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SiteHeader } from '../components/SiteHeader';
 import { DmFooter } from '../components/DmFooter';
 import { imgSrc } from '../lib/api';
 import { StatImg } from '../components/game/StatIcon';
+import { resetTutorial } from '../hooks/useOnboardingTutorial';
 
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
   <div className="space-y-3">
@@ -20,6 +22,7 @@ const Row = ({ label, value, color = 'text-white' }: { label: React.ReactNode; v
 
 export const HowToPlay = () => {
   const navigate = useNavigate();
+  const [tutorialQueued, setTutorialQueued] = useState(false);
 
   return (
     <div className="h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col overflow-hidden">
@@ -137,8 +140,17 @@ export const HowToPlay = () => {
         </div>
       </div>
 
-      {/* Pinned bottom button */}
-      <div className="px-4 md:px-8 pt-3 pb-6 flex-shrink-0 relative z-[10] max-w-5xl w-full mx-auto">
+      {/* Pinned bottom buttons */}
+      <div className="px-4 md:px-8 pt-3 pb-6 flex-shrink-0 relative z-[10] max-w-5xl w-full mx-auto flex flex-col gap-3">
+        <button
+          onClick={() => {
+            resetTutorial(); setTutorialQueued(true); 
+          }}
+          disabled={tutorialQueued}
+          className="w-full py-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed border-2 border-slate-700 rounded-[20px] font-black uppercase italic tracking-tighter transition-colors text-slate-300 text-sm"
+        >
+          {tutorialQueued ? 'Tutorial will restart on your next session ✓' : 'Restart Tutorial'}
+        </button>
         <button
           onClick={() => navigate('/')}
           className="w-full py-5 bg-amber-600 hover:bg-amber-500 rounded-[20px] font-black uppercase italic tracking-tighter transition-colors shadow-[0_6px_0_rgb(146,64,14)] text-white text-xl"

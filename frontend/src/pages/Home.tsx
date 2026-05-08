@@ -552,60 +552,83 @@ export const Home = () => {
       <div className="flex-1 overflow-y-auto min-h-0">
         <div className="flex flex-col gap-4 px-4 md:px-8 pt-4 pb-6 relative z-[10] w-full max-w-6xl mx-auto min-h-full">
           {/* New world / limit button */}
-          {sessionLimit && sessionLimit.current >= sessionLimit.max ? (
-            <div className="px-8 py-5 bg-slate-800 border-2 border-slate-700 rounded-[32px] text-center">
-              <p className="text-slate-400 font-black uppercase italic tracking-tighter text-xl md:text-2xl">REALM LIMIT REACHED</p>
-              <p className="text-slate-500 text-sm mt-1">{sessionLimit.current} / {sessionLimit.max} realms - delete one to start another</p>
-            </div>
-          ) : activeSessions.length === 0 ? (
-            <div className="flex flex-col gap-3">
-              <button
-                onClick={() => navigate('/get-me-rollin')}
-                className="px-6 py-3 md:py-6 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-lg md:text-4xl font-black shadow-[0_8px_0_rgb(146,64,14)] md:shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter w-full flex items-center justify-center gap-3"
-              >
-                <img
-                  src={imgSrc('/images/icon_dice.png')}
-                  className="w-8 h-8 md:w-14 md:h-14 rounded-full object-cover animate-dice-shake flex-shrink-0"
-                  alt=""
-                />
-                GET ME ROLLIN'
-              </button>
-              <button
-                onClick={handleInstantStart}
-                disabled={!!instantStartPending}
-                className="px-6 py-3 bg-violet-900 hover:bg-violet-800 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-violet-700 rounded-[32px] text-base font-black uppercase italic tracking-tighter w-full transition-colors text-violet-200"
-              >
-                Quick Start: Roll the Bones
-              </button>
-              <button
-                onClick={() => navigate('/create-session')}
-                className="px-6 py-3 bg-slate-800 hover:bg-slate-700 border-2 border-slate-700 rounded-[32px] text-base font-black uppercase italic tracking-tighter w-full transition-colors text-slate-300"
-              >
-                Build Your Own Realm{sessionLimit ? ` (${sessionLimit.current}/${sessionLimit.max})` : ''}
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              <button
-                onClick={() => navigate('/create-session')}
-                className="px-6 py-3 md:py-6 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-lg md:text-4xl font-black shadow-[0_8px_0_rgb(146,64,14)] md:shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter w-full flex items-center justify-center gap-3"
-              >
-                <img
-                  src={imgSrc('/images/icon_dice.png')}
-                  className="w-8 h-8 md:w-14 md:h-14 rounded-full object-cover animate-dice-shake flex-shrink-0"
-                  alt=""
-                />
-                START A NEW REALM{sessionLimit ? ` (${sessionLimit.current}/${sessionLimit.max})` : ''}
-              </button>
-              <button
-                onClick={handleInstantStart}
-                disabled={!!instantStartPending}
-                className="px-6 py-3 bg-violet-900 hover:bg-violet-800 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-violet-700 rounded-[32px] text-base font-black uppercase italic tracking-tighter w-full transition-colors text-violet-200"
-              >
-                Quick Start: Roll the Bones
-              </button>
-            </div>
-          )}
+          {(() => {
+            const onboardingSessionId = localStorage.getItem('onboarding_session_id');
+            const showGettingStarted = !onboardingSessionId || !activeSessions.some(s => s.id === onboardingSessionId);
+            if (sessionLimit && sessionLimit.current >= sessionLimit.max) {
+              return (
+                <div className="px-8 py-5 bg-slate-800 border-2 border-slate-700 rounded-[32px] text-center">
+                  <p className="text-slate-400 font-black uppercase italic tracking-tighter text-xl md:text-2xl">REALM LIMIT REACHED</p>
+                  <p className="text-slate-500 text-sm mt-1">{sessionLimit.current} / {sessionLimit.max} realms - delete one to start another</p>
+                </div>
+              );
+            }
+            return (
+              <div className="flex flex-col gap-3">
+                {showGettingStarted ? (
+                  <div className="flex flex-col md:flex-row gap-3">
+                    <button
+                      onClick={() => navigate('/get-me-rollin')}
+                      className="flex-1 px-6 py-4 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-xl font-black shadow-[0_8px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter flex items-center justify-center gap-3"
+                    >
+                      <img
+                        src={imgSrc('/images/icon_dice.png')}
+                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                        alt=""
+                      />
+                      Tutorial: GET ME ROLLIN'
+                    </button>
+                    <button
+                      onClick={handleInstantStart}
+                      disabled={!!instantStartPending}
+                      className="flex-1 px-6 py-4 bg-violet-900 hover:bg-violet-800 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-violet-700 rounded-[32px] text-base font-black uppercase italic tracking-tighter transition-colors text-violet-200 flex items-center justify-center gap-3"
+                    >
+                      <img
+                        src={imgSrc('/images/icon_scroll.png')}
+                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                        alt=""
+                      />
+                      Quick Start: Roll the Bones
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => navigate('/create-session')}
+                    className="px-6 py-3 md:py-6 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-lg md:text-4xl font-black shadow-[0_8px_0_rgb(146,64,14)] md:shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter w-full flex items-center justify-center gap-3"
+                  >
+                    <img
+                      src={imgSrc('/images/icon_dice.png')}
+                      className="w-8 h-8 md:w-14 md:h-14 rounded-full object-cover animate-dice-shake flex-shrink-0"
+                      alt=""
+                    />
+                    START A NEW REALM{sessionLimit ? ` (${sessionLimit.current}/${sessionLimit.max})` : ''}
+                  </button>
+                )}
+                {!showGettingStarted && (
+                  <button
+                    onClick={handleInstantStart}
+                    disabled={!!instantStartPending}
+                    className="px-6 py-3 bg-violet-900 hover:bg-violet-800 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-violet-700 rounded-[32px] text-base font-black uppercase italic tracking-tighter w-full transition-colors text-violet-200"
+                  >
+                    Quick Start: Roll the Bones
+                  </button>
+                )}
+                {showGettingStarted && (
+                  <button
+                    onClick={() => navigate('/create-session')}
+                    className="px-6 py-3 bg-slate-800 hover:bg-slate-700 border-2 border-slate-700 rounded-[32px] text-base font-black uppercase italic tracking-tighter w-full transition-colors text-slate-300 flex items-center justify-center gap-3"
+                  >
+                    <img
+                      src={imgSrc('/images/icon_might.png')}
+                      className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                      alt=""
+                    />
+                    Build Your Own Realm{sessionLimit ? ` (${sessionLimit.current}/${sessionLimit.max})` : ''}
+                  </button>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Sessions list */}
           {activeSessions.length > 0 && (

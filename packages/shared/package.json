@@ -2,6 +2,9 @@
   "name": "@dnd-fam-ftw/shared",
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "types": "./src/index.ts",
   "exports": {
     ".": {

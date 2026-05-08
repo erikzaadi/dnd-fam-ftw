@@ -115,7 +115,7 @@ describe('GetMeRollin', () => {
     fireEvent.click(screen.getByRole('button', { name: /Let's Roll!/i }));
 
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/session/new-session-id'));
-    expect(ls.getItem('onboarding_tutorial_step')).toBe('1');
+    expect(ls.getItem('onboarding_session_id')).toBe('new-session-id');
   });
 
   it('dismisses the error when the close button is clicked', async () => {

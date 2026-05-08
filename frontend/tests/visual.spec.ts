@@ -93,6 +93,14 @@ async function enableSavingsMode(request: APIRequestContext, sessionId: string):
   expect(res.ok()).toBe(true);
 }
 
+// Suppress the onboarding tutorial in all visual tests. Each test calls this
+// before page.goto() so the initScript fires before React mounts.
+async function suppressTutorial(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    localStorage.setItem('tutorial_ever_started', '1');
+  });
+}
+
 function seedSessionsFixture(): void {
   execFileSync('npm', ['run', 'cli', '--', 'sessions', 'seed'], {
     cwd: BACKEND_DIR,
@@ -102,6 +110,7 @@ function seedSessionsFixture(): void {
 }
 
 test('home', async ({ page }) => {
+  await suppressTutorial(page);
   // Stub sessions so the snapshot is stable regardless of database state
   await page.route('**/api/sessions', route => route.fulfill({
     status: 200,
@@ -113,7 +122,31 @@ test('home', async ({ page }) => {
   await screenshotViewports(page, 'home');
 });
 
+test('home returning user', async ({ page }) => {
+  const sessionId = 'visual-returning-user';
+  // Set both keys before React mounts so the returning-user layout renders immediately
+  await page.addInitScript((id: string) => {
+    localStorage.setItem('tutorial_ever_started', '1');
+    localStorage.setItem('onboarding_session_id', id);
+  }, sessionId);
+  await page.route('**/api/sessions', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([{
+      id: sessionId,
+      displayName: 'The Ember Wastes',
+      difficulty: 'normal',
+      gameMode: 'classic',
+      party: [],
+    }]),
+  }));
+  await page.goto('/');
+  await dismissAudioOverlay(page);
+  await screenshotViewports(page, 'home-returning-user');
+});
+
 test('instant-start-loader', async ({ page }) => {
+  await suppressTutorial(page);
   // Intercept the instant-start POST to return a fake pending session ID
   // without triggering real background work. This keeps the loader visible
   // indefinitely so we can snapshot it in a stable state.
@@ -147,6 +180,7 @@ test('instant-start-loader', async ({ page }) => {
 });
 
 test('settings', async ({ page }) => {
+  await suppressTutorial(page);
   await page.goto('/settings');
   await dismissAudioOverlay(page);
   // Wait for settings to load from API before screenshotting
@@ -155,6 +189,7 @@ test('settings', async ({ page }) => {
 });
 
 test('get-me-rollin', async ({ page }) => {
+  await suppressTutorial(page);
   await page.goto('/get-me-rollin');
   // Wait for stat icons to load before screenshotting
   await page.waitForSelector('img[src*="icon_might"]', { state: 'visible' });
@@ -163,6 +198,7 @@ test('get-me-rollin', async ({ page }) => {
 
 test('session banner hidden', async ({ page, request }) => {
   test.setTimeout(60_000);
+  await suppressTutorial(page);
   const session = await getSessionOrFail(request, SESSIONS.standard);
   await enableSavingsMode(request, session.id);
   await page.goto(`/session/${session.id}`);
@@ -176,6 +212,7 @@ test('session banner hidden', async ({ page, request }) => {
 
 test('session narration fullscreen', async ({ page, request }) => {
   test.setTimeout(60_000);
+  await suppressTutorial(page);
   const session = await getSessionOrFail(request, SESSIONS.standard);
   await enableSavingsMode(request, session.id);
 
@@ -212,6 +249,7 @@ test('session narration fullscreen', async ({ page, request }) => {
 
 test('session chronicle open and second turn', async ({ page, request }) => {
   test.setTimeout(60_000);
+  await suppressTutorial(page);
   const session = await getSessionOrFail(request, SESSIONS.chronicle);
   await enableSavingsMode(request, session.id);
 
@@ -258,6 +296,7 @@ test('session chronicle open and second turn', async ({ page, request }) => {
 
 test('session inventory panel', async ({ page, request }) => {
   test.setTimeout(60_000);
+  await suppressTutorial(page);
   const session = await getSessionOrFail(request, SESSIONS.inventory);
   await enableSavingsMode(request, session.id);
   const inventoryItems = SEEDED_INVENTORY[SESSIONS.inventory];
@@ -289,6 +328,7 @@ test('session inventory panel', async ({ page, request }) => {
 
 test('session character popup', async ({ page, request }) => {
   test.setTimeout(60_000);
+  await suppressTutorial(page);
   const session = await getSessionOrFail(request, CHARACTER_POPUP_TARGET.sessionId);
   await enableSavingsMode(request, session.id);
 
@@ -318,6 +358,7 @@ test('session character popup', async ({ page, request }) => {
 
 test('session mechanics showcase visual asserts', async ({ page, request }) => {
   test.setTimeout(120_000);
+  await suppressTutorial(page);
   seedSessionsFixture();
   const session = await getSessionOrFail(request, SESSIONS.mechanicsShowcase);
   await enableSavingsMode(request, session.id);
@@ -367,6 +408,7 @@ test('session mechanics showcase visual asserts', async ({ page, request }) => {
 
 test('seeded sessions', async ({ page, request }) => {
   test.setTimeout(120_000);
+  await suppressTutorial(page);
   const picks = [
     { id: SESSIONS.fallen, slug: 'the-tomb-of-endless-dark' },
     { id: SESSIONS.dragonPeak, slug: 'dragon-peak' },

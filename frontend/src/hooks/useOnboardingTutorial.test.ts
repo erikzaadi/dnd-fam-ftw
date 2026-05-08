@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { useOnboardingTutorial } from './useOnboardingTutorial';
 
 const STORAGE_KEY = 'onboarding_tutorial_step';
+const EVER_STARTED_KEY = 'tutorial_ever_started';
 
 const makeLocalStorage = () => {
   const store: Record<string, string> = {};
@@ -31,6 +32,7 @@ beforeEach(() => {
 
 describe('useOnboardingTutorial', () => {
   it('returns null step when localStorage key is absent', () => {
+    ls.setItem(EVER_STARTED_KEY, '1');
     const { result } = renderHook(() => useOnboardingTutorial({ isLoading: false, lastRollVisible: false }));
     expect(result.current.step).toBeNull();
   });
@@ -90,6 +92,7 @@ describe('useOnboardingTutorial', () => {
   });
 
   it('advance is a no-op when step is null', () => {
+    ls.setItem(EVER_STARTED_KEY, '1');
     const { result } = renderHook(() => useOnboardingTutorial({ isLoading: false, lastRollVisible: false }));
     act(() => {
       result.current.advance(); 

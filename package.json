@@ -2,6 +2,9 @@
     "name": "dnd-fam-ftw",
     "version": "1.0.0",
     "type": "module",
+    "engines": {
+        "node": ">=24 <25"
+    },
     "scripts": {
         "dev:backend": "npm run dev --prefix backend",
         "dev:frontend": "npm run dev --prefix frontend -- --host",
@@ -9,7 +12,7 @@
         "build": "npm run build --prefix frontend",
         "build:shared": "npm run build --prefix packages/shared",
         "build:backend": "npm run build:shared && npm run build --prefix backend",
-        "install:all": "npm install --prefix packages/shared && npm install --prefix backend && npm install --prefix frontend",
+        "install:all": "npm install && npm install --prefix packages/shared && npm install --prefix backend && npm install --prefix frontend",
         "setup:lint": "python3 -m venv .venv-lint && .venv-lint/bin/pip install --quiet yamllint",
         "lint:shared": "npm run lint --prefix packages/shared",
         "lint:backend": "npm run lint --prefix backend",

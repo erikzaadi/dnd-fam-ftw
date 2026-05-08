@@ -1,15 +1,26 @@
 import { useState, useCallback } from 'react';
 
 const STORAGE_KEY = 'onboarding_tutorial_step';
+const EVER_STARTED_KEY = 'tutorial_ever_started';
 const COMPLETE_STEP = 8;
 
 function readStep(): number | null {
   const stored = localStorage.getItem(STORAGE_KEY);
-  if (!stored) {
-    return null;
+  if (stored) {
+    const n = parseInt(stored, 10);
+    return isNaN(n) || n >= COMPLETE_STEP ? null : n;
   }
-  const n = parseInt(stored, 10);
-  return isNaN(n) || n >= COMPLETE_STEP ? null : n;
+  // Auto-start on first session ever
+  if (!localStorage.getItem(EVER_STARTED_KEY)) {
+    localStorage.setItem(EVER_STARTED_KEY, '1');
+    localStorage.setItem(STORAGE_KEY, '1');
+    return 1;
+  }
+  return null;
+}
+
+export function resetTutorial() {
+  localStorage.setItem(STORAGE_KEY, '1');
 }
 
 export function useOnboardingTutorial({

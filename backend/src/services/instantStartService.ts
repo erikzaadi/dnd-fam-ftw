@@ -4,7 +4,7 @@ import { ImageService } from './imageService.js';
 import { StateService } from './stateService.js';
 import { StorySummaryService } from './storySummaryService.js';
 import { broadcastInstantStartReady, broadcastUpdate } from '../realtime/sessionEvents.js';
-import { refreshDmPrepImageBriefAndPreview, triggerPreviewRegen } from './sessionPreviewService.js';
+import { refreshDmPrepImageBriefAndPreview } from './sessionPreviewService.js';
 import { pickRandomPartyArchetypes, type WorldSeed } from '../data/instantStartArchetypes.js';
 import type { Character, SessionState } from '../types.js';
 
@@ -28,15 +28,10 @@ export function buildInstantStartParty(sessionId: string): Character[] {
   }));
 }
 
-export async function runInstantStartBackground(
-  sessionId: string,
-  session: SessionState,
-  namespaceId: string,
-  seed: WorldSeed,
-): Promise<void> {
-  const avatarPromises = session.party.map(async char => {
+async function generateAvatars(party: Character[], sessionId: string, useLocalAI: boolean): Promise<void> {
+  await Promise.allSettled(party.map(async char => {
     try {
-      const result = await ImageService.generateAvatar(char, sessionId, session.useLocalAI);
+      const result = await ImageService.generateAvatar(char, sessionId, useLocalAI);
       const current = await StateService.getSession(sessionId);
       if (!current) {
         return;
@@ -57,64 +52,76 @@ export async function runInstantStartBackground(
     } catch (err) {
       console.warn(`[InstantStart] Avatar generation failed for ${char.name}:`, err);
     }
+  }));
+}
+
+export async function runInstantStartBackground(
+  sessionId: string,
+  session: SessionState,
+  namespaceId: string,
+  seed: WorldSeed,
+): Promise<void> {
+  // --- Text critical path: realm description -> campaign brief -> first turn ---
+  const withRealm = await StateService.getSession(sessionId);
+  if (!withRealm) {
+    return;
+  }
+  withRealm.worldDescription = seed.worldDescription;
+  withRealm.displayName = seed.displayName;
+  await StateService.updateSession(sessionId, withRealm);
+
+  const dmPrep = await StorySummaryService.generateCampaignBrief(
+    sessionId,
+    seed.worldDescription,
+    session.useLocalAI,
+    seed.displayName,
+    'normal',
+    session.gameMode,
+  ).catch(err => {
+    console.warn('[InstantStart] Campaign brief generation failed:', err);
+    return null;
   });
 
-  const realmPromise = async () => {
-    const withRealm = await StateService.getSession(sessionId);
-    if (!withRealm) {
-      return;
+  if (dmPrep) {
+    const withPrep = await StateService.getSession(sessionId);
+    if (withPrep) {
+      withPrep.dmPrep = dmPrep;
+      await StateService.updateSession(sessionId, withPrep);
     }
-    withRealm.worldDescription = seed.worldDescription;
-    withRealm.displayName = seed.displayName;
-    await StateService.updateSession(sessionId, withRealm);
+  }
 
-    const dmPrep = await StorySummaryService.generateCampaignBrief(
-      sessionId,
-      seed.worldDescription,
-      session.useLocalAI,
-      seed.displayName,
-      'normal',
-      session.gameMode,
-    ).catch(err => {
-      console.warn('[InstantStart] Campaign brief generation failed:', err);
-      return null;
-    });
+  // Start preview image in background now that we have dm prep context
+  refreshDmPrepImageBriefAndPreview(sessionId, dmPrep, session.useLocalAI, namespaceId);
 
-    if (dmPrep) {
-      const withPrep = await StateService.getSession(sessionId);
-      if (withPrep) {
-        withPrep.dmPrep = dmPrep;
-        await StateService.updateSession(sessionId, withPrep);
-      }
-    }
+  const forTurn = await StateService.getSession(sessionId);
+  if (!forTurn) {
+    return;
+  }
 
-    refreshDmPrepImageBriefAndPreview(sessionId, dmPrep, session.useLocalAI, namespaceId);
+  let initialTurn;
+  try {
+    initialTurn = await AiDmService.generateTurnResult(
+      { ...forTurn, characterId: '', actionAttempt: 'Adventure begins!', actionResult: { success: true, roll: 20, statUsed: 'none' } },
+      forTurn.useLocalAI,
+    );
+  } catch (err) {
+    console.error('[InstantStart] First turn generation failed:', err);
+    broadcastInstantStartReady(namespaceId, sessionId);
+    return;
+  }
 
-    const forTurn = await StateService.getSession(sessionId);
-    if (!forTurn) {
-      return;
-    }
+  initialTurn.id = await StateService.addTurnResult(sessionId, initialTurn, null);
+  broadcastUpdate(sessionId, 'turn_complete', { session: forTurn, turnResult: initialTurn });
 
-    let initialTurn;
-    try {
-      initialTurn = await AiDmService.generateTurnResult(
-        { ...forTurn, characterId: '', actionAttempt: 'Adventure begins!', actionResult: { success: true, roll: 20, statUsed: 'none' } },
-        forTurn.useLocalAI,
-      );
-    } catch (err) {
-      console.error('[InstantStart] First turn generation failed:', err);
-      broadcastInstantStartReady(namespaceId, sessionId);
-      return;
-    }
+  // Session is playable - signal navigation before starting slow image generation
+  broadcastInstantStartReady(namespaceId, sessionId);
 
-    initialTurn.id = await StateService.addTurnResult(sessionId, initialTurn, null);
-    broadcastUpdate(sessionId, 'turn_complete', { session: forTurn, turnResult: initialTurn });
+  if (forTurn.savingsMode) {
+    return;
+  }
 
-    if (forTurn.savingsMode) {
-      broadcastInstantStartReady(namespaceId, sessionId);
-      return;
-    }
-
+  // --- Image generation: all start concurrently after user can play ---
+  const sceneImageTask = async () => {
     try {
       const imageResult = await ImageService.generateImage(
         initialTurn.imagePrompt || 'A fantasy realm establishing scene',
@@ -138,13 +145,10 @@ export async function runInstantStartBackground(
     } catch (err) {
       console.error('[InstantStart] Scene image generation failed:', err);
     }
-
-    triggerPreviewRegen(sessionId, session.useLocalAI, namespaceId);
   };
 
-  // Critical path first: realm setup, first turn, and navigation signal.
-  // Avatars compete for the same API rate limit slots so they start only after
-  // the navigation event has already been broadcast.
-  await realmPromise();
-  await Promise.allSettled(avatarPromises);
+  await Promise.allSettled([
+    generateAvatars(session.party, sessionId, session.useLocalAI),
+    sceneImageTask(),
+  ]);
 }

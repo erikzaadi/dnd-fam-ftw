@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { resetTutorial } from '../hooks/useOnboardingTutorial';
 import { DmFooter } from '../components/DmFooter';
 import { SiteHeader } from '../components/SiteHeader';
 import { apiFetch } from '../lib/api';
@@ -51,6 +52,7 @@ export const Settings = () => {
   const { capabilities } = useCapabilities();
   const [saved, setSaved] = useState(false);
   const [tab, setTab] = useState<Tab>('game');
+  const [tutorialQueued, setTutorialQueued] = useState(false);
   const [musicPlaying, setMusicPlaying] = useState(false);
   const [sfxPlaying, setSfxPlaying] = useState<string | null>(null);
   const [ttsPlaying, setTtsPlaying] = useState(false);
@@ -176,6 +178,17 @@ export const Settings = () => {
                       />
                     </>
                   )}
+
+                  <h2 className="text-lg font-black uppercase tracking-tighter text-slate-400 pt-2">Tutorial</h2>
+                  <button
+                    onClick={() => {
+                      resetTutorial(); setTutorialQueued(true); 
+                    }}
+                    disabled={tutorialQueued}
+                    className="w-full py-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed border-2 border-slate-700 rounded-[20px] font-black uppercase italic tracking-tighter transition-colors text-slate-300 text-sm"
+                  >
+                    {tutorialQueued ? 'Tutorial will restart on your next session ✓' : 'Restart Tutorial'}
+                  </button>
                 </>
               )}
 
