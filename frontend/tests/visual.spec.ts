@@ -191,6 +191,7 @@ test('settings', async ({ page }) => {
 test('get-me-rollin', async ({ page }) => {
   await suppressTutorial(page);
   await page.goto('/get-me-rollin');
+  await dismissAudioOverlay(page);
   // Wait for stat icons to load before screenshotting
   await page.waitForSelector('img[src*="icon_might"]', { state: 'visible' });
   await screenshotViewports(page, 'get-me-rollin');
