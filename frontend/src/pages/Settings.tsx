@@ -12,7 +12,7 @@ interface AppSettings {
 }
 
 const Toggle = ({ checked, onChange, label, description }: { checked: boolean; onChange: (v: boolean) => void; label: string; description: string }) => (
-  <div className="flex items-center justify-between gap-6 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
+  <div className="flex items-center justify-between gap-6 p-5 bg-amber-950/20 rounded-[20px] border-2 border-slate-800">
     <div className="flex flex-col gap-1">
       <span className="font-black uppercase tracking-tighter text-white">{label}</span>
       <span className="text-sm text-slate-400">{description}</span>
@@ -375,7 +375,7 @@ export const Settings = () => {
                           {showAdvancedNarration && (
                             <>
                               {capabilities.hasTts && (
-                                <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
+                                <div className="flex flex-col gap-2 p-5 bg-amber-950/20 rounded-[20px] border-2 border-slate-800">
                                   <span className="font-black uppercase tracking-tighter text-white">Narrator Voice</span>
                                   <div className="relative">
                                     <select
@@ -391,7 +391,7 @@ export const Settings = () => {
                                 </div>
                               )}
                               {activeTtsProvider === 'browser' && (
-                                <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
+                                <div className="flex flex-col gap-2 p-5 bg-amber-950/20 rounded-[20px] border-2 border-slate-800">
                                   <span className="font-black uppercase tracking-tighter text-white">Voice</span>
                                   {savedVoiceUnavailable && (
                                     <p className="text-xs text-amber-400">Saved voice is unavailable on this device - using best match.</p>
@@ -426,7 +426,7 @@ export const Settings = () => {
                                 </div>
                               )}
                               {activeTtsProvider === 'openai' && (
-                                <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
+                                <div className="flex flex-col gap-2 p-5 bg-amber-950/20 rounded-[20px] border-2 border-slate-800">
                                   <span className="font-black uppercase tracking-tighter text-white">Voice Preference</span>
                                   <p className="text-xs text-slate-500">AI narrator voice selection.</p>
                                   <div className="relative">

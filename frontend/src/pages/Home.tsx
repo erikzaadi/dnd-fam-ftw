@@ -668,7 +668,7 @@ export const Home = () => {
           {/* Sessions list */}
           {activeSessions.length > 0 && (
             <div className="flex flex-col gap-2">
-              <h3 className="text-xl md:text-4xl font-black uppercase tracking-tighter text-white italic">Active Realms 🌍</h3>
+              <h3 className="text-xl md:text-4xl font-black uppercase tracking-tighter text-white italic">Active Realms</h3>
               {activeSessions.map((sess, i) => (
                 <WorldCard
                   key={sess.id}

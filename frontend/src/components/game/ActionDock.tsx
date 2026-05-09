@@ -271,7 +271,7 @@ export const ActionDock = ({
                         <StatImg stat={stat} size="5" tooltip className="rounded" />
                         <span className={`text-sm font-black tabular-nums ${hasBonus ? 'text-amber-400' : STAT_TEXT_COLORS[stat]}`}>{total}</span>
                         {hasBonus && (
-                          <span className={`text-xs text-amber-500/70 leading-none transition-transform duration-150 inline-block ${isOpen ? 'rotate-180' : ''}`}>▾</span>
+                          <span className={`text-[11px] text-amber-500/70 leading-none transition-transform duration-150 inline-block ${isOpen ? 'rotate-180' : ''}`}>▾</span>
                         )}
                       </>
                     );
@@ -369,7 +369,7 @@ export const ActionDock = ({
 
                   return (
                     <div key={i} className="relative">
-                      <div className="absolute -top-2.5 -left-2.5 z-20">
+                      <div className="absolute -top-2.5 -left-2.5 z-20 hidden md:block">
                         <Tooltip content={`Focus action ${shortcut} [${shortcut}]`} position="bottom" portal wrapperClassName="inline-flex">
                           <span className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-900 border border-slate-700 text-xs font-semibold text-slate-400">
                             {shortcut}
@@ -460,7 +460,7 @@ export const ActionDock = ({
             {/* Command bar + UNLEASH */}
             <div className="flex flex-col gap-2 pt-1">
               <div className="relative">
-                <div className="absolute -top-2.5 -left-2.5 z-20">
+                <div className="absolute -top-2.5 -left-2.5 z-20 hidden md:block">
                   <Tooltip content={`Focus custom action [${customActionShortcut}]`} position="bottom" portal wrapperClassName="inline-flex">
                     <span className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-900 border border-slate-700 text-xs font-semibold text-slate-400">
                       {customActionShortcut}

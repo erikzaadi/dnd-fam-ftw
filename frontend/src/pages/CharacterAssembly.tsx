@@ -274,8 +274,8 @@ export const CharacterAssembly = () => {
           </div>
 
           {session && session.party.length > 0 && (
-            <div className="bg-slate-900 rounded-[48px] border border-slate-800 p-8 space-y-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-500/70 mb-6">Current Heroes</h2>
+            <div className="bg-slate-900 rounded-[32px] border border-slate-800 p-8 space-y-4">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-500 mb-6">Current Heroes</h2>
               <div className="flex flex-wrap gap-4">
                 {session.party.map(c => (
                   <div key={c.id} className="flex items-center gap-4 p-4 bg-slate-800/60 rounded-2xl border border-slate-700/50">

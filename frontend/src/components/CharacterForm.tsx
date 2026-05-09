@@ -37,7 +37,7 @@ export const CharacterForm = ({ onSave, onCancel, isLoading, initialValues, sugg
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-3xl font-black text-white">{isLoading ? (isEditing ? 'Editing your hero...' : 'Creating your hero...') : isEditing ? 'Edit Hero' : 'Create New Hero'}</h3>
           {!isEditing && !isLoading && onRandomize && (
-            <button type="button" onClick={onRandomize} title="Re-roll suggestions" className="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-amber-400 font-black text-sm uppercase tracking-widest transition-colors">
+            <button type="button" onClick={onRandomize} className="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-amber-400 font-black text-sm uppercase tracking-widest transition-colors">
               Roll
             </button>
           )}
