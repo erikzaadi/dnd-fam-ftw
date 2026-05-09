@@ -112,7 +112,7 @@ export const StoryStage = ({
 
   return (
     <div
-      className="relative flex flex-col h-full min-h-0 overflow-hidden rounded-[32px] bg-slate-950 cursor-zoom-in"
+      className={`relative flex flex-col h-full min-h-0 overflow-hidden rounded-[32px] bg-slate-950 ${imageLoading ? 'cursor-wait' : 'cursor-zoom-in'}`}
       onClick={handleStageClick}
     >
       <SceneBackground imageUrl={imageUrl} defaultImageUrl={defaultImageUrl} />
@@ -148,7 +148,7 @@ export const StoryStage = ({
         {narration ? (
           <div
             aria-label="Story narration"
-            className="backdrop-blur-md bg-slate-950/55 rounded-[24px] p-8 lg:p-12 w-[78%] h-[75%] min-h-0 flex flex-col items-start justify-start cursor-pointer hover:bg-slate-950/65 transition-colors overflow-hidden"
+            className="backdrop-blur-md bg-slate-950/55 rounded-[24px] p-8 lg:p-12 w-[78%] max-w-[900px] h-[75%] min-h-0 flex flex-col items-start justify-start cursor-zoom-in hover:bg-slate-950/65 transition-colors overflow-hidden"
             onClick={e => {
               e.stopPropagation();
               onFullscreenNarration(narration);
@@ -171,7 +171,11 @@ export const StoryStage = ({
               />
             </div>
           </div>
-        ) : null}
+        ) : (
+          <div className="backdrop-blur-md bg-slate-950/55 rounded-[24px] p-8 w-[78%] h-[75%] min-h-0 flex items-center justify-center">
+            <p className="font-narrative text-slate-500 italic text-center text-xl">Waiting for the DM...</p>
+          </div>
+        )}
       </div>
 
       {/* Previous turn teaser + Chronicle link - fades out when chronicle is open */}

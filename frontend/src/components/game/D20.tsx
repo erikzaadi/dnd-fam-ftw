@@ -17,7 +17,7 @@ export const D20 = ({ roll, success, size = 72 }: D20Props) => {
       <line x1="5" y1="82" x2="95" y2="82" stroke={color} strokeWidth="1.5" opacity="0.35" />
       <line x1="50" y1="4" x2="5" y2="30" stroke={color} strokeWidth="1" opacity="0.2" />
       <line x1="50" y1="4" x2="95" y2="30" stroke={color} strokeWidth="1" opacity="0.2" />
-      <text x="50" y="56" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="900" fill={color} fontFamily="sans-serif">
+      <text x="50" y="56" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="900" fill={color} fontFamily="'Cinzel', serif">
         {roll}
       </text>
     </svg>

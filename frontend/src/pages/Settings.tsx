@@ -41,7 +41,7 @@ import { useCapabilities } from '../hooks/useCapabilities';
 type Tab = 'game' | 'music' | 'sfx' | 'narration';
 
 const TAB_LABELS: { id: Tab; label: string }[] = [
-  { id: 'game', label: 'Game' },
+  { id: 'game', label: 'General' },
   { id: 'music', label: 'Music' },
   { id: 'sfx', label: 'SFX' },
   { id: 'narration', label: 'Narration' },
@@ -54,6 +54,7 @@ export const Settings = () => {
   const [tab, setTab] = useState<Tab>('game');
   const [tutorialQueued, setTutorialQueued] = useState(false);
   const [musicPlaying, setMusicPlaying] = useState(false);
+  const [showAdvancedNarration, setShowAdvancedNarration] = useState(false);
   const [sfxPlaying, setSfxPlaying] = useState<string | null>(null);
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const navigate = useNavigate();
@@ -135,6 +136,24 @@ export const Settings = () => {
         <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in zoom-in duration-700 relative z-[10]">
           <h1 className="text-4xl md:text-5xl font-display font-black text-amber-500 italic tracking-tighter">Settings</h1>
 
+          {/* Master audio controls */}
+          <div className="space-y-3">
+            <Toggle
+              checked={audioSettings.enabled}
+              onChange={setEnabled}
+              label="Enable Audio"
+              description="Turn on music, sound effects, and narration voice for the game."
+            />
+            {audioSettings.enabled && (
+              <Toggle
+                checked={audioSettings.masterMuted}
+                onChange={setMasterMuted}
+                label="Mute All"
+                description="Silence all audio including music, sound effects, and narration voice."
+              />
+            )}
+          </div>
+
           {/* Tab bar */}
           <div className="flex gap-1 p-1 bg-slate-900 rounded-2xl border border-slate-800">
             {TAB_LABELS.map(t => (
@@ -156,7 +175,7 @@ export const Settings = () => {
               {/* GAME TAB */}
               {tab === 'game' && (
                 <>
-                  <h2 className="text-lg font-black uppercase tracking-tighter text-slate-400">Images</h2>
+                  <h2 className="text-lg font-black uppercase tracking-tighter text-amber-500">Images</h2>
                   <Toggle
                     checked={settings.imagesEnabled}
                     onChange={v => update({ imagesEnabled: v })}
@@ -169,7 +188,7 @@ export const Settings = () => {
 
                   {capabilities.hasLocalAI && (
                     <>
-                      <h2 className="text-lg font-black uppercase tracking-tighter text-slate-400 pt-2">AI</h2>
+                      <h2 className="text-lg font-black uppercase tracking-tighter text-amber-500 pt-2">AI</h2>
                       <Toggle
                         checked={settings.defaultUseLocalAI}
                         onChange={v => update({ defaultUseLocalAI: v })}
@@ -179,7 +198,7 @@ export const Settings = () => {
                     </>
                   )}
 
-                  <h2 className="text-lg font-black uppercase tracking-tighter text-slate-400 pt-2">Tutorial</h2>
+                  <h2 className="text-lg font-black uppercase tracking-tighter text-amber-500 pt-2">Tutorial</h2>
                   <button
                     onClick={() => {
                       resetTutorial(); setTutorialQueued(true); 
@@ -196,20 +215,8 @@ export const Settings = () => {
               {tab === 'music' && (
                 <>
                   <h2 className="text-lg font-black uppercase tracking-tight text-amber-500">Music</h2>
-                  <Toggle
-                    checked={audioSettings.enabled}
-                    onChange={setEnabled}
-                    label="Enable Audio"
-                    description="Turn on music, sound effects, and narration voice for the game."
-                  />
                   {audioSettings.enabled && (
                     <>
-                      <Toggle
-                        checked={audioSettings.masterMuted}
-                        onChange={setMasterMuted}
-                        label="Mute All"
-                        description="Silence all audio including music, sound effects, and narration voice."
-                      />
                       <Toggle
                         checked={audioSettings.musicEnabled}
                         onChange={setMusicEnabled}
@@ -253,20 +260,8 @@ export const Settings = () => {
               {tab === 'sfx' && (
                 <>
                   <h2 className="text-lg font-black uppercase tracking-tight text-amber-500">Sound Effects</h2>
-                  <Toggle
-                    checked={audioSettings.enabled}
-                    onChange={setEnabled}
-                    label="Enable Audio"
-                    description="Turn on music, sound effects, and narration voice for the game."
-                  />
                   {audioSettings.enabled && (
                     <>
-                      <Toggle
-                        checked={audioSettings.masterMuted}
-                        onChange={setMasterMuted}
-                        label="Mute All"
-                        description="Silence all audio including music, sound effects, and narration voice."
-                      />
                       <Toggle
                         checked={audioSettings.sfxEnabled}
                         onChange={setSfxEnabled}
@@ -341,90 +336,6 @@ export const Settings = () => {
                             label="Auto-read narration"
                             description="Automatically speak each new turn narration. Manual replay always available."
                           />
-                          {capabilities.hasTts && (
-                            <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
-                              <span className="font-black uppercase tracking-tighter text-white">Narrator Voice</span>
-                              <select
-                                value={ttsSettings.provider}
-                                onChange={e => setProvider(e.target.value as typeof ttsSettings.provider)}
-                                className="w-full bg-slate-800 text-white rounded-xl px-3 py-2 border border-slate-700 text-sm"
-                              >
-                                <option value="browser">Browser voice</option>
-                                <option value="openai">AI narrator</option>
-                              </select>
-                            </div>
-                          )}
-                          {activeTtsProvider === 'browser' && (
-                            <>
-                              <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
-                                <span className="font-black uppercase tracking-tighter text-white">Voice</span>
-                                {savedVoiceUnavailable && (
-                                  <p className="text-xs text-amber-400">Saved voice is unavailable on this device - using best match.</p>
-                                )}
-                                {availableVoices.length === 0 && voicesTimedOut ? (
-                                  <div className="flex flex-col gap-2">
-                                    <p className="text-sm text-rose-400">Could not load voices on this device.</p>
-                                    <p className="text-xs text-slate-400">Try switching to <span className="text-amber-400 font-black">AI Narrator</span> above for reliable narration.</p>
-                                  </div>
-                                ) : availableVoices.length === 0 ? (
-                                  <p className="text-sm text-slate-500">Loading available voices...</p>
-                                ) : (
-                                  <select
-                                    value={ttsSettings.preferredVoiceURI ?? ''}
-                                    onChange={e => {
-                                      const voice = availableVoices.find(v => v.voiceURI === e.target.value) ?? null;
-                                      setPreferredVoice(voice?.voiceURI ?? null, voice?.name ?? null, voice?.lang ?? null);
-                                    }}
-                                    className="w-full bg-slate-800 text-white rounded-xl px-3 py-2 border border-slate-700 text-sm"
-                                  >
-                                    <option value="">Best available voice</option>
-                                    {availableVoices.map(v => (
-                                      <option key={v.voiceURI} value={v.voiceURI}>
-                                        {v.name} ({v.lang}){v.default ? ' - default' : ''}
-                                      </option>
-                                    ))}
-                                  </select>
-                                )}
-                              </div>
-                            </>
-                          )}
-                          {activeTtsProvider === 'openai' && (
-                            <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
-                              <span className="font-black uppercase tracking-tighter text-white">Voice Preference</span>
-                              <p className="text-xs text-slate-500">AI narrator voice selection.</p>
-                              <select
-                                value={ttsSettings.preferredGenderHint}
-                                onChange={e => setPreferredGenderHint(e.target.value as typeof ttsSettings.preferredGenderHint)}
-                                className="w-full bg-slate-800 text-white rounded-xl px-3 py-2 border border-slate-700 text-sm"
-                              >
-                                <option value="any">Default voice</option>
-                                <option value="female">Female voice</option>
-                                <option value="male">Male voice</option>
-                              </select>
-                            </div>
-                          )}
-                          {activeTtsProvider === 'browser' && (
-                            <>
-                              <RangeSlider
-                                label="Speech Speed"
-                                value={ttsSettings.rate}
-                                min={0.7}
-                                max={1.4}
-                                step={0.05}
-                                displayValue={`${ttsSettings.rate.toFixed(2)}x`}
-                                onChange={setRate}
-                              />
-                              <RangeSlider
-                                label="Pitch"
-                                value={ttsSettings.pitch}
-                                min={0.5}
-                                max={1.5}
-                                step={0.05}
-                                displayValue={ttsSettings.pitch.toFixed(2)}
-                                onChange={setPitch}
-                              />
-                            </>
-                          )}
                           <RangeSlider
                             label="Voice Volume"
                             value={ttsSettings.volume}
@@ -455,6 +366,107 @@ export const Settings = () => {
                           >
                             {ttsPlaying ? '⏹ Stop Narration' : '🔊 Test Voice'}
                           </button>
+                          <button
+                            onClick={() => setShowAdvancedNarration(v => !v)}
+                            className="w-full py-2 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-slate-300 transition-colors"
+                          >
+                            {showAdvancedNarration ? '▴ Hide Advanced' : '▾ Advanced'}
+                          </button>
+                          {showAdvancedNarration && (
+                            <>
+                              {capabilities.hasTts && (
+                                <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
+                                  <span className="font-black uppercase tracking-tighter text-white">Narrator Voice</span>
+                                  <div className="relative">
+                                    <select
+                                      value={ttsSettings.provider}
+                                      onChange={e => setProvider(e.target.value as typeof ttsSettings.provider)}
+                                      className="w-full appearance-none bg-slate-800 text-white rounded-xl px-3 py-2 pr-8 border border-slate-700 text-sm"
+                                    >
+                                      <option value="browser">Browser voice</option>
+                                      <option value="openai">AI narrator</option>
+                                    </select>
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">▾</span>
+                                  </div>
+                                </div>
+                              )}
+                              {activeTtsProvider === 'browser' && (
+                                <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
+                                  <span className="font-black uppercase tracking-tighter text-white">Voice</span>
+                                  {savedVoiceUnavailable && (
+                                    <p className="text-xs text-amber-400">Saved voice is unavailable on this device - using best match.</p>
+                                  )}
+                                  {availableVoices.length === 0 && voicesTimedOut ? (
+                                    <div className="flex flex-col gap-2">
+                                      <p className="text-sm text-rose-400">Could not load voices on this device.</p>
+                                      <p className="text-xs text-slate-400">Try switching to <span className="text-amber-400 font-black">AI Narrator</span> above for reliable narration.</p>
+                                    </div>
+                                  ) : availableVoices.length === 0 ? (
+                                    <p className="text-sm text-slate-500">Loading available voices...</p>
+                                  ) : (
+                                    <div className="relative">
+                                      <select
+                                        value={ttsSettings.preferredVoiceURI ?? ''}
+                                        onChange={e => {
+                                          const voice = availableVoices.find(v => v.voiceURI === e.target.value) ?? null;
+                                          setPreferredVoice(voice?.voiceURI ?? null, voice?.name ?? null, voice?.lang ?? null);
+                                        }}
+                                        className="w-full appearance-none bg-slate-800 text-white rounded-xl px-3 py-2 pr-8 border border-slate-700 text-sm"
+                                      >
+                                        <option value="">Best available voice</option>
+                                        {availableVoices.map(v => (
+                                          <option key={v.voiceURI} value={v.voiceURI}>
+                                            {v.name} ({v.lang}){v.default ? ' - default' : ''}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">▾</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              {activeTtsProvider === 'openai' && (
+                                <div className="flex flex-col gap-2 p-5 bg-black/40 rounded-[20px] border-2 border-slate-800">
+                                  <span className="font-black uppercase tracking-tighter text-white">Voice Preference</span>
+                                  <p className="text-xs text-slate-500">AI narrator voice selection.</p>
+                                  <div className="relative">
+                                    <select
+                                      value={ttsSettings.preferredGenderHint}
+                                      onChange={e => setPreferredGenderHint(e.target.value as typeof ttsSettings.preferredGenderHint)}
+                                      className="w-full appearance-none bg-slate-800 text-white rounded-xl px-3 py-2 pr-8 border border-slate-700 text-sm"
+                                    >
+                                      <option value="any">Default voice</option>
+                                      <option value="female">Female voice</option>
+                                      <option value="male">Male voice</option>
+                                    </select>
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">▾</span>
+                                  </div>
+                                </div>
+                              )}
+                              {activeTtsProvider === 'browser' && (
+                                <>
+                                  <RangeSlider
+                                    label="Speech Speed"
+                                    value={ttsSettings.rate}
+                                    min={0.7}
+                                    max={1.4}
+                                    step={0.05}
+                                    displayValue={`${ttsSettings.rate.toFixed(2)}x`}
+                                    onChange={setRate}
+                                  />
+                                  <RangeSlider
+                                    label="Pitch"
+                                    value={ttsSettings.pitch}
+                                    min={0.5}
+                                    max={1.5}
+                                    step={0.05}
+                                    displayValue={ttsSettings.pitch.toFixed(2)}
+                                    onChange={setPitch}
+                                  />
+                                </>
+                              )}
+                            </>
+                          )}
                         </>
                       )}
                     </>

@@ -27,8 +27,8 @@ describe('getSessionEntryPath', () => {
     expect(getSessionEntryPath(makeSession(3))).toBe('/session/sess-1/recap');
   });
 
-  it('routes to session root when game is over', () => {
-    expect(getSessionEntryPath(makeSession(2, true))).toBe('/session/sess-1');
+  it('routes to recap when game is over', () => {
+    expect(getSessionEntryPath(makeSession(2, true))).toBe('/session/sess-1/recap');
   });
 
   it('routes to assembly when party is empty even if gameOver somehow set', () => {

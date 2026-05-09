@@ -37,8 +37,8 @@ export const CharacterPopup = ({ character, onClose, onAvatarClick }: CharacterP
 
   return (
     <Modal className="animate-in fade-in duration-300">
-      <div className="bg-slate-900 p-6 md:p-10 rounded-[40px] border-2 border-amber-500/30 shadow-2xl max-w-lg w-full relative">
-        <button onClick={onClose} className="absolute top-6 right-6 text-slate-500 hover:text-white">✕</button>
+      <div role="dialog" aria-modal="true" aria-label={`${character.name} character details`} className="bg-slate-900 p-6 md:p-10 rounded-[40px] border-2 border-amber-500/30 shadow-2xl max-w-lg w-full relative">
+        <button onClick={onClose} aria-label="Close" className="absolute top-6 right-6 text-slate-500 hover:text-white">✕</button>
 
         {/* Header */}
         <div className="flex gap-4 md:gap-6 mb-6">

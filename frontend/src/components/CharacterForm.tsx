@@ -46,16 +46,16 @@ export const CharacterForm = ({ onSave, onCancel, isLoading, initialValues, sugg
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-16 gap-4">
             <div className="text-5xl animate-bounce">⚒</div>
-            <p className="text-amber-500 font-black uppercase tracking-widest animate-pulse">{isEditing ? 'Updating hero...' : 'Forging hero...'}</p>
+            <p className="text-amber-500 font-black uppercase tracking-widest animate-pulse">{isEditing ? 'Updating hero...' : 'Generating portrait...'}</p>
           </div>
         ) : (
-          <form onSubmit={onSave}>
+          <form key={suggestions ? `${suggestions.name}|${suggestions.class}|${suggestions.species}` : 'empty'} onSubmit={onSave}>
             <div className="space-y-4">
-              <input name="name" defaultValue={initialValues?.name} placeholder={suggestions?.name ?? 'Sir Fluffington the Brave'} required className="w-full p-4 bg-slate-800 rounded-xl" />
-              <input name="class" defaultValue={initialValues?.class} placeholder={suggestions?.class ?? 'Professional Napper / Chaotic Wizard'} required className="w-full p-4 bg-slate-800 rounded-xl" />
-              <input name="species" defaultValue={initialValues?.species} placeholder={suggestions?.species ?? 'Intergalactic Hamster'} required className="w-full p-4 bg-slate-800 rounded-xl" />
+              <input name="name" defaultValue={initialValues?.name ?? suggestions?.name} placeholder="Sir Fluffington the Brave" required className="w-full p-4 bg-slate-800 rounded-xl" />
+              <input name="class" defaultValue={initialValues?.class ?? suggestions?.class} placeholder="Professional Napper / Chaotic Wizard" required className="w-full p-4 bg-slate-800 rounded-xl" />
+              <input name="species" defaultValue={initialValues?.species ?? suggestions?.species} placeholder="Intergalactic Hamster" required className="w-full p-4 bg-slate-800 rounded-xl" />
               <input name="gender" defaultValue={initialValues?.gender} placeholder="Gender (optional - e.g. female, non-binary, he/him)" className="w-full p-4 bg-slate-800 rounded-xl" />
-              <textarea name="quirk" defaultValue={initialValues?.quirk} placeholder={suggestions?.quirk ?? 'Must solve every problem with a dance-off'} required className="w-full p-4 bg-slate-800 rounded-xl" />
+              <textarea name="quirk" defaultValue={initialValues?.quirk ?? suggestions?.quirk} placeholder="Must solve every problem with a dance-off" required className="w-full p-4 bg-slate-800 rounded-xl" />
             </div>
             <div className="flex gap-4 mt-8">
               <button type="submit" className="flex-1 py-4 bg-amber-600 rounded-xl font-black uppercase">Save</button>

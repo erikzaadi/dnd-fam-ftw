@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import type { Session, Character } from '../../types';
 import type { AudioSettings } from '../../audio/audioTypes';
 import { PartyBox } from '../PartyBox';
@@ -6,16 +6,27 @@ import { MenuItem } from '../MenuItem';
 import { audioManager } from '../../audio/audioManager';
 import { browserTtsService } from '../../tts/browserTtsService';
 import { Z } from '../../lib/zIndex';
+import { Tooltip } from '../Tooltip';
 
 interface GearPopoverProps {
   savingsMode: boolean;
   onToggleSavingsMode: () => void;
   audioSettings: AudioSettings;
   onMuteToggle: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export const GearPopover = ({ savingsMode, onToggleSavingsMode, audioSettings, onMuteToggle }: GearPopoverProps) => {
-  const [open, setOpen] = useState(false);
+export const GearPopover = ({ savingsMode, onToggleSavingsMode, audioSettings, onMuteToggle, open: openProp, onOpenChange }: GearPopoverProps) => {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = openProp ?? internalOpen;
+  const setOpen = useCallback((v: boolean) => {
+    if (onOpenChange) {
+      onOpenChange(v);
+    } else {
+      setInternalOpen(v);
+    }
+  }, [onOpenChange]);
   const ref = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -30,7 +41,7 @@ export const GearPopover = ({ savingsMode, onToggleSavingsMode, audioSettings, o
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [open]);
+  }, [open, setOpen]);
 
   useEffect(() => {
     if (open) {
@@ -45,15 +56,13 @@ export const GearPopover = ({ savingsMode, onToggleSavingsMode, audioSettings, o
       if (inTextField) {
         return;
       }
-      if (e.key === 's') {
-        setOpen(o => !o);
-      } else if (e.key === 'Escape' && open) {
+      if (e.key === 'Escape' && open) {
         setOpen(false);
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [open]);
+  }, [open, setOpen]);
 
   const handleMenuKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown' || e.key === 'j') {
@@ -75,19 +84,15 @@ export const GearPopover = ({ savingsMode, onToggleSavingsMode, audioSettings, o
   const showSkip = audioSettings.enabled && audioSettings.musicEnabled;
 
   return (
-    <div ref={ref} className="relative group">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className={`w-9 h-9 xl:w-11 xl:h-11 flex items-center justify-center rounded-xl border text-base xl:text-lg transition-all ${open ? 'border-amber-500/60 bg-amber-500/10 text-amber-400' : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'}`}
-      >
-        ⚙
-      </button>
-      {!open && (
-        <div className={`fixed top-[60px] right-4 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap ${Z.popover}`}>
-          Settings [s]
-          <div className="absolute bottom-full right-3 border-4 border-transparent border-b-slate-700" />
-        </div>
-      )}
+    <div ref={ref} className="relative">
+      <Tooltip content={!open ? 'Settings [s]' : undefined} position="bottom" align="right" portal>
+        <button
+          onClick={() => setOpen(!open)}
+          className={`w-11 h-11 flex items-center justify-center rounded-xl border text-base transition-all ${open ? 'border-amber-500/60 bg-amber-500/10 text-amber-400' : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'}`}
+        >
+          ⚙
+        </button>
+      </Tooltip>
       {open && (
         <div ref={menuRef} onKeyDown={handleMenuKeyDown} className={`fixed top-[60px] right-4 w-52 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3 flex flex-col gap-1 ${Z.popover} animate-in fade-in zoom-in-95 duration-150`}>
           <MenuItem

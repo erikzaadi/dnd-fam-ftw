@@ -49,7 +49,7 @@ export const InventoryItemCard = ({
   const hasEvolution = !!(item.condition || item.effect || item.charges !== undefined || (item.tags && item.tags.length > 0) || item.boundToCharacterId);
 
   return (
-    <div className="relative group min-w-0">
+    <Tooltip as="div" content={pending ? undefined : item.description} position="top" portal variant="description" wrapperClassName="min-w-0">
       <div className={`p-3 rounded-2xl border transition-colors min-w-0 ${pending ? 'border-amber-500/60 bg-amber-950/20' : active ? 'bg-amber-950/20 border-amber-500/30' : 'bg-slate-800/60 border-slate-700/50'}`}>
         <div className="flex items-start justify-between gap-2 min-w-0">
           <div className="min-w-0">
@@ -98,14 +98,8 @@ export const InventoryItemCard = ({
             )}
           </div>
         )}
-        {item.description && !pending && (
-          <div className="absolute bottom-full left-0 mb-2 w-56 px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-300 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-            {item.description}
-            <div className="absolute top-full left-6 border-4 border-transparent border-t-slate-700" />
-          </div>
-        )}
       </div>
-    </div>
+    </Tooltip>
   );
 };
 
@@ -144,7 +138,7 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
 
     if (compact) {
       return (
-        <div key={item.id} className="relative group flex flex-col items-end">
+        <Tooltip key={item.id} as="div" content={isPendingThis ? undefined : item.description} position="left" portal variant="description" wrapperClassName="flex flex-col items-end">
           <div className={`flex flex-col items-end gap-1 px-2 py-1 rounded-xl border transition-colors ${isPendingThis ? 'border-amber-500/60 bg-amber-950/20' : isActive ? 'bg-amber-950/10 border-amber-500/20' : 'bg-slate-800/40 border-slate-700/40'}`}>
             {/* Name + action buttons row */}
             <div className="flex items-center gap-1 justify-end flex-wrap">
@@ -200,14 +194,7 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
               />
             )}
           </div>
-          {/* Tooltip - appears to the left since items are right-aligned */}
-          {item.description && !isPendingThis && (
-            <div className="absolute right-full top-0 mr-2 w-48 px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-300 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-normal">
-              {item.description}
-              <div className="absolute top-3 left-full border-4 border-transparent border-l-slate-700" />
-            </div>
-          )}
-        </div>
+        </Tooltip>
       );
     }
 
@@ -248,7 +235,7 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
   return (
     <div className="bg-slate-900/50 p-4 md:p-8 rounded-[40px] border border-slate-800 shadow-2xl">
       <h3 className="flex items-center gap-2 text-xl font-black uppercase tracking-widest text-amber-500/70 mb-4">
-        <img src={imgSrc('/images/icon_inventory.png')} alt="" className="w-25 h-25 object-contain mix-blend-screen rounded-lg" />
+        <img src={imgSrc('/images/icon_inventory.png')} alt="" className="w-6 h-6 object-contain mix-blend-screen rounded-lg" />
         Treasure & Gear
       </h3>
       {partyWithItems.length === 0 ? (

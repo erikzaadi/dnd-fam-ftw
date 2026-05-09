@@ -21,6 +21,7 @@ import { useAudioSettings } from '../audio/useAudioSettings';
 import { useTtsSettings } from '../tts/useTtsSettings';
 import { narrationTtsService } from '../tts/narrationTtsService';
 import { useCapabilities } from '../hooks/useCapabilities';
+import { Tooltip } from '../components/Tooltip';
 import { NarrationTtsButton } from '../components/NarrationTtsButton';
 import { KeybindingsHelp } from '../components/KeybindingsHelp';
 import { OnboardingOverlay } from '../components/OnboardingOverlay';
@@ -72,6 +73,9 @@ export const SessionPage = () => {
   const [lastSubmittedAction, setLastSubmittedAction] = useState<LastSubmittedAction | null>(null);
   const [currentTensionLevel, setCurrentTensionLevel] = useState<'low' | 'medium' | 'high' | null>(null);
   const [showBanner, setShowBanner] = useState(true);
+  const [gearOpen, setGearOpen] = useState(false);
+  const showBannerRef = useRef(showBanner);
+  showBannerRef.current = showBanner;
   const [storyFocusRequest, setStoryFocusRequest] = useState(0);
   const { step: tutorialStep, advance: advanceTutorial } = useOnboardingTutorial({
     isLoading: loading,
@@ -226,13 +230,18 @@ export const SessionPage = () => {
         });
       } else if (e.key === 'b') {
         setShowBanner(prev => !prev);
+      } else if (e.key === 's') {
+        if (!showBannerRef.current) {
+          setShowBanner(true);
+        }
+        setGearOpen(o => !o);
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [history.length, navigate, showFullInventory]);
 
-  useSessionEvents({
+  const { connectionState } = useSessionEvents({
     sessionId: id!,
     onGameOver: (updatedSession) => {
       setSession(updatedSession);
@@ -507,22 +516,26 @@ export const SessionPage = () => {
         />
       )}
 
+      {/* Reconnecting indicator */}
+      {connectionState === 'reconnecting' && (
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[80] flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 border border-slate-700 rounded-full backdrop-blur-sm pointer-events-none">
+          <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          <span className="text-xs font-black uppercase tracking-widest text-slate-400">Reconnecting...</span>
+        </div>
+      )}
+
       {/* Top-right controls */}
       {showBanner ? (
         <div className="fixed top-3 right-4 z-[70] flex items-center gap-1.5 pointer-events-auto" data-tutorial="top-controls">
-          <div className="relative group">
+          <Tooltip content="Hide banner [b]" position="bottom" align="right" portal>
             <button
               onClick={() => setShowBanner(false)}
-              className="w-9 h-9 xl:w-11 xl:h-11 flex items-center justify-center rounded-xl border border-slate-700 text-slate-400 hover:bg-slate-800 hover:border-slate-500 hover:text-slate-200 text-sm xl:text-base transition-all"
+              className="w-11 h-11 flex items-center justify-center rounded-xl border border-slate-700 text-slate-400 hover:bg-slate-800 hover:border-slate-500 hover:text-slate-200 text-sm transition-all"
               aria-label="Hide banner"
             >
               ▲
             </button>
-            <div className="absolute top-full right-0 mt-2 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-              Hide banner [b]
-              <div className="absolute bottom-full right-3 border-4 border-transparent border-b-slate-700" />
-            </div>
-          </div>
+          </Tooltip>
           <GearPopover
             savingsMode={session.savingsMode}
             onToggleSavingsMode={toggleSavingsMode}
@@ -533,33 +546,29 @@ export const SessionPage = () => {
                 narrationTtsService.stopNarration();
               }
             }}
+            open={gearOpen}
+            onOpenChange={setGearOpen}
           />
-          <div className="relative group">
+          <Tooltip content="Exit realm [q]" position="bottom" align="right" portal>
             <button
               onClick={handleExitClick}
-              className="w-9 h-9 xl:w-11 xl:h-11 flex items-center justify-center rounded-xl border border-rose-900/60 text-rose-500 hover:bg-rose-900/20 hover:border-rose-700 hover:text-rose-300 font-black text-sm xl:text-base transition-all"
+              className="w-11 h-11 flex items-center justify-center rounded-xl border border-rose-900/60 text-rose-500 hover:bg-rose-900/20 hover:border-rose-700 hover:text-rose-300 font-black text-sm transition-all"
             >
               ✕
             </button>
-            <div className="absolute top-full right-0 mt-2 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-              Exit realm [q]
-              <div className="absolute bottom-full right-3 border-4 border-transparent border-b-slate-700" />
-            </div>
-          </div>
+          </Tooltip>
         </div>
       ) : (
-        <div className="fixed top-3 right-4 z-[70] group pointer-events-auto">
-          <button
-            onClick={() => setShowBanner(true)}
-            className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-700 text-[9px] font-black text-slate-500 hover:text-slate-300 hover:border-slate-500 transition-all shadow-lg"
-            aria-label="Show banner"
-          >
-            ▼
-          </button>
-          <div className="absolute top-full right-0 mt-2 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-            Show banner [b]
-            <div className="absolute bottom-full right-3 border-4 border-transparent border-b-slate-700" />
-          </div>
+        <div className="fixed top-3 right-4 z-[70] pointer-events-auto">
+          <Tooltip content="Show banner [b]" position="bottom" align="right" portal>
+            <button
+              onClick={() => setShowBanner(true)}
+              className="w-11 h-11 flex items-center justify-center rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-700 text-[9px] font-black text-slate-500 hover:text-slate-300 hover:border-slate-500 transition-all shadow-lg"
+              aria-label="Show banner"
+            >
+              ▼
+            </button>
+          </Tooltip>
         </div>
       )}
 
@@ -611,6 +620,7 @@ export const SessionPage = () => {
               error={actionError}
               onSubmit={submitAction}
               onShowPartyGear={() => setShowFullInventory(true)}
+              onCharacterClick={setSelectedCharacter}
             />
           )}
         </div>
@@ -721,7 +731,7 @@ export const SessionPage = () => {
       {/* Fullscreen narration */}
       {fullscreenNarration && (
         <div
-          className="fixed inset-0 z-[100] overflow-y-auto bg-slate-950 animate-in fade-in"
+          className="fixed inset-0 z-[100] overflow-y-auto bg-slate-950 animate-in fade-in cursor-zoom-out"
           onClick={() => setFullscreenNarration(null)}
         >
           <div className="min-h-full flex items-center justify-center p-8 md:p-16">
@@ -758,7 +768,7 @@ export const SessionPage = () => {
 
       {/* Sanctuary banner */}
       {sanctuaryBanner && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 p-8 animate-in fade-in">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-teal-950/90 p-8 animate-in fade-in">
           <div className="max-w-xl text-center space-y-4">
             <div className="text-6xl">✨</div>
             <p className="text-slate-200 text-center text-2xl font-display font-black italic leading-snug">{sanctuaryBanner}</p>

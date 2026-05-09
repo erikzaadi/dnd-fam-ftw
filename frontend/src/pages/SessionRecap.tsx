@@ -330,13 +330,13 @@ export const SessionRecap = () => {
         setMode('tldr');
       } else if (e.key === '2') {
         setMode('movie');
-      } else if (e.key === '3') {
+      } else if (e.key === '3' && !session?.gameOver) {
         enter();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [mode, enter]);
+  }, [mode, enter, session]);
 
   const toggleSavingsMode = async () => {
     if (!session) {
@@ -395,12 +395,14 @@ export const SessionRecap = () => {
           >
             {session.savingsMode ? '🪙 Saving' : '🖼 Images'}
           </button>
-          <button
-            onClick={enter}
-            className="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 font-black uppercase text-xs tracking-widest transition-all shadow-[0_3px_0_rgb(146,64,14)]"
-          >
-            Enter Realm →
-          </button>
+          {!session.gameOver && (
+            <button
+              onClick={enter}
+              className="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 font-black uppercase text-xs tracking-widest transition-all shadow-[0_3px_0_rgb(146,64,14)]"
+            >
+              Enter Realm →
+            </button>
+          )}
           <Link
             to="/"
             onClick={() => audioManager.stopMusic()}
@@ -444,12 +446,14 @@ export const SessionRecap = () => {
                   <span className="text-xs text-slate-500 text-center">Relive each turn with scenes</span>
                 </button>
               </div>
-              <button onClick={e => {
-                e.stopPropagation(); enter();
-              }} className="relative text-slate-500 hover:text-slate-300 font-black uppercase text-xs tracking-widest transition-colors">
-                <span className="absolute -top-1 -right-5 text-[9px] font-black text-slate-700 tracking-widest">[3]</span>
-                Skip - Jump straight in
-              </button>
+              {!session.gameOver && (
+                <button onClick={e => {
+                  e.stopPropagation(); enter();
+                }} className="relative text-slate-500 hover:text-slate-300 font-black uppercase text-xs tracking-widest transition-colors">
+                  <span className="absolute -top-1 -right-5 text-[9px] font-black text-slate-700 tracking-widest">[3]</span>
+                  Skip - Jump straight in
+                </button>
+              )}
             </div>
           </div>
         )}

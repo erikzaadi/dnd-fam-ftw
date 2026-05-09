@@ -162,7 +162,7 @@ test('instant-start-loader', async ({ page }) => {
 
   await page.goto('/');
   await dismissAudioOverlay(page);
-  await page.getByRole('button', { name: /Roll the Bones/i }).click();
+  await page.getByRole('button', { name: /Quick Start/i }).click();
 
   // Wait for the loader to mount before freezing the pun text
   await expect(page.getByTestId('instant-start-loader')).toBeVisible({ timeout: 5_000 });

@@ -6,6 +6,7 @@ import { FullscreenImage } from '../components/FullscreenImage';
 import { InstantStartLoader } from '../components/InstantStartLoader';
 import { SiteHeader } from '../components/SiteHeader';
 import { Tooltip } from '../components/Tooltip';
+import { CharacterPopup } from '../components/CharacterPopup';
 import { apiFetch, apiUrl, imgSrc } from '../lib/api';
 import { getSessionEntryPath } from '../lib/sessionRoute';
 import type { SessionPreview } from '../types';
@@ -91,7 +92,7 @@ const EditSessionModal = ({
         <h3 className="text-lg font-black uppercase tracking-tighter text-amber-400 italic">Edit Realm - {sessionName}</h3>
 
         <div className="flex flex-col gap-2">
-          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Difficulty</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Difficulty</span>
           <div className="flex gap-2">
             {(['easy', 'normal', 'hard'] as const).map(d => (
               <button
@@ -109,23 +110,23 @@ const EditSessionModal = ({
         </div>
 
         <div className="flex flex-col gap-2">
-          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Game Pacing</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Game Pacing</span>
           <div className="flex flex-wrap gap-2">
             {Object.entries(PACING_LABELS).map(([id, { icon, label }]) => (
               <button
                 key={id}
                 onClick={() => setGameMode(id)}
-                className={`flex flex-col items-center px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${gameMode === id ? (id === 'zug-ma-geddon' ? 'bg-rose-900/20 border-rose-500 text-rose-400' : 'bg-amber-600/10 border-amber-600 text-amber-500') : 'bg-slate-800/50 border-slate-700 text-slate-500'}`}
+                className={`flex flex-col items-center px-3 py-2 rounded-xl text-xs font-semibold uppercase tracking-widest transition-all border ${gameMode === id ? (id === 'zug-ma-geddon' ? 'bg-rose-900/20 border-rose-500 text-rose-400' : 'bg-amber-600/10 border-amber-600 text-amber-500') : 'bg-slate-800/50 border-slate-700 text-slate-500'}`}
               >
                 <span className="text-sm mb-0.5">{icon}</span>
-                <span className="text-[8px]">{label}</span>
+                <span className="text-[10px]">{label}</span>
               </button>
             ))}
           </div>
         </div>
 
         <div className="flex flex-col gap-2">
-          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Realm Description</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Realm Description</span>
           <textarea
             value={worldDescription}
             onChange={e => setWorldDescription(e.target.value)}
@@ -137,11 +138,11 @@ const EditSessionModal = ({
 
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">DM Prep Notes</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">DM Prep Notes</span>
             <button
               onClick={regenerateDmPrep}
               disabled={regenerating}
-              className="text-[9px] font-black uppercase tracking-widest text-amber-500 hover:text-amber-400 disabled:opacity-40 transition-colors"
+              className="text-xs font-semibold text-amber-500 hover:text-amber-400 disabled:opacity-40 transition-colors"
             >
               {regenerating ? 'Generating...' : 'AI Generate'}
             </button>
@@ -181,6 +182,7 @@ const WorldCard = ({
   onDelete,
   onEdit,
   onAssemble,
+  onCharacterClick,
   enterRef,
 }: {
   session: SessionPreview;
@@ -188,6 +190,7 @@ const WorldCard = ({
   onDelete: () => void;
   onEdit: () => void;
   onAssemble: () => void;
+  onCharacterClick: (char: SessionPreview['party'][number]) => void;
   enterRef?: (el: HTMLButtonElement | null) => void;
 }) => {
   const [expanded, setExpanded] = useState(false);
@@ -196,7 +199,7 @@ const WorldCard = ({
   const previewSrc = session.previewImageUrl ? imgSrc(session.previewImageUrl) : imgSrc('/images/default_scene.png');
 
   return (
-    <div className="bg-black/40 rounded-[20px] border-2 border-slate-800 hover:border-slate-700 transition-colors flex flex-col relative">
+    <div className="bg-amber-950/20 rounded-[20px] border-2 border-slate-800 hover:border-slate-700 transition-colors flex flex-col relative">
       {fullscreenPreview && (
         <FullscreenImage url={previewSrc} onClose={() => setFullscreenPreview(false)} />
       )}
@@ -217,7 +220,7 @@ const WorldCard = ({
         <span className="flex-1 text-left text-amber-400 font-black text-base tracking-tight truncate flex items-center gap-2 min-w-0">
           {session.displayName}
           {session.gameOver && (
-            <span className="text-[9px] font-black uppercase tracking-widest text-rose-500 border border-rose-700/50 bg-rose-900/20 px-1.5 py-0.5 rounded-full flex-shrink-0">
+            <span className="text-[10px] font-black uppercase tracking-widest text-rose-500 border border-rose-700/50 bg-rose-900/20 px-1.5 py-0.5 rounded-full flex-shrink-0">
               FALLEN
             </span>
           )}
@@ -244,7 +247,7 @@ const WorldCard = ({
               onClick={e => {
                 e.stopPropagation(); onEnter();
               }}
-              className="px-3 py-1.5 bg-rose-900/20 hover:bg-rose-900/30 border border-rose-700/40 rounded-lg font-black uppercase tracking-widest text-rose-500 text-[10px] transition-all"
+              className="px-3 py-1.5 bg-rose-900/20 hover:bg-rose-900/30 border border-rose-700/40 rounded-lg font-black uppercase tracking-widest text-rose-500 text-xs transition-all"
             >
               Chronicle
             </button>
@@ -256,22 +259,23 @@ const WorldCard = ({
               onClick={e => {
                 e.stopPropagation(); onEnter();
               }}
-              className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-600/40 rounded-lg font-black uppercase tracking-widest text-amber-400 text-[10px] transition-all"
+              className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-600/40 rounded-lg font-black uppercase tracking-widest text-amber-400 text-xs transition-all"
             >
               Enter →
             </button>
           </Tooltip>
         )}
-        {/* Assemble Heroes - icon button with tooltip */}
+        {/* Assemble Heroes */}
         <Tooltip content="Manage heroes" as="div" wrapperClassName="flex-shrink-0">
           <button
             onClick={e => {
               e.stopPropagation(); onAssemble();
             }}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-indigo-400 hover:bg-indigo-500/10 text-sm transition-colors"
+            className="flex items-center gap-1 px-2 py-1.5 lg:w-8 lg:h-8 lg:p-0 lg:justify-center rounded-lg text-slate-500 hover:text-indigo-400 hover:bg-indigo-500/10 text-sm transition-colors"
             aria-label="Manage Heroes"
           >
-            ⚔
+            <span>⚔</span>
+            <span className="text-xs font-semibold uppercase tracking-widest lg:hidden">Heroes</span>
           </button>
         </Tooltip>
         <Tooltip content="Edit realm" as="div" wrapperClassName="flex-shrink-0">
@@ -279,10 +283,11 @@ const WorldCard = ({
             onClick={e => {
               e.stopPropagation(); onEdit();
             }}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-600 hover:text-amber-400 hover:bg-amber-500/10 text-sm transition-colors"
+            className="flex items-center gap-1 px-2 py-1.5 lg:w-8 lg:h-8 lg:p-0 lg:justify-center rounded-lg text-slate-600 hover:text-amber-400 hover:bg-amber-500/10 text-sm transition-colors"
             aria-label="Edit realm"
           >
-            ✎
+            <span>✎</span>
+            <span className="text-xs font-semibold uppercase tracking-widest lg:hidden">Edit</span>
           </button>
         </Tooltip>
         <Tooltip content="Delete realm" align="right" as="div" wrapperClassName="flex-shrink-0">
@@ -290,10 +295,11 @@ const WorldCard = ({
             onClick={e => {
               e.stopPropagation(); onDelete();
             }}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 text-sm font-black transition-colors"
+            className="flex items-center gap-1 px-2 py-1.5 lg:w-8 lg:h-8 lg:p-0 lg:justify-center rounded-lg text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 text-sm font-black transition-colors"
             aria-label="Delete realm"
           >
-            ✕
+            <span>✕</span>
+            <span className="text-xs font-semibold uppercase tracking-widest lg:hidden">Delete</span>
           </button>
         </Tooltip>
       </div>
@@ -305,18 +311,25 @@ const WorldCard = ({
             <div className="min-w-0 flex-1 space-y-3">
               {session.party.length > 0 && (
                 <div className="flex flex-wrap gap-2 flex-col">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Adventurers ({session.party.length})</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Adventurers ({session.party.length})</p>
                   <div className="flex flex-wrap gap-2">
                     {session.party.map(c => (
-                      <div key={c.id} className="flex items-center gap-2 bg-slate-800/60 rounded-xl px-2 py-1.5 border border-slate-700/50">
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation(); onCharacterClick(c);
+                        }}
+                        className="flex items-center gap-2 bg-slate-800/60 hover:bg-slate-700/60 rounded-xl px-2 py-1.5 border border-slate-700/50 hover:border-slate-600 transition-colors text-left"
+                      >
                         {c.avatarUrl && (
                           <img src={imgSrc(c.avatarUrl)} className="w-8 h-8 rounded-lg object-cover flex-shrink-0" alt={c.name} />
                         )}
                         <div className="min-w-0">
                           <div className="text-sm font-black text-slate-200 leading-tight truncate">{c.name}</div>
-                          <div className="text-[10px] text-slate-500 uppercase tracking-wide leading-tight">{c.class}</div>
+                          <div className="text-xs text-slate-500 leading-tight">{c.class}</div>
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -325,7 +338,7 @@ const WorldCard = ({
                 <p className="text-sm text-slate-400 italic leading-relaxed">{session.worldDescription}</p>
               )}
               {session.storySummary && (
-                <p className="text-sm text-slate-500 leading-relaxed border-l-2 border-slate-700 pl-3">{session.storySummary}</p>
+                <p className="text-sm text-slate-500 leading-relaxed italic pl-2">{session.storySummary}</p>
               )}
             </div>
             <button
@@ -350,11 +363,15 @@ const WorldCard = ({
   );
 };
 
+type PartyMember = SessionPreview['party'][number];
+
 export const Home = () => {
   const [activeSessions, setActiveSessions] = useState<SessionPreview[]>([]);
   const [sessionLimit, setSessionLimit] = useState<{ max: number; current: number } | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
   const [editSession, setEditSession] = useState<{ id: string; displayName: string; difficulty: string; gameMode: string; dmPrep?: string; worldDescription?: string } | null>(null);
+  const [viewingChar, setViewingChar] = useState<PartyMember | null>(null);
+  const [fullscreenCharAvatar, setFullscreenCharAvatar] = useState<string | null>(null);
   const [instantStartLoading, setInstantStartLoading] = useState(false);
   const instantStartEsRef = useRef<EventSource | null>(null);
   const navigate = useNavigate();
@@ -520,6 +537,25 @@ export const Home = () => {
   return (
     <div className="h-[100dvh] bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col overflow-hidden">
       {instantStartLoading && <InstantStartLoader />}
+      {viewingChar && (
+        <CharacterPopup
+          character={{
+            ...viewingChar,
+            quirk: '',
+            status: 'active',
+            stats: { might: 0, magic: 0, mischief: 0 },
+            inventory: [],
+          }}
+          onClose={() => setViewingChar(null)}
+          onAvatarClick={(url) => {
+            setViewingChar(null);
+            setFullscreenCharAvatar(url);
+          }}
+        />
+      )}
+      {fullscreenCharAvatar && (
+        <FullscreenImage url={fullscreenCharAvatar} onClose={() => setFullscreenCharAvatar(null)} />
+      )}
       {confirmDialog && (
         <ConfirmDialog
           message={confirmDialog.message}
@@ -568,31 +604,40 @@ export const Home = () => {
             return (
               <div className="flex flex-col gap-3">
                 {showGettingStarted ? (
-                  <div className="flex flex-col md:flex-row gap-3">
+                  <>
                     <button
                       onClick={() => navigate('/get-me-rollin')}
-                      className="flex-1 px-6 py-4 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-xl font-black shadow-[0_8px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter flex items-center justify-center gap-3"
+                      className="w-full px-6 py-5 bg-amber-600 hover:bg-amber-500 rounded-[32px] shadow-[0_8px_0_rgb(146,64,14)] transition-all flex items-center gap-4"
                     >
                       <img
                         src={imgSrc('/images/icon_dice.png')}
-                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                        className="w-12 h-12 rounded-full object-cover flex-shrink-0"
                         alt=""
                       />
-                      Tutorial: GET ME ROLLIN'
+                      <div className="text-left">
+                        <p className="text-xl font-black uppercase italic tracking-tighter leading-tight">GET ME ROLLIN'</p>
+                        <p className="text-sm font-medium text-amber-200 normal-case tracking-normal not-italic">A guided adventure - perfect for first-timers</p>
+                      </div>
                     </button>
-                    <button
-                      onClick={handleInstantStart}
-                      disabled={instantStartLoading}
-                      className="flex-1 px-6 py-4 bg-violet-900 hover:bg-violet-800 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-violet-700 rounded-[32px] text-base font-black uppercase italic tracking-tighter transition-colors text-violet-200 flex items-center justify-center gap-3"
-                    >
-                      <img
-                        src={imgSrc('/images/icon_scroll.png')}
-                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                        alt=""
-                      />
-                      Quick Start: Roll the Bones
-                    </button>
-                  </div>
+                    <p className="text-center text-xs font-black uppercase tracking-widest text-slate-600">or, jump in yourself:</p>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button
+                        onClick={handleInstantStart}
+                        disabled={instantStartLoading}
+                        className="flex-1 px-4 py-3 bg-violet-900 hover:bg-violet-800 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-violet-700 rounded-[28px] text-sm font-black uppercase italic tracking-tighter transition-colors text-violet-200 flex items-center justify-center gap-2"
+                      >
+                        <img src={imgSrc('/images/icon_scroll.png')} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
+                        Quick Start
+                      </button>
+                      <button
+                        onClick={() => navigate('/create-session')}
+                        className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 border-2 border-slate-700 rounded-[28px] text-sm font-black uppercase italic tracking-tighter transition-colors text-slate-300 flex items-center justify-center gap-2"
+                      >
+                        <img src={imgSrc('/images/icon_might.png')} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
+                        Build Your Own{sessionLimit ? ` (${sessionLimit.current}/${sessionLimit.max})` : ''}
+                      </button>
+                    </div>
+                  </>
                 ) : (
                   <button
                     onClick={() => navigate('/create-session')}
@@ -600,7 +645,7 @@ export const Home = () => {
                   >
                     <img
                       src={imgSrc('/images/icon_dice.png')}
-                      className="w-8 h-8 md:w-14 md:h-14 rounded-full object-cover animate-dice-shake flex-shrink-0"
+                      className="w-8 h-8 md:w-14 md:h-14 rounded-full object-cover flex-shrink-0"
                       alt=""
                     />
                     START A NEW REALM{sessionLimit ? ` (${sessionLimit.current}/${sessionLimit.max})` : ''}
@@ -610,22 +655,10 @@ export const Home = () => {
                   <button
                     onClick={handleInstantStart}
                     disabled={instantStartLoading}
-                    className="px-6 py-3 bg-violet-900 hover:bg-violet-800 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-violet-700 rounded-[32px] text-base font-black uppercase italic tracking-tighter w-full transition-colors text-violet-200"
+                    className="px-6 py-3 bg-violet-900 hover:bg-violet-800 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-violet-700 rounded-[32px] text-base font-black uppercase italic tracking-tighter w-full transition-colors text-violet-200 flex items-center justify-center gap-2"
                   >
+                    <img src={imgSrc('/images/icon_scroll.png')} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
                     Quick Start: Roll the Bones
-                  </button>
-                )}
-                {showGettingStarted && (
-                  <button
-                    onClick={() => navigate('/create-session')}
-                    className="px-6 py-3 bg-slate-800 hover:bg-slate-700 border-2 border-slate-700 rounded-[32px] text-base font-black uppercase italic tracking-tighter w-full transition-colors text-slate-300 flex items-center justify-center gap-3"
-                  >
-                    <img
-                      src={imgSrc('/images/icon_might.png')}
-                      className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-                      alt=""
-                    />
-                    Build Your Own Realm{sessionLimit ? ` (${sessionLimit.current}/${sessionLimit.max})` : ''}
                   </button>
                 )}
               </div>
@@ -647,6 +680,7 @@ export const Home = () => {
                   onDelete={() => deleteSession(sess.id, sess.displayName)}
                   onEdit={() => setEditSession({ id: sess.id, displayName: sess.displayName, difficulty: sess.difficulty, gameMode: sess.gameMode, dmPrep: sess.dmPrep, worldDescription: sess.worldDescription })}
                   onAssemble={() => navigate(`/session/${sess.id}/assembly`)}
+                  onCharacterClick={setViewingChar}
                 />
               ))}
             </div>

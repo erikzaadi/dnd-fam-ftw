@@ -18,12 +18,12 @@ test('instant start: loader appears and navigates to a new session', async ({ pa
   await page.goto('/');
   await dismissAudioOverlay(page);
 
-  await expect(page.getByRole('button', { name: /Roll the Bones/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Quick Start/i })).toBeVisible();
 
   // Wait for the POST and inspect what it returns
   const [response] = await Promise.all([
     page.waitForResponse(res => res.url().includes('/session/instant-start') && res.request().method() === 'POST', { timeout: 10_000 }),
-    page.getByRole('button', { name: /Roll the Bones/i }).click(),
+    page.getByRole('button', { name: /Quick Start/i }).click(),
   ]);
 
   const status = response.status();

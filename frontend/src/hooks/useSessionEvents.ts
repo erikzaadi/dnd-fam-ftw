@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Session, TurnResult, Character } from '../types';
 import { apiUrl } from '../lib/api';
 import { audioManager } from '../audio/audioManager';
@@ -34,6 +34,8 @@ interface SessionEventHandlers {
   onGameOver: (session: Session) => void;
 }
 
+export type ConnectionState = 'connected' | 'reconnecting' | 'disconnected';
+
 export const useSessionEvents = ({
   sessionId,
   onNarrating,
@@ -44,6 +46,10 @@ export const useSessionEvents = ({
   onPartyUpdate,
   onGameOver,
 }: SessionEventHandlers) => {
+  const [connectionState, setConnectionState] = useState<ConnectionState>('connected');
+  const setConnectionStateRef = useRef(setConnectionState);
+  setConnectionStateRef.current = setConnectionState;
+
   useEffect(() => {
     let es: EventSource;
     let reconnectTimer: ReturnType<typeof setTimeout>;
@@ -52,9 +58,10 @@ export const useSessionEvents = ({
 
     const scheduleReconnect = () => {
       if (closed) {
-        return; 
+        return;
       }
       es?.close();
+      setConnectionStateRef.current('reconnecting');
       clearTimeout(reconnectTimer);
       reconnectTimer = setTimeout(connect, SSE_RECONNECT_DELAY_MS);
     };
@@ -64,6 +71,7 @@ export const useSessionEvents = ({
       es = new EventSource(apiUrl(`/session/${sessionId}/events`), { withCredentials: true });
 
       es.onmessage = (e: MessageEvent) => {
+        setConnectionStateRef.current('connected');
         lastMessageAt = Date.now();
         const data = JSON.parse(e.data);
         if (data.type === 'dm_narrating') {
@@ -143,4 +151,6 @@ export const useSessionEvents = ({
   // Re-running the effect on every render would reconnect the SSE stream unnecessarily.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
+
+  return { connectionState };
 };

@@ -11,6 +11,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DmFooter } from '../components/DmFooter';
 import { SiteHeader } from '../components/SiteHeader';
 import { useSessionEvents } from '../hooks/useSessionEvents';
+import { Tooltip } from '../components/Tooltip';
 
 export const CharacterAssembly = () => {
   const { id } = useParams<{ id: string }>();
@@ -261,19 +262,20 @@ export const CharacterAssembly = () => {
           <div className="flex items-center justify-between gap-4">
             <h1 className="text-3xl md:text-6xl font-display font-black text-amber-500 italic tracking-tighter drop-shadow-[0_6px_6px_rgba(0,0,0,0.5)]">Assemble Your Party</h1>
             {session && (
-              <button
-                onClick={toggleSavingsMode}
-                title={session.savingsMode ? 'Images off - click to enable' : 'Images on - click to disable'}
-                className={`px-3 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all cursor-pointer flex-shrink-0 ${session.savingsMode ? 'border-amber-500 text-amber-400 bg-amber-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
-              >
-                {session.savingsMode ? '🪙 Saving' : '🖼 Images'}
-              </button>
+              <Tooltip content={session.savingsMode ? 'Images off - tap to enable' : 'Images on - tap to disable'} position="bottom" portal>
+                <button
+                  onClick={toggleSavingsMode}
+                  className={`px-3 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all cursor-pointer flex-shrink-0 ${session.savingsMode ? 'border-amber-500 text-amber-400 bg-amber-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
+                >
+                  {session.savingsMode ? '🪙 Saving' : '🖼 Images'}
+                </button>
+              </Tooltip>
             )}
           </div>
 
           {session && session.party.length > 0 && (
             <div className="bg-slate-900 rounded-[48px] border border-slate-800 p-8 space-y-4">
-              <h2 className="text-xs font-black uppercase tracking-widest text-amber-500/70 mb-6">Current Heroes</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-500/70 mb-6">Current Heroes</h2>
               <div className="flex flex-wrap gap-4">
                 {session.party.map(c => (
                   <div key={c.id} className="flex items-center gap-4 p-4 bg-slate-800/60 rounded-2xl border border-slate-700/50">
@@ -285,13 +287,13 @@ export const CharacterAssembly = () => {
                     />
                     <div className="min-w-0">
                       <div className="font-black text-sm text-slate-100 cursor-pointer hover:text-amber-400 transition-colors" onClick={() => setViewingChar(c)}>{c.name}</div>
-                      <div className="text-xs text-slate-500 uppercase tracking-wide">{c.class} · {c.species}</div>
+                      <div className="text-xs text-slate-500">{c.class} · {c.species}</div>
                     </div>
                     <div className="flex gap-1 ml-2">
                       <button onClick={() => {
                         setEditingChar(c); setSuggestions(null); setIsCreating(true);
-                      }} className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-700 text-amber-500 hover:bg-amber-500/20 text-xs transition-colors">✎</button>
-                      <button onClick={() => removeCharacter(c.id)} className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-700 text-rose-500 hover:bg-rose-500/20 text-xs transition-colors">✕</button>
+                      }} className="w-10 h-10 flex items-center justify-center rounded-lg bg-slate-700 text-amber-500 hover:bg-amber-500/20 text-xs transition-colors">✎</button>
+                      <button onClick={() => removeCharacter(c.id)} className="w-10 h-10 flex items-center justify-center rounded-lg bg-slate-700 text-rose-500 hover:bg-rose-500/20 text-xs transition-colors">✕</button>
                     </div>
                   </div>
                 ))}
@@ -299,14 +301,31 @@ export const CharacterAssembly = () => {
             </div>
           )}
 
-          <div className="flex gap-4">
-            <button onClick={() => {
-              setEditingChar(null); generateSuggestions(); setIsCreating(true);
-            }} className="flex-1 py-6 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm transition-all">+ Create New Hero</button>
-            {importableCharacters.length > 0 && (
-              <button onClick={() => setShowImportModal(true)} className="flex-1 py-6 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm transition-all">+ Import Hero</button>
-            )}
-          </div>
+          {session && session.party.length === 0 ? (
+            <div className="flex flex-col gap-3">
+              <button onClick={() => {
+                setEditingChar(null); generateSuggestions(); setIsCreating(true);
+              }} className="w-full py-6 bg-amber-600 hover:bg-amber-500 rounded-[28px] font-black uppercase tracking-widest text-sm shadow-[0_6px_0_rgb(146,64,14)] transition-all">+ Create New Hero</button>
+              {importableCharacters.length > 0 && (
+                <button onClick={() => setShowImportModal(true)} className="w-full py-4 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm text-slate-400 transition-all">+ Import from Past</button>
+              )}
+            </div>
+          ) : (
+            <div className="flex gap-4">
+              <button onClick={() => {
+                setEditingChar(null); generateSuggestions(); setIsCreating(true);
+              }} className="flex-1 py-6 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm transition-all">+ Add Another Hero</button>
+              {importableCharacters.length > 0 && (
+                <button onClick={() => setShowImportModal(true)} className="flex-1 py-6 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm transition-all">+ Import from Past</button>
+              )}
+            </div>
+          )}
+          {session && session.party.length === 0 && (
+            <p className="text-sm text-slate-500 italic text-center">Add 1-4 heroes to your party to begin. Each adventurer gets an AI-generated portrait.</p>
+          )}
+          {session && session.party.length === 1 && (
+            <p className="text-sm text-amber-500/70 italic text-center">A lone hero is brave - but every epic adventure needs at least 2!</p>
+          )}
 
           {error && (
             <div className="flex items-center justify-between gap-4 px-6 py-3 bg-rose-950/60 border border-rose-700 rounded-2xl text-rose-300 text-sm">

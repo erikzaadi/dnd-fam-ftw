@@ -5,7 +5,7 @@ export function getSessionEntryPath(session: Pick<SessionPreview, 'id' | 'party'
     return `/session/${session.id}/assembly`;
   }
   if (session.gameOver) {
-    return `/session/${session.id}`;
+    return `/session/${session.id}/recap`;
   }
   return `/session/${session.id}/recap`;
 }

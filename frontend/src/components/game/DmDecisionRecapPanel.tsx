@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Character } from '../../types';
 import { imgSrc } from '../../lib/api';
 import { beatTarget } from '../../lib/game';
@@ -27,7 +28,20 @@ interface DmDecisionRecapPanelProps {
   ttsSettings: TtsSettings;
 }
 
+const DM_FLAVOR_PHRASES = [
+  'The DM is narrating...',
+  'Fate is being decided...',
+  'The dice are watching...',
+  'The DM is pondering your doom...',
+  'Destiny stirs in the shadows...',
+  'The realm holds its breath...',
+];
+
+let phraseIdx = 0;
+const pickPhrase = () => DM_FLAVOR_PHRASES[phraseIdx++ % DM_FLAVOR_PHRASES.length];
+
 export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings }: DmDecisionRecapPanelProps) => {
+  const [flavorPhrase] = useState(pickPhrase);
   const char = lastSubmittedAction?.char ?? null;
   const stat = lastSubmittedAction?.stat ?? 'none';
 
@@ -65,7 +79,7 @@ export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings }: DmDec
         />
 
         <div className="text-amber-500 font-black uppercase tracking-widest text-lg animate-pulse">
-          The DM is narrating...
+          {flavorPhrase}
         </div>
 
         {lastSubmittedAction && (
