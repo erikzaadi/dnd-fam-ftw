@@ -202,15 +202,16 @@ jobs:
 
       - name: Build frontend
         if: steps.changes.outputs.deploy_frontend == 'true'
-        working-directory: frontend
         env:
           VITE_API_BASE_URL: https://${{ secrets.API_DOMAIN }}
           VITE_BASE_PATH: /
         run: |
+          npm install --prefix packages/shared
+          npm run build --prefix packages/shared
           GIT_VER="${{ steps.changes.outputs.git_version }}"
           BUILD_TIME="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          echo "{\"version\":\"$GIT_VER\",\"buildTime\":\"$BUILD_TIME\"}" > public/version.json
-          npm ci && npm run build
+          echo "{\"version\":\"$GIT_VER\",\"buildTime\":\"$BUILD_TIME\"}" > frontend/public/version.json
+          npm ci --prefix frontend && npm run build --prefix frontend
 
       - name: Sync frontend to S3
         if: steps.changes.outputs.deploy_frontend == 'true'
