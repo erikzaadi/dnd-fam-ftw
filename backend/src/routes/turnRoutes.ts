@@ -36,7 +36,7 @@ export const createTurnRouter = () => {
     }
     const history = await StateService.getTurnHistory(req.params.id as string);
     const prompt = `Summarize the adventure so far in 3 sentences, focusing on the main plot points: ${history.map(h => h.narration).join(' ')}`;
-    const { client, model } = createChatClient(session.useLocalAI);
+    const { client, model } = createChatClient();
     try {
       const response = await client.chat.completions.create({
         model,

@@ -3,7 +3,7 @@ import { StateService } from './stateService.js';
 import { StorySummaryService } from './storySummaryService.js';
 import { broadcastSessionListUpdate, broadcastUpdate } from '../realtime/sessionEvents.js';
 
-export const triggerPreviewRegen = (sessionId: string, useLocalAI: boolean, namespaceId?: string) => {
+export const triggerPreviewRegen = (sessionId: string, namespaceId?: string) => {
   StateService.getSession(sessionId).then(session => {
     if (!session) {
       console.warn(`[Preview] Skipping generation for missing session ${sessionId}`);
@@ -14,7 +14,7 @@ export const triggerPreviewRegen = (sessionId: string, useLocalAI: boolean, name
       return;
     }
     console.log(`[Preview] Generating preview for ${sessionId}`);
-    ImageService.generateSessionPreview(session, useLocalAI).then(result => {
+    ImageService.generateSessionPreview(session).then(result => {
       if (result) {
         StateService.updateSessionPreviewImage(sessionId, result.url);
         const eventNamespaceId = namespaceId ?? StateService.getSessionNamespaceId(sessionId);
@@ -29,14 +29,13 @@ export const triggerPreviewRegen = (sessionId: string, useLocalAI: boolean, name
 export const refreshDmPrepImageBriefAndPreview = (
   sessionId: string,
   dmPrep: string | null | undefined,
-  useLocalAI: boolean,
   namespaceId?: string,
 ) => {
-  StorySummaryService.generateDmPrepImageBrief(dmPrep, useLocalAI).then(async brief => {
+  StorySummaryService.generateDmPrepImageBrief(dmPrep).then(async brief => {
     await StateService.patchSession(sessionId, { dmPrepImageBrief: brief });
-    triggerPreviewRegen(sessionId, useLocalAI, namespaceId);
+    triggerPreviewRegen(sessionId, namespaceId);
   }).catch(err => {
     console.warn('[Preview] DM prep visual brief refresh failed:', err);
-    triggerPreviewRegen(sessionId, useLocalAI, namespaceId);
+    triggerPreviewRegen(sessionId, namespaceId);
   });
 };

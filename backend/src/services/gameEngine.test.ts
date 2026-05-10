@@ -31,7 +31,6 @@ const makeSession = (overrides: Partial<SessionState> = {}): SessionState => ({
   displayName: 'Test World',
   difficulty: 'normal',
   savingsMode: false,
-  useLocalAI: false,
   interventionState: { rescuesUsed: 0 },
   storySummary: '',
   ...overrides,

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DmFooter } from '../components/DmFooter';
 import { SiteHeader } from '../components/SiteHeader';
@@ -23,35 +23,10 @@ export const CreateSession = () => {
   const [showDmPrep, setShowDmPrep] = useState(false);
   const [difficulty, setDifficulty] = useState("normal");
   const [gameMode, setGameMode] = useState<'cinematic' | 'balanced' | 'fast' | 'zug-ma-geddon'>("balanced");
-  const [useLocalAI, setUseLocalAI] = useState(() => {
-    const stored = localStorage.getItem('useLocalAI');
-    if (stored !== null) {
-      return stored === 'true';
-    }
-    return false;
-  });
   const [showWorldDescription, setShowWorldDescription] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasLocalAI, setHasLocalAI] = useState(false);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    const needsDefaultAI = localStorage.getItem('useLocalAI') === null;
-    const fetches: Promise<void>[] = [
-      apiFetch('/capabilities').then(r => r.json()).then(c => setHasLocalAI(c.hasLocalAI)),
-    ];
-    if (needsDefaultAI) {
-      fetches.push(apiFetch('/settings').then(r => r.json()).then(s => setUseLocalAI(s.defaultUseLocalAI)));
-    }
-    Promise.all(fetches);
-  }, []);
-
-  const toggleLocalAI = () => {
-    const next = !useLocalAI;
-    setUseLocalAI(next);
-    localStorage.setItem('useLocalAI', String(next));
-  };
 
   const createSession = async () => {
     setIsLoading(true);
@@ -59,7 +34,7 @@ export const CreateSession = () => {
     const res = await apiFetch('/session/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ worldDescription, difficulty, useLocalAI, gameMode, dmPrep: dmPrep || undefined })
+      body: JSON.stringify({ worldDescription, difficulty, gameMode, dmPrep: dmPrep || undefined })
     });
     const data = await res.json();
     setIsLoading(false);
@@ -119,16 +94,6 @@ export const CreateSession = () => {
             </div>
           </div>
 
-          {hasLocalAI && (
-            <div className="flex justify-center">
-              <button
-                onClick={toggleLocalAI}
-                className={`px-4 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all ${useLocalAI ? 'border-purple-500 text-purple-400 bg-purple-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
-              >
-                {useLocalAI ? '🏠 Local AI' : '☁️ Cloud AI'}
-              </button>
-            </div>
-          )}
           {showWorldDescription ? (
             <textarea
               placeholder="Describe the realm..."

@@ -18,7 +18,6 @@ import { booleanBodySchema, parseBody } from './routeValidation.js';
 const createSessionBodySchema = z.object({
   worldDescription: z.string().optional(),
   difficulty: z.string().optional(),
-  useLocalAI: z.boolean().optional(),
   gameMode: z.enum(['cinematic', 'balanced', 'fast']).optional(),
   dmPrep: z.string().optional(),
 });
@@ -70,7 +69,6 @@ export const createSessionRouter = () => {
 
     const settings = SettingsService.get();
     const savingsMode = !settings.imagesEnabled;
-    const useLocalAI = settings.defaultUseLocalAI;
     const randomPace = Math.random() < 0.5 ? 'fast' : 'balanced';
     const seed = pickWorldSeed();
     const sessionId = createQuickStartId();
@@ -78,7 +76,6 @@ export const createSessionRouter = () => {
     const session = await StateService.createSession(
       seed.worldDescription,
       'normal',
-      useLocalAI,
       savingsMode,
       req.namespaceId,
       randomPace,
@@ -110,7 +107,7 @@ export const createSessionRouter = () => {
     if (!body) {
       return;
     }
-    const { worldDescription, difficulty, useLocalAI, gameMode, dmPrep } = body;
+    const { worldDescription, difficulty, gameMode, dmPrep } = body;
     try {
       const limits = StateService.getNamespaceLimits(req.namespaceId);
       if (limits.maxSessions !== null) {
@@ -121,19 +118,19 @@ export const createSessionRouter = () => {
         }
       }
       const savingsMode = !SettingsService.get().imagesEnabled;
-      const session = await StateService.createSession(worldDescription, difficulty, !!useLocalAI, savingsMode, req.namespaceId, gameMode, dmPrep || undefined);
+      const session = await StateService.createSession(worldDescription, difficulty, savingsMode, req.namespaceId, gameMode, dmPrep || undefined);
       broadcastSessionChanged(req.namespaceId, session.id, 'created');
       if (dmPrep) {
-        refreshDmPrepImageBriefAndPreview(session.id, dmPrep, session.useLocalAI, req.namespaceId);
+        refreshDmPrepImageBriefAndPreview(session.id, dmPrep, req.namespaceId);
       } else {
-        StorySummaryService.generateCampaignBrief(session.id, worldDescription, !!useLocalAI, session.displayName, difficulty, gameMode).then(brief => {
+        StorySummaryService.generateCampaignBrief(session.id, worldDescription, session.displayName, difficulty, gameMode).then(brief => {
           if (brief) {
-            triggerPreviewRegen(session.id, session.useLocalAI, req.namespaceId);
+            triggerPreviewRegen(session.id, req.namespaceId);
           }
         }).catch(err => {
           console.warn('[Campaign] Brief generation failed silently:', err);
         });
-        triggerPreviewRegen(session.id, session.useLocalAI, req.namespaceId);
+        triggerPreviewRegen(session.id, req.namespaceId);
       }
       res.json(session);
     } catch (error: unknown) {
@@ -180,9 +177,9 @@ export const createSessionRouter = () => {
     await StateService.patchSession(req.params.id as string, patch);
     broadcastSessionChanged(req.namespaceId, req.params.id as string, 'updated');
     if (dmPrep !== undefined) {
-      refreshDmPrepImageBriefAndPreview(req.params.id as string, dmPrep || null, session.useLocalAI, req.namespaceId);
+      refreshDmPrepImageBriefAndPreview(req.params.id as string, dmPrep || null, req.namespaceId);
     } else {
-      triggerPreviewRegen(req.params.id as string, session.useLocalAI, req.namespaceId);
+      triggerPreviewRegen(req.params.id as string, req.namespaceId);
     }
     res.json({
       id: session.id,
@@ -203,7 +200,7 @@ export const createSessionRouter = () => {
       res.json({ previewImageUrl: null });
       return;
     }
-    const result = await ImageService.generateSessionPreview(session, session.useLocalAI);
+    const result = await ImageService.generateSessionPreview(session);
     if (result) {
       StateService.updateSessionPreviewImage(session.id, result.url);
       broadcastUpdate(session.id, 'preview_image_available', { previewImageUrl: result.url });
@@ -225,7 +222,7 @@ export const createSessionRouter = () => {
     const worldDescription = body?.worldDescription !== undefined ? (body.worldDescription || undefined) : session.worldDescription;
     const difficulty = body?.difficulty ?? session.difficulty;
     const gameMode = body?.gameMode ?? session.gameMode;
-    const brief = await StorySummaryService.generateCampaignBrief(session.id, worldDescription, session.useLocalAI, session.displayName, difficulty, gameMode);
+    const brief = await StorySummaryService.generateCampaignBrief(session.id, worldDescription, session.displayName, difficulty, gameMode);
     if (!brief) {
       res.status(500).json({ error: 'Failed to generate campaign brief' });
       return;
@@ -249,7 +246,7 @@ export const createSessionRouter = () => {
 
     let initialTurn;
     try {
-      initialTurn = await AiDmService.generateTurnResult({ ...session, characterId: '', actionAttempt: "Adventure begins!", actionResult: { success: true, roll: 20, statUsed: 'none' } }, session.useLocalAI);
+      initialTurn = await AiDmService.generateTurnResult({ ...session, characterId: '', actionAttempt: "Adventure begins!", actionResult: { success: true, roll: 20, statUsed: 'none' } });
     } catch (error: unknown) {
       if (sendRateLimitResponse(res, error)) {
         return;
@@ -269,7 +266,6 @@ export const createSessionRouter = () => {
           initialTurn.imagePrompt || 'A fantasy realm establishing scene',
           sessionId,
           session.turn,
-          session.useLocalAI,
           undefined,
           undefined,
           {
@@ -297,16 +293,6 @@ export const createSessionRouter = () => {
     const { enabled } = body;
     await StateService.setSavingsMode(req.params.id as string, enabled);
     res.json({ savingsMode: enabled });
-  }));
-
-  router.post('/session/:id/use-local-ai', asyncHandler(async (req, res) => {
-    const body = parseBody(req, res, booleanBodySchema);
-    if (!body) {
-      return;
-    }
-    const { enabled } = body;
-    await StateService.setUseLocalAI(req.params.id as string, enabled);
-    res.json({ useLocalAI: enabled });
   }));
 
   return router;

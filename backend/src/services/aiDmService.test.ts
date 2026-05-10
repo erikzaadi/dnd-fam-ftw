@@ -44,7 +44,6 @@ const makeAIInput = (overrides: Partial<AIInput> = {}): AIInput => ({
   difficulty: 'normal',
   gameMode: 'balanced',
   savingsMode: false,
-  useLocalAI: false,
   interventionState: { rescuesUsed: 0 },
   storySummary: '',
   actionAttempt: 'Sneak past the chef',

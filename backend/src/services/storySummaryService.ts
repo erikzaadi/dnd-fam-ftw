@@ -20,7 +20,7 @@ export class StorySummaryService {
     return turn > 1 && turn % SUMMARY_INTERVAL === 0;
   }
 
-  static async maybeUpdate(sessionId: string, turn: number, useLocalAI: boolean): Promise<void> {
+  static async maybeUpdate(sessionId: string, turn: number): Promise<void> {
     if (!this.shouldUpdate(turn)) {
       return;
     }
@@ -40,7 +40,7 @@ export class StorySummaryService {
 
       const prompt = buildCampaignStateSummaryPrompt(session.storySummary, recentNarrations);
 
-      const summary = await this.callSummarize(prompt, useLocalAI);
+      const summary = await this.callSummarize(prompt);
       if (summary) {
         await StateService.updateStorySummary(sessionId, summary);
         console.log(`[Summary] Updated at turn ${turn} for session ${sessionId}`);
@@ -50,7 +50,7 @@ export class StorySummaryService {
     }
   }
 
-  static async updateAfterIntervention(sessionId: string, interventionNarration: string, useLocalAI: boolean): Promise<void> {
+  static async updateAfterIntervention(sessionId: string, interventionNarration: string): Promise<void> {
     try {
       const session = await StateService.getSession(sessionId);
       if (!session) {
@@ -62,7 +62,7 @@ export class StorySummaryService {
 CRITICAL: The party has just been rescued or moved to a new location. Explicitly state that they have LEFT the previous scene behind. 
 Focus only on the current situation and the essential journey, ignoring defeated or bypassed enemies from the past.`;
 
-      const summary = await this.callSummarize(prompt, useLocalAI);
+      const summary = await this.callSummarize(prompt);
       if (summary) {
         await StateService.updateStorySummary(sessionId, summary);
         console.log(`[Summary] Updated after intervention for session ${sessionId}`);
@@ -72,7 +72,7 @@ Focus only on the current situation and the essential journey, ignoring defeated
     }
   }
 
-  static async generateCampaignBrief(sessionId: string, worldDescription: string | undefined, useLocalAI: boolean, displayName?: string, difficulty?: string, gameMode?: string): Promise<string | null> {
+  static async generateCampaignBrief(sessionId: string, worldDescription: string | undefined, displayName?: string, difficulty?: string, gameMode?: string): Promise<string | null> {
     try {
       const nameContext = displayName?.trim() ? `\nRealm name: "${displayName.trim()}"` : '';
       const descContext = worldDescription?.trim() ? `\nRealm description: "${worldDescription.trim()}"` : '';
@@ -109,9 +109,9 @@ DM NOTE: (one pacing rule and one fail-forward rule for this campaign)
 
 Be specific: invent names, places, visual details, clues, and recurring motifs. This guides the AI Dungeon Master turn by turn. Keep it playful, adventurous, and safe for a family table.`;
 
-      const brief = await this.callSummarize(prompt, useLocalAI, 900, 90_000, `campaign brief session=${sessionId}`);
+      const brief = await this.callSummarize(prompt, 900, 90_000, `campaign brief session=${sessionId}`);
       if (brief) {
-        const imageBrief = await this.generateDmPrepImageBrief(brief, useLocalAI, sessionId);
+        const imageBrief = await this.generateDmPrepImageBrief(brief, sessionId);
         await StateService.patchSession(sessionId, { dmPrep: brief, dmPrepImageBrief: imageBrief });
         console.log(`[Campaign] Brief generated for session ${sessionId}`);
         return brief;
@@ -123,7 +123,7 @@ Be specific: invent names, places, visual details, clues, and recurring motifs. 
     }
   }
 
-  static async generateDmPrepImageBrief(dmPrep: string | undefined | null, useLocalAI: boolean, sessionId?: string): Promise<string | null> {
+  static async generateDmPrepImageBrief(dmPrep: string | undefined | null, sessionId?: string): Promise<string | null> {
     if (!dmPrep?.trim()) {
       return null;
     }
@@ -146,7 +146,7 @@ DM PREP:
 ${dmPrep}`;
 
       const label = sessionId ? `DM prep image brief session=${sessionId}` : 'DM prep image brief';
-      const brief = await this.callSummarize(prompt, useLocalAI, 120, 12_000, label);
+      const brief = await this.callSummarize(prompt, 120, 12_000, label);
       return brief || null;
     } catch (err) {
       console.warn('[Campaign] DM prep image brief generation failed:', err);
@@ -154,8 +154,8 @@ ${dmPrep}`;
     }
   }
 
-  private static async callSummarize(prompt: string, useLocalAI: boolean, maxTokens = 900, timeoutMs = 20_000, label = 'summary'): Promise<string> {
-    const { client, model } = createChatClient(useLocalAI);
+  private static async callSummarize(prompt: string, maxTokens = 900, timeoutMs = 20_000, label = 'summary'): Promise<string> {
+    const { client, model } = createChatClient();
     const start = Date.now();
     console.log(`[Summary] Starting ${label} model=${model} maxTokens=${maxTokens} timeoutMs=${timeoutMs}`);
     try {

@@ -68,7 +68,6 @@ export class ImageService {
   public static async generateAvatar(
     char: { name: string; class: string; species: string; quirk: string; gender?: string },
     sessionId: string,
-    useLocalAI?: boolean,
     overrideImageProvider?: ImageProvider,
     overrideStorageProvider?: ImageStorageProvider,
   ): Promise<{ url: string; prompt: string; storageKey: string; storageProvider: string }> {
@@ -91,7 +90,7 @@ export class ImageService {
     try {
       console.log(`[ImageService] Generating avatar for ${char.name}`);
       const avatarStart = Date.now();
-      const imageProvider = overrideImageProvider ?? createImageProvider(useLocalAI);
+      const imageProvider = overrideImageProvider ?? createImageProvider();
       const result = await imageProvider.generateImage({
         prompt,
         negativePrompt: DEFAULT_NEGATIVE_PROMPT,
@@ -114,7 +113,6 @@ export class ImageService {
     prompt: string,
     sessionId: string,
     turn: number,
-    useLocalAI?: boolean,
     overrideImageProvider?: ImageProvider,
     overrideStorageProvider?: ImageStorageProvider,
     context?: SceneImageContext,
@@ -131,7 +129,7 @@ export class ImageService {
 
     try {
       console.log(`[ImageService] Generating image for session ${sessionId}: ${prompt}`);
-      const imageProvider = overrideImageProvider ?? createImageProvider(useLocalAI);
+      const imageProvider = overrideImageProvider ?? createImageProvider();
       const result = await imageProvider.generateImage({
         prompt: finalPrompt,
         negativePrompt: DEFAULT_NEGATIVE_PROMPT,
@@ -146,7 +144,7 @@ export class ImageService {
       const code = (error as { code?: string })?.code;
       if (code === 'content_policy_violation') {
         console.warn('[ImageService] Content policy hit, retrying with sanitized prompt');
-        return this.generateSanitizedImage(prompt, sessionId, turn, useLocalAI, overrideImageProvider, overrideStorageProvider, context);
+        return this.generateSanitizedImage(prompt, sessionId, turn, overrideImageProvider, overrideStorageProvider, context);
       }
       console.error('[ImageService] Error generating image:', error);
       return null;
@@ -181,7 +179,6 @@ export class ImageService {
     originalPrompt: string,
     sessionId: string,
     turn: number,
-    useLocalAI?: boolean,
     overrideImageProvider?: ImageProvider,
     overrideStorageProvider?: ImageStorageProvider,
     context?: SceneImageContext,
@@ -195,7 +192,7 @@ export class ImageService {
 
     try {
       console.log('Before image provider');
-      const imageProvider = overrideImageProvider ?? createImageProvider(useLocalAI);
+      const imageProvider = overrideImageProvider ?? createImageProvider();
       console.log('After image provider generating');
       const result = await imageProvider.generateImage({
         prompt: finalPrompt,
@@ -248,7 +245,6 @@ export class ImageService {
       gameMode?: string;
       party: { name: string; class: string; species: string; quirk?: string; gender?: string }[];
     },
-    useLocalAI?: boolean,
     overrideImageProvider?: ImageProvider,
     overrideStorageProvider?: ImageStorageProvider,
   ): Promise<ImageResult | null> {
@@ -282,7 +278,7 @@ export class ImageService {
 
     try {
       console.log(`[ImageService] Generating session preview for ${session.displayName}`);
-      const imageProvider = overrideImageProvider ?? createImageProvider(useLocalAI);
+      const imageProvider = overrideImageProvider ?? createImageProvider();
       const result = await imageProvider.generateImage({
         prompt,
         negativePrompt: DEFAULT_NEGATIVE_PROMPT,
@@ -296,7 +292,7 @@ export class ImageService {
       const code = (error as { code?: string })?.code;
       if (code === 'content_policy_violation') {
         const sanitizedPrompt = this.sanitizePrompt(prompt);
-        return this.generateImage(sanitizedPrompt, session.id, 0, useLocalAI, overrideImageProvider, overrideStorageProvider);
+        return this.generateImage(sanitizedPrompt, session.id, 0, overrideImageProvider, overrideStorageProvider);
       }
       console.error('[ImageService] Session preview generation failed:', error);
       return null;

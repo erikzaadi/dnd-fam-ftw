@@ -28,10 +28,10 @@ export function buildInstantStartParty(sessionId: string): Character[] {
   }));
 }
 
-async function generateAvatars(party: Character[], sessionId: string, useLocalAI: boolean): Promise<void> {
+async function generateAvatars(party: Character[], sessionId: string): Promise<void> {
   await Promise.allSettled(party.map(async char => {
     try {
-      const result = await ImageService.generateAvatar(char, sessionId, useLocalAI);
+      const result = await ImageService.generateAvatar(char, sessionId);
       const current = await StateService.getSession(sessionId);
       if (!current) {
         return;
@@ -74,7 +74,6 @@ export async function runInstantStartBackground(
   const dmPrep = await StorySummaryService.generateCampaignBrief(
     sessionId,
     seed.worldDescription,
-    session.useLocalAI,
     seed.displayName,
     'normal',
     session.gameMode,
@@ -92,7 +91,7 @@ export async function runInstantStartBackground(
   }
 
   // Start preview image in background now that we have dm prep context
-  refreshDmPrepImageBriefAndPreview(sessionId, dmPrep, session.useLocalAI, namespaceId);
+  refreshDmPrepImageBriefAndPreview(sessionId, dmPrep, namespaceId);
 
   const forTurn = await StateService.getSession(sessionId);
   if (!forTurn) {
@@ -103,7 +102,6 @@ export async function runInstantStartBackground(
   try {
     initialTurn = await AiDmService.generateTurnResult(
       { ...forTurn, characterId: '', actionAttempt: 'Adventure begins!', actionResult: { success: true, roll: 20, statUsed: 'none' } },
-      forTurn.useLocalAI,
     );
   } catch (err) {
     console.error('[InstantStart] First turn generation failed:', err);
@@ -128,7 +126,6 @@ export async function runInstantStartBackground(
         initialTurn.imagePrompt || 'A fantasy realm establishing scene',
         sessionId,
         forTurn.turn,
-        forTurn.useLocalAI,
         undefined,
         undefined,
         {
@@ -149,7 +146,7 @@ export async function runInstantStartBackground(
   };
 
   await Promise.allSettled([
-    generateAvatars(session.party, sessionId, session.useLocalAI),
+    generateAvatars(session.party, sessionId),
     sceneImageTask(),
   ]);
 }

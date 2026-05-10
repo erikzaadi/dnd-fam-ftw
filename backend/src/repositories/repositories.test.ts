@@ -81,7 +81,6 @@ describe('sessionRepository', () => {
       difficulty: 'normal',
       gameMode: 'balanced',
       savingsMode: false,
-      useLocalAI: false,
       interventionState: { rescuesUsed: 0 },
       storySummary: '',
       gameOver: false,

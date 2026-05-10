@@ -6,7 +6,6 @@ import { parseBody } from './routeValidation.js';
 
 const settingsBodySchema = z.object({
   imagesEnabled: z.boolean().optional(),
-  defaultUseLocalAI: z.boolean().optional(),
 });
 
 export const createSettingsRouter = () => {

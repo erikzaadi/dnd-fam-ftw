@@ -8,7 +8,6 @@ import { RangeSlider } from '../components/RangeSlider';
 
 interface AppSettings {
   imagesEnabled: boolean;
-  defaultUseLocalAI: boolean;
 }
 
 const Toggle = ({ checked, onChange, label, description }: { checked: boolean; onChange: (v: boolean) => void; label: string; description: string }) => (
@@ -180,22 +179,10 @@ export const Settings = () => {
                     checked={settings.imagesEnabled}
                     onChange={v => update({ imagesEnabled: v })}
                     label="Image generation"
-                    description="Generate scene illustrations and character avatars. Disable for faster turns or when no image provider is configured."
+                    description="Generate scene illustrations and character avatars. Disable for faster turns or when image generation is unavailable."
                   />
                   {!settings.imagesEnabled && (
                     <p className="text-xs text-slate-500 px-2">Character avatars will use SVG initials instead.</p>
-                  )}
-
-                  {capabilities.hasLocalAI && (
-                    <>
-                      <h2 className="text-lg font-black uppercase tracking-tighter text-amber-500 pt-2">AI</h2>
-                      <Toggle
-                        checked={settings.defaultUseLocalAI}
-                        onChange={v => update({ defaultUseLocalAI: v })}
-                        label="Local AI by default"
-                        description="New sessions default to local AI instead of cloud. Can still be overridden per session."
-                      />
-                    </>
                   )}
 
                   <h2 className="text-lg font-black uppercase tracking-tighter text-amber-500 pt-2">Tutorial</h2>

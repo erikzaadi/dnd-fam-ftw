@@ -11,7 +11,6 @@ const makeSession = (overrides: Partial<SessionState> = {}): SessionState => ({
   activeCharacterId: '',
   displayName: 'Momentum Test',
   savingsMode: false,
-  useLocalAI: false,
   interventionState: { rescuesUsed: 0 },
   npcs: [],
   quests: [],

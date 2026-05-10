@@ -36,7 +36,6 @@ export const sessionRepository = {
   async createSession(
     worldDescription?: string,
     difficulty: string = 'normal',
-    useLocalAI: boolean = false,
     savingsMode: boolean = false,
     namespaceId: string = 'local',
     gameMode: 'cinematic' | 'balanced' | 'fast' = 'balanced',
@@ -46,10 +45,10 @@ export const sessionRepository = {
   ): Promise<SessionState> {
     const db = getDb();
     const id = initialId ?? createId();
-    const displayName = initialDisplayName ?? await generateSessionDisplayName(worldDescription, useLocalAI);
+    const displayName = initialDisplayName ?? await generateSessionDisplayName(worldDescription);
 
     db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, turn, tone, displayName, difficulty, gameMode, useLocalAI, savingsMode, namespace_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, "A New Realm", "start-1", worldDescription || null, dmPrep || null, null, 1, "thrilling adventure", displayName, difficulty, gameMode, useLocalAI ? 1 : 0, savingsMode ? 1 : 0, namespaceId);
+      .run(id, "A New Realm", "start-1", worldDescription || null, dmPrep || null, null, 1, "thrilling adventure", displayName, difficulty, gameMode, 0, savingsMode ? 1 : 0, namespaceId);
 
     return {
       id,
@@ -70,7 +69,6 @@ export const sessionRepository = {
       displayName,
       difficulty,
       savingsMode,
-      useLocalAI,
       interventionState: { rescuesUsed: 0 },
       storySummary: '',
       gameOver: false,
@@ -93,7 +91,6 @@ export const sessionRepository = {
       difficulty: string;
       gameMode: string;
       savingsMode: number;
-      useLocalAI: number;
       interventionUsed: number;
       rescues_used: number;
       game_over: number;
@@ -195,7 +192,6 @@ export const sessionRepository = {
       difficulty: row.difficulty,
       gameMode: (row.gameMode as GameMode) || 'balanced',
       savingsMode: !!row.savingsMode,
-      useLocalAI: !!row.useLocalAI,
       interventionState: { rescuesUsed: row.rescues_used ?? (row.interventionUsed ? 1 : 0) },
       storySummary: row.storySummary ?? '',
       gameOver: !!row.game_over,
@@ -212,11 +208,6 @@ export const sessionRepository = {
   async setSavingsMode(id: string, enabled: boolean): Promise<void> {
     const db = getDb();
     db.prepare('UPDATE sessions SET savingsMode = ? WHERE id = ?').run(enabled ? 1 : 0, id);
-  },
-
-  async setUseLocalAI(id: string, enabled: boolean): Promise<void> {
-    const db = getDb();
-    db.prepare('UPDATE sessions SET useLocalAI = ? WHERE id = ?').run(enabled ? 1 : 0, id);
   },
 
   async updateSession(id: string, state: SessionState): Promise<void> {
@@ -322,7 +313,7 @@ export const sessionRepository = {
     const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(templateId) as {
       scene: string; sceneId: string; worldDescription: string | null; dm_prep: string | null;
       turn: number; activeCharacterId: string; tone: string; displayName: string;
-      difficulty: string; gameMode: string; savingsMode: number; useLocalAI: number;
+      difficulty: string; gameMode: string; savingsMode: number;
       storySummary: string; preview_image_url: string | null;
     } | undefined;
     if (!session) {
@@ -333,7 +324,7 @@ export const sessionRepository = {
 
     db.prepare(`INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, turn, activeCharacterId, tone, displayName, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, rescues_used, game_over, storySummary, preview_image_url, namespace_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?)`)
-      .run(newSessionId, session.scene, session.sceneId, session.worldDescription, session.dm_prep, session.turn, '', session.tone, session.displayName, session.difficulty, session.gameMode, session.savingsMode, session.useLocalAI, session.storySummary, session.preview_image_url, namespaceId);
+      .run(newSessionId, session.scene, session.sceneId, session.worldDescription, session.dm_prep, session.turn, '', session.tone, session.displayName, session.difficulty, session.gameMode, session.savingsMode, 0, session.storySummary, session.preview_image_url, namespaceId);
 
     const chars = db.prepare('SELECT * FROM characters WHERE sessionId = ? ORDER BY rowid ASC').all(templateId) as {
       id: string; name: string; class: string; species: string; quirk: string;

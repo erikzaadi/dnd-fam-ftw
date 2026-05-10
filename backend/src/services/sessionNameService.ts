@@ -1,9 +1,8 @@
 import { createChatClient } from '../providers/ai/AiProviderFactory.js';
 
-export const generateSessionDisplayName = async (worldDescription: string | undefined, useLocalAI: boolean): Promise<string> => {
-  const { client, model } = createChatClient(useLocalAI);
-  const isLocal = process.env.AI_NARRATION_PROVIDER === 'localai';
-  console.log(`[Session] Generating display name via ${isLocal ? 'LocalAI' : 'OpenAI'} model=${model}`);
+export const generateSessionDisplayName = async (worldDescription: string | undefined): Promise<string> => {
+  const { client, model } = createChatClient();
+  console.log(`[Session] Generating display name via OpenAI-compatible model=${model}`);
   const nameStart = Date.now();
 
   try {

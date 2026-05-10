@@ -180,7 +180,7 @@ export const OnboardingOverlay = ({
       <Callout style={style}>
         <CalloutTitle>Controls at the top</CalloutTitle>
         <CalloutBody>
-          The <span className="text-amber-300 font-bold">gear icon</span> opens quick settings - toggle images, mute audio, switch AI provider.
+          The <span className="text-amber-300 font-bold">gear icon</span> opens quick settings - toggle images, mute audio, and adjust narration.
         </CalloutBody>
         <CalloutBody>
           <span className="text-amber-300 font-bold">Collapse</span> hides the party banner for more story space. Press <span className="font-mono text-xs bg-slate-800 px-1 rounded">b</span> anytime to toggle it.

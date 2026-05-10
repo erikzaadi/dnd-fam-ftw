@@ -58,7 +58,7 @@ export const createCharacterRouter = () => {
     }
 
     const avatarResult = !session.savingsMode
-      ? await ImageService.generateAvatar(characterData, sessionId, session.useLocalAI)
+      ? await ImageService.generateAvatar(characterData, sessionId)
       : { url: ImageService.generateInitialsSvg(characterData.name, sessionId), prompt: '', storageKey: '', storageProvider: 'local' };
 
     const startingMaxHp = getStartingMaxHp(characterData.class);
@@ -82,7 +82,7 @@ export const createCharacterRouter = () => {
     await StateService.updateSession(sessionId, session);
     broadcastUpdate(sessionId, 'party_update', { session });
     broadcastSessionChanged(req.namespaceId, sessionId, 'updated');
-    triggerPreviewRegen(sessionId, session.useLocalAI, req.namespaceId);
+    triggerPreviewRegen(sessionId, req.namespaceId);
     res.json(character);
   }));
 
@@ -106,7 +106,7 @@ export const createCharacterRouter = () => {
     }
 
     const avatarResult = !session.savingsMode
-      ? await ImageService.generateAvatar(characterData, sessionId, session.useLocalAI)
+      ? await ImageService.generateAvatar(characterData, sessionId)
       : { url: ImageService.generateInitialsSvg(characterData.name, sessionId), prompt: '', storageKey: '', storageProvider: 'local' };
 
     const updatedChar = {
@@ -122,7 +122,7 @@ export const createCharacterRouter = () => {
     await StateService.updateSession(sessionId, session);
     broadcastUpdate(sessionId, 'party_update', { session });
     broadcastSessionChanged(req.namespaceId, sessionId, 'updated');
-    triggerPreviewRegen(sessionId, session.useLocalAI, req.namespaceId);
+    triggerPreviewRegen(sessionId, req.namespaceId);
     res.json(updatedChar);
   }));
 
@@ -134,10 +134,9 @@ export const createCharacterRouter = () => {
       return;
     }
     const session = await StateService.listSessions(req.namespaceId);
-    const useLocalAI = false;
     const sessionWithChar = session.find(s => s.party.some(p => p.id === charId));
     const narrationContext = turns.slice(-10).map(t => t.narration).join(' ');
-    const { client, model } = createChatClient(useLocalAI);
+    const { client, model } = createChatClient();
     try {
       const response = await client.chat.completions.create({
         model,
@@ -162,7 +161,7 @@ export const createCharacterRouter = () => {
     StateService.deleteCharacter(charId as string);
     broadcastUpdate(sessionId as string, 'party_update', { session });
     broadcastSessionChanged(req.namespaceId, sessionId as string, 'updated');
-    triggerPreviewRegen(sessionId as string, session.useLocalAI, req.namespaceId);
+    triggerPreviewRegen(sessionId as string, req.namespaceId);
     res.json({ success: true });
   }));
 

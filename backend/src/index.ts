@@ -36,11 +36,24 @@ const generatedDir = path.resolve(config.LOCAL_IMAGE_STORAGE_PATH);
 fs.mkdirSync(generatedDir, { recursive: true });
 app.use(config.LOCAL_IMAGE_PUBLIC_BASE_URL, express.static(generatedDir));
 
-// Require at least one AI provider to be configured
-const hasLocalAI = !!(process.env.LOCALAI_BASE_URL || process.env.AI_NARRATION_PROVIDER === 'localai');
-const hasCloudAI = !!(process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY);
-if (!hasLocalAI && !hasCloudAI) {
-  console.error('FATAL: No AI provider configured. Set OPENAI_API_KEY, GEMINI_API_KEY, or LOCALAI_BASE_URL.');
+const deprecatedAiEnvVars = [
+  'AI_NARRATION_PROVIDER',
+  'AI_IMAGE_PROVIDER',
+  'LOCALAI_BASE_URL',
+  'LOCALAI_NARRATION_MODEL',
+  'LOCALAI_IMAGE_BASE_URL',
+  'LOCALAI_IMAGE_MODEL',
+  'LOCALAI_IMAGE_STEPS',
+  'GEMINI_API_KEY',
+  'GEMINI_IMAGE_MODEL',
+].filter(name => process.env[name]);
+if (deprecatedAiEnvVars.length > 0) {
+  console.warn(`[Config] Ignoring deprecated provider env vars: ${deprecatedAiEnvVars.join(', ')}`);
+}
+
+const hasCloudAI = !!process.env.OPENAI_API_KEY;
+if (!hasCloudAI && process.env.NODE_ENV !== 'test' && process.env.TEST_AI_MOCK !== 'true') {
+  console.error('FATAL: OpenAI-compatible AI is not configured. Set OPENAI_API_KEY.');
   process.exit(1);
 }
 
@@ -55,7 +68,7 @@ if (isAuthEnabled()) {
   console.log('[Auth] Disabled - no GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/JWT_SECRET in env, all requests use local namespace');
 }
 
-app.use(createSystemRouter({ config, hasLocalAI, hasCloudAI }));
+app.use(createSystemRouter({ config, hasCloudAI }));
 app.use(createAuthRouter({ isProduction }));
 app.use(createTtsRouter());
 

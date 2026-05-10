@@ -1,18 +1,12 @@
-import OpenAI from 'openai';
 import type { ImageGenerationInput, ImageGenerationOutput, ImageProvider } from './ImageProvider.js';
-
-let _openai: OpenAI | null = null;
-const openai = () => (_openai ??= new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  ...(process.env.OPENAI_BASE_URL && { baseURL: process.env.OPENAI_BASE_URL }),
-}));
+import { createOpenAIClient, getOpenAIImageModel } from '../openAiClient.js';
 
 export class OpenAIImageProvider implements ImageProvider {
   async generateImage(input: ImageGenerationInput): Promise<ImageGenerationOutput> {
     const prompt = input.prompt;
 
-    const response = await openai().images.generate({
-      model: process.env.OPENAI_IMAGE_MODEL ?? 'dall-e-3',
+    const response = await createOpenAIClient().images.generate({
+      model: getOpenAIImageModel(),
       prompt,
       n: 1,
       size: '1024x1024',

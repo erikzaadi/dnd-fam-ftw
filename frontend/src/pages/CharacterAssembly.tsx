@@ -102,7 +102,7 @@ export const CharacterAssembly = () => {
       const statsRes = await apiFetch('/character/suggest-stats', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: rest.name, class: rest.class, species: rest.species, quirk: rest.quirk, useLocalAI: session.useLocalAI })
+        body: JSON.stringify({ name: rest.name, class: rest.class, species: rest.species, quirk: rest.quirk })
       });
       if (statsRes.ok) {
         stats = await statsRes.json();
@@ -170,7 +170,7 @@ export const CharacterAssembly = () => {
       const statsRes = await apiFetch('/character/suggest-stats', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, class: charClass, species, quirk, useLocalAI: session.useLocalAI })
+        body: JSON.stringify({ name, class: charClass, species, quirk })
       });
       if (statsRes.ok) {
         stats = await statsRes.json();

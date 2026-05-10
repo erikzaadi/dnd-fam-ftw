@@ -17,7 +17,6 @@ const suggestCharacterStatsBodySchema = z.object({
   class: z.string().optional(),
   species: z.string().optional(),
   quirk: z.string().optional(),
-  useLocalAI: z.boolean().optional(),
 });
 
 export const createStatSuggestionRouter = () => {
@@ -42,8 +41,8 @@ export const createStatSuggestionRouter = () => {
     if (!body) {
       return;
     }
-    const { name, class: charClass, species, quirk, useLocalAI } = body;
-    const { client, model } = createChatClient(!!useLocalAI);
+    const { name, class: charClass, species, quirk } = body;
+    const { client, model } = createChatClient();
     try {
       const response = await client.chat.completions.create({
         model,

@@ -1,14 +1,8 @@
-import OpenAI from 'openai';
 import type { NarrationInput, NarrationOutput, NarrationProvider } from './NarrationProvider.js';
 import { buildNarrationFallback } from './narrationFallback.js';
 import { NARRATION_SYSTEM_PROMPT, buildNarrationRetryInstructions, buildNarrationUserContent } from './narrationPrompt.js';
 import { parseNarrationOutput } from './narrationOutputGuards.js';
-
-let _openai: OpenAI | null = null;
-const openai = () => (_openai ??= new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  ...(process.env.OPENAI_BASE_URL && { baseURL: process.env.OPENAI_BASE_URL }),
-}));
+import { createOpenAIClient, getOpenAIModel } from '../openAiClient.js';
 
 export class OpenAINarrationProvider implements NarrationProvider {
   async generateTurn(input: NarrationInput): Promise<NarrationOutput> {
@@ -43,8 +37,8 @@ export class OpenAINarrationProvider implements NarrationProvider {
     const extra = validationError
       ? buildNarrationRetryInstructions(validationError)
       : '';
-    const response = await openai().chat.completions.create({
-      model: process.env.OPENAI_MODEL ?? 'gpt-4o',
+    const response = await createOpenAIClient().chat.completions.create({
+      model: getOpenAIModel(),
       messages: [
         { role: 'system', content: NARRATION_SYSTEM_PROMPT + extra },
         { role: 'user', content: buildNarrationUserContent(input) },

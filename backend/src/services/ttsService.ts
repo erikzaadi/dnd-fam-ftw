@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import { createOpenAIClient } from '../providers/ai/openAiClient.js';
 
 const TTS_MODEL = 'gpt-4o-mini-tts';
 const TTS_VOICE_MALE = 'fable';
@@ -7,12 +7,6 @@ const TTS_INSTRUCTIONS = 'Speak as a refined British fantasy audiobook narrator.
 export const TTS_MAX_INPUT_CHARS = 4096;
 
 export type TtsGender = 'male' | 'female';
-
-let _openai: OpenAI | null = null;
-const openai = () => (_openai ??= new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  ...(process.env.OPENAI_BASE_URL && { baseURL: process.env.OPENAI_BASE_URL }),
-}));
 
 export function normalizeTextForSpeech(text: string): string {
   return text
@@ -39,7 +33,7 @@ export async function generateSpeech(text: string, gender?: TtsGender): Promise<
     throw new Error(`TTS input exceeds ${TTS_MAX_INPUT_CHARS} characters`);
   }
 
-  const response = await openai().audio.speech.create({
+  const response = await createOpenAIClient().audio.speech.create({
     model: TTS_MODEL,
     voice: gender === 'female' ? TTS_VOICE_FEMALE : TTS_VOICE_MALE,
     input,

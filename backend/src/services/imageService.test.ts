@@ -55,7 +55,7 @@ describe('ImageService.generateImage', () => {
   it('cache miss: calls provider and stores result', async () => {
     const storage = makeMockStorage();
     const provider = makeMockImageProvider();
-    const result = await ImageService.generateImage('A dragon attacks', 'sess-1', 1, false, provider, storage);
+    const result = await ImageService.generateImage('A dragon attacks', 'sess-1', 1, provider, storage);
     expect(result).not.toBeNull();
     expect(provider.calls).toHaveLength(1);
     expect(provider.calls[0]).toContain('A dragon attacks');
@@ -70,7 +70,7 @@ describe('ImageService.generateImage', () => {
   it('rewrites text-prone scene props into blank visual props', async () => {
     const storage = makeMockStorage();
     const provider = makeMockImageProvider();
-    await ImageService.generateImage('A wizard studies a spellbook beside a map, rune plaque, banner, and character card', 'sess-text-risk', 1, false, provider, storage);
+    await ImageService.generateImage('A wizard studies a spellbook beside a map, rune plaque, banner, and character card', 'sess-text-risk', 1, provider, storage);
     const finalPrompt = provider.calls[0];
     expect(finalPrompt).toContain('plain unmarked props');
     expect(finalPrompt).toContain('plain unmarked parchment chart');
@@ -90,7 +90,7 @@ describe('ImageService.generateImage', () => {
     const hash = crypto.createHash('md5').update(finalPrompt).digest('hex');
     const cachedKey = `sess-cached_turn1_${hash}.png`;
     const storage = makeMockStorage(new Set([cachedKey]));
-    const result = await ImageService.generateImage(prompt, 'sess-cached', 1, false, provider, storage);
+    const result = await ImageService.generateImage(prompt, 'sess-cached', 1, provider, storage);
     expect(result).not.toBeNull();
     expect(provider.calls).toHaveLength(0);
     expect(result!.url).toContain(cachedKey);
@@ -103,7 +103,7 @@ describe('ImageService.generateImage', () => {
         throw new Error('Provider exploded');
       },
     };
-    const result = await ImageService.generateImage('A goblin sneaks', 'sess-fail', 2, false, failProvider, storage);
+    const result = await ImageService.generateImage('A goblin sneaks', 'sess-fail', 2, failProvider, storage);
     expect(result).toBeNull();
   });
 
@@ -123,7 +123,7 @@ describe('ImageService.generateImage', () => {
         return { url: FAKE_DATA_URL };
       },
     };
-    const result = await ImageService.generateImage('kill the undead skeleton', 'sess-policy', 3, false, policyProvider, storage);
+    const result = await ImageService.generateImage('kill the undead skeleton', 'sess-policy', 3, policyProvider, storage);
     expect(result).not.toBeNull();
     expect(callCount).toBe(2);
     expect(receivedPrompts[1]).not.toContain('undead');
@@ -140,7 +140,7 @@ describe('ImageService.generateImage', () => {
         throw err;
       },
     };
-    const result = await ImageService.generateImage('undead attack', 'sess-double-policy', 4, false, alwaysFailProvider, storage);
+    const result = await ImageService.generateImage('undead attack', 'sess-double-policy', 4, alwaysFailProvider, storage);
     expect(result).toBeNull();
   });
 });
@@ -150,7 +150,7 @@ describe('ImageService.generateAvatar', () => {
     const storage = makeMockStorage();
     const provider = makeMockImageProvider();
     const char = { name: 'Pip', class: 'Rogue', species: 'Halfling', quirk: 'Talks to plants' };
-    const result = await ImageService.generateAvatar(char, 'sess-avatar-1', false, provider, storage);
+    const result = await ImageService.generateAvatar(char, 'sess-avatar-1', provider, storage);
     expect(result.url).toBeTruthy();
     expect(result.prompt).toContain('halfling rogue');
     expect(result.prompt).toContain('Close-up bust view of one');
@@ -173,7 +173,7 @@ describe('ImageService.generateAvatar', () => {
     const hash = crypto.createHash('md5').update(prompt).digest('hex');
     const cachedKey = `avatar_sess-avatar-cached_${char.name}_${hash}.png`;
     const storage = makeMockStorage(new Set([cachedKey]));
-    const result = await ImageService.generateAvatar(char, 'sess-avatar-cached', false, provider, storage);
+    const result = await ImageService.generateAvatar(char, 'sess-avatar-cached', provider, storage);
     expect(provider.calls).toHaveLength(0);
     expect(result.url).toContain(cachedKey);
   });
@@ -186,7 +186,7 @@ describe('ImageService.generateAvatar', () => {
       },
     };
     const char = { name: 'Zomgush', class: 'Barbarian', species: 'Orc', quirk: 'Hates silence' };
-    const result = await ImageService.generateAvatar(char, 'sess-avatar-fail', false, failProvider, storage);
+    const result = await ImageService.generateAvatar(char, 'sess-avatar-fail', failProvider, storage);
     expect(result.url).toBeTruthy();
     expect(result.url).toContain('avatar_initials');
     expect(storage.stored.size).toBe(0);
@@ -196,7 +196,7 @@ describe('ImageService.generateAvatar', () => {
     const storage = makeMockStorage();
     const provider = makeMockImageProvider();
     const char = { name: 'Aria', class: 'Mage', species: 'Elf', quirk: 'Loves riddles', gender: 'female' };
-    const result = await ImageService.generateAvatar(char, 'sess-avatar-gender', false, provider, storage);
+    const result = await ImageService.generateAvatar(char, 'sess-avatar-gender', provider, storage);
     expect(result.prompt).toContain('female');
   });
 });
@@ -215,7 +215,7 @@ describe('ImageService.generateSessionPreview', () => {
         { name: 'Pip', class: 'Rogue', species: 'Halfling', quirk: 'talks to books', gender: 'female' },
         { name: 'Zara', class: 'Wizard', species: 'Elf', quirk: 'collects cursed spoons' },
       ],
-    }, false, provider, storage);
+    }, provider, storage);
 
     expect(result).not.toBeNull();
     expect(provider.calls).toHaveLength(1);

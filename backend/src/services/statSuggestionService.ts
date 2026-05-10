@@ -21,7 +21,7 @@ export async function suggestStatForSessionAction(
     ? toFreeActionBonusPreview(inferFreeActionBonuses(action, character, session))
     : {};
 
-  const { client, model } = createChatClient(session.useLocalAI);
+  const { client, model } = createChatClient();
   try {
     const response = await client.chat.completions.create({
       model,

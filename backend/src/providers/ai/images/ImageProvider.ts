@@ -1,5 +1,6 @@
 export type ImageGenerationInput = {
   prompt: string;
+  // Compatibility hints only. The OpenAI-compatible provider currently ignores these.
   negativePrompt?: string;
   width?: number;
   height?: number;

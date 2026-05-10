@@ -21,7 +21,7 @@ export const queueCompletedTurnSideEffects = ({
   newState,
   turnResult,
 }: CompletedTurnSideEffectsInput) => {
-  setImmediate(() => void StorySummaryService.maybeUpdate(sessionId, newState.turn, previousSession.useLocalAI));
+  setImmediate(() => void StorySummaryService.maybeUpdate(sessionId, newState.turn));
   queuePartyWipeFollowUp(sessionId, namespaceId, previousSession, newState);
   queueTurnImageGeneration(sessionId, previousSession, newState, turnResult);
 };
@@ -82,7 +82,7 @@ const queueInterventionRescue = (
         actionResult: { success: true, roll: 0, statUsed: 'none' },
         interventionRescue: true,
       };
-      const interventionTurn = await AiDmService.generateTurnResult(interventionInput, previousSession.useLocalAI);
+      const interventionTurn = await AiDmService.generateTurnResult(interventionInput);
       interventionTurn.turnType = 'intervention';
       interventionTurn.imageUrl = '/images/intervention_dragon.png';
 
@@ -91,7 +91,7 @@ const queueInterventionRescue = (
       interventionTurn.id = await StateService.addTurnResult(sessionId, interventionTurn, null);
       broadcastUpdate(sessionId, 'intervention', { session: postState, turnResult: interventionTurn });
       broadcastSessionChanged(namespaceId, sessionId, 'updated');
-      setImmediate(() => void StorySummaryService.updateAfterIntervention(sessionId, interventionTurn.narration, previousSession.useLocalAI));
+      setImmediate(() => void StorySummaryService.updateAfterIntervention(sessionId, interventionTurn.narration));
       console.log('[Intervention] Dragon rescue complete');
     } catch (err) {
       console.error('[Intervention] Failed:', err);
@@ -120,7 +120,7 @@ const queueSanctuaryRecovery = (
         actionResult: { success: true, roll: 0, statUsed: 'none' },
         sanctuaryRecovery: true,
       };
-      const sanctuaryTurn = await AiDmService.generateTurnResult(sanctuaryInput, previousSession.useLocalAI);
+      const sanctuaryTurn = await AiDmService.generateTurnResult(sanctuaryInput);
       sanctuaryTurn.turnType = 'sanctuary';
       sanctuaryTurn.imageUrl = '/images/sanctuary_light.png';
 
@@ -129,7 +129,7 @@ const queueSanctuaryRecovery = (
       sanctuaryTurn.id = await StateService.addTurnResult(sessionId, sanctuaryTurn, null);
       broadcastUpdate(sessionId, 'sanctuary_recovery', { session: postState, turnResult: sanctuaryTurn });
       broadcastSessionChanged(namespaceId, sessionId, 'updated');
-      setImmediate(() => void StorySummaryService.updateAfterIntervention(sessionId, sanctuaryTurn.narration, previousSession.useLocalAI));
+      setImmediate(() => void StorySummaryService.updateAfterIntervention(sessionId, sanctuaryTurn.narration));
       console.log('[Sanctuary] Recovery complete');
     } catch (err) {
       console.error('[Sanctuary] Failed:', err);
@@ -152,7 +152,6 @@ const queueTurnImageGeneration = (
     turnResult.imagePrompt,
     previousSession.id,
     newState.turn,
-    previousSession.useLocalAI,
     undefined,
     undefined,
     {

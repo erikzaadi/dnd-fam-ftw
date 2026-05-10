@@ -10,7 +10,7 @@ const backendEnv = [
   `LOCAL_IMAGE_STORAGE_PATH=${IMAGE_PATH}`,
   'LOCAL_IMAGE_PUBLIC_BASE_URL=/test-images',
   'IMAGE_STORAGE_PROVIDER=local',
-  'AI_NARRATION_PROVIDER=mock',
+  'TEST_AI_MOCK=true',
   'OPENAI_API_KEY=e2e-test-key',
   `PORT=${BACKEND_PORT}`,
 ].join(' ');

@@ -23,12 +23,11 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import OpenAI from 'openai';
+import { createOpenAIClient, getOpenAIImageModel } from '../providers/ai/openAiClient.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '..', '..', '..', '.env'), quiet: true });
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const OUT_DIR = path.join(__dirname, '..', '..', '..', 'frontend', 'public', 'images');
 
 const STATIC_ASSET_GUARDRAIL = 'Finished standalone fantasy artwork. No text or pseudo-text anywhere in the image. Single full-bleed edge-to-edge image. Continuous in-world scene only, not a poster, card, framed artwork, page, manuscript, or UI screenshot. All books, scrolls, maps, signs, banners, plaques, cards, dice faces, and carved surfaces are plain blank visual props with no visible marks. No lettering, numbers, logos, watermarks, signatures, captions, borders, frames, panels, menus, toolbars, editor controls, crop handles, rulers, guides, or software interface elements.';
@@ -153,8 +152,8 @@ async function generate(asset: { filename: string; prompt: string; size?: '1024x
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
 
   console.log(`[gen]  ${asset.filename} ...`);
-  const response = await openai.images.generate({
-    model: process.env.OPENAI_IMAGE_MODEL ?? 'dall-e-3',
+  const response = await createOpenAIClient().images.generate({
+    model: getOpenAIImageModel(),
     prompt: `${STATIC_ASSET_GUARDRAIL} ${asset.prompt}`,
     n: 1,
     size: asset.size ?? '1024x1024',

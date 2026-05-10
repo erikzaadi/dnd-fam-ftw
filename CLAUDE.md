@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-AI-powered family D&D game. Stack: React 19 + Vite frontend, Node/Express backend, SQLite, OpenAI/Gemini/LocalAI.
+AI-powered family D&D game. Stack: React 19 + Vite frontend, Node/Express backend, SQLite, OpenAI-compatible AI via the OpenAI SDK.
 
 ## Dev setup
 
@@ -57,12 +57,12 @@ backend/src/
     stateService.ts                # SQLite via libsql - all DB access
     authService.ts                 # Google OAuth + JWT
     aiDmService.ts                 # GPT-4o narration
-    imageService.ts                # DALL-E / LocalAI image generation
+    imageService.ts                # OpenAI-compatible image generation
     gameEngine.ts                  # Dice, damage, turn mechanics
     storySummaryService.ts         # Rolling story compression
   middleware/auth.ts               # Attaches req.namespaceId + req.userEmail
   providers/
-    ai/                            # Narration + image provider abstraction
+    ai/                            # OpenAI-compatible narration + image helpers
     storage/                       # LocalImageStorageProvider + S3ImageStorageProvider
   scripts/
     cli.ts                         # Unified management CLI
@@ -152,7 +152,7 @@ Controlled by `IMAGE_STORAGE_PROVIDER` env var (`local` or `s3`). Never call `fs
 
 ## Image prompt architecture
 
-All image prompts are built via `buildImagePrompt()` in `imageService.ts`, which prepends `IMAGE_COMPOSITION_GUARDRAIL` (a long inline negative-instruction string) to every prompt. This is the only mechanism that works with OpenAI/DALL-E - the `DEFAULT_NEGATIVE_PROMPT` in `ImageProvider.ts` is passed as a separate field but DALL-E 3 has no negative prompt parameter and silently ignores it. `DEFAULT_NEGATIVE_PROMPT` is only effective for LocalAI (Stable Diffusion). To suppress unwanted image content when using DALL-E, add the instruction to `IMAGE_COMPOSITION_GUARDRAIL`, not to `DEFAULT_NEGATIVE_PROMPT`.
+All image prompts are built via `buildImagePrompt()` in `imageService.ts`, which prepends `IMAGE_COMPOSITION_GUARDRAIL` (a long inline negative-instruction string) to every prompt. This is the source of truth for suppressing unwanted image content because OpenAI/DALL-E and many OpenAI-compatible image endpoints do not honor a separate negative prompt parameter. `DEFAULT_NEGATIVE_PROMPT` remains a compatibility hint on the provider input type, but new suppression rules belong in `IMAGE_COMPOSITION_GUARDRAIL`.
 
 ## Static image assets
 

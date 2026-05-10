@@ -85,7 +85,7 @@ Dev tools for inspecting and resetting session data.
 
 ### metrics
 
-Per-namespace usage stats: sessions, turns, images, avatars, LocalAI and savings mode counts.
+Per-namespace usage stats: sessions, turns, images, avatars, TTS, and savings mode counts.
 
 ```bash
 ./dnd-fam-ftw-cli metrics

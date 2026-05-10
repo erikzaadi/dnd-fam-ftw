@@ -3,11 +3,10 @@ import type { getConfig } from '../config/env.js';
 
 interface SystemRoutesOptions {
   config: ReturnType<typeof getConfig>;
-  hasLocalAI: boolean;
   hasCloudAI: boolean;
 }
 
-export const createSystemRouter = ({ config, hasLocalAI, hasCloudAI }: SystemRoutesOptions) => {
+export const createSystemRouter = ({ config, hasCloudAI }: SystemRoutesOptions) => {
   const router = Router();
 
   router.get('/health', (_req, res) => {
@@ -15,7 +14,7 @@ export const createSystemRouter = ({ config, hasLocalAI, hasCloudAI }: SystemRou
   });
 
   router.get('/capabilities', (_req, res) => {
-    res.json({ hasLocalAI, hasCloudAI, hasTts: !!process.env.OPENAI_API_KEY });
+    res.json({ hasCloudAI, hasTts: !!process.env.OPENAI_API_KEY });
   });
 
   return router;

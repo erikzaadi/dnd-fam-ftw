@@ -90,8 +90,8 @@ Every hero gets a generated portrait and carries their quirk into the story:
 | Frontend | React 19 + Vite + TailwindCSS 4 + TypeScript |
 | Backend | Node.js + Express 5 + TypeScript |
 | Database | SQLite via `libsql` (auto-migrated) |
-| AI Narration | OpenAI GPT-4o **or** LocalAI (OpenAI-compatible, e.g. Qwen3) |
-| AI Images | DALL-E 3 **or** LocalAI (Stable Diffusion via `stablediffusion-ggml`) |
+| AI Narration | OpenAI-compatible chat API via the OpenAI SDK |
+| AI Images | OpenAI-compatible image API via the OpenAI SDK |
 | Real-time | Server-Sent Events |
 | Fonts | Cinzel (display) + Lora (narrative) |
 
@@ -101,38 +101,23 @@ Every hero gets a generated portrait and carries their quirk into the story:
 
 ### Prerequisites
 - Node.js 20+
-- One of the AI options below : **no paid account required**
+- An OpenAI-compatible API key
 
 ### AI options
 
-**No API key? No problem.** You have three paths:
+The backend uses the OpenAI SDK for narration, helper chat calls, images, and TTS. Set `OPENAI_BASE_URL` to use OpenRouter, LocalAI-compatible servers, or another OpenAI-compatible gateway.
 
-| Option | Narration | Images | Cost |
-|--------|-----------|--------|------|
-| OpenAI | GPT-4o | DALL-E 3 | Pay-per-use |
-| [Gemini](https://ai.google.dev/gemini-api/docs/openai) (free tier) | Gemini 2.5 Flash Lite | *(paid plan only)* | Free narration with a Google account |
-| [OpenRouter](https://openrouter.ai) (free models) | Llama, Mistral, Gemma… | *(not supported)* | Free narration, huge model selection |
-| [LocalAI](https://localai.io) | Any GGUF model | Stable Diffusion | Free, runs on your machine |
+OpenAI-compatible chat support does not guarantee image support. If your alternate base URL does not support image generation, disable image generation in Settings or point `OPENAI_BASE_URL` at an image-capable endpoint.
 
 ### 1. Set up environment
 
 Create a `.env` file.
 
-**OpenAI:**
+**OpenAI-compatible API:**
 ```
 OPENAI_API_KEY=sk-proj-...
-```
-
-**Gemini (free : any Gmail account):**
-Get a key at [aistudio.google.com](https://aistudio.google.com/apikey), then:
-```
-OPENAI_API_KEY=your-gemini-api-key
-OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
-OPENAI_MODEL=gemini-2.5-flash-lite
-AI_NARRATION_PROVIDER=gemini
-# Image generation requires a paid Gemini plan : omit for SVG initials fallback
-# AI_IMAGE_PROVIDER=openai
-# OPENAI_IMAGE_MODEL=gemini-2.5-flash-image
+OPENAI_MODEL=gpt-4o-mini
+OPENAI_IMAGE_MODEL=dall-e-3
 ```
 
 **OpenRouter (free models available : no credit card required):**
@@ -141,23 +126,19 @@ Get a key at [openrouter.ai/keys](https://openrouter.ai/keys), then:
 OPENAI_API_KEY=sk-or-...
 OPENAI_BASE_URL=https://openrouter.ai/api/v1
 OPENAI_MODEL=meta-llama/llama-3.3-8b-instruct:free
-# Images not supported by OpenRouter : avatars fall back to SVG initials
+# Images may not be supported by the selected endpoint : disable image generation if needed
 ```
 Browse free models at [openrouter.ai/models?order=top-weekly&supported_parameters=free](https://openrouter.ai/models?order=top-weekly&supported_parameters=free).
 
-**LocalAI (fully self-hosted):**
+**LocalAI-compatible self-hosted API:**
 ```
-AI_NARRATION_PROVIDER=localai
-AI_IMAGE_PROVIDER=localai
-LOCALAI_BASE_URL=http://127.0.0.1:8080
-LOCALAI_NARRATION_MODEL=qwen3-1.7b
-LOCALAI_IMAGE_MODEL=sd-3.5-large-ggml
-LOCALAI_IMAGE_STEPS=8
-# Optional: separate LocalAI instance just for images (e.g. GPU-only container)
-# LOCALAI_IMAGE_BASE_URL=http://127.0.0.1:8081
+OPENAI_API_KEY=localai
+OPENAI_BASE_URL=http://127.0.0.1:8080/v1
+OPENAI_MODEL=qwen3-1.7b
+# OPENAI_IMAGE_MODEL=<image model exposed by your compatible server>
 ```
 
-You can also switch between cloud and local per-session using the toggle on the new realm screen.
+Provider-specific `AI_NARRATION_PROVIDER`, `AI_IMAGE_PROVIDER`, `LOCALAI_*`, and `GEMINI_*` env vars are no longer supported.
 
 ### 2. Install dependencies
 
@@ -284,15 +265,15 @@ See **[MANAGE.md](MANAGE.md)** for the full command reference.
 
 There are seven distinct AI calls in the app, each with a different purpose and cost profile:
 
-| Call | Where | Cloud model | Local alternative | When |
-|---|---|---|---|---|
-| **Turn narration** | `aiDmService.ts` | gpt-4o | LocalAI (Qwen3 etc.) | Every action : the core DM loop |
-| **Scene image** | `imageService.ts` | dall-e-3 | LocalAI (SD 3.5 Large) | Every turn, async via SSE, cached by prompt hash |
-| **Realm preview image** | `imageService.ts` | dall-e-3 | LocalAI (SD 3.5 Large) | On realm creation and when realm details or party composition change, cached by prompt hash |
-| **Avatar generation** | `imageService.ts` | dall-e-3 | LocalAI (SD 3.5 Large) | Once per character creation, cached permanently |
-| **TLDR summary** | `index.ts` (route) | gpt-4o-mini | - | On demand in recap screen |
-| **Session naming** | `stateService.ts` | gpt-4o-mini | LocalAI | Once at realm creation |
-| **Character history** | `index.ts` (route) | gpt-4o-mini | - | When importing a character from a previous session |
+| Call | Where | Model env var | When |
+|---|---|---|---|
+| **Turn narration** | `aiDmService.ts` | `OPENAI_MODEL` | Every action : the core DM loop |
+| **Scene image** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | Every turn, async via SSE, cached by prompt hash |
+| **Realm preview image** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | On realm creation and when realm details or party composition change, cached by prompt hash |
+| **Avatar generation** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | Once per character creation, cached permanently |
+| **TLDR summary** | `index.ts` (route) | `OPENAI_MODEL` | On demand in recap screen |
+| **Session naming** | `stateService.ts` | `OPENAI_MODEL` | Once at realm creation |
+| **Character history** | `index.ts` (route) | `OPENAI_MODEL` | When importing a character from a previous session |
 
 Use `npm run cli -- metrics` (or `./dnd-fam-ftw-prod-cli metrics` on production) to see per-namespace counts for sessions, turns, images, and avatars generated.
 
@@ -335,7 +316,7 @@ AI narrates outcome (paced by gameMode: fast/balanced/cinematic)
        ↓
 SSE broadcasts turn_complete → all connected clients update immediately
        ↓
-Image generation runs in background if session savingsMode is off (DALL-E 3 or LocalAI SD)
+Image generation runs in background if session savingsMode is off
        ↓
 SSE broadcasts image_ready → scene image appears on all clients
 ```

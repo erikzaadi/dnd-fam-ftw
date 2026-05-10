@@ -17,8 +17,8 @@ export class StateService {
     initializeDatabase();
   }
 
-  public static async createSession(worldDescription?: string, difficulty: string = 'normal', useLocalAI: boolean = false, savingsMode: boolean = false, namespaceId: string = 'local', gameMode: 'cinematic' | 'balanced' | 'fast' = 'balanced', dmPrep?: string, initialDisplayName?: string, initialId?: string): Promise<SessionState> {
-    return sessionRepository.createSession(worldDescription, difficulty, useLocalAI, savingsMode, namespaceId, gameMode, dmPrep, initialDisplayName, initialId);
+  public static async createSession(worldDescription?: string, difficulty: string = 'normal', savingsMode: boolean = false, namespaceId: string = 'local', gameMode: 'cinematic' | 'balanced' | 'fast' = 'balanced', dmPrep?: string, initialDisplayName?: string, initialId?: string): Promise<SessionState> {
+    return sessionRepository.createSession(worldDescription, difficulty, savingsMode, namespaceId, gameMode, dmPrep, initialDisplayName, initialId);
   }
 
   public static async getSession(id: string): Promise<SessionState | undefined> {
@@ -31,10 +31,6 @@ export class StateService {
 
   public static async setSavingsMode(id: string, enabled: boolean): Promise<void> {
     return sessionRepository.setSavingsMode(id, enabled);
-  }
-
-  public static async setUseLocalAI(id: string, enabled: boolean): Promise<void> {
-    return sessionRepository.setUseLocalAI(id, enabled);
   }
 
   public static async deleteSession(id: string): Promise<void> {

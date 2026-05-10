@@ -190,7 +190,6 @@ export interface Session {
   activeCharacterId: string;
   displayName: string;
   savingsMode: boolean;
-  useLocalAI: boolean;
   gameMode?: GameMode;
   interventionState: InterventionState;
   gameOver?: boolean;
@@ -199,11 +198,9 @@ export interface Session {
 
 export interface AppSettings {
   imagesEnabled: boolean;
-  defaultUseLocalAI: boolean;
 }
 
 export interface Capabilities {
-  hasLocalAI: boolean;
   hasCloudAI: boolean;
   hasTts: boolean;
 }

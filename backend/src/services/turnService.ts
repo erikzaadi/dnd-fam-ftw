@@ -96,7 +96,7 @@ export const executeTurnAction = async (
     const sceneMomentum = buildSceneMomentum(itemHistory, itemAttempt, itemState, scenePressure);
     const aiInput: AIInput = { ...itemState, ...itemAttempt, activeCharacterId: nextCharIdForItem, characterId: actingCharId, scenePressure, sceneMomentum };
     broadcastUpdate(sessionId, 'dm_narrating', { action, statUsed, difficulty, difficultyValue, character });
-    const turnResult = await AiDmService.generateTurnResult(aiInput, session.useLocalAI);
+    const turnResult = await AiDmService.generateTurnResult(aiInput);
 
     const newState = GameEngine.updateState(itemState, itemAttempt, turnResult as unknown as Record<string, unknown>);
     await StateService.updateSession(sessionId, newState);
@@ -183,7 +183,7 @@ export const executeTurnAction = async (
   const sceneMomentum = buildSceneMomentum(history, actionAttempt, session, scenePressure);
   const aiInput: AIInput = { ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId, scenePressure, sceneMomentum };
 
-  const turnResult = await AiDmService.generateTurnResult(aiInput, session.useLocalAI);
+  const turnResult = await AiDmService.generateTurnResult(aiInput);
   const newState = GameEngine.updateState(session, actionAttempt, turnResult as unknown as Record<string, unknown>);
   await StateService.updateSession(sessionId, newState);
 

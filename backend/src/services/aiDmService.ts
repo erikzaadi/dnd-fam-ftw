@@ -96,10 +96,10 @@ export function toNarrationInput(input: AIInput): NarrationInput {
 }
 
 export class AiDmService {
-  public static async generateTurnResult(input: AIInput, useLocalAI?: boolean): Promise<TurnResult> {
+  public static async generateTurnResult(input: AIInput): Promise<TurnResult> {
     const narrationInput = toNarrationInput(input);
     try {
-      const provider = createNarrationProvider(useLocalAI);
+      const provider = createNarrationProvider();
       const output = await provider.generateTurn(narrationInput);
 
       return {

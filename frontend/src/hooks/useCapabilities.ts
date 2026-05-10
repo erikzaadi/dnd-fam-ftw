@@ -5,7 +5,6 @@ import type { Capabilities } from '../types';
 export type { Capabilities };
 
 const DEFAULT_CAPABILITIES: Capabilities = {
-  hasLocalAI: false,
   hasCloudAI: false,
   hasTts: false,
 };
@@ -24,7 +23,6 @@ export function useCapabilities() {
           return;
         }
         setCapabilities({
-          hasLocalAI: !!data.hasLocalAI,
           hasCloudAI: !!data.hasCloudAI,
           hasTts: !!data.hasTts,
         });
