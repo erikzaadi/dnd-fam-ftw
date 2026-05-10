@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import type { NarrationInput, NarrationOutput, NarrationProvider } from './NarrationProvider.js';
-import { NARRATION_FALLBACK } from './narrationSchemas.js';
+import { buildNarrationFallback } from './narrationFallback.js';
 import { NARRATION_SYSTEM_PROMPT, buildNarrationRetryInstructions, buildNarrationUserContent } from './narrationPrompt.js';
 import { parseNarrationOutput } from './narrationOutputGuards.js';
 
@@ -31,7 +31,7 @@ export class OpenAINarrationProvider implements NarrationProvider {
 
     console.error('[OpenAINarration] Retry also failed, using fallback.', retryParsed.error, 'Raw:', retryContent);
     return {
-      ...NARRATION_FALLBACK,
+      ...buildNarrationFallback(input),
       narrationRetried: true,
       narrationFailed: true,
       narrationValidationError: parsed.error,

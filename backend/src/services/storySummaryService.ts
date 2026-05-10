@@ -3,6 +3,18 @@ import { StateService } from './stateService.js';
 
 const SUMMARY_INTERVAL = 5;
 
+export const buildCampaignStateSummaryPrompt = (previousSummary: string | undefined, recentNarrations: string[]): string => {
+  const previous = previousSummary
+    ? `Story so far: ${previousSummary}\n\n`
+    : '';
+  return `${previous}Recent events:\n${recentNarrations.map((n, i) => `${i + 1}. ${n}`).join('\n')}\n\nWrite a concise campaign state summary that helps the next turn move forward. Use this format exactly:
+STORY SO FAR: 2-4 factual sentences about key events, discoveries, victories, setbacks, and current location.
+CURRENT ARC: Early discovery | Mid escalation | Climax - choose one and add a short reason.
+OPEN THREAD: one unresolved clue, threat, NPC, location, item, or promise the party can act on next.
+NEXT PROMISED BEAT: one concrete next beat the DM should pay off soon.
+RECENTLY RESOLVED: one combat, challenge, clue, or scene that should not be repeated.`;
+};
+
 export class StorySummaryService {
   static shouldUpdate(turn: number): boolean {
     return turn > 1 && turn % SUMMARY_INTERVAL === 0;
@@ -26,10 +38,7 @@ export class StorySummaryService {
         return;
       }
 
-      const previousSummary = session.storySummary
-        ? `Story so far: ${session.storySummary}\n\n`
-        : '';
-      const prompt = `${previousSummary}Recent events:\n${recentNarrations.map((n, i) => `${i + 1}. ${n}`).join('\n')}\n\nWrite a concise story summary (2-4 sentences, factual, stable) of what has happened in this adventure so far. Focus on key events and discoveries, not drama.`;
+      const prompt = buildCampaignStateSummaryPrompt(session.storySummary, recentNarrations);
 
       const summary = await this.callSummarize(prompt, useLocalAI);
       if (summary) {

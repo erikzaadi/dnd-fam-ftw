@@ -7,12 +7,30 @@ export type TensionLevel = 'low' | 'medium' | 'high';
 export type Impact = 'normal' | 'strong' | 'extreme';
 export type ChoiceFlavor = 'standard' | 'spotlight' | 'combo' | 'social' | 'item' | 'environment';
 export type ScenePressureKind = 'combat' | 'challenge' | 'calm' | 'unknown';
+export type MomentumDirective =
+  | 'start_scene'
+  | 'press_current_scene'
+  | 'close_combat'
+  | 'victory_exit'
+  | 'advance_campaign'
+  | 'climax_pressure';
 
 export interface ScenePressure {
   kind: ScenePressureKind;
   pressureTurns: number;
   successfulPressureTurns: number;
   previousTensionLevels: TensionLevel[];
+  reason: string;
+}
+
+export interface SceneMomentum {
+  directive: MomentumDirective;
+  staleChoiceCount: number;
+  turnsSinceSceneChange: number;
+  turnsSinceCombat: number;
+  justCompletedCombat: boolean;
+  justCompletedDifficultChallenge: boolean;
+  suggestedNextBeat: string;
   reason: string;
 }
 

@@ -1,4 +1,4 @@
-import type { ChoiceFlavor, Difficulty, GameMode, Impact, ScenePressure, Stat, TensionLevel } from '../../../types.js';
+import type { ChoiceFlavor, Difficulty, GameMode, Impact, SceneMomentum, ScenePressure, Stat, TensionLevel } from '../../../types.js';
 
 export type NarrationChoice = {
   label: string;
@@ -19,6 +19,7 @@ export type NarrationInput = {
   scene: string;
   storySummary?: string;
   scenePressure?: ScenePressure;
+  sceneMomentum?: SceneMomentum;
   actingCharacterName?: string;
   nextCharacterName?: string;
   party: Array<{
@@ -68,6 +69,7 @@ export type NarrationInput = {
     summary: string;
   };
   recentHistory: string[];
+  previousChoiceLabels?: string[];
   previousChoiceFlavors?: ChoiceFlavor[];
   selectedChoiceFlavor?: ChoiceFlavor;
   selectedEnvironmentFeature?: string;

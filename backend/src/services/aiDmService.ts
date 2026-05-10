@@ -1,7 +1,7 @@
 import { AIInput, TurnResult } from '../types.js';
 import { createNarrationProvider } from '../providers/ai/AiProviderFactory.js';
 import type { NarrationInput } from '../providers/ai/narration/NarrationProvider.js';
-import { NARRATION_FALLBACK } from '../providers/ai/narration/narrationSchemas.js';
+import { buildNarrationFallback } from '../providers/ai/narration/narrationFallback.js';
 
 export function toNarrationInput(input: AIInput): NarrationInput {
   const actingChar = input.party.find(c => c.id === input.characterId);
@@ -28,6 +28,7 @@ export function toNarrationInput(input: AIInput): NarrationInput {
     scene: input.scene,
     storySummary: input.storySummary || undefined,
     ...(input.scenePressure && { scenePressure: input.scenePressure }),
+    ...(input.sceneMomentum && { sceneMomentum: input.sceneMomentum }),
     actingCharacterName: actingChar?.name,
     nextCharacterName: nextChar?.name,
     party: input.party.map(c => ({
@@ -81,6 +82,7 @@ export function toNarrationInput(input: AIInput): NarrationInput {
         : `The action failed${input.actionResult.impact && input.actionResult.impact !== 'normal' ? ` with ${input.actionResult.impact} impact` : ''}.`,
     },
     recentHistory: input.recentHistory ?? [],
+    ...(input.lastChoices.length > 0 && { previousChoiceLabels: input.lastChoices.map(choice => choice.label) }),
     ...(previousChoiceFlavors.length > 0 && { previousChoiceFlavors }),
     ...(selectedChoice?.flavor && { selectedChoiceFlavor: selectedChoice.flavor }),
     ...(selectedChoice?.environmentFeature && { selectedEnvironmentFeature: selectedChoice.environmentFeature }),
@@ -95,9 +97,9 @@ export function toNarrationInput(input: AIInput): NarrationInput {
 
 export class AiDmService {
   public static async generateTurnResult(input: AIInput, useLocalAI?: boolean): Promise<TurnResult> {
+    const narrationInput = toNarrationInput(input);
     try {
       const provider = createNarrationProvider(useLocalAI);
-      const narrationInput = toNarrationInput(input);
       const output = await provider.generateTurn(narrationInput);
 
       return {
@@ -126,7 +128,7 @@ export class AiDmService {
       }
       console.error('Error calling AI service:', error);
       return {
-        ...NARRATION_FALLBACK,
+        ...buildNarrationFallback(narrationInput),
         narrationFailed: true,
         narrationValidationError: error instanceof Error ? error.message : String(error),
         imageUrl: null,

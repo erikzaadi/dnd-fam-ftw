@@ -306,7 +306,7 @@ On **zug-ma-geddon** the rescue limit is 0, so the very first wipe triggers game
 To keep AI context lean across long sessions, the backend maintains a compressed `storySummary`.
 
 - `StorySummaryService.shouldUpdate(turn)` returns `true` when `turn > 1 && turn % 5 === 0` : i.e. every 5 turns starting at turn 5.
-- When triggered, the AI is called asynchronously (fire-and-forget) to produce a 2–4 sentence TLDR of everything that has happened.
+- When triggered, the AI is called asynchronously (fire-and-forget) to produce a compact campaign state summary: story so far, current arc, one open thread, one promised next beat, and one recently resolved scene that should not be repeated.
 - The summary is saved to the database and included in subsequent AI narration calls.
 - After an intervention or sanctuary recovery, the rescue narration is appended to the summary immediately, so the AI always knows about miraculous saves.
 - `recentHistory` (the last 3 turn narrations) is passed alongside the summary : the summary provides long-range continuity, recent history provides short-range context.
@@ -323,6 +323,8 @@ The AI is a narrator, not an authority. It:
 All of the above are backend-owned. The AI receives a snapshot of the current state (including outcomes already resolved by the backend) and returns structured JSON. The backend validates and applies only the fields it trusts.
 
 AI-suggested inventory items are granted or updated by the backend when the narrative earns it. The backend assigns the `id`; the AI should never invent IDs.
+
+**Scene momentum**: Each resolved turn also receives deterministic backend momentum context. This tells the AI whether to press the current scene, close combat, exit a victory, advance the campaign, or push toward a climax. After a completed combat or difficult challenge, the AI should move the party into the next concrete beat by default instead of spending another turn asking whether they leave. The backend can reject stale outputs that repeat vague atmosphere, repeat generic choice labels, or keep offering the same defeated fight.
 
 **Combat loot**: Combat victories may produce loot thematically tied to the defeated enemy. Loot always goes to `actingCharacterName` (the character who struck the finishing blow) - `targetCharacterName` is omitted on combat loot grants. Drop frequency depends on difficulty:
 

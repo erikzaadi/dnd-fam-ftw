@@ -11,6 +11,8 @@ export type {
   ChoiceFlavor,
   ScenePressureKind,
   ScenePressure,
+  MomentumDirective,
+  SceneMomentum,
   InventoryItem,
   Character,
   InterventionState,

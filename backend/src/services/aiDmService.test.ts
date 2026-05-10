@@ -151,6 +151,32 @@ describe('toNarrationInput', () => {
     });
   });
 
+  it('passes structured sceneMomentum through', () => {
+    const out = toNarrationInput(makeAIInput({
+      sceneMomentum: {
+        directive: 'victory_exit',
+        staleChoiceCount: 1,
+        turnsSinceSceneChange: 2,
+        turnsSinceCombat: 1,
+        justCompletedCombat: true,
+        justCompletedDifficultChallenge: false,
+        suggestedNextBeat: 'Move into the next chamber.',
+        reason: 'Deterministic momentum.',
+      },
+    }));
+
+    expect(out.sceneMomentum).toEqual({
+      directive: 'victory_exit',
+      staleChoiceCount: 1,
+      turnsSinceSceneChange: 2,
+      turnsSinceCombat: 1,
+      justCompletedCombat: true,
+      justCompletedDifficultChallenge: false,
+      suggestedNextBeat: 'Move into the next chamber.',
+      reason: 'Deterministic momentum.',
+    });
+  });
+
   it('summarizes previous choice flavor patterns', () => {
     const out = toNarrationInput(makeAIInput({
       actionAttempt: 'Sprint across the falling stones',
@@ -162,6 +188,11 @@ describe('toNarrationInput', () => {
     }));
 
     expect(out.previousChoiceFlavors).toEqual(['environment', 'combo']);
+    expect(out.previousChoiceLabels).toEqual([
+      'Sprint across the falling stones',
+      'Ask Zara for a timing spell',
+      'Take the careful path',
+    ]);
     expect(out.selectedChoiceFlavor).toBe('environment');
     expect(out.selectedEnvironmentFeature).toBe('falling bridge stones');
   });

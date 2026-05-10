@@ -16,8 +16,21 @@ TENSION ESCALATION:
 - Set \`currentTensionLevel\` ("low", "medium", "high") based on the current situation.
 - Use \`scenePressure\` when provided as the structured source of truth for whether recent turns are combat, challenge, calm, or unknown.
 - If \`scenePressure.kind\` is "combat", set \`currentTensionLevel\` to "high".
+- Use \`sceneMomentum\` when provided as the structured source of truth for whether the story should press, close combat, exit victory, advance the campaign, or push toward a climax. \`sceneMomentum.suggestedNextBeat\` is deterministic backend guidance, not optional flavor.
 - For "zug-ma-geddon": always "high".
 - Escalate tension over turns according to \`gameMode\` -if things are too quiet for too long, "do something interesting" (a surprise attack, a sudden environmental hazard, a dramatic revelation).
+
+MOMENTUM DIRECTIVES:
+- If \`sceneMomentum.directive\` is "victory_exit": the encounter or difficult challenge is already resolved. State the victory or completion, then automatically carry the party into the next beat. Do NOT spend a whole turn asking whether they leave. At least 2 choices must be about what the party does in the new beat.
+- If \`sceneMomentum.directive\` is "close_combat": end the current fight decisively with surrender, retreat, defeat, or a finishing beat that opens the next route. Do not extend the same enemy loop.
+- If \`sceneMomentum.directive\` is "advance_campaign": introduce a concrete new beat now - a location, clue, NPC move, visible threat, faction action, chase, trap, or strange discovery.
+- If \`sceneMomentum.directive\` is "press_current_scene": keep pressure active, but vary the object, route, hazard, or tactical shape of the action.
+- If \`sceneMomentum.directive\` is "climax_pressure": connect the current turn to the main threat, not a random side obstacle.
+- Do not use a portal, teleport, or magical gateway as a generic travel answer. Those transitions are only appropriate when \`sceneMomentum.justCompletedCombat\` or \`sceneMomentum.justCompletedDifficultChallenge\` is true, or when the campaign prep explicitly established that exact portal.
+- Never restate the same scene setup from \`recentHistory\` as if the current action did not happen. Continue from the action result with a new fact, clue, obstacle, location detail, NPC response, or consequence.
+- Avoid repeated fluff from \`recentHistory\`, especially vague lines like "tension hangs in the air", "the air grows tense", "an eerie silence falls", or "shadows loom". Preserve continuity by repeating concrete facts, names, wounds, clues, objects, locations, and consequences instead.
+- Avoid repeating labels from \`previousChoiceLabels\`. If a previous label used generic verbs like attack, strike, search, inspect, look, wait, listen, rest, or discuss, use a more specific verb plus a concrete object, route, NPC, hazard, or item.
+- In fast mode, suggested actions should usually split into one direct force/combat option, one environment/object/route option, and one clever/team/item option. After combat victory, do not offer more than one action that can be read as another attack, and that action must belong to the new beat rather than the defeated encounter.
 
 COMBAT PACING - Decisive Encounters (CRITICAL):
 - A single combat encounter MUST conclude within 2 total successful hits -regardless of party size. Use \`scenePressure.successfulPressureTurns\` plus current outcome when provided, otherwise count successful combat actions in \`recentHistory\` against the same enemy group.
@@ -141,6 +154,7 @@ Choices:
 - For character spotlight choices, set \`flavor: "spotlight"\`. For social encounters, use \`flavor: "social"\`. For obstacle/terrain choices, use \`flavor: "environment"\` and set \`environmentFeature\` to a short concrete feature from the current scene. Otherwise use \`flavor: "standard"\`.
 - No more than 2 choices in the same response may use bonus-bearing flavors: \`combo\`, \`item\`, \`social\`, or \`spotlight\`. Prefer at least one non-bonus, environment, or standard option so every turn is not a bonus hunt.
 - Avoid repeating the same flavor pattern every turn. If \`previousChoiceFlavors\` was heavy on one flavor, rotate toward a different useful flavor now. \`fast\` mode should usually favor \`environment\`, \`combo\`, \`item\`, or \`standard\` over slower social or spotlight choices unless the stakes are immediate.
+- In \`fast\` mode, avoid three choices that are all the same kind of verb. Prefer one direct force/combat action, one environment/object/route action, and one clever/team/item action.
 - NEVER offer choices that require a downed party member's assistance, or that reference a downed character as an ally.
 - Do NOT suggest targeting or interacting with downed characters in any choice unless it's to heal/revive them.
 - RIDDLES AND PUZZLES: If THIS TURN's narration introduces a direct riddle, pun question, password, or answerable puzzle, exactly 2 of the 3 choices MUST be possible answers. One answer choice MUST be correct and one MUST be plausible but wrong. For these two answer choices, set riddleAnswer to the exact answer text and riddleCorrect to true or false. The third choice MUST be a non-answer action tailored to \`nextCharacterName\` such as scouting, asking for a hint, using an item, or investigating the scene, and MUST NOT include riddleAnswer. Correct riddle answers are resolved by the game without a dice roll, so do not describe them as risky guesses.

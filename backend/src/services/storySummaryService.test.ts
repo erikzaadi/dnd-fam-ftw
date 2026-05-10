@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { StorySummaryService } from './storySummaryService.js';
+import { buildCampaignStateSummaryPrompt, StorySummaryService } from './storySummaryService.js';
 
 describe('StorySummaryService.shouldUpdate', () => {
   it('returns false at turn 0', () => {
@@ -30,5 +30,22 @@ describe('StorySummaryService.shouldUpdate', () => {
     for (const t of [6, 7, 8, 9, 11, 13]) {
       expect(StorySummaryService.shouldUpdate(t)).toBe(false);
     }
+  });
+});
+
+describe('buildCampaignStateSummaryPrompt', () => {
+  it('asks for campaign-state fields that keep the next turn moving', () => {
+    const prompt = buildCampaignStateSummaryPrompt('Pip found the moon key.', [
+      'Pip opened the cellar door.',
+      'Zara spotted silver footprints.',
+    ]);
+
+    expect(prompt).toContain('Story so far: Pip found the moon key.');
+    expect(prompt).toContain('1. Pip opened the cellar door.');
+    expect(prompt).toContain('2. Zara spotted silver footprints.');
+    expect(prompt).toContain('CURRENT ARC:');
+    expect(prompt).toContain('OPEN THREAD:');
+    expect(prompt).toContain('NEXT PROMISED BEAT:');
+    expect(prompt).toContain('RECENTLY RESOLVED:');
   });
 });

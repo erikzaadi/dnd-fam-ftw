@@ -163,4 +163,292 @@ describe('parseNarrationOutput', () => {
       expect(result.data.choices[0].itemName).toBeUndefined();
     }
   });
+
+  it('rejects victory exits that do not move into a new beat', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      sceneMomentum: {
+        directive: 'victory_exit',
+        staleChoiceCount: 0,
+        turnsSinceSceneChange: 2,
+        turnsSinceCombat: 1,
+        justCompletedCombat: true,
+        justCompletedDifficultChallenge: false,
+        suggestedNextBeat: 'Move into the next chamber.',
+        reason: 'Combat completed.',
+      },
+    }, output({
+      narration: 'The last foe falls, and everyone catches their breath.',
+      choices: [
+        { label: 'Attack the foe again', difficulty: 'normal', stat: 'might', difficultyValue: 12 },
+        { label: 'Strike the foe harder', difficulty: 'normal', stat: 'might', difficultyValue: 12 },
+        { label: 'Fight the foe back', difficulty: 'normal', stat: 'might', difficultyValue: 12 },
+      ],
+    }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('Victory exit');
+    }
+  });
+
+  it('allows victory exits that place choices in the new beat', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      sceneMomentum: {
+        directive: 'victory_exit',
+        staleChoiceCount: 0,
+        turnsSinceSceneChange: 2,
+        turnsSinceCombat: 1,
+        justCompletedCombat: true,
+        justCompletedDifficultChallenge: false,
+        suggestedNextBeat: 'Move into the next chamber.',
+        reason: 'Combat completed.',
+      },
+    }, output({
+      narration: 'The last foe falls, and the party follows a smoking stair into a furnace chamber.',
+      choices: [
+        { label: 'Unlock the furnace door', difficulty: 'normal', stat: 'mischief', difficultyValue: 12 },
+        { label: 'Follow the smoke trail', difficulty: 'easy', stat: 'mischief', difficultyValue: 8 },
+        { label: 'Ask Pip to guard the stair', difficulty: 'normal', stat: 'might', difficultyValue: 11 },
+      ],
+    }));
+
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects victory exits with multiple attack-shaped choices', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      sceneMomentum: {
+        directive: 'victory_exit',
+        staleChoiceCount: 0,
+        turnsSinceSceneChange: 2,
+        turnsSinceCombat: 1,
+        justCompletedCombat: true,
+        justCompletedDifficultChallenge: false,
+        suggestedNextBeat: 'Move into the next chamber.',
+        reason: 'Combat completed.',
+      },
+    }, output({
+      narration: 'The last foe falls, and the party follows a smoking stair into a furnace chamber.',
+      choices: [
+        { label: 'Attack the furnace guard', difficulty: 'normal', stat: 'might', difficultyValue: 12 },
+        { label: 'Strike the shadow near the door', difficulty: 'normal', stat: 'might', difficultyValue: 12 },
+        { label: 'Follow the smoke trail', difficulty: 'easy', stat: 'mischief', difficultyValue: 8 },
+      ],
+    }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('No more than one choice');
+    }
+  });
+
+  it('rejects repeated vague atmosphere filler', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      recentHistory: ['Tension hangs in the air as the hallway waits.'],
+      sceneMomentum: {
+        directive: 'press_current_scene',
+        staleChoiceCount: 0,
+        turnsSinceSceneChange: 1,
+        turnsSinceCombat: 3,
+        justCompletedCombat: false,
+        justCompletedDifficultChallenge: false,
+        suggestedNextBeat: 'Keep the current challenge active.',
+        reason: 'Pressure continues.',
+      },
+    }, output({
+      narration: 'Tension hangs in the air as Pip studies the same hallway.',
+    }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('vague atmosphere');
+    }
+  });
+
+  it('rejects stale generic repeated choice labels', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      previousChoiceLabels: ['Search the room'],
+      sceneMomentum: {
+        directive: 'press_current_scene',
+        staleChoiceCount: 1,
+        turnsSinceSceneChange: 1,
+        turnsSinceCombat: 3,
+        justCompletedCombat: false,
+        justCompletedDifficultChallenge: false,
+        suggestedNextBeat: 'Keep the current challenge active.',
+        reason: 'Pressure continues.',
+      },
+    }, output({
+      choices: [
+        { label: 'Search the room', difficulty: 'easy', stat: 'mischief', difficultyValue: 8 },
+        { label: 'Check the silver door', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+        { label: 'Call for help', difficulty: 'easy', stat: 'magic', difficultyValue: 7 },
+      ],
+    }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('stale generic');
+    }
+  });
+
+  it('rejects portal transitions before a completed combat or difficult challenge', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      sceneMomentum: {
+        directive: 'advance_campaign',
+        staleChoiceCount: 0,
+        turnsSinceSceneChange: 2,
+        turnsSinceCombat: 3,
+        justCompletedCombat: false,
+        justCompletedDifficultChallenge: false,
+        suggestedNextBeat: 'Introduce a concrete new beat.',
+        reason: 'The scene needs motion.',
+      },
+    }, output({
+      narration: 'A shimmering portal opens at the edge of the clearing.',
+      choices: [
+        { label: 'Study the portal', difficulty: 'easy', stat: 'magic', difficultyValue: 8 },
+        { label: 'Leap through the portal', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+        { label: 'Guard the clearing', difficulty: 'normal', stat: 'might', difficultyValue: 12 },
+      ],
+    }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('Portal');
+    }
+  });
+
+  it('allows portal transitions after a completed difficult challenge', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      sceneMomentum: {
+        directive: 'victory_exit',
+        staleChoiceCount: 0,
+        turnsSinceSceneChange: 2,
+        turnsSinceCombat: 3,
+        justCompletedCombat: false,
+        justCompletedDifficultChallenge: true,
+        suggestedNextBeat: 'Carry the party past the completed challenge.',
+        reason: 'A difficult challenge was completed.',
+      },
+    }, output({
+      narration: 'The bridge runes unlock a portal to the next chamber.',
+      choices: [
+        { label: 'Enter the next chamber', difficulty: 'easy', stat: 'mischief', difficultyValue: 8 },
+        { label: 'Study the portal runes', difficulty: 'normal', stat: 'magic', difficultyValue: 11 },
+        { label: 'Guard the bridge behind you', difficulty: 'normal', stat: 'might', difficultyValue: 12 },
+      ],
+    }));
+
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects narration that repeats the previous turn setup too closely', () => {
+    const previous = 'The air is thick with the scent of blooming flowers as the village of Everbloom stands in quiet disarray. Vymeson, Pip, and Thessaly find themselves at the heart of this peaceful settlement, which now buzzes with nervous energy after the theft of the Beacon of Hope. As villagers scurry about, whispering fears of chaos, a sprightly squirrel named Finnian Flickertail bounds toward them, chattering about mischievous pranks and mysterious sightings. The adventure begins as the party learns their mission: to retrieve the Beacon before Lady Umbra\'s twisted melodies reshape reality itself.';
+    const repeated = 'The village of Everbloom is awash with vibrant colors, the air sweet with the scent of blooming flowers, yet a shadow hangs over it. Vymeson, Pip, and Thessaly stand in the heart of the village, where whispers of fear ripple through the townsfolk after the theft of the Beacon of Hope. As villagers scuttle about, a squirrel named Finnian Flickertail darts up to the party, his eyes wide with tales of mischief and mysterious sightings. The adventure begins as the party learns they must retrieve the Beacon before Lady Umbra\'s twisted melodies reshape reality itself.';
+    const result = parseNarrationOutput({
+      ...input,
+      recentHistory: [previous],
+      sceneMomentum: {
+        directive: 'press_current_scene',
+        staleChoiceCount: 0,
+        turnsSinceSceneChange: 1,
+        turnsSinceCombat: 3,
+        justCompletedCombat: false,
+        justCompletedDifficultChallenge: false,
+        suggestedNextBeat: 'Keep the current scene active.',
+        reason: 'The party is still in the opening scene.',
+      },
+    }, output({
+      narration: repeated,
+    }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('repeats the previous turn');
+    }
+  });
+
+  it('allows similar but newly specific choice labels', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      previousChoiceLabels: ['Search the room'],
+      sceneMomentum: {
+        directive: 'press_current_scene',
+        staleChoiceCount: 1,
+        turnsSinceSceneChange: 1,
+        turnsSinceCombat: 3,
+        justCompletedCombat: false,
+        justCompletedDifficultChallenge: false,
+        suggestedNextBeat: 'Keep the current challenge active.',
+        reason: 'Pressure continues.',
+      },
+    }, output({
+      choices: [
+        { label: 'Search the silver door', difficulty: 'easy', stat: 'mischief', difficultyValue: 8 },
+        { label: 'Question the candle ghost', difficulty: 'normal', stat: 'magic', difficultyValue: 11 },
+        { label: 'Brace the cracked beam', difficulty: 'normal', stat: 'might', difficultyValue: 12 },
+      ],
+    }));
+
+    expect(result.success).toBe(true);
+  });
+
+  it('allows concrete continuity without repeated vague atmosphere filler', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      recentHistory: ['Pip kept the Moon Key hidden near the ruined tower.'],
+      sceneMomentum: {
+        directive: 'press_current_scene',
+        staleChoiceCount: 0,
+        turnsSinceSceneChange: 1,
+        turnsSinceCombat: 3,
+        justCompletedCombat: false,
+        justCompletedDifficultChallenge: false,
+        suggestedNextBeat: 'Keep the current challenge active.',
+        reason: 'Pressure continues.',
+      },
+    }, output({
+      narration: 'Pip lifts the Moon Key beside the ruined tower, and its blue teeth point toward a sealed stairwell.',
+      choices: [
+        { label: 'Unlock the sealed stairwell', difficulty: 'easy', stat: 'mischief', difficultyValue: 8 },
+        { label: 'Study the blue key-teeth', difficulty: 'normal', stat: 'magic', difficultyValue: 11 },
+        { label: 'Guard the tower door', difficulty: 'normal', stat: 'might', difficultyValue: 12 },
+      ],
+    }));
+
+    expect(result.success).toBe(true);
+  });
+
+  it('allows victory exits that move into a cavern beat with clues and paths', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      sceneMomentum: {
+        directive: 'victory_exit',
+        staleChoiceCount: 0,
+        turnsSinceSceneChange: 3,
+        turnsSinceCombat: 0,
+        justCompletedCombat: true,
+        justCompletedDifficultChallenge: false,
+        suggestedNextBeat: 'Move from the resolved fight into the next clue, route, reward, threat, or decision.',
+        reason: 'Combat has already had enough successful beats.',
+      },
+    }, output({
+      narration: 'With the path clear, Vymeson leads the party into a vast cavern where hidden mysteries wait.',
+      choices: [
+        { label: 'Examine the arcane symbols for clues', difficulty: 'normal', stat: 'magic', difficultyValue: 12 },
+        { label: 'Call on nature to sense hidden dangers', difficulty: 'easy', stat: 'magic', difficultyValue: 9 },
+        { label: 'Search for hidden pathways deeper into the cavern', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+      ],
+    }));
+
+    expect(result.success).toBe(true);
+  });
 });

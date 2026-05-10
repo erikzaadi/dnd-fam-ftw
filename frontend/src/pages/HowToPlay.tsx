@@ -41,6 +41,9 @@ export const HowToPlay = () => {
               <p className="text-slate-300 text-lg leading-relaxed">
                 You and your party are heroes in a realm of the AI's imagination. Each turn the AI Dungeon Master narrates what's happening and offers three choices. Pick one (or type your own), roll the dice, and see what happens. There's no win condition, just the story.
               </p>
+              <p className="text-slate-400 text-base mt-3 leading-relaxed">
+                Victories should move the adventure forward. When a fight or hard challenge is resolved, the story should carry you into the next clue, route, reward, threat, or decision instead of lingering on the finished scene.
+              </p>
             </Section>
 
             <Section title="🎲 Die Hard: Rolling the Dice">
