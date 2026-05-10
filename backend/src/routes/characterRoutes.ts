@@ -140,7 +140,7 @@ export const createCharacterRouter = () => {
     try {
       const response = await client.chat.completions.create({
         model,
-        messages: [{ role: 'user', content: `/no_think Summarize in one sentence how this adventurer performed in their past adventure${sessionWithChar ? ` in "${sessionWithChar.displayName}"` : ''}: ${narrationContext}. Focus on their notable actions. Reply with just the sentence, no preamble.` }],
+        messages: [{ role: 'user', content: `Summarize in one sentence how this adventurer performed in their past adventure${sessionWithChar ? ` in "${sessionWithChar.displayName}"` : ''}: ${narrationContext}. Focus on their notable actions. Reply with just the sentence, no preamble.` }],
         max_tokens: 80,
       }, { signal: AbortSignal.timeout(15_000) });
       const summary = (response.choices[0].message.content ?? '').trim();

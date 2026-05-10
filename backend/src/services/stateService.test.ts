@@ -98,6 +98,16 @@ describe('StateService - Session CRUD', () => {
     expect(reloaded!.party[0].inventory[0].name).toBe('Battle Axe');
   });
 
+  it('loads sessions that have useLocalAI=1 in the database column', async () => {
+    getTestDb().prepare(
+      'INSERT INTO sessions (id, scene, sceneId, worldDescription, turn, tone, displayName, difficulty, gameMode, useLocalAI, savingsMode, namespace_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run('sess-local-ai', 'Forest', 'forest-1', 'A world of trees', 1, 'mystery', 'Old World', 'normal', 'balanced', 1, 0, 'local');
+    const session = await StateService.getSession('sess-local-ai');
+    expect(session).toBeDefined();
+    expect(session!.id).toBe('sess-local-ai');
+    expect(session!.displayName).toBe('Old World');
+  });
+
   it('listSessions is scoped to namespace', async () => {
     insertTestSession('sess-ns-a', 'local', 'Local World');
     const { namespaceId: otherNs } = StateService.createUser('list-ns-test@test.com');

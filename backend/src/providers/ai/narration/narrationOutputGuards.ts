@@ -1,5 +1,5 @@
 import type { NarrationInput, NarrationOutput } from './NarrationProvider.js';
-import { narrationOutputSchema } from './narrationSchemas.js';
+import { narrationOutputSchema, type ValidNarrationOutput } from './narrationSchemas.js';
 
 const HEALING_ACTION_RE = /\b(heal|healing|restore|restoring|revive|reviving|mend|mending|soothe|soothing|recover|recovery|rest|resting|sleep|sleeping|eat|eating|meal|care|treat|treating|medicine|potion|bandage|sanctuary)\b/i;
 const LOW_MOTION_RE = /\b(inspect|wait|look around|look|listen|rest|discuss|search)\b/i;
@@ -43,7 +43,7 @@ const SIMILARITY_STOPWORDS = new Set([
   'with',
 ]);
 
-const normalizedItemName = (name: string | undefined): string => {
+const normalizedItemName = (name: string | null | undefined): string => {
   const trimmed = (name ?? '').trim();
   const [firstChar] = Array.from(trimmed);
   const withoutLeadingEmoji = firstChar && /\p{Extended_Pictographic}/u.test(firstChar)
@@ -72,7 +72,7 @@ function narrationSimilarity(a: string, b: string): { shared: number; score: num
   return { shared, score: shared / union };
 }
 
-function canonicalizeItemChoices(input: NarrationInput, output: NarrationOutput): void {
+function canonicalizeItemChoices(input: NarrationInput, output: ValidNarrationOutput): void {
   for (const choice of output.choices) {
     if (choice.flavor !== 'item') {
       continue;
@@ -94,7 +94,7 @@ function canonicalizeItemChoices(input: NarrationInput, output: NarrationOutput)
   }
 }
 
-function normalizeNarrationMetadata(input: NarrationInput, output: NarrationOutput): void {
+function normalizeNarrationMetadata(input: NarrationInput, output: ValidNarrationOutput): void {
   if (input.gameMode === 'zug-ma-geddon' || input.scenePressure?.kind === 'combat') {
     output.currentTensionLevel = 'high';
   }
@@ -118,7 +118,7 @@ function normalizeNarrationMetadata(input: NarrationInput, output: NarrationOutp
   }
 }
 
-function validateMomentumOutput(input: NarrationInput, output: NarrationOutput): string | null {
+function validateMomentumOutput(input: NarrationInput, output: ValidNarrationOutput): string | null {
   const momentum = input.sceneMomentum;
   if (!momentum) {
     return null;
@@ -188,5 +188,7 @@ export function parseNarrationOutput(input: NarrationInput, raw: unknown): { suc
     return { success: false, error: momentumError };
   }
 
-  return { success: true, data: parsed.data };
+  // The schema uses .nullable() on optional fields for OpenAI Structured Outputs compatibility.
+  // NarrationOutput uses undefined for those optionals; all callers use truthy checks so null is safe.
+  return { success: true, data: parsed.data as unknown as NarrationOutput };
 }

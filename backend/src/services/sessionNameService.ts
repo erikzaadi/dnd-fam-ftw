@@ -8,7 +8,7 @@ export const generateSessionDisplayName = async (worldDescription: string | unde
   try {
     const nameResponse = await client.chat.completions.create({
       model,
-      messages: [{ role: 'user', content: `/no_think Give me a short, evocative name (max 3 words) for a story setting based on: ${worldDescription || 'a random realm'}. Reply with the name only, no explanation.` }],
+      messages: [{ role: 'user', content: `Give me a short, evocative name (max 3 words) for a story setting based on: ${worldDescription || 'a random realm'}. Reply with the name only, no explanation.` }],
       max_tokens: 100,
     }, { signal: AbortSignal.timeout(20_000) });
     console.log(`[Session] Display name received in ${Date.now() - nameStart}ms`);

@@ -11,7 +11,6 @@ export function createNarrationProvider(): NarrationProvider {
     console.log('[AI] Narration provider: Test mock');
     return new MockNarrationProvider();
   }
-  console.log('[AI] Narration provider: OpenAI-compatible');
   return new OpenAINarrationProvider();
 }
 
@@ -23,6 +22,5 @@ export function createChatClient(): { client: OpenAI; model: string } {
 }
 
 export function createImageProvider(): ImageProvider {
-  console.log('[AI] Image provider: OpenAI-compatible');
   return new OpenAIImageProvider();
 }

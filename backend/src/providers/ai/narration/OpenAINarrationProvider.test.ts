@@ -2,17 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NarrationInput, NarrationOutput } from './NarrationProvider.js';
 
 const mocks = vi.hoisted(() => {
-  const create = vi.fn();
+  const parse = vi.fn();
   const OpenAI = vi.fn(function OpenAIMock() {
     return {
       chat: {
         completions: {
-          create,
+          parse,
         },
       },
     };
   });
-  return { OpenAI, create };
+  return { OpenAI, parse };
 });
 
 vi.mock('openai', () => ({
@@ -77,26 +77,26 @@ describe('OpenAINarrationProvider', () => {
       ],
     });
 
-    mocks.create
-      .mockResolvedValueOnce({ choices: [{ message: { content: JSON.stringify(malformed) } }] })
-      .mockResolvedValueOnce({ choices: [{ message: { content: JSON.stringify(corrected) } }] });
+    mocks.parse
+      .mockResolvedValueOnce({ choices: [{ message: { parsed: malformed } }] })
+      .mockResolvedValueOnce({ choices: [{ message: { parsed: corrected } }] });
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
     try {
       const result = await new OpenAINarrationProvider().generateTurn(input);
-      const retryRequest = mocks.create.mock.calls[1]?.[0] as { messages: Array<{ content: string }> } | undefined;
+      const retryRequest = mocks.parse.mock.calls[1]?.[0] as { messages: Array<{ content: string }> } | undefined;
 
       expect(result).toMatchObject(corrected);
       expect(result.narrationRetried).toBe(true);
       expect(result.narrationFailed).toBeUndefined();
-      expect(mocks.create).toHaveBeenCalledTimes(2);
+      expect(mocks.parse).toHaveBeenCalledTimes(2);
       expect(warn).toHaveBeenCalledWith(
         '[OpenAINarration] First attempt failed validation, retrying...',
         expect.any(String)
       );
-      expect(retryRequest?.messages[0].content).toContain('fix these validation errors');
+      expect(retryRequest?.messages[1].content).toContain('fix these validation errors');
       expect(error).not.toHaveBeenCalled();
     } finally {
       warn.mockRestore();
@@ -122,9 +122,9 @@ describe('OpenAINarrationProvider', () => {
       ],
     });
 
-    mocks.create
-      .mockResolvedValueOnce({ choices: [{ message: { content: JSON.stringify(stalledVictory) } }] })
-      .mockResolvedValueOnce({ choices: [{ message: { content: JSON.stringify(movedForward) } }] });
+    mocks.parse
+      .mockResolvedValueOnce({ choices: [{ message: { parsed: stalledVictory } }] })
+      .mockResolvedValueOnce({ choices: [{ message: { parsed: movedForward } }] });
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -144,13 +144,13 @@ describe('OpenAINarrationProvider', () => {
           reason: 'Combat has already had enough successful beats.',
         },
       });
-      const retryRequest = mocks.create.mock.calls[1]?.[0] as { messages: Array<{ content: string }> } | undefined;
+      const retryRequest = mocks.parse.mock.calls[1]?.[0] as { messages: Array<{ content: string }> } | undefined;
 
       expect(result).toMatchObject(movedForward);
       expect(result.narrationRetried).toBe(true);
       expect(result.narrationValidationError).toContain('Victory exit');
-      expect(mocks.create).toHaveBeenCalledTimes(2);
-      expect(retryRequest?.messages[0].content).toContain('Victory exit');
+      expect(mocks.parse).toHaveBeenCalledTimes(2);
+      expect(retryRequest?.messages[1].content).toContain('Victory exit');
       expect(error).not.toHaveBeenCalled();
     } finally {
       warn.mockRestore();
@@ -161,9 +161,9 @@ describe('OpenAINarrationProvider', () => {
   it('uses a contextual fallback when both attempts fail validation', async () => {
     const malformed = { narration: 'Pip charges forward.', choices: 'not-an-array' };
 
-    mocks.create
-      .mockResolvedValueOnce({ choices: [{ message: { content: JSON.stringify(malformed) } }] })
-      .mockResolvedValueOnce({ choices: [{ message: { content: JSON.stringify(malformed) } }] });
+    mocks.parse
+      .mockResolvedValueOnce({ choices: [{ message: { parsed: malformed } }] })
+      .mockResolvedValueOnce({ choices: [{ message: { parsed: malformed } }] });
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -190,7 +190,7 @@ describe('OpenAINarrationProvider', () => {
       expect(result.choices.map(choice => choice.label)).not.toContain('Use your magic');
       expect(result.narrationRetried).toBe(true);
       expect(result.narrationFailed).toBe(true);
-      expect(mocks.create).toHaveBeenCalledTimes(2);
+      expect(mocks.parse).toHaveBeenCalledTimes(2);
       expect(error).toHaveBeenCalledWith(
         '[OpenAINarration] Retry also failed, using fallback.',
         expect.any(String),

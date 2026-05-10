@@ -3,7 +3,7 @@ import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { createImageProvider } from '../providers/ai/AiProviderFactory.js';
-import { DEFAULT_NEGATIVE_PROMPT, type ImageProvider } from '../providers/ai/images/ImageProvider.js';
+import type { ImageProvider } from '../providers/ai/images/ImageProvider.js';
 import { getImageStorageProvider } from '../providers/storage/storageProviderFactory.js';
 import type { ImageStorageProvider } from '../providers/storage/ImageStorageProvider.js';
 import { getConfig } from '../config/env.js';
@@ -91,12 +91,7 @@ export class ImageService {
       console.log(`[ImageService] Generating avatar for ${char.name}`);
       const avatarStart = Date.now();
       const imageProvider = overrideImageProvider ?? createImageProvider();
-      const result = await imageProvider.generateImage({
-        prompt,
-        negativePrompt: DEFAULT_NEGATIVE_PROMPT,
-        width: 1024,
-        height: 1024,
-      });
+      const result = await imageProvider.generateImage({ prompt });
       console.log(`[ImageService] Avatar for ${char.name} received in ${Date.now() - avatarStart}ms`);
 
       const buffer = await this.fetchImageBuffer(result.url);
@@ -130,12 +125,7 @@ export class ImageService {
     try {
       console.log(`[ImageService] Generating image for session ${sessionId}: ${prompt}`);
       const imageProvider = overrideImageProvider ?? createImageProvider();
-      const result = await imageProvider.generateImage({
-        prompt: finalPrompt,
-        negativePrompt: DEFAULT_NEGATIVE_PROMPT,
-        width: 1024,
-        height: 1024,
-      });
+      const result = await imageProvider.generateImage({ prompt: finalPrompt });
 
       const buffer = await this.fetchImageBuffer(result.url);
       const stored = await storage.putImage({ key: fileName, contentType: 'image/png', body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
@@ -191,15 +181,8 @@ export class ImageService {
     const config = getConfig();
 
     try {
-      console.log('Before image provider');
       const imageProvider = overrideImageProvider ?? createImageProvider();
-      console.log('After image provider generating');
-      const result = await imageProvider.generateImage({
-        prompt: finalPrompt,
-        negativePrompt: DEFAULT_NEGATIVE_PROMPT,
-        width: 1024,
-        height: 1024,
-      });
+      const result = await imageProvider.generateImage({ prompt: finalPrompt });
       const buffer = await this.fetchImageBuffer(result.url);
       const stored = await storage.putImage({ key: fileName, contentType: 'image/png', body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
       return { url: stored.publicUrl, storageKey: stored.key, storageProvider: config.IMAGE_STORAGE_PROVIDER };
@@ -279,12 +262,7 @@ export class ImageService {
     try {
       console.log(`[ImageService] Generating session preview for ${session.displayName}`);
       const imageProvider = overrideImageProvider ?? createImageProvider();
-      const result = await imageProvider.generateImage({
-        prompt,
-        negativePrompt: DEFAULT_NEGATIVE_PROMPT,
-        width: 1024,
-        height: 1024,
-      });
+      const result = await imageProvider.generateImage({ prompt });
       const buffer = await this.fetchImageBuffer(result.url);
       const stored = await storage.putImage({ key: fileName, contentType: 'image/png', body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
       return { url: stored.publicUrl, storageKey: stored.key, storageProvider: config.IMAGE_STORAGE_PROVIDER };

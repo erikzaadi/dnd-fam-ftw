@@ -91,7 +91,7 @@ Focus only on the current situation and the essential journey, ignoring defeated
       const difficultyNote = difficulty ? `\nDifficulty: ${difficulty} - ${difficultyGuidance[difficulty] ?? ''}` : '';
       const gameModeNote = gameMode ? `\nGame mode: ${gameMode} - ${gameModeGuidance[gameMode] ?? ''}` : '';
 
-      const prompt = `/no_think Generate a structured DM campaign brief for a family fantasy adventure.${nameContext}${descContext}${difficultyNote}${gameModeNote}
+      const prompt = `Generate a structured DM campaign brief for a family fantasy adventure.${nameContext}${descContext}${difficultyNote}${gameModeNote}
 
 Use this format exactly:
 PREMISE: (1-2 sentences - the core quest, what is at stake, and why the party matters)
@@ -161,7 +161,7 @@ ${dmPrep}`;
     try {
       const response = await client.chat.completions.create({
         model,
-        messages: [{ role: 'user', content: `/no_think ${prompt}` }],
+        messages: [{ role: 'user', content: prompt }],
         max_tokens: maxTokens,
       }, { signal: AbortSignal.timeout(timeoutMs) });
       console.log(`[Summary] Finished ${label} in ${Date.now() - start}ms`);

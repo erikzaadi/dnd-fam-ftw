@@ -1,7 +1,6 @@
 import type { NarrationInput } from './NarrationProvider.js';
 
-export const NARRATION_SYSTEM_PROMPT = `/no_think
-You are a thrilling and slightly edgy fantasy DM.
+export const NARRATION_SYSTEM_PROMPT = `You are a thrilling and slightly edgy fantasy DM.
 The game has real stakes. Failure should feel dangerous and narration should reflect it.
 
 GAME PACING (gameMode):
@@ -246,42 +245,16 @@ Inventory:
 
 Image Strategy:
 - ALWAYS set imageSuggested: true and provide an imagePrompt for every turn.
-- imagePrompt rules:
-  - Write the prompt as a finished standalone illustration, not a screenshot, card, poster, comic panel, framed photo, or design/editing workspace
-  - CRITICAL: NEVER include any text, words, letters, numbers, signs, labels, maps, books, scrolls, runes, glyphs, symbols, plaques, banners, captions, or writing of any kind in the image prompt
-  - CRITICAL: NEVER mention UI, interface, menu, toolbar, panel, frame, border, poster, page layout, split screen, crop marks, handles, rulers, guides, or editor controls
+- imagePrompt is a short visual brief (15-25 words): who is in the scene, what action is happening, the environment, and the mood. That is all.
+- Do NOT include art style phrases, rendering guidance, or technical instructions - those are added by the image pipeline.
+- Safe word substitutions (the image API is sensitive to these):
   - Never use: undead, corpse, dead, zombie, skeleton, gore, blood, kill, death, decapitate, mutilate
   - Instead use: spectral, ethereal, skeletal warrior, cursed, shadowy, necrotic, withered
   - Describe actions as: clashes with, faces, confronts, battles, defends against
-  - Write a vivid scene description (15-20 words), NOT just style tags
-  - Include: the specific moment of action, who is in the scene, the environment, lighting, and mood
-  - End with art style hints: "finished fantasy scene illustration, cinematic lighting, vibrant colors, painterly storybook art"
-
-Return your response in STRICT JSON format:
-{
-  "narration": "string",
-  "choices": [
-    { "label": "string", "difficulty": "string", "stat": "string", "difficultyValue": 10, "narration": "string", "flavor": "combo", "helperCharacterName": "optional exact ally name", "itemOwnerName": "optional exact item owner", "itemName": "optional exact item name", "environmentFeature": "optional short terrain or obstacle", "riddleAnswer": "optional string", "riddleCorrect": true },
-    { "label": "string", "difficulty": "string", "stat": "string", "difficultyValue": 10, "narration": "string", "flavor": "social", "riddleAnswer": "optional string", "riddleCorrect": false },
-    { "label": "string", "difficulty": "string", "stat": "string", "difficultyValue": 10, "narration": "string", "flavor": "environment", "environmentFeature": "short terrain or obstacle" }
-  ],
-  "rollNarration": "string",
-  "imagePrompt": "string | null",
-  "imageSuggested": boolean,
-  "currentTensionLevel": "low" | "medium" | "high",
-  "suggestedInventoryAdd": { "name": "string", "description": "string", "targetCharacterName": "optional string", "statBonuses": { "might": 0, "magic": 0, "mischief": 0 }, "healValue": 0, "consumable": true, "transferable": false, "tags": ["string"], "effect": "optional string", "charges": 1, "condition": "optional string", "boundToCharacterName": "optional string" } | null,
-  "suggestedInventoryRemove": { "characterName": "string", "itemName": "string" } | null,
-  "suggestedInventoryUpdate": { "characterName": "string", "itemName": "string", "name": "optional string", "description": "optional string", "statBonuses": { "might": 0, "magic": 0, "mischief": 0 }, "healValue": 0, "consumable": true, "transferable": false, "tags": ["string"], "effect": "optional string", "charges": 1, "condition": "optional string", "boundToCharacterName": "optional string" } | null,
-  "suggestedRevive": { "characterName": "string", "hp": 3 } | null,
-  "suggestedHeal": [{ "characterName": "string", "hp": 3 }] | null,
-  "suggestedDamage": 0 | null
-}
 `;
 
-export function buildNarrationRetryInstructions(validationError: string, formatInstruction = 'No markdown, no explanation.'): string {
+export function buildNarrationRetryInstructions(validationError: string): string {
   const fixes: string[] = [
-    'Return ONLY valid JSON matching the exact schema.',
-    formatInstruction,
     `Revise the same turn and fix these validation errors: ${validationError}`,
   ];
 
@@ -296,15 +269,16 @@ export function buildNarrationRetryInstructions(validationError: string, formatI
   return `\nCRITICAL: ${fixes.join(' ')}`;
 }
 
-export function buildNarrationUserContent(input: NarrationInput): string {
+export function buildNarrationUserContent(input: NarrationInput, validationError?: string): string {
+  const retryPrefix = validationError ? buildNarrationRetryInstructions(validationError) + '\n\n' : '';
   if (input.interventionRescue) {
-    return '[INTERVENTION] The entire party was just knocked out and nearly lost forever. A mysterious magical force intervened at the last second: a dragon swooped in, time rewound, a divine blessing struck, or some gloriously absurd coincidence saved them. Write a dramatic, surprising rescue (2-3 sentences). Every party member is now alive but barely standing at 1 HP. Then provide 3 fresh choices for the battered-but-breathing party to continue.\n\n' + JSON.stringify(input);
+    return retryPrefix + '[INTERVENTION] The entire party was just knocked out and nearly lost forever. A mysterious magical force intervened at the last second: a dragon swooped in, time rewound, a divine blessing struck, or some gloriously absurd coincidence saved them. Write a dramatic, surprising rescue (2-3 sentences). Every party member is now alive but barely standing at 1 HP. Then provide 3 fresh choices for the battered-but-breathing party to continue.\n\n' + JSON.stringify(input);
   }
   if (input.sanctuaryRecovery) {
-    return '[SANCTUARY] The party has been defeated again - their one miraculous rescue already spent. They have somehow survived and woken up somewhere safe and quiet: a cave, a friendly inn, a mossy clearing, a healer\'s hut. They are battered, humbled, and at 1 HP each - but alive. Write a brief (2-3 sentences) scene of coming to in this safe place, with a hint of what went wrong. Give 3 choices for what the party does next from this sanctuary.\n\n' + JSON.stringify(input);
+    return retryPrefix + '[SANCTUARY] The party has been defeated again - their one miraculous rescue already spent. They have somehow survived and woken up somewhere safe and quiet: a cave, a friendly inn, a mossy clearing, a healer\'s hut. They are battered, humbled, and at 1 HP each - but alive. Write a brief (2-3 sentences) scene of coming to in this safe place, with a hint of what went wrong. Give 3 choices for what the party does next from this sanctuary.\n\n' + JSON.stringify(input);
   }
-  const prefix = input.isFirstTurn
+  const scenarioPrefix = input.isFirstTurn
     ? '[OPENING SCENE] This is the very start of the adventure. Write a vivid opening that sets the world and hooks the party. Do NOT reference prior events or continuations.\n\n'
     : '';
-  return prefix + JSON.stringify(input);
+  return retryPrefix + scenarioPrefix + JSON.stringify(input);
 }
