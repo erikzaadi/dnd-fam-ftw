@@ -86,11 +86,15 @@ async function getSessionOrFail(request: APIRequestContext, id: string): Promise
   return session;
 }
 
-async function enableSavingsMode(request: APIRequestContext, sessionId: string): Promise<void> {
+async function setSavingsMode(request: APIRequestContext, sessionId: string, enabled: boolean): Promise<void> {
   const res = await request.post(`/api/session/${sessionId}/savings-mode`, {
-    data: { enabled: true },
+    data: { enabled },
   });
   expect(res.ok()).toBe(true);
+}
+
+async function enableSavingsMode(request: APIRequestContext, sessionId: string): Promise<void> {
+  await setSavingsMode(request, sessionId, true);
 }
 
 // Suppress the onboarding tutorial in all visual tests. Each test calls this
@@ -274,13 +278,10 @@ test('session chronicle open and second turn', async ({ page, request }) => {
     await expect(page.getByAltText(name).first()).toBeVisible();
   }
 
-  const chronicleLink = page.getByRole('button', { name: /Open Chronicle/i });
-  await chronicleLink.scrollIntoViewIfNeeded();
-  await expect(chronicleLink).toBeVisible();
-  await chronicleLink.click();
+  await page.keyboard.press('c');
 
   await expect(page.getByRole('heading', { name: 'Chronicle' })).toBeVisible();
-  await expect(page.getByText('Choose an Action')).not.toBeVisible();
+  await expect(page.getByRole('button', { name: 'Close chronicle' })).toBeVisible();
 
   // Turn buttons contain an italic narration snippet paragraph
   const turnButtons = page.locator('button').filter({ has: page.locator('p.italic') });
@@ -385,8 +386,15 @@ test('session mechanics showcase visual asserts', async ({ page, request }) => {
 
   for (const viewport of [{ width: 844, height: 390 }, { width: 1280, height: 900 }]) {
     await page.setViewportSize(viewport);
-    await expect(page.getByPlaceholder('Describe a different action...')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'UNLEASH' })).toBeVisible();
+    const actionSurface = viewport.width < 1024 ? page.locator('div.fixed.inset-0').filter({ hasText: 'Hide actions' }) : page;
+    if (viewport.width < 1024) {
+      await page.getByRole('button', { name: 'Actions' }).click();
+    }
+    await expect(actionSurface.getByPlaceholder('Describe a different action...')).toBeVisible();
+    await expect(actionSurface.getByRole('button', { name: 'UNLEASH' })).toBeVisible();
+    if (viewport.width < 1024) {
+      await page.getByRole('button', { name: 'Hide actions' }).click();
+    }
   }
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -397,8 +405,7 @@ test('session mechanics showcase visual asserts', async ({ page, request }) => {
   }).toBe(true);
   await screenshotViewports(page, 'session-mechanics-showcase-short-narration');
 
-  const chronicleLink = page.getByRole('button', { name: /Open Chronicle/i });
-  await chronicleLink.click();
+  await page.keyboard.press('c');
   await page.getByRole('button', { name: new RegExp(longNarration.slice(0, 40)) }).click();
   await expect(narrationText).toHaveText(longNarration);
   await expect.poll(async () => {

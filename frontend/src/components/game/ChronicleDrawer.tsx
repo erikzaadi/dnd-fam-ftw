@@ -159,6 +159,10 @@ const TurnDetail = ({
         </div>
       )}
 
+      <p className="font-narrative text-base sm:text-lg md:text-xl lg:text-2xl xl:text-3xl 2xl:text-4xl leading-relaxed text-slate-100 italic">
+        {turn.narration}
+      </p>
+
       <NarrationTtsButton
         text={turn.narration}
         ttsSettings={ttsSettings}
@@ -234,7 +238,7 @@ export const ChronicleDrawer = ({
   };
 
   return (
-    <div className="flex flex-col min-h-[55vh] lg:h-full bg-slate-900 rounded-[32px] border border-slate-800">
+    <div className="flex h-full min-h-0 flex-col bg-slate-900 rounded-[28px] sm:rounded-[32px] border border-slate-800">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 flex-shrink-0">
         <div className="flex items-center gap-3">

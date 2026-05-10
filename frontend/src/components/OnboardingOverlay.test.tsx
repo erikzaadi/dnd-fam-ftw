@@ -30,11 +30,20 @@ describe('OnboardingOverlay', () => {
     expect(screen.getByText(/HP and stats/)).toBeInTheDocument();
   });
 
-  it('renders step 3 as non-blocking action dock callout with no button', () => {
+  it('renders step 3 as dismissible action dock callout', () => {
+    const onAdvance = vi.fn();
+    render(<OnboardingOverlay step={3} onAdvance={onAdvance} />);
+    expect(screen.getByText('Your turn')).toBeInTheDocument();
+    expect(screen.getByText(/Unleash/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
+    expect(onAdvance).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the step 3 callout shell non-blocking', () => {
     render(<OnboardingOverlay step={3} onAdvance={vi.fn()} />);
     expect(screen.getByText('Your turn')).toBeInTheDocument();
     expect(screen.getByText(/Unleash/)).toBeInTheDocument();
-    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.getByText('Your turn').closest('.pointer-events-none')).toBeInTheDocument();
   });
 
   it('renders step 5 with roll explanation', () => {

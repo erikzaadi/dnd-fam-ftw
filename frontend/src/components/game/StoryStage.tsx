@@ -17,10 +17,8 @@ interface StoryStageProps {
   imageLoading: boolean;
   ttsSettings: TtsSettings;
   hasTts: boolean;
-  chronicleOpen: boolean;
   currentTensionLevel?: 'low' | 'medium' | 'high' | null;
   focusRequest: number;
-  onOpenChronicle: () => void;
   onFullscreenImage: (url: string) => void;
   onFullscreenNarration: (narration: string) => void;
 }
@@ -31,10 +29,8 @@ export const StoryStage = ({
   imageLoading,
   ttsSettings,
   hasTts,
-  chronicleOpen,
   currentTensionLevel,
   focusRequest,
-  onOpenChronicle,
   onFullscreenImage,
   onFullscreenNarration,
 }: StoryStageProps) => {
@@ -42,12 +38,14 @@ export const StoryStage = ({
   const [isNarrationScrollable, setIsNarrationScrollable] = useState(false);
 
   const displayTurn = history[viewedTurnIdx] ?? null;
-  const previousTurn = viewedTurnIdx > 0 ? history[viewedTurnIdx - 1] : null;
   const isCurrentTurn = viewedTurnIdx === history.length - 1;
 
   const imageUrl = displayTurn?.imageUrl ? imgSrc(displayTurn.imageUrl) : null;
   const defaultImageUrl = imgSrc('/images/default_scene.png');
   const narration = displayTurn?.narration ?? '';
+  const cardClass = 'bg-slate-950/44 sm:bg-slate-950/52 rounded-[20px] sm:rounded-[24px] p-5 sm:p-8 lg:p-12 w-full sm:w-[74%] max-w-[860px] h-full sm:h-[64%] min-h-0 flex flex-col items-start justify-start cursor-zoom-in transition-colors overflow-hidden border border-slate-700/25 sm:border-0 shadow-xl sm:shadow-none';
+  const textClass = 'font-narrative text-slate-50 italic text-center w-full flex-1 min-h-0 text-lg sm:text-base md:text-lg lg:text-2xl xl:text-3xl 2xl:text-4xl 3xl:text-5xl 4xl:text-6xl ultrawide:text-6xl leading-relaxed [text-shadow:0_2px_8px_rgba(0,0,0,1),0_0_18px_rgba(0,0,0,0.95)]';
+  const emptyCardClass = 'backdrop-blur-md bg-slate-950/55 rounded-[24px] p-8 w-[78%] h-[75%] min-h-0 flex items-center justify-center';
 
   const updateNarrationScrollability = useCallback(() => {
     const narrationText = narrationTextRef.current;
@@ -112,14 +110,14 @@ export const StoryStage = ({
 
   return (
     <div
-      className={`relative flex flex-col h-full min-h-0 overflow-hidden rounded-[32px] bg-slate-950 ${imageLoading ? 'cursor-wait' : 'cursor-zoom-in'}`}
+      className={`relative flex flex-col h-full min-h-0 overflow-hidden bg-slate-950 rounded-[32px] ${imageLoading ? 'cursor-wait' : 'cursor-zoom-in'}`}
       onClick={handleStageClick}
     >
       <SceneBackground imageUrl={imageUrl} defaultImageUrl={defaultImageUrl} />
 
       {/* Painting the scene badge - top-left when loading */}
       {imageLoading && (
-        <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 bg-slate-900/80 border border-slate-700 rounded-full backdrop-blur-sm">
+        <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 bg-slate-900/85 border border-slate-700 rounded-full backdrop-blur-sm pointer-events-none">
           <div className="w-3 h-3 border-2 border-slate-600 border-t-amber-500 rounded-full animate-spin shrink-0" />
           <span className="text-xs font-black uppercase tracking-widest text-slate-400">Painting the scene...</span>
         </div>
@@ -143,12 +141,12 @@ export const StoryStage = ({
         )}
       </div>
 
-      {/* Narration card - centered, fills ~75% of stage */}
-      <div className="relative z-10 flex-1 min-h-0 flex items-center justify-center p-4 pb-16">
+      {/* Narration card */}
+      <div className="relative z-10 flex-1 min-h-0 flex items-stretch justify-center sm:items-center p-3 pt-14 pb-14 sm:p-4 sm:pb-16">
         {narration ? (
           <div
             aria-label="Story narration"
-            className="backdrop-blur-md bg-slate-950/55 rounded-[24px] p-8 lg:p-12 w-[78%] max-w-[900px] h-[75%] min-h-0 flex flex-col items-start justify-start cursor-zoom-in hover:bg-slate-950/65 transition-colors overflow-hidden"
+            className={cardClass}
             onClick={e => {
               e.stopPropagation();
               onFullscreenNarration(narration);
@@ -157,7 +155,7 @@ export const StoryStage = ({
             <p
               ref={narrationTextRef}
               tabIndex={-1}
-              className={`font-narrative text-slate-100 italic text-center w-full flex-1 min-h-0 text-sm sm:text-base md:text-lg lg:text-3xl xl:text-4xl 2xl:text-5xl 3xl:text-6xl 4xl:text-7xl ultrawide:text-7xl leading-relaxed ${isNarrationScrollable ? 'overflow-y-auto scrollbar-hide' : 'overflow-y-hidden'} overscroll-contain focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70`}
+              className={`${textClass} ${isNarrationScrollable ? 'overflow-y-auto scrollbar-hide' : 'overflow-y-hidden'} overscroll-contain focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70`}
             >
               {narration}
             </p>
@@ -172,31 +170,10 @@ export const StoryStage = ({
             </div>
           </div>
         ) : (
-          <div className="backdrop-blur-md bg-slate-950/55 rounded-[24px] p-8 w-[78%] h-[75%] min-h-0 flex items-center justify-center">
+          <div className={emptyCardClass}>
             <p className="font-narrative text-slate-500 italic text-center text-xl">Waiting for the DM...</p>
           </div>
         )}
-      </div>
-
-      {/* Previous turn teaser + Chronicle link - fades out when chronicle is open */}
-      <div
-        className={`absolute bottom-0 left-0 right-0 z-20 flex items-center justify-between px-6 py-3 gap-4 bg-slate-950/80 backdrop-blur-sm transition-opacity duration-300 ${chronicleOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
-        onClick={e => e.stopPropagation()}
-      >
-        {previousTurn ? (
-          <p className="text-xs text-slate-500 italic truncate flex-1 min-w-0">
-            {previousTurn.narration.slice(0, 80)}{previousTurn.narration.length > 80 ? '...' : ''}
-          </p>
-        ) : (
-          <span />
-        )}
-        <button
-          onClick={onOpenChronicle}
-          className="inline-flex items-center gap-1.5 text-sm font-black uppercase tracking-widest text-amber-600 hover:text-amber-400 transition-colors shrink-0 whitespace-nowrap"
-        >
-          <img src={imgSrc('/images/icon_scroll.png')} alt="" className="w-4 h-4 object-contain mix-blend-screen" />
-          Open Chronicle →
-        </button>
       </div>
     </div>
   );

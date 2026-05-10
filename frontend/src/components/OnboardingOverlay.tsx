@@ -148,6 +148,7 @@ export const OnboardingOverlay = ({
             Pick an action from the dock below - or type your own and hit{' '}
             <span className="text-amber-300 font-bold">Unleash</span>. Your hero attempts it and the DM narrates what happens.
           </CalloutBody>
+          <CalloutButton onClick={onAdvance}>Got it</CalloutButton>
           <p className="text-amber-500 text-center text-sm mt-2 animate-bounce">↓</p>
         </div>
       </div>

@@ -89,6 +89,10 @@ function portalStyle(rect: DOMRect, position: string, align: string): CSSPropert
   };
 }
 
+function isTouchLikePointer(): boolean {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(hover: none), (pointer: coarse)').matches;
+}
+
 export const Tooltip = ({
   content,
   position = 'bottom',
@@ -109,6 +113,10 @@ export const Tooltip = ({
     : 'px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-300 shadow-xl';
 
   const updatePortalRect = useCallback(() => {
+    if (isTouchLikePointer()) {
+      setPortalRect(null);
+      return;
+    }
     if (portal && wrapperRef.current) {
       setPortalRect(wrapperRef.current.getBoundingClientRect());
     }
@@ -143,6 +151,7 @@ export const Tooltip = ({
     className: wrapClass,
     onMouseEnter: updatePortalRect,
     onMouseLeave: hidePortal,
+    onPointerDown: hidePortal,
     onFocus: updatePortalRect,
     onBlur: hidePortal,
   };

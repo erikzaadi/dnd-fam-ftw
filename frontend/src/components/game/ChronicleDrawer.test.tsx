@@ -187,6 +187,7 @@ describe('ChronicleDrawer keyboard navigation', () => {
 
     expect(screen.getByLabelText('Legendary Success, Natural 20')).toHaveTextContent('20');
     fireEvent.click(screen.getByText('Turn 1 narration'));
+    expect(screen.getAllByText('Turn 1 narration')).toHaveLength(2);
     expect(screen.getByText('Legendary Success')).toBeInTheDocument();
     expect(screen.getByText('Natural 20')).toBeInTheDocument();
     expect(screen.getByText('Moon Key')).toBeInTheDocument();

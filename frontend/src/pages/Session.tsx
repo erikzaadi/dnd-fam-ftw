@@ -74,6 +74,7 @@ export const SessionPage = () => {
   const [currentTensionLevel, setCurrentTensionLevel] = useState<'low' | 'medium' | 'high' | null>(null);
   const [showBanner, setShowBanner] = useState(true);
   const [gearOpen, setGearOpen] = useState(false);
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
   const showBannerRef = useRef(showBanner);
   showBannerRef.current = showBanner;
   const [storyFocusRequest, setStoryFocusRequest] = useState(0);
@@ -396,6 +397,7 @@ export const SessionPage = () => {
         : action;
     setLastSubmittedAction({ label: displayAction, stat: statUsed, char: itemOwner, difficulty, difficultyValue: difficultyValue ?? undefined, ...preview });
     setLoading(true);
+    setMobileActionsOpen(false);
     audioManager.stopNarrating();
     narrationTtsService.stopNarration();
     try {
@@ -481,11 +483,26 @@ export const SessionPage = () => {
   const displayTurn = history[viewedTurnIdx] ?? null;
   displayTurnRef.current = displayTurn;
   imageLoadingRef.current = imageLoading;
+  const stageFullscreenImageUrl = displayTurn?.imageUrl
+    ? imgSrc(displayTurn.imageUrl)
+    : (!imageLoading && !session.savingsMode ? imgSrc('/images/default_scene.png') : null);
   const activeChar = session.party.find(c => c.id === session.activeCharacterId) || null;
   const isDown = activeChar?.status === 'downed';
 
   const lastRollOutcome = getRollImpactOutcome(lastRoll?.roll, lastRoll?.success, lastRoll?.impact);
   const animateRollGlow = lastRollOutcome && (lastRoll?.impact === 'extreme' || lastRoll?.roll === 1 || lastRoll?.roll === 20);
+  const showNarrationOnlyLoading = loading && !lastRoll;
+  const showStoryOnlyMobile = !loading && !mobileActionsOpen && tutorialStep !== 3;
+  const showMobileActionsOverlay = !loading && (mobileActionsOpen || tutorialStep === 3);
+  const sessionGridRows = showNarrationOnlyLoading
+    ? 'grid-rows-[minmax(0,1fr)]'
+    : showStoryOnlyMobile
+      ? 'grid-rows-[minmax(0,1fr)]'
+      : 'grid-rows-[minmax(0,2fr)_minmax(0,3fr)]';
+  const showInlineActionPanel = loading;
+  const actionAreaClass = showInlineActionPanel
+    ? 'block'
+    : 'hidden xl:block';
 
   const handleExitClick = () => {
     setConfirmDialog({
@@ -508,7 +525,7 @@ export const SessionPage = () => {
   };
 
   return (
-    <div className="bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-slate-100 overflow-x-hidden [@media(orientation:landscape)]:h-dvh [@media(orientation:landscape)]:overflow-hidden">
+    <div className="min-h-dvh bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-slate-100 overflow-x-hidden xl:h-dvh xl:overflow-hidden">
       {showBanner && (
         <SessionHud
           session={session}
@@ -572,42 +589,35 @@ export const SessionPage = () => {
         </div>
       )}
 
-      <div className={`grid gap-4 px-4 pb-4 h-dvh overflow-hidden grid-cols-1 grid-rows-[minmax(0,2fr)_minmax(0,3fr)] xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-rows-[1fr] ${showBanner ? 'pt-40 sm:pt-28' : 'pt-3'}`}>
-        {/* Story Stage */}
-        <div className="min-h-0" data-tutorial="story-box">
-          <StoryStage
+      {showChronicle && (
+        <div className="fixed inset-0 z-[90] bg-slate-950/96 p-3">
+          <ChronicleDrawer
             history={history}
+            party={session.party}
+            onClose={() => {
+              setShowChronicle(false);
+              setViewedTurnIdx(history.length - 1);
+            }}
+            onSelectTurn={handleChronicleSelectTurn}
             viewedTurnIdx={viewedTurnIdx}
-            imageLoading={imageLoading && !session.savingsMode}
             ttsSettings={ttsSettings}
             hasTts={capabilities.hasTts}
-            chronicleOpen={showChronicle}
-            currentTensionLevel={currentTensionLevel}
-            focusRequest={storyFocusRequest}
-            onOpenChronicle={() => setShowChronicle(true)}
-            onFullscreenImage={setFullscreenImage}
-            onFullscreenNarration={setFullscreenNarration}
           />
         </div>
+      )}
 
-        {/* Chronicle / Action area: bottom-left on md, center col on xl */}
-        <div className="min-h-0" data-tutorial="action-dock">
-          {showChronicle ? (
-            <ChronicleDrawer
-              history={history}
-              party={session.party}
-              onClose={() => {
-                setShowChronicle(false);
-                setViewedTurnIdx(history.length - 1);
-              }}
-              onSelectTurn={handleChronicleSelectTurn}
-              viewedTurnIdx={viewedTurnIdx}
-              ttsSettings={ttsSettings}
-              hasTts={capabilities.hasTts}
-            />
-          ) : loading ? (
-            <DmDecisionRecapPanel lastSubmittedAction={lastSubmittedAction} ttsSettings={ttsSettings} />
-          ) : (
+      {showMobileActionsOverlay && (
+        <div className="fixed inset-0 z-[85] bg-slate-950 p-3 xl:hidden">
+          <div className="mb-2 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setMobileActionsOpen(false)}
+              className="rounded-full border border-slate-700 bg-slate-900/90 px-3 py-1.5 text-xs font-black uppercase tracking-widest text-slate-400"
+            >
+              Hide actions
+            </button>
+          </div>
+          <div className="h-[calc(100dvh-3.5rem)] min-h-0">
             <ActionDock
               turn={displayTurn}
               loading={loading}
@@ -622,6 +632,99 @@ export const SessionPage = () => {
               onShowPartyGear={() => setShowFullInventory(true)}
               onCharacterClick={setSelectedCharacter}
             />
+          </div>
+        </div>
+      )}
+
+      {!showChronicle && !loading && !showMobileActionsOverlay && (
+        <nav className="fixed inset-x-3 bottom-3 z-[80] grid grid-cols-3 gap-2 rounded-2xl border border-slate-700/80 bg-slate-950/92 p-2 shadow-2xl backdrop-blur-md xl:hidden" aria-label="Session mobile tools">
+          <button
+            type="button"
+            onClick={() => setMobileActionsOpen(true)}
+            className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl bg-amber-500/12 px-2 py-2 text-[10px] font-black uppercase tracking-widest text-amber-300"
+          >
+            <span className="text-base leading-none">⚔</span>
+            Actions
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowChronicle(true)}
+            className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl bg-slate-900 px-2 py-2 text-[10px] font-black uppercase tracking-widest text-slate-300"
+          >
+            <img src={imgSrc('/images/icon_scroll.png')} alt="" className="h-5 w-5 object-contain mix-blend-screen" />
+            Chronicle
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (stageFullscreenImageUrl) {
+                setFullscreenImage(stageFullscreenImageUrl);
+              }
+            }}
+            disabled={!stageFullscreenImageUrl}
+            className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl bg-slate-900 px-2 py-2 text-[10px] font-black uppercase tracking-widest text-slate-300 disabled:opacity-40"
+          >
+            <span className="text-base leading-none">🖼</span>
+            Art
+          </button>
+        </nav>
+      )}
+
+      {!showChronicle && (
+        <div className="fixed bottom-4 left-4 z-[70] hidden xl:block">
+          <Tooltip content="Open Chronicle [c]" position="top" align="left" portal>
+            <button
+              type="button"
+              onClick={() => setShowChronicle(true)}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/80 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-amber-500 shadow-xl backdrop-blur-md hover:border-amber-600/50 hover:bg-slate-900 hover:text-amber-300 transition-all"
+              aria-label="Open Chronicle"
+            >
+              <img src={imgSrc('/images/icon_scroll.png')} alt="" className="h-5 w-5 object-contain mix-blend-screen" />
+              Chronicle
+            </button>
+          </Tooltip>
+        </div>
+      )}
+
+      <div className={`grid gap-4 px-4 pb-24 min-h-dvh grid-cols-1 ${sessionGridRows} xl:h-dvh xl:overflow-hidden xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-rows-[1fr] xl:pb-4 ${showBanner ? 'pt-40 sm:pt-28' : 'pt-3'}`}>
+        {/* Story Stage */}
+        <div className={`min-h-[18rem] xl:min-h-0 ${showNarrationOnlyLoading ? 'hidden xl:block' : ''}`} data-tutorial="story-box">
+          <StoryStage
+            history={history}
+            viewedTurnIdx={viewedTurnIdx}
+            imageLoading={imageLoading && !session.savingsMode}
+            ttsSettings={ttsSettings}
+            hasTts={capabilities.hasTts}
+            currentTensionLevel={currentTensionLevel}
+            focusRequest={storyFocusRequest}
+            onFullscreenImage={setFullscreenImage}
+            onFullscreenNarration={setFullscreenNarration}
+          />
+        </div>
+
+        {/* Chronicle / Action area: bottom-left on md, center col on xl */}
+        <div className={`min-h-0 ${actionAreaClass}`} data-tutorial="action-dock">
+          {loading ? (
+            <DmDecisionRecapPanel lastSubmittedAction={lastSubmittedAction} ttsSettings={ttsSettings} />
+          ) : (
+            <div className="flex h-full min-h-0 flex-col">
+              <div className="min-h-0 flex-1">
+                <ActionDock
+                  turn={displayTurn}
+                  loading={loading}
+                  activeCharacter={activeChar}
+                  isDown={isDown}
+                  party={session.party}
+                  sessionId={session.id}
+                  customAction={customAction}
+                  setCustomAction={setCustomAction}
+                  error={actionError}
+                  onSubmit={submitAction}
+                  onShowPartyGear={() => setShowFullInventory(true)}
+                  onCharacterClick={setSelectedCharacter}
+                />
+              </div>
+            </div>
           )}
         </div>
 
