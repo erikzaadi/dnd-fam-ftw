@@ -29,27 +29,28 @@ export type SceneImageContext = {
 
 const IMAGE_COMPOSITION_GUARDRAIL = [
   'Finished standalone fantasy illustration.',
-  'No text or pseudo-text anywhere in the image.',
+  'No text, pseudo-text, glyph rows, fake writing, decorative calligraphy, title blocks, or paragraph-like marks anywhere in the image.',
   'Single full-bleed image filling the entire square frame from edge to edge.',
-  'Continuous painted in-world scene only, not a book page, parchment sheet, manuscript, title card, poster, trading card, gallery mat, collectible card, tabletop card, character card, or framed illustration.',
+  'Continuous painted in-world scene only, not a book page, parchment sheet, manuscript, illuminated manuscript, title card, poster, trading card, gallery mat, collectible card, tabletop card, character card, or framed illustration.',
   'One shared camera view with every figure occupying the same physical environment.',
   'Only the described characters, creatures, props, and environment are visible.',
-  'All books, scrolls, maps, signs, banners, plaques, cards, and carved surfaces are plain blank visual props with no visible marks.',
-  'No captions, lettering, numbers, logos, watermarks, signatures, borders, mats, picture frames, panels, split views, grids, tables, stat blocks, character sheets, reference sheets, portrait cards, character cards, name labels under figures, name tags, labels under figures, header bands, footer bands, blank margins, menus, toolbars, editor controls, crop handles, selection boxes, rulers, guides, or software interface elements.',
+  'All books, scrolls, maps, signs, banners, plaques, cards, and carved surfaces are plain blank visual props with no visible marks, lines, alphabets, icons, diagrams, or symbols.',
+  'No captions, lettering, numbers, logos, watermarks, signatures, borders, mats, picture frames, panels, split views, grids, tables, stat blocks, character sheets, reference sheets, portrait cards, character cards, name labels under figures, name tags, labels under figures, header bands, footer bands, blank margins, text areas, menus, toolbars, editor controls, crop handles, selection boxes, rulers, guides, or software interface elements.',
   'No artist hands, brushes, paint palettes, color swatches, easels, stretched canvas, linen texture, canvas wrap, painting mounted on wall, artwork displayed in gallery, display box, pedestal base, art supplies, or image-creation process visible.',
+  'If the scene includes magic, show it as light, color, particles, mist, or motion only, never as readable marks or floating writing.',
 ].join(' ');
 
 export const IMAGE_PROMPT_STYLE = {
   avatar: 'Highly detailed digital fantasy adventurer bust view, sharp rendering, tight centered face and shoulders crop. The character is a real living being in the image, not a figurine, game piece, card art, printed portrait, framed artwork, or display object.',
-  scene: 'Dungeons and Dragons adventure moment, detailed fantasy art, cinematic lighting, vibrant colors, painterly storybook energy.',
+  scene: 'Dungeons and Dragons adventure moment, detailed fantasy art, cinematic lighting, vibrant colors, painterly in-world action scene.',
   preview: 'Painterly fantasy adventure art, cinematic lighting, vibrant colors, full-bleed landscape composition with no margins.',
 } as const;
 
 function sanitizeVisualPrompt(prompt: string): string {
   return prompt
-    .replace(/\b(readable\s+)?(text|words?|letters?|numbers?|captions?|labels?|headlines?|titles?|typography|font|writing|written\s+text)\b/gi, 'plain unmarked visual detail')
-    .replace(/\b(signboards?|signs?|plaques?|inscriptions?|carved\s+writing|(?:spell|story|note)?books?|journals?|diar(?:y|ies)|book\s+pages?)\b/gi, 'plain unmarked props')
-    .replace(/\b(runes?|glyphs?|sigils?|symbols?)\b/gi, 'abstract magical glow')
+    .replace(/\b(readable\s+)?(text|words?|letters?|numbers?|captions?|labels?|headlines?|titles?|typography|font|writing|written\s+text|paragraphs?|calligraphy|script|scripts)\b/gi, 'plain unmarked visual detail')
+    .replace(/\b(signboards?|signs?|plaques?|inscriptions?|carved\s+writing|(?:spell|story|note)?books?|journals?|diar(?:y|ies)|book\s+pages?|manuscripts?|title\s+cards?)\b/gi, 'plain unmarked props')
+    .replace(/\b(runes?|glyphs?|sigils?|symbols?|arcane\s+letters?|magic\s+letters?|floating\s+letters?)\b/gi, 'abstract magical glow')
     .replace(/\b(scrolls?)\b/gi, 'blank parchment')
     .replace(/\b(maps?)\b/gi, 'a plain unmarked parchment chart')
     .replace(/\b(banners?)\b/gi, 'plain cloth standards')
@@ -59,7 +60,7 @@ function sanitizeVisualPrompt(prompt: string): string {
 }
 
 export function buildImagePrompt(subject: string, style: string): string {
-  return `${IMAGE_COMPOSITION_GUARDRAIL} ${sanitizeVisualPrompt(subject).trim()} ${style}`;
+  return `${IMAGE_COMPOSITION_GUARDRAIL} ${sanitizeVisualPrompt(subject).trim()} ${style} Final image must contain only visual scenery and characters, with zero readable or unreadable text-like marks.`;
 }
 
 export class ImageService {
