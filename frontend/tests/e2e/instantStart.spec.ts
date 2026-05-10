@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { dismissAudioOverlay } from './helpers';
+import { dismissAudioOverlay, suppressFirstRunOverlays } from './helpers';
 
 test.beforeEach(async ({ request }) => {
   // Disable images so the background flow uses instant_start_ready (savings mode path)
@@ -15,6 +15,7 @@ test('instant start: loader appears and navigates to a new session', async ({ pa
   const consoleMsgs: string[] = [];
   page.on('console', msg => consoleMsgs.push(`[${msg.type()}] ${msg.text()}`));
 
+  await suppressFirstRunOverlays(page);
   await page.goto('/');
   await dismissAudioOverlay(page);
 

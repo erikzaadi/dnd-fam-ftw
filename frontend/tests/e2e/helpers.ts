@@ -2,6 +2,14 @@ import { expect, type APIRequestContext, type Page } from '@playwright/test';
 
 export const MOCK_NARRATION_MARKER = 'The mock DM confirms the adventure moves forward.';
 
+// Suppress first-run overlays before React mounts. Call before page.goto().
+export async function suppressFirstRunOverlays(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    localStorage.setItem('tutorial_ever_started', '1');
+    localStorage.setItem('dnd-first-run-wizard', JSON.stringify({ completedVersion: 1 }));
+  });
+}
+
 export async function dismissAudioOverlay(page: Page): Promise<void> {
   const btn = page.getByRole('button', { name: 'Enable Audio' });
   try {
