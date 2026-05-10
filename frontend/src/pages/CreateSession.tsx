@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DmFooter } from '../components/DmFooter';
 import { SiteHeader } from '../components/SiteHeader';
+import { loadFirstRunPreferences } from '../firstRun/firstRunPreferences';
 import { apiFetch } from '../lib/api';
+import type { GameMode } from '../types';
 
 const DIFFICULTY_INFO: Record<string, { color: string; desc: string }> = {
   easy: { color: 'text-emerald-400', desc: 'Rolls target ~8. Fail = -1 HP. Good for younger players or a chill adventure.' },
@@ -22,7 +24,7 @@ export const CreateSession = () => {
   const [dmPrep, setDmPrep] = useState("");
   const [showDmPrep, setShowDmPrep] = useState(false);
   const [difficulty, setDifficulty] = useState("normal");
-  const [gameMode, setGameMode] = useState<'cinematic' | 'balanced' | 'fast' | 'zug-ma-geddon'>("balanced");
+  const [gameMode, setGameMode] = useState<GameMode>(() => loadFirstRunPreferences().preferredGameMode);
   const [showWorldDescription, setShowWorldDescription] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +46,10 @@ export const CreateSession = () => {
     }
     if (res.status === 403 && data.error === 'session_limit') {
       setError(data.message ?? 'Session limit reached for this group.');
+      return;
+    }
+    if (!res.ok || !data.id) {
+      setError(data.message ?? 'Something went wrong. Try again in a moment.');
       return;
     }
     navigate(`/session/${data.id}/assembly`);
@@ -81,7 +87,7 @@ export const CreateSession = () => {
               ].map(m => (
                 <button
                   key={m.id}
-                  onClick={() => setGameMode(m.id as 'cinematic' | 'balanced' | 'fast' | 'zug-ma-geddon')}
+                  onClick={() => setGameMode(m.id as GameMode)}
                   className={`flex flex-col items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${gameMode === m.id ? (m.id === 'zug-ma-geddon' ? 'bg-rose-900/20 border-rose-500 text-rose-400' : 'bg-amber-600/10 border-amber-600 text-amber-500') : 'bg-slate-800/50 border-slate-700 text-slate-500'}`}
                 >
                   <span className="text-base mb-0.5">{m.icon}</span>

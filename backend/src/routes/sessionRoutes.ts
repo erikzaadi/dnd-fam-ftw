@@ -11,14 +11,14 @@ import { SettingsService } from '../services/settingsService.js';
 import { StateService } from '../services/stateService.js';
 import { refreshDmPrepImageBriefAndPreview, triggerPreviewRegen } from '../services/sessionPreviewService.js';
 import { StorySummaryService } from '../services/storySummaryService.js';
-import type { GameMode } from '../types.js';
+import { GAME_MODE_VALUES, type GameMode } from '../types.js';
 import { sendRateLimitResponse } from './routeErrors.js';
 import { booleanBodySchema, parseBody } from './routeValidation.js';
 
 const createSessionBodySchema = z.object({
   worldDescription: z.string().optional(),
   difficulty: z.string().optional(),
-  gameMode: z.enum(['cinematic', 'balanced', 'fast']).optional(),
+  gameMode: z.enum(GAME_MODE_VALUES).optional(),
   dmPrep: z.string().optional(),
 });
 

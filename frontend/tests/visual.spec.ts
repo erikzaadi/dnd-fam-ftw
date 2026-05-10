@@ -97,11 +97,12 @@ async function enableSavingsMode(request: APIRequestContext, sessionId: string):
   await setSavingsMode(request, sessionId, true);
 }
 
-// Suppress the onboarding tutorial in all visual tests. Each test calls this
+// Suppress first-run overlays in visual tests. Each test calls this
 // before page.goto() so the initScript fires before React mounts.
-async function suppressTutorial(page: Page): Promise<void> {
+async function suppressFirstRunOverlays(page: Page): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem('tutorial_ever_started', '1');
+    localStorage.setItem('dnd-first-run-wizard', JSON.stringify({ completedVersion: 1 }));
   });
 }
 
@@ -114,7 +115,7 @@ function seedSessionsFixture(): void {
 }
 
 test('home', async ({ page }) => {
-  await suppressTutorial(page);
+  await suppressFirstRunOverlays(page);
   // Stub sessions so the snapshot is stable regardless of database state
   await page.route('**/api/sessions', route => route.fulfill({
     status: 200,
@@ -126,11 +127,42 @@ test('home', async ({ page }) => {
   await screenshotViewports(page, 'home');
 });
 
+test('first-run-wizard', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('tutorial_ever_started', '1');
+  });
+  await page.route('**/api/sessions', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([]),
+  }));
+  await page.route('**/api/settings', route => {
+    if (route.request().method() === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ imagesEnabled: true }),
+      });
+    }
+    return route.continue();
+  });
+  await page.route('**/api/capabilities', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ hasCloudAI: true, hasTts: true }),
+  }));
+  await page.goto('/');
+  await expect(page.getByText('First Setup')).toBeVisible();
+  await expect(page.getByText('How should the story look?')).toBeVisible();
+  await screenshotViewports(page, 'first-run-wizard');
+});
+
 test('home returning user', async ({ page }) => {
   const sessionId = 'visual-returning-user';
   // Set both keys before React mounts so the returning-user layout renders immediately
   await page.addInitScript((id: string) => {
     localStorage.setItem('tutorial_ever_started', '1');
+    localStorage.setItem('dnd-first-run-wizard', JSON.stringify({ completedVersion: 1 }));
     localStorage.setItem('onboarding_session_id', id);
   }, sessionId);
   await page.route('**/api/sessions', route => route.fulfill({
@@ -150,7 +182,7 @@ test('home returning user', async ({ page }) => {
 });
 
 test('instant-start-loader', async ({ page }) => {
-  await suppressTutorial(page);
+  await suppressFirstRunOverlays(page);
   // Intercept the instant-start POST to return a fake pending session ID
   // without triggering real background work. This keeps the loader visible
   // indefinitely so we can snapshot it in a stable state.
@@ -184,7 +216,7 @@ test('instant-start-loader', async ({ page }) => {
 });
 
 test('settings', async ({ page }) => {
-  await suppressTutorial(page);
+  await suppressFirstRunOverlays(page);
   await page.goto('/settings');
   await dismissAudioOverlay(page);
   // Wait for settings to load from API before screenshotting
@@ -193,7 +225,7 @@ test('settings', async ({ page }) => {
 });
 
 test('get-me-rollin', async ({ page }) => {
-  await suppressTutorial(page);
+  await suppressFirstRunOverlays(page);
   await page.goto('/get-me-rollin');
   await dismissAudioOverlay(page);
   // Wait for stat icons to load before screenshotting
@@ -203,7 +235,7 @@ test('get-me-rollin', async ({ page }) => {
 
 test('session banner hidden', async ({ page, request }) => {
   test.setTimeout(60_000);
-  await suppressTutorial(page);
+  await suppressFirstRunOverlays(page);
   const session = await getSessionOrFail(request, SESSIONS.standard);
   await enableSavingsMode(request, session.id);
   await page.goto(`/session/${session.id}`);
@@ -217,7 +249,7 @@ test('session banner hidden', async ({ page, request }) => {
 
 test('session narration fullscreen', async ({ page, request }) => {
   test.setTimeout(60_000);
-  await suppressTutorial(page);
+  await suppressFirstRunOverlays(page);
   const session = await getSessionOrFail(request, SESSIONS.standard);
   await enableSavingsMode(request, session.id);
 
@@ -254,7 +286,7 @@ test('session narration fullscreen', async ({ page, request }) => {
 
 test('session chronicle open and second turn', async ({ page, request }) => {
   test.setTimeout(60_000);
-  await suppressTutorial(page);
+  await suppressFirstRunOverlays(page);
   const session = await getSessionOrFail(request, SESSIONS.chronicle);
   await enableSavingsMode(request, session.id);
 
@@ -298,7 +330,7 @@ test('session chronicle open and second turn', async ({ page, request }) => {
 
 test('session inventory panel', async ({ page, request }) => {
   test.setTimeout(60_000);
-  await suppressTutorial(page);
+  await suppressFirstRunOverlays(page);
   const session = await getSessionOrFail(request, SESSIONS.inventory);
   await enableSavingsMode(request, session.id);
   const inventoryItems = SEEDED_INVENTORY[SESSIONS.inventory];
@@ -330,7 +362,7 @@ test('session inventory panel', async ({ page, request }) => {
 
 test('session character popup', async ({ page, request }) => {
   test.setTimeout(60_000);
-  await suppressTutorial(page);
+  await suppressFirstRunOverlays(page);
   const session = await getSessionOrFail(request, CHARACTER_POPUP_TARGET.sessionId);
   await enableSavingsMode(request, session.id);
 
@@ -360,7 +392,7 @@ test('session character popup', async ({ page, request }) => {
 
 test('session mechanics showcase visual asserts', async ({ page, request }) => {
   test.setTimeout(120_000);
-  await suppressTutorial(page);
+  await suppressFirstRunOverlays(page);
   seedSessionsFixture();
   const session = await getSessionOrFail(request, SESSIONS.mechanicsShowcase);
   await enableSavingsMode(request, session.id);
@@ -416,7 +448,7 @@ test('session mechanics showcase visual asserts', async ({ page, request }) => {
 
 test('seeded sessions', async ({ page, request }) => {
   test.setTimeout(120_000);
-  await suppressTutorial(page);
+  await suppressFirstRunOverlays(page);
   const picks = [
     { id: SESSIONS.fallen, slug: 'the-tomb-of-endless-dark' },
     { id: SESSIONS.dragonPeak, slug: 'dragon-peak' },

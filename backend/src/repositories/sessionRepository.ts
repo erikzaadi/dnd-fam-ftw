@@ -38,7 +38,7 @@ export const sessionRepository = {
     difficulty: string = 'normal',
     savingsMode: boolean = false,
     namespaceId: string = 'local',
-    gameMode: 'cinematic' | 'balanced' | 'fast' = 'balanced',
+    gameMode: GameMode = 'balanced',
     dmPrep?: string,
     initialDisplayName?: string,
     initialId?: string,

@@ -1,4 +1,4 @@
-import { SessionState, TurnResult, type Character } from '../types.js';
+import { SessionState, TurnResult, type Character, type GameMode } from '../types.js';
 import { initializeDatabase } from '../persistence/database.js';
 import { characterRepository } from '../repositories/characterRepository.js';
 import { inviteRequestRepository, type InviteRequest } from '../repositories/inviteRequestRepository.js';
@@ -17,7 +17,7 @@ export class StateService {
     initializeDatabase();
   }
 
-  public static async createSession(worldDescription?: string, difficulty: string = 'normal', savingsMode: boolean = false, namespaceId: string = 'local', gameMode: 'cinematic' | 'balanced' | 'fast' = 'balanced', dmPrep?: string, initialDisplayName?: string, initialId?: string): Promise<SessionState> {
+  public static async createSession(worldDescription?: string, difficulty: string = 'normal', savingsMode: boolean = false, namespaceId: string = 'local', gameMode: GameMode = 'balanced', dmPrep?: string, initialDisplayName?: string, initialId?: string): Promise<SessionState> {
     return sessionRepository.createSession(worldDescription, difficulty, savingsMode, namespaceId, gameMode, dmPrep, initialDisplayName, initialId);
   }
 

@@ -7,6 +7,7 @@
  *   sanctuary_light.png             - divine sanctuary light
  *   dm_thinking.png                 - DM thinking placeholder
  *   home_banner.png                 - home page banner
+ *   first_run_wizard.png            - first-run settings wizard guide
  *   onboarding/preview.png          - onboarding session preview (wide)
  *   onboarding/scene_inn.png        - onboarding turn 0: the Breadcrumbs Inn
  *   onboarding/scene_brom.png       - onboarding turn 1: Brom shakes the tree
@@ -49,6 +50,11 @@ const ASSETS: Array<{ filename: string; prompt: string; size?: '1024x1024' | '17
     filename: 'home_banner.png',
     size: '1792x1024',
     prompt: 'Wide cinematic fantasy banner: a colossal ancient dragon with glowing amber eyes soaring above a vast magical landscape at dusk, party of tiny adventurers silhouetted far below on a mountain ridge looking up in awe, sweeping panoramic vista, dramatic orange and gold sky, volumetric light rays, epic scale, fantasy illustration, storybook art, deep atmospheric perspective',
+  },
+  {
+    filename: 'first_run_wizard.png',
+    size: '1024x1024',
+    prompt: 'Fantasy storybook illustration: a warm expressive magical guide character welcoming young adventurers into a cozy lantern-lit game room, friendly confident smile, subtle glowing spell motes, colorful cloak, blank smooth scrolls and blank dice as plain props with no markings, playful family-friendly mood, rich amber and teal lighting, centered composition, works as a first-run setup panel image',
   },
   {
     filename: 'campaign_over.png',

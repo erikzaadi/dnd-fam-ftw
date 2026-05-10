@@ -86,6 +86,15 @@ export const HowToPlay = () => {
               </p>
             </Section>
 
+            <Section title="Healing Allies">
+              <p className="text-slate-300 text-lg leading-relaxed">
+                Healing is party-friendly. A hero can use a healing item on themselves, another injured hero, or a downed teammate. Typed healing actions can also target another party member - name who receives the healing so the DM applies HP to the right hero.
+              </p>
+              <p className="text-slate-500 text-base mt-3">
+                Failed healing or support actions should not hurt the healer just because the roll missed. If the story says someone recovers, their HP should change too.
+              </p>
+            </Section>
+
             <Section title="Items">
               <p className="text-slate-300 text-lg leading-relaxed mb-3">
                 Defeating enemies can drop loot - easy realms are generous, normal realms usually reward real fights, hard realms save loot for notable threats, and zug-ma-geddon is stingy unless something big falls. Loot goes to the hero who struck the finishing blow. The AI may also reward items through exploration and story moments. From the inventory panel you can:
@@ -109,6 +118,21 @@ export const HowToPlay = () => {
                 value="Hand a transferable item to another party member"
               />
               <p className="text-slate-500 text-base mt-3">Using and giving items doesn't cost a roll. They always succeed. Story moments can also bless, reveal, charge, damage, or bond items so old gear may gain new properties.</p>
+            </Section>
+
+            <Section title="Enchanting Gear">
+              <p className="text-slate-300 text-lg leading-relaxed">
+                Magic, blessings, repairs, discoveries, and clever upgrades can change existing items instead of adding new loot. You can enchant your own item or another party member's item by naming both the hero and the item in your action.
+              </p>
+              <div className="space-y-2 mt-3">
+                <div className="text-base text-slate-300 p-4 bg-slate-800/60 border border-slate-700 rounded-2xl">
+                  <strong className="text-amber-400">Example:</strong> Zara enchants Brom's shield so it glows when danger is near.
+                </div>
+                <div className="text-base text-slate-300 p-4 bg-slate-800/60 border border-slate-700 rounded-2xl">
+                  <strong className="text-amber-400">Example:</strong> Mira blesses Finn's dagger with a tiny spark of healing magic.
+                </div>
+              </div>
+              <p className="text-slate-500 text-base mt-3">Item changes can add or adjust bonuses, charges, tags, effects, conditions, healing value, or who an item is bound to.</p>
             </Section>
 
             <Section title="🪙 Trading">

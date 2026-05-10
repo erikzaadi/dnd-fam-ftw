@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DmFooter } from '../components/DmFooter';
+import { FirstRunWizard } from '../components/FirstRunWizard';
 import { FullscreenImage } from '../components/FullscreenImage';
 import { InstantStartLoader } from '../components/InstantStartLoader';
 import { SiteHeader } from '../components/SiteHeader';
 import { Tooltip } from '../components/Tooltip';
 import { CharacterPopup } from '../components/CharacterPopup';
 import { apiFetch, apiUrl, imgSrc } from '../lib/api';
+import { useFirstRunWizard } from '../firstRun/useFirstRunWizard';
 import { getSessionEntryPath } from '../lib/sessionRoute';
 import type { SessionPreview } from '../types';
 
@@ -375,7 +377,12 @@ export const Home = () => {
   const [instantStartLoading, setInstantStartLoading] = useState(false);
   const instantStartEsRef = useRef<EventSource | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
   const cardRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const firstRunWizard = useFirstRunWizard();
+  const [replayFirstRunWizard, setReplayFirstRunWizard] = useState(() =>
+    Boolean((location.state as { showFirstRunWizard?: boolean } | null)?.showFirstRunWizard),
+  );
 
   const loadSessions = useCallback(() => {
     apiFetch('/sessions')
@@ -446,6 +453,13 @@ export const Home = () => {
     loadSessions();
     loadLimits();
   }, [loadLimits, loadSessions]);
+
+  useEffect(() => {
+    if ((location.state as { showFirstRunWizard?: boolean } | null)?.showFirstRunWizard) {
+      setReplayFirstRunWizard(true);
+      navigate('.', { replace: true, state: null });
+    }
+  }, [location.state, navigate]);
 
   useEffect(() => {
     let es: EventSource;
@@ -536,6 +550,19 @@ export const Home = () => {
 
   return (
     <div className="h-[100dvh] bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col overflow-hidden">
+      {(firstRunWizard.shouldShow || replayFirstRunWizard) && (
+        <FirstRunWizard
+          onComplete={() => {
+            firstRunWizard.complete();
+            setReplayFirstRunWizard(false);
+          }}
+          onSkip={() => {
+            firstRunWizard.skip();
+            setReplayFirstRunWizard(false);
+          }}
+          onStartGetMeRollin={() => navigate('/get-me-rollin')}
+        />
+      )}
       {instantStartLoading && <InstantStartLoader />}
       {viewingChar && (
         <CharacterPopup
