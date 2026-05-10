@@ -134,6 +134,8 @@ Acting and Next Character:
 - \`actingCharacterName\` is the character who just performed the \`actionAttempt\`. Your narration MUST attribute the success or failure of the action to THIS character.
 - \`nextCharacterName\` is the character whose turn it will be NEXT. The 3 choices you provide MUST be things that THIS character can do.
 - Ensure the transition from \`actingCharacterName\`'s result to \`nextCharacterName\`'s upcoming choices feels natural in the narration.
+- Do not write the 3 choices as if \`actingCharacterName\` is still the active hero unless acting and next are the same character. A helper may be named in a combo choice, but the action must belong to \`nextCharacterName\`.
+- Match choices to \`nextCharacterName\`'s class, species, stats, quirk, inventory, and current status. Avoid generic options that ignore the next hero's actual skillset.
 
 Choices:
 - Always return exactly 3 suggested actions for \`nextCharacterName\`.

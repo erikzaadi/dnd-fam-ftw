@@ -9,6 +9,8 @@ test('submits a custom action and renders the next turn', async ({ page, request
   await openSeedSession(page, sessionId);
   await page.getByPlaceholder('Describe a different action...').fill(action);
   await page.getByRole('button', { name: /UNLEASH/i }).click();
+  await expect(page.getByText('Confirm your action')).toBeVisible();
+  await page.getByRole('button', { name: /^Confirm$/ }).click();
   await waitForTurnToComplete(page);
 
   await expect(page.getByText(action, { exact: false })).toBeVisible();

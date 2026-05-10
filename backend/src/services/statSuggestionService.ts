@@ -7,6 +7,53 @@ export const STAT_FALLBACK = { might: 2, magic: 2, mischief: 3 };
 export type SuggestedStat = 'might' | 'magic' | 'mischief';
 export type SessionActionStatSuggestion = FreeActionBonusPreview & { stat: SuggestedStat };
 
+export async function previewFreeAction(
+  sessionId: string,
+  input: { action: string; characterClass?: string; characterQuirk?: string },
+): Promise<SessionActionStatSuggestion & { narration?: string }> {
+  const { action, characterClass, characterQuirk } = input;
+  const session = await StateService.getSession(sessionId);
+  if (!session) {
+    return { stat: 'mischief' };
+  }
+  const character = session.party.find(c => c.id === session.activeCharacterId) ?? session.party[0] ?? null;
+  const bonusPreview = character
+    ? toFreeActionBonusPreview(inferFreeActionBonuses(action, character, session))
+    : {};
+
+  const { client, model } = createChatClient();
+  try {
+    const response = await client.chat.completions.create({
+      model,
+      messages: [{
+        role: 'user',
+        content: `A fantasy RPG character${characterClass ? ` (${characterClass})` : ''}${characterQuirk ? `, quirk: ${characterQuirk}` : ''} wants to: "${action}".
+
+Reply with ONLY valid JSON (no markdown):
+{
+  "stat": "might" | "magic" | "mischief",
+  "narration": "<one short evocative sentence, 8-14 words, describing what the character does>"
+}
+
+Stat guide: might = physical/combat/force, magic = spells/arcane/healing/divine, mischief = stealth/trickery/charm/persuasion.`,
+      }],
+      max_tokens: 80,
+    }, { signal: AbortSignal.timeout(8_000) });
+    const raw = (response.choices[0].message.content ?? '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]) as { stat?: string; narration?: string };
+      const stat = (['might', 'magic', 'mischief'] as const).find(s => parsed.stat === s) ?? 'mischief';
+      const narration = typeof parsed.narration === 'string' ? parsed.narration.trim() : undefined;
+      return { stat, narration, ...bonusPreview };
+    }
+    const stat = (['might', 'magic', 'mischief'] as const).find(s => raw.includes(s)) ?? 'mischief';
+    return { stat, ...bonusPreview };
+  } catch {
+    return { stat: 'mischief', ...bonusPreview };
+  }
+}
+
 export async function suggestStatForSessionAction(
   sessionId: string,
   input: { action: string; characterClass?: string; characterQuirk?: string },

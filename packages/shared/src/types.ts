@@ -206,3 +206,21 @@ export interface Capabilities {
 }
 
 export type SessionListEventType = 'connected' | 'heartbeat' | 'session_changed' | 'preview_image_available' | 'instant_start_ready';
+
+export interface FreeActionPreview {
+  originalAction: string;
+  interpretedAction: string;
+  narration?: string;
+  stat: Stat;
+  difficulty: Difficulty;
+  difficultyValue?: number;
+  warnings: string[];
+  helperBonus?: number;
+  helperCharacterName?: string;
+  choiceItemBonus?: number;
+  choiceItemName?: string;
+  choiceItemOwnerName?: string;
+  characterBonus?: number;
+  characterBonusLabel?: string;
+  flavor?: 'social' | 'spotlight';
+}

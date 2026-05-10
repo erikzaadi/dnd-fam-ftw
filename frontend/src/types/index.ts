@@ -18,4 +18,5 @@ export type {
   Session,
   AppSettings,
   Capabilities,
+  FreeActionPreview,
 } from '@dnd-fam-ftw/shared';

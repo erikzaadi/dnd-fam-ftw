@@ -26,4 +26,5 @@ export type {
   Session,
   AppSettings,
   Capabilities,
+  FreeActionPreview,
 } from './types.js';

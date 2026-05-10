@@ -7,6 +7,7 @@ const GENERIC_LABEL_RE = /\b(attack|strike|search|inspect|look|wait|listen|rest|
 const CONCRETE_TRANSITION_RE = /\b(stair|stairs|door|gate|path|paths|pathway|pathways|trail|route|bridge|ferry|passage|tunnel|portal|shortcut|chamber|room|cave|cavern|tower|map|key|clue|clues|symbol|symbols|hazard|hazards|danger|dangers|guide|track|tracks|smoke|light|opens?|deeper|beyond|toward|descend|descends|enter|arrive|follow)\b/i;
 const COMBAT_LABEL_RE = /\b(attack|strike|slash|stab|fight|battle|enemy|foe|monster|goblin|wolf|wolves)\b/i;
 const PORTAL_TRANSITION_RE = /\b(portal|teleport|teleports|teleported|teleporting|gateway|gateways|waygate|waygates)\b/i;
+const HIDDEN_PATH_RE = /\b(hidden|secret|concealed|veiled)\b.{0,24}\b(path|paths|trail|route|passage|tunnel|door|doorway)\b/i;
 const VAGUE_ATMOSPHERE_PHRASES = [
   'tension in the air',
   'tension hangs in the air',
@@ -163,6 +164,11 @@ function validateMomentumOutput(input: NarrationInput, output: ValidNarrationOut
     return 'Narration repeats the previous turn too closely. Continue from the current action instead of restating the same scene setup.';
   }
 
+  const hiddenPathLoop = HIDDEN_PATH_RE.test(fullText) && input.recentHistory.some(previous => HIDDEN_PATH_RE.test(previous));
+  if (hiddenPathLoop) {
+    return 'Hidden-path beat repeats recent story continuity. Pay off the discovered route or introduce a different concrete obstacle, clue, NPC, or location.';
+  }
+
   const previousLabels = new Set((input.previousChoiceLabels ?? []).map(normalizedText));
   const repeatedGenericChoice = output.choices.find(choice => {
     const label = normalizedText(choice.label);
@@ -170,6 +176,14 @@ function validateMomentumOutput(input: NarrationInput, output: ValidNarrationOut
   });
   if (repeatedGenericChoice) {
     return `Choice label repeats stale generic action: "${repeatedGenericChoice.label}". Use a specific verb and concrete object.`;
+  }
+
+  const repeatedExactChoice = output.choices.find(choice => {
+    const label = normalizedText(choice.label);
+    return label.length > 0 && previousLabels.has(label);
+  });
+  if (repeatedExactChoice) {
+    return `Choice label repeats the previous turn exactly: "${repeatedExactChoice.label}". Continue the scene with a fresh specific action.`;
   }
 
   return null;

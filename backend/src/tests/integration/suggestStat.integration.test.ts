@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { suggestStatForSessionAction } from '../../services/statSuggestionService.js';
+import { previewFreeAction, suggestStatForSessionAction } from '../../services/statSuggestionService.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
 
 const { mockCreateCompletion } = vi.hoisted(() => ({
@@ -101,5 +101,24 @@ describe('suggest-stat integration', () => {
       characterBonusLabel: 'social edge',
       flavor: 'social',
     });
+  });
+
+  it('returns preview action metadata for typed confirmation', async () => {
+    await insertSessionState(makeTestSession({ id: 'preview-action-session' }));
+    mockCreateCompletion.mockResolvedValueOnce({
+      choices: [{ message: { content: '{"stat":"magic","narration":"Pip raises a bright shield."}' } }],
+    });
+
+    const preview = await previewFreeAction('preview-action-session', {
+      action: 'Cast a shield of moonlight',
+      characterClass: 'Wizard',
+      characterQuirk: 'Talks to books',
+    });
+
+    expect(preview).toMatchObject({
+      stat: 'magic',
+      narration: 'Pip raises a bright shield.',
+    });
+    expect(mockCreateCompletion).toHaveBeenCalledTimes(1);
   });
 });

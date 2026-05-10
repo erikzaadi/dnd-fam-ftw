@@ -3,10 +3,18 @@ import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { createChatClient } from '../providers/ai/AiProviderFactory.js';
 import { StateService } from '../services/stateService.js';
-import { parseSuggestedStats, STAT_FALLBACK, suggestStatForSessionAction } from '../services/statSuggestionService.js';
+import { parseSuggestedStats, previewFreeAction, STAT_FALLBACK, suggestStatForSessionAction } from '../services/statSuggestionService.js';
 import { parseBody } from './routeValidation.js';
+import type { FreeActionPreview } from '@dnd-fam-ftw/shared';
+import { buildFreeActionWarnings, getFreeActionDifficulty } from '../services/freeActionPolicyService.js';
 
 const suggestStatBodySchema = z.object({
+  action: z.string(),
+  characterClass: z.string().optional(),
+  characterQuirk: z.string().optional(),
+});
+
+const previewActionBodySchema = z.object({
   action: z.string(),
   characterClass: z.string().optional(),
   characterQuirk: z.string().optional(),
@@ -34,6 +42,38 @@ export const createStatSuggestionRouter = () => {
     }
     const suggestion = await suggestStatForSessionAction(req.params.id as string, body);
     res.json(suggestion);
+  }));
+
+  router.post('/session/:id/preview-action', asyncHandler(async (req, res) => {
+    const body = parseBody(req, res, previewActionBodySchema);
+    if (!body) {
+      return;
+    }
+    const session = await StateService.getSession(req.params.id as string);
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+    const suggestion = await previewFreeAction(req.params.id as string, body);
+    const { difficulty, difficultyValue } = getFreeActionDifficulty(body.action);
+    const preview: FreeActionPreview = {
+      originalAction: body.action.trim(),
+      interpretedAction: body.action.trim(),
+      stat: suggestion.stat,
+      difficulty,
+      ...(difficultyValue !== undefined && { difficultyValue }),
+      warnings: buildFreeActionWarnings(body.action, session),
+      ...(suggestion.narration !== undefined && { narration: suggestion.narration }),
+      ...(suggestion.helperBonus !== undefined && { helperBonus: suggestion.helperBonus }),
+      ...(suggestion.helperCharacterName !== undefined && { helperCharacterName: suggestion.helperCharacterName }),
+      ...(suggestion.choiceItemBonus !== undefined && { choiceItemBonus: suggestion.choiceItemBonus }),
+      ...(suggestion.choiceItemName !== undefined && { choiceItemName: suggestion.choiceItemName }),
+      ...(suggestion.choiceItemOwnerName !== undefined && { choiceItemOwnerName: suggestion.choiceItemOwnerName }),
+      ...(suggestion.characterBonus !== undefined && { characterBonus: suggestion.characterBonus }),
+      ...(suggestion.characterBonusLabel !== undefined && { characterBonusLabel: suggestion.characterBonusLabel }),
+      ...(suggestion.flavor !== undefined && { flavor: suggestion.flavor }),
+    };
+    res.json(preview);
   }));
 
   router.post('/character/suggest-stats', asyncHandler(async (req, res) => {

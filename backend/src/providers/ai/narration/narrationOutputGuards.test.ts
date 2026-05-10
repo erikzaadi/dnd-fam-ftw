@@ -297,6 +297,35 @@ describe('parseNarrationOutput', () => {
     }
   });
 
+  it('rejects repeated hidden-path continuity loops', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      recentHistory: ['Pip found a hidden path behind the blue flowers.'],
+      sceneMomentum: {
+        directive: 'press_current_scene',
+        staleChoiceCount: 0,
+        turnsSinceSceneChange: 2,
+        turnsSinceCombat: 3,
+        justCompletedCombat: false,
+        justCompletedDifficultChallenge: false,
+        suggestedNextBeat: 'Pay off the discovered route.',
+        reason: 'Pressure continues.',
+      },
+    }, output({
+      narration: 'Another hidden path appears behind the same flowers.',
+      choices: [
+        { label: 'Follow the hidden path', difficulty: 'easy', stat: 'mischief', difficultyValue: 7 },
+        { label: 'Check the silver door', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+        { label: 'Call for help', difficulty: 'easy', stat: 'magic', difficultyValue: 7 },
+      ],
+    }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('Hidden-path beat repeats');
+    }
+  });
+
   it('rejects portal transitions before a completed combat or difficult challenge', () => {
     const result = parseNarrationOutput({
       ...input,

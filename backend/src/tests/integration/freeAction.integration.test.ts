@@ -4,6 +4,11 @@ import { executeTurnAction } from '../../services/turnService.js';
 import { FIXED_NARRATION_OUTPUT, mockGenerateTurn, resetMockNarrationProvider } from './mockNarrationProvider.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
 
+const realtimeMocks = vi.hoisted(() => ({
+  broadcastUpdate: vi.fn(),
+  broadcastSessionChanged: vi.fn(),
+}));
+
 vi.mock('../../providers/ai/AiProviderFactory.js', async () => {
   const { createMockNarrationProvider } = await import('./mockNarrationProvider.js');
   return {
@@ -11,6 +16,11 @@ vi.mock('../../providers/ai/AiProviderFactory.js', async () => {
     createChatClient: vi.fn(),
   };
 });
+
+vi.mock('../../realtime/sessionEvents.js', () => ({
+  broadcastUpdate: realtimeMocks.broadcastUpdate,
+  broadcastSessionChanged: realtimeMocks.broadcastSessionChanged,
+}));
 
 let paths: IntegrationTestPaths;
 
@@ -20,6 +30,8 @@ beforeAll(() => {
 
 beforeEach(() => {
   resetMockNarrationProvider();
+  realtimeMocks.broadcastUpdate.mockReset();
+  realtimeMocks.broadcastSessionChanged.mockReset();
 });
 
 afterAll(() => {
@@ -127,6 +139,44 @@ describe('executeTurnAction free action integration', () => {
     expect(result.body.actionAttempt.actionResult.choiceItemName).toBe('📜 Enchanted Scroll');
     expect(result.body.actionAttempt.actionResult.choiceItemOwnerName).toBe('Zara');
     expect(result.body.actionAttempt.actionResult.characterBonus).toBeUndefined();
+  });
+
+  it('broadcasts dm_narrating with the same inferred free-text preview metadata', async () => {
+    const base = makeTestSession();
+    const session = makeTestSession({
+      id: 'free-action-sse-preview-session',
+      party: [
+        base.party[0],
+        {
+          ...base.party[1],
+          inventory: [{ id: 'scroll-1', name: '📜 Enchanted Scroll', description: 'A protective spell', transferable: true, consumable: false }],
+        },
+      ],
+      activeCharacterId: 'char-pip',
+    });
+    await insertSessionState(session);
+
+    const result = await executeTurnAction('free-action-sse-preview-session', 'local', {
+      action: 'Ask Zara to use the Enchanted Scroll while Pip slips past the guard',
+      statUsed: 'mischief',
+      difficulty: 'normal',
+      difficultyValue: 14,
+    });
+
+    expect(result.ok).toBe(true);
+    const narratingCall = realtimeMocks.broadcastUpdate.mock.calls.find(call => call[1] === 'dm_narrating');
+    expect(narratingCall).toBeTruthy();
+    expect(narratingCall?.[2]).toMatchObject({
+      action: 'Ask Zara to use the Enchanted Scroll while Pip slips past the guard',
+      statUsed: 'mischief',
+      difficulty: 'normal',
+      difficultyValue: 14,
+      helperBonus: 2,
+      helperCharacterName: 'Zara',
+      choiceItemBonus: 2,
+      choiceItemName: '📜 Enchanted Scroll',
+      choiceItemOwnerName: 'Zara',
+    });
   });
 
   it('infers character edge from social and spotlight free-text actions', async () => {

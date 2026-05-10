@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import type { TurnResult, Character } from '../../types';
+import type { TurnResult, Character, FreeActionPreview } from '../../types';
 import { apiFetch, imgSrc, pulseSyncDelay } from '../../lib/api';
 import { beatTarget } from '../../lib/game';
 import { StatImg } from './StatIcon';
@@ -13,6 +13,7 @@ import { useSpeechRecognition } from '../../stt/useSpeechRecognition';
 import { parseSpeechIntent } from '../../stt/speechIntent';
 import { SpeechActionButton } from './SpeechActionButton';
 import { SpeechConfirmDialog } from './SpeechConfirmDialog';
+import { FreeActionConfirmDialog } from './FreeActionConfirmDialog';
 import { Tooltip } from '../Tooltip';
 import { formatCharacterBonusLabel, formatChoiceItemBonusLabel, formatHelperBonusLabel } from './rollBonusLabels';
 interface ActionDockProps {
@@ -81,6 +82,8 @@ export const ActionDock = ({
 }: ActionDockProps) => {
   const [statThinking, setStatThinking] = useState(false);
   const [expandedStat, setExpandedStat] = useState<string | null>(null);
+  const [freeActionPreview, setFreeActionPreview] = useState<FreeActionPreview | null>(null);
+  const [previewSubmitting, setPreviewSubmitting] = useState(false);
   const choiceButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { settings: ttsSettings } = useTtsSettings();
@@ -117,6 +120,88 @@ export const ActionDock = ({
       return;
     }
     setStatThinking(true);
+    let preview: FreeActionPreview = {
+      originalAction: trimmed,
+      interpretedAction: trimmed,
+      stat: 'mischief',
+      difficulty: 'normal',
+      warnings: [],
+    };
+    let previewFailed = false;
+    try {
+      const res = await apiFetch(`/session/${sessionId}/preview-action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: trimmed,
+          characterClass: activeCharacter?.class,
+          characterQuirk: activeCharacter?.quirk,
+        }),
+      });
+      if (res.ok) {
+        const responsePreview = await res.json() as Partial<FreeActionPreview>;
+        preview = {
+          ...preview,
+          ...responsePreview,
+          originalAction: responsePreview.originalAction ?? trimmed,
+          interpretedAction: responsePreview.interpretedAction ?? trimmed,
+          difficulty: responsePreview.difficulty ?? preview.difficulty,
+          warnings: responsePreview.warnings ?? [],
+        };
+      } else {
+        previewFailed = true;
+      }
+    } catch {
+      previewFailed = true;
+    }
+    setStatThinking(false);
+    if (previewFailed) {
+      preview = {
+        ...preview,
+        warnings: ['Preview failed - submitting with default stat. You can still confirm or cancel.'],
+      };
+    }
+    setFreeActionPreview(preview);
+  }, [activeCharacter, loading, sessionId]);
+
+  const confirmFreeAction = useCallback(async () => {
+    if (!freeActionPreview) {
+      return;
+    }
+    setPreviewSubmitting(true);
+    const preview: ActionPreviewBonuses = {
+      ...(freeActionPreview.helperBonus !== undefined && { helperBonus: freeActionPreview.helperBonus }),
+      ...(freeActionPreview.helperCharacterName !== undefined && { helperCharacterName: freeActionPreview.helperCharacterName }),
+      ...(freeActionPreview.choiceItemBonus !== undefined && { choiceItemBonus: freeActionPreview.choiceItemBonus }),
+      ...(freeActionPreview.choiceItemName !== undefined && { choiceItemName: freeActionPreview.choiceItemName }),
+      ...(freeActionPreview.choiceItemOwnerName !== undefined && { choiceItemOwnerName: freeActionPreview.choiceItemOwnerName }),
+      ...(freeActionPreview.characterBonus !== undefined && { characterBonus: freeActionPreview.characterBonus }),
+      ...(freeActionPreview.characterBonusLabel !== undefined && { characterBonusLabel: freeActionPreview.characterBonusLabel }),
+      ...(freeActionPreview.flavor !== undefined && { flavor: freeActionPreview.flavor }),
+    };
+    const { originalAction, stat, difficulty, difficultyValue } = freeActionPreview;
+    setFreeActionPreview(null);
+    setPreviewSubmitting(false);
+    await onSubmit(originalAction, stat, difficulty, difficultyValue, undefined, undefined, undefined, preview);
+  }, [freeActionPreview, onSubmit]);
+
+  const editFreeAction = useCallback(() => {
+    if (!freeActionPreview) {
+      return;
+    }
+    setCustomAction(freeActionPreview.interpretedAction);
+    setFreeActionPreview(null);
+  }, [freeActionPreview, setCustomAction]);
+
+  const cancelFreeAction = useCallback(() => {
+    setFreeActionPreview(null);
+  }, []);
+
+  const submitCustomTextDirect = useCallback(async (actionText: string) => {
+    const trimmed = actionText.trim();
+    if (!trimmed || loading) {
+      return;
+    }
     let stat = 'mischief';
     let preview: ActionPreviewBonuses = {};
     try {
@@ -134,7 +219,6 @@ export const ActionDock = ({
         ({ stat, ...preview } = suggestion);
       }
     } catch { /* fallback to mischief */ }
-    setStatThinking(false);
     await onSubmit(trimmed, stat, 'normal', undefined, undefined, undefined, undefined, preview);
   }, [activeCharacter, loading, onSubmit, sessionId]);
 
@@ -147,8 +231,8 @@ export const ActionDock = ({
 
     const text = intent.type === 'custom' ? intent.text : transcript.trim();
     setCustomAction(text);
-    await submitCustomText(text);
-  }, [setCustomAction, submitCustomText, submitSuggestedChoice, turn]);
+    await submitCustomTextDirect(text);
+  }, [setCustomAction, submitCustomTextDirect, submitSuggestedChoice, turn]);
 
   const speech = useSpeechRecognition({
     onConfirmTranscript: confirmSpeechTranscript,
@@ -511,6 +595,23 @@ export const ActionDock = ({
           onRetry={speech.retryListening}
           onCancel={speech.cancel}
         />
+        {freeActionPreview && (() => {
+          const previewStat = freeActionPreview.stat;
+          const base = activeCharacter?.stats[previewStat] ?? 0;
+          const itemBonus = activeCharacter?.inventory.reduce((s, item) => s + (item.statBonuses?.[previewStat] ?? 0), 0) ?? 0;
+          return (
+            <FreeActionConfirmDialog
+              preview={freeActionPreview}
+              statBonus={base + itemBonus}
+              submitting={previewSubmitting}
+              onConfirm={() => {
+                void confirmFreeAction();
+              }}
+              onEdit={editFreeAction}
+              onCancel={cancelFreeAction}
+            />
+          );
+        })()}
       </div>
     </div>
   );

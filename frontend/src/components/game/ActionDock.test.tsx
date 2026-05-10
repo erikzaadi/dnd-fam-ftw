@@ -144,6 +144,8 @@ describe('ActionDock speech input', () => {
     renderDock({ customAction: 'cast shield', setCustomAction, onSubmit });
 
     await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
+    expect(onSubmit).not.toHaveBeenCalled();
+    await userEvent.click(await screen.findByRole('button', { name: /^confirm$/i }));
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith('cast shield', 'magic', 'normal', undefined, undefined, undefined, undefined, {});
@@ -164,6 +166,7 @@ describe('ActionDock speech input', () => {
     renderDock({ customAction: 'talk down the guard', onSubmit });
 
     await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /^confirm$/i }));
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith(
@@ -177,6 +180,39 @@ describe('ActionDock speech input', () => {
         { characterBonus: 2, characterBonusLabel: 'social edge', flavor: 'social' },
       );
     });
+  });
+
+  it('does not submit when editing a previewed custom action', async () => {
+    mocks.apiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        originalAction: 'cast sheld',
+        interpretedAction: 'cast shield',
+        stat: 'magic',
+        difficulty: 'normal',
+        warnings: [],
+      }),
+    });
+    const setCustomAction = vi.fn();
+    const onSubmit = vi.fn();
+    renderDock({ customAction: 'cast sheld', setCustomAction, onSubmit });
+
+    await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /^edit$/i }));
+
+    expect(setCustomAction).toHaveBeenCalledWith('cast shield');
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('does not submit when canceling a previewed custom action', async () => {
+    const onSubmit = vi.fn();
+    renderDock({ customAction: 'cast shield', onSubmit });
+
+    await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /^cancel$/i }));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /^confirm$/i })).not.toBeInTheDocument();
   });
 
   it('uses the fourth numeric shortcut for the fourth suggested action', () => {
