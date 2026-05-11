@@ -75,7 +75,7 @@ export const CharacterForm = ({ onSave, onCancel, isLoading, initialValues, sugg
 
   return (
     <Modal>
-      <div className="bg-slate-900 p-10 rounded-[40px] border-2 border-amber-500/30 shadow-2xl max-w-lg w-full relative">
+      <div className="my-4 max-h-[calc(100dvh-2rem)] overflow-y-auto bg-slate-900 p-5 sm:p-10 rounded-[28px] sm:rounded-[40px] border-2 border-amber-500/30 shadow-2xl max-w-lg w-full relative">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-3xl font-black text-white">{isLoading ? (isEditing ? 'Editing your hero...' : 'Creating your hero...') : isEditing ? 'Edit Hero' : 'Create New Hero'}</h3>
           {!isEditing && !isLoading && onRandomize && (

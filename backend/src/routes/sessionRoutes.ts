@@ -234,6 +234,9 @@ export const createSessionRouter = () => {
       throw error;
     }
     initialTurn.id = await StateService.addTurnResult(sessionId, initialTurn, null);
+    session.turn = Math.max(session.turn, 2);
+    session.lastChoices = initialTurn.choices;
+    await StateService.updateSession(sessionId, session);
     broadcastUpdate(sessionId, 'turn_complete', { session, turnResult: initialTurn });
     res.json({ success: true });
 

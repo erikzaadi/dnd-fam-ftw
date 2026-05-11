@@ -2,6 +2,7 @@ import type { ActionAttempt, SceneMomentum, ScenePressure, SessionState, TurnRes
 
 const PRESSURE_RE = /\b(ambush|battle|boss|brawl|challenge|chase|combat|conflict|defeat|disarm|duel|enemy|escape|fight|foe|guard|guardian|hazard|monster|obstacle|puzzle|riddle|ritual|shadow|shadows|sneak|spectral|strike|trap|wolf|wolves)\b/i;
 const COMBAT_RE = /\b(ambush|attack|battle|boss|brawl|combat|duel|enemy|fight|foe|monster|strike|wolf|wolves)\b/i;
+const RESOLVED_PRESSURE_RE = /\b(last (?:of the )?(?:enemy|enemies|foe|foes|cultists?|shadowkin|shadows?) (?:is |are )?(?:defeated|vanquished|banished|gone|falls?|collapses?)|(?:enemy|enemies|foe|foes|cultists?|shadowkin|shadows?) (?:are |is )?(?:defeated|vanquished|banished)|path (?:ahead )?(?:is )?(?:clear|opens?|reveals?)|with the .* (?:defeated|vanquished|banished)|victorious)\b/i;
 
 const GENERIC_CHOICE_RE = /\b(attack|strike|search|inspect|look|wait|listen|rest|discuss)\b/i;
 
@@ -28,6 +29,9 @@ export function turnPressureKind(turn: TurnResult): ScenePressure['kind'] {
     ...(turn.choices ?? []).map(choice => `${choice.label} ${choice.narration ?? ''}`),
   ].join(' ');
 
+  if (RESOLVED_PRESSURE_RE.test(text)) {
+    return 'calm';
+  }
   if (COMBAT_RE.test(text)) {
     return 'combat';
   }
@@ -58,7 +62,7 @@ export function buildScenePressure(
   const successfulPressureTurns = recent.filter(turn => {
     const lastAction = turn.lastAction;
     return !!lastAction?.actionResult.success && (turnPressureKind(turn) === 'combat' || turnPressureKind(turn) === 'challenge');
-  }).length + (currentAction.actionResult.success && (kind === 'combat' || kind === 'challenge') ? 1 : 0);
+  }).length + (currentAction.actionResult.success && (currentKind === 'combat' || currentKind === 'challenge') ? 1 : 0);
   return {
     kind,
     pressureTurns,

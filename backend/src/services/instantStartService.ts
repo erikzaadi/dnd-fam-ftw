@@ -110,6 +110,9 @@ export async function runInstantStartBackground(
   }
 
   initialTurn.id = await StateService.addTurnResult(sessionId, initialTurn, null);
+  forTurn.turn = Math.max(forTurn.turn, 2);
+  forTurn.lastChoices = initialTurn.choices;
+  await StateService.updateSession(sessionId, forTurn);
   broadcastUpdate(sessionId, 'turn_complete', { session: forTurn, turnResult: initialTurn });
 
   // Session is playable - signal navigation before starting slow image generation

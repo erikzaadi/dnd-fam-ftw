@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ActionAttempt, SessionState, TurnResult } from '../types.js';
-import { buildSceneMomentum, buildScenePressure } from './sceneMomentumService.js';
+import { buildSceneMomentum, buildScenePressure, turnPressureKind } from './sceneMomentumService.js';
 
 const makeSession = (overrides: Partial<SessionState> = {}): SessionState => ({
   id: 'session-1',
@@ -125,5 +125,44 @@ describe('scene momentum', () => {
     expect(momentum.justCompletedCombat).toBe(false);
     expect(momentum.justCompletedDifficultChallenge).toBe(false);
     expect(momentum.directive).not.toBe('victory_exit');
+  });
+
+  it('does not count a successful regroup action as another combat hit', () => {
+    const history = [
+      turn({
+        narration: 'The Shadowkin snarl from the mist.',
+        choices: [
+          { label: 'Strike the Shadowkin', difficulty: 'normal', stat: 'might', difficultyValue: 12 },
+          { label: 'Bind them with vines', difficulty: 'normal', stat: 'magic', difficultyValue: 12 },
+          { label: 'Find better footing', difficulty: 'normal', stat: 'mischief', difficultyValue: 12 },
+        ],
+        lastAction: action('Strike the Shadowkin', true, 12),
+      }),
+    ];
+    const currentAction = action('Regroup and heal before proceeding', true, 12);
+    const pressure = buildScenePressure(history, currentAction, 'Misty Glade');
+    const momentum = buildSceneMomentum(history, currentAction, makeSession({ scene: 'Misty Glade' }), pressure);
+
+    expect(pressure.kind).toBe('combat');
+    expect(pressure.successfulPressureTurns).toBe(1);
+    expect(momentum.directive).not.toBe('victory_exit');
+  });
+
+  it('treats resolved combat turns as calm so victories do not reopen the same fight', () => {
+    const resolvedTurn = turn({
+      narration: 'With the last of the Shadowkin defeated, a radiant path opens ahead.',
+      choices: [
+        { label: 'Venture down the shimmering path', difficulty: 'normal', stat: 'mischief', difficultyValue: 12 },
+        { label: 'Consult the glade magic', difficulty: 'normal', stat: 'magic', difficultyValue: 12 },
+        { label: 'Prepare for the next chamber', difficulty: 'normal', stat: 'might', difficultyValue: 12 },
+      ],
+      lastAction: action('Rally Pundemic to strike the Shadowkin', true, 12),
+    });
+    const currentAction = action('Venture down the shimmering path', false, 12);
+    const pressure = buildScenePressure([resolvedTurn], currentAction, 'Misty Glade');
+
+    expect(turnPressureKind(resolvedTurn)).toBe('calm');
+    expect(pressure.kind).toBe('calm');
+    expect(pressure.successfulPressureTurns).toBe(0);
   });
 });

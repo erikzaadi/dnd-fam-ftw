@@ -22,6 +22,8 @@ function cacheKey(turnId: number | string, gender?: 'male' | 'female') {
 class OpenAiTtsService {
   private currentAudio: HTMLAudioElement | null = null;
   private currentResolve: (() => void) | null = null;
+  private currentAbortController: AbortController | null = null;
+  private playbackGeneration = 0;
   private _speaking = false;
   private cache = new Map<string, CacheEntry>();
   private cacheTotalBytes = 0;
@@ -40,17 +42,19 @@ class OpenAiTtsService {
     }
 
     this.stop();
+    const generation = this.playbackGeneration;
 
     const key = turnId === undefined ? null : cacheKey(turnId, gender);
     const cached = key ? this.cache.get(key) : null;
     if (cached && key) {
       this.cache.delete(key);
       this.cache.set(key, cached);
-      await this.playUrl(cached.url, volume);
+      await this.playUrl(cached.url, volume, generation);
       return;
     }
 
     const controller = new AbortController();
+    this.currentAbortController = controller;
     const timeout = window.setTimeout(() => controller.abort(), TTS_REQUEST_TIMEOUT_MS);
     try {
       const response = await apiFetch('/tts', {
@@ -68,7 +72,12 @@ class OpenAiTtsService {
       const blob = new Blob([audioBuffer], { type: 'audio/mpeg' });
       const url = URL.createObjectURL(blob);
 
-      await this.playUrl(url, volume);
+      if (generation !== this.playbackGeneration) {
+        URL.revokeObjectURL(url);
+        return;
+      }
+
+      await this.playUrl(url, volume, generation);
 
       if (key) {
         this.storeCacheEntry(key, { url, bytes });
@@ -77,10 +86,18 @@ class OpenAiTtsService {
       }
     } finally {
       window.clearTimeout(timeout);
+      if (this.currentAbortController === controller) {
+        this.currentAbortController = null;
+      }
     }
   }
 
   public stop(): void {
+    this.playbackGeneration += 1;
+    if (this.currentAbortController) {
+      this.currentAbortController.abort();
+      this.currentAbortController = null;
+    }
     if (this.currentAudio) {
       this.currentAudio.pause();
       this.currentAudio.currentTime = 0;
@@ -130,14 +147,23 @@ class OpenAiTtsService {
     }
   }
 
-  private playUrl(url: string, volume: number): Promise<void> {
+  private playUrl(url: string, volume: number, generation: number): Promise<void> {
     return new Promise(resolve => {
+      if (generation !== this.playbackGeneration) {
+        resolve();
+        return;
+      }
+
       const audio = new Audio(url);
       this.currentAudio = audio;
       this._speaking = true;
       audio.volume = Math.max(0, Math.min(1, volume));
 
       const finish = () => {
+        if (generation !== this.playbackGeneration) {
+          resolve();
+          return;
+        }
         if (this.currentAudio === audio) {
           this.currentAudio = null;
           this._speaking = false;

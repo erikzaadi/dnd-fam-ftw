@@ -16,7 +16,7 @@ interface ModalProps {
 export const Modal = ({ children, zIndex = 200, className, onClick }: ModalProps) => (
   <div
     style={{ zIndex }}
-    className={`fixed inset-0 bg-black/80 backdrop-blur-xl flex items-center justify-center p-4${className ? ` ${className}` : ''}`}
+    className={`fixed inset-0 overflow-y-auto bg-black/80 backdrop-blur-xl flex items-start justify-center p-4 sm:items-center${className ? ` ${className}` : ''}`}
     onClick={onClick}
   >
     {children}

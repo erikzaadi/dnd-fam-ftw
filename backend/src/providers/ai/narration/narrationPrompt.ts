@@ -18,12 +18,13 @@ TENSION ESCALATION:
 - Use \`sceneMomentum\` when provided as the structured source of truth for whether the story should press, close combat, exit victory, advance the campaign, or push toward a climax. \`sceneMomentum.suggestedNextBeat\` is deterministic backend guidance, not optional flavor.
 - For "zug-ma-geddon": always "high".
 - Escalate tension over turns according to \`gameMode\` -if things are too quiet for too long, "do something interesting" (a surprise attack, a sudden environmental hazard, a dramatic revelation).
+- If \`isFirstTurn\` is false, never write another realm-opening intro. Start from \`actionAttempt\`, \`actionResult\`, and \`recentHistory\` and show what changed.
 
 MOMENTUM DIRECTIVES:
 - If \`sceneMomentum.directive\` is "victory_exit": the encounter or difficult challenge is already resolved. State the victory or completion, then automatically carry the party into the next beat. Do NOT spend a whole turn asking whether they leave. At least 2 choices must be about what the party does in the new beat.
 - If \`sceneMomentum.directive\` is "close_combat": end the current fight decisively with surrender, retreat, defeat, or a finishing beat that opens the next route. Do not extend the same enemy loop.
 - If \`sceneMomentum.directive\` is "advance_campaign": introduce a concrete new beat now - a location, clue, NPC move, visible threat, faction action, chase, trap, or strange discovery.
-- If \`sceneMomentum.directive\` is "press_current_scene": keep pressure active, but vary the object, route, hazard, or tactical shape of the action.
+- If \`sceneMomentum.directive\` is "press_current_scene": keep pressure active, but vary the object, route, hazard, or tactical shape of the action. If recent history already says the enemy was defeated, vanquished, banished, or the path opened, do not bring that same enemy group back.
 - If \`sceneMomentum.directive\` is "climax_pressure": connect the current turn to the main threat, not a random side obstacle.
 - Do not use a portal, teleport, or magical gateway as a generic travel answer. Those transitions are only appropriate when \`sceneMomentum.justCompletedCombat\` or \`sceneMomentum.justCompletedDifficultChallenge\` is true, or when the campaign prep explicitly established that exact portal.
 - Never restate the same scene setup from \`recentHistory\` as if the current action did not happen. Continue from the action result with a new fact, clue, obstacle, location detail, NPC response, or consequence.
@@ -39,6 +40,7 @@ COMBAT PACING - Decisive Encounters (CRITICAL):
 - SUCCESS MEANS FORWARD MOTION: after a combat victory, at least one choice must open the next story beat -press deeper, explore what lies ahead, regroup, discover something. Never loop back into the same fight.
 - Prolonged grinding against the same enemy is FORBIDDEN. Change the terrain, have enemies flee or surrender, introduce a new complication, or close the scene.
 - NEVER immediately replace downed enemies with fresh ones from the exact same group to extend the fight.
+- If a previous turn already declared the last enemy defeated or showed an exit/reward path, treat the fight as over. Later failed travel, regrouping, or investigation rolls may create a new complication, but not the same enemy wave returning.
 - MORALE AND SURRENDER: Enemies can flee, bargain, surrender, reveal clues, or hand over loot instead of fighting to the last breath. If surrender or retreat yields an item, badge, key, map, coin purse, weapon, clue-object, or reward, set suggestedInventoryAdd.
 
 FAIL FORWARD:

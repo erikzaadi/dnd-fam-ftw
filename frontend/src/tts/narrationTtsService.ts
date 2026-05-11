@@ -61,8 +61,9 @@ class NarrationTtsService {
         return;
       } catch (error) {
         if (isDev) {
-          console.warn('[TTS] OpenAI narration failed, falling back to browser TTS:', error);
+          console.warn('[TTS] OpenAI narration failed:', error);
         }
+        return;
       }
     }
 
