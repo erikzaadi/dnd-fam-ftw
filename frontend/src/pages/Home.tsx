@@ -5,11 +5,13 @@ import { DmFooter } from '../components/DmFooter';
 import { FirstRunWizard } from '../components/FirstRunWizard';
 import { FullscreenImage } from '../components/FullscreenImage';
 import { InstantStartLoader } from '../components/InstantStartLoader';
+import { SetupTutorialOverlay } from '../components/SetupTutorialOverlay';
 import { SiteHeader } from '../components/SiteHeader';
 import { Tooltip } from '../components/Tooltip';
 import { CharacterPopup } from '../components/CharacterPopup';
 import { apiFetch, apiUrl, imgSrc } from '../lib/api';
 import { useFirstRunWizard } from '../firstRun/useFirstRunWizard';
+import { HOME_TUTORIAL_KEY, HOME_TUTORIAL_PENDING_KEY, type SetupTutorialStep, useSetupTutorial } from '../hooks/useSetupTutorial';
 import { getSessionEntryPath } from '../lib/sessionRoute';
 import type { SessionPreview } from '../types';
 
@@ -29,6 +31,63 @@ const PACING_LABELS: Record<string, { icon: string; label: string }> = {
 const SSE_STALE_TIMEOUT_MS = 60000;
 const SSE_STALE_CHECK_MS = 10000;
 const SSE_RECONNECT_DELAY_MS = 3000;
+
+const buildHomeTutorialSteps = (showGettingStarted: boolean, hasSessions: boolean): SetupTutorialStep[] => [
+  ...(showGettingStarted ? [{
+    id: 'onboarding',
+    selector: '[data-tutorial="home-onboarding"]',
+    title: 'Guided start',
+    body: 'Use this if you want a quick walkthrough before the first adventure.',
+    placement: 'bottom' as const,
+  }] : []),
+  {
+    id: 'quick-start',
+    selector: '[data-tutorial="home-quick-start"]',
+    title: 'Quick start',
+    body: 'Roll straight into a ready-made realm with heroes and a first scene prepared.',
+    placement: 'top' as const,
+  },
+  {
+    id: 'build-own',
+    selector: '[data-tutorial="home-build-own"]',
+    title: 'Build your own',
+    body: 'Create a custom realm, choose the pace, then assemble your heroes.',
+    placement: 'top' as const,
+  },
+  ...(hasSessions ? [{
+    id: 'active-realms',
+    selector: '[data-tutorial="home-active-realms"]',
+    title: 'Continue a realm',
+    body: 'Saved realms live here. Open one to continue, assemble missing heroes, edit details, or view the chronicle.',
+    placement: 'top' as const,
+  }] : []),
+];
+
+const HomeTutorial = ({
+  showGettingStarted,
+  hasSessions,
+  onFinish,
+}: {
+  showGettingStarted: boolean;
+  hasSessions: boolean;
+  onFinish: () => void;
+}) => {
+  const tutorial = useSetupTutorial(
+    HOME_TUTORIAL_KEY,
+    buildHomeTutorialSteps(showGettingStarted, hasSessions),
+    onFinish,
+  );
+
+  return (
+    <SetupTutorialOverlay
+      step={tutorial.step}
+      stepNumber={tutorial.stepNumber}
+      totalSteps={tutorial.totalSteps}
+      onAdvance={tutorial.advance}
+      onDismiss={tutorial.dismiss}
+    />
+  );
+};
 
 const EditSessionModal = ({
   sessionName,
@@ -383,6 +442,21 @@ export const Home = () => {
   const [replayFirstRunWizard, setReplayFirstRunWizard] = useState(() =>
     Boolean((location.state as { showFirstRunWizard?: boolean } | null)?.showFirstRunWizard),
   );
+  const [homeTutorialQueued, setHomeTutorialQueued] = useState(() =>
+    localStorage.getItem(HOME_TUTORIAL_PENDING_KEY) === '1' &&
+    !localStorage.getItem(HOME_TUTORIAL_KEY)
+  );
+
+  const queueHomeTutorial = useCallback(() => {
+    localStorage.removeItem(HOME_TUTORIAL_KEY);
+    localStorage.setItem(HOME_TUTORIAL_PENDING_KEY, '1');
+    setHomeTutorialQueued(true);
+  }, []);
+
+  const finishHomeTutorial = useCallback(() => {
+    localStorage.removeItem(HOME_TUTORIAL_PENDING_KEY);
+    setHomeTutorialQueued(false);
+  }, []);
 
   const loadSessions = useCallback(() => {
     apiFetch('/sessions')
@@ -548,19 +622,37 @@ export const Home = () => {
     });
   };
 
+  const onboardingSessionId = localStorage.getItem('onboarding_session_id');
+  const showGettingStarted = !onboardingSessionId || !activeSessions.some(s => s.id === onboardingSessionId);
+  const wizardVisible = firstRunWizard.shouldShow || replayFirstRunWizard;
+  const showHomeTutorial = homeTutorialQueued && !wizardVisible && !instantStartLoading && !editSession && !viewingChar && !fullscreenCharAvatar && !confirmDialog;
+
   return (
     <div className="h-[100dvh] bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col overflow-hidden">
       {(firstRunWizard.shouldShow || replayFirstRunWizard) && (
         <FirstRunWizard
           onComplete={() => {
+            if (firstRunWizard.shouldShow) {
+              queueHomeTutorial();
+            }
             firstRunWizard.complete();
             setReplayFirstRunWizard(false);
           }}
           onSkip={() => {
+            if (firstRunWizard.shouldShow) {
+              queueHomeTutorial();
+            }
             firstRunWizard.skip();
             setReplayFirstRunWizard(false);
           }}
           onStartGetMeRollin={() => navigate('/get-me-rollin')}
+        />
+      )}
+      {showHomeTutorial && (
+        <HomeTutorial
+          showGettingStarted={showGettingStarted}
+          hasSessions={activeSessions.length > 0}
+          onFinish={finishHomeTutorial}
         />
       )}
       {instantStartLoading && <InstantStartLoader />}
@@ -618,8 +710,6 @@ export const Home = () => {
         <div className="flex flex-col gap-4 px-4 md:px-8 pt-4 pb-6 relative z-[10] w-full max-w-6xl mx-auto min-h-full">
           {/* New world / limit button */}
           {(() => {
-            const onboardingSessionId = localStorage.getItem('onboarding_session_id');
-            const showGettingStarted = !onboardingSessionId || !activeSessions.some(s => s.id === onboardingSessionId);
             if (sessionLimit && sessionLimit.current >= sessionLimit.max) {
               return (
                 <div className="px-8 py-5 bg-slate-800 border-2 border-slate-700 rounded-[32px] text-center">
@@ -633,6 +723,7 @@ export const Home = () => {
                 {showGettingStarted ? (
                   <>
                     <button
+                      data-tutorial="home-onboarding"
                       onClick={() => navigate('/get-me-rollin')}
                       className="w-full px-6 py-5 bg-amber-600 hover:bg-amber-500 rounded-[32px] shadow-[0_8px_0_rgb(146,64,14)] transition-all flex items-center gap-4"
                     >
@@ -649,6 +740,7 @@ export const Home = () => {
                     <p className="text-center text-xs font-black uppercase tracking-widest text-slate-600">or, jump in yourself:</p>
                     <div className="flex flex-col sm:flex-row gap-3">
                       <button
+                        data-tutorial="home-quick-start"
                         onClick={handleInstantStart}
                         disabled={instantStartLoading}
                         className="flex-1 px-4 py-3 bg-violet-900 hover:bg-violet-800 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-violet-700 rounded-[28px] text-sm font-black uppercase italic tracking-tighter transition-colors text-violet-200 flex items-center justify-center gap-2"
@@ -657,6 +749,7 @@ export const Home = () => {
                         Quick Start
                       </button>
                       <button
+                        data-tutorial="home-build-own"
                         onClick={() => navigate('/create-session')}
                         className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 border-2 border-slate-700 rounded-[28px] text-sm font-black uppercase italic tracking-tighter transition-colors text-slate-300 flex items-center justify-center gap-2"
                       >
@@ -667,6 +760,7 @@ export const Home = () => {
                   </>
                 ) : (
                   <button
+                    data-tutorial="home-build-own"
                     onClick={() => navigate('/create-session')}
                     className="px-6 py-3 md:py-6 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-lg md:text-4xl font-black shadow-[0_8px_0_rgb(146,64,14)] md:shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter w-full flex items-center justify-center gap-3"
                   >
@@ -680,6 +774,7 @@ export const Home = () => {
                 )}
                 {!showGettingStarted && (
                   <button
+                    data-tutorial="home-quick-start"
                     onClick={handleInstantStart}
                     disabled={instantStartLoading}
                     className="px-6 py-3 bg-violet-900 hover:bg-violet-800 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-violet-700 rounded-[32px] text-base font-black uppercase italic tracking-tighter w-full transition-colors text-violet-200 flex items-center justify-center gap-2"
@@ -694,7 +789,7 @@ export const Home = () => {
 
           {/* Sessions list */}
           {activeSessions.length > 0 && (
-            <div className="flex flex-col gap-2">
+            <div data-tutorial="home-active-realms" className="flex flex-col gap-2">
               <h3 className="text-xl md:text-4xl font-black uppercase tracking-tighter text-white italic">Active Realms</h3>
               {activeSessions.map((sess, i) => (
                 <WorldCard

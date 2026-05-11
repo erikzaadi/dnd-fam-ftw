@@ -6,12 +6,66 @@ import { RANDOM_NAMES, RANDOM_CLASSES, RANDOM_SPECIES, RANDOM_QUIRKS, pickRandom
 import { CharacterPopup } from '../components/CharacterPopup';
 import { CharacterForm } from '../components/CharacterForm';
 import { CharacterImportModal } from '../components/CharacterImportModal';
+import { SetupTutorialOverlay } from '../components/SetupTutorialOverlay';
 import { FullscreenImage } from '../components/FullscreenImage';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DmFooter } from '../components/DmFooter';
 import { SiteHeader } from '../components/SiteHeader';
 import { useSessionEvents } from '../hooks/useSessionEvents';
+import { CHARACTER_ASSEMBLY_TUTORIAL_KEY, type SetupTutorialStep, useSetupTutorial } from '../hooks/useSetupTutorial';
 import { Tooltip } from '../components/Tooltip';
+
+const buildAssemblyTutorialSteps = (hasImportableCharacters: boolean): SetupTutorialStep[] => [
+  {
+    id: 'party-overview',
+    selector: '[data-tutorial="party-overview"]',
+    title: 'Build the party',
+    body: 'This is where the heroes for this realm come together. Add at least one hero, and bring more friends for a stronger party.',
+    placement: 'bottom',
+  },
+  {
+    id: 'create-hero',
+    selector: '[data-tutorial="create-hero"]',
+    title: 'Create a hero',
+    body: 'Start a new hero here. The next panel will show quick fantasy roles and manual editing.',
+    placement: 'top',
+  },
+  {
+    id: 'preset-chooser',
+    selector: '[data-tutorial="preset-chooser"]',
+    title: 'Quick hero types',
+    body: 'Pick a quick role to fill class, species, quirk, and stats. Manual keeps your custom fields alone.',
+    placement: 'bottom',
+  },
+  {
+    id: 'character-form',
+    selector: '[data-tutorial="character-form"]',
+    title: 'Editable details',
+    body: 'The form lets you change name, species, class, quirk, and stats. Presets are only shortcuts.',
+    placement: 'top',
+  },
+  ...(hasImportableCharacters ? [{
+    id: 'import-existing',
+    selector: '[data-tutorial="import-hero"]',
+    title: 'Bring back a hero',
+    body: 'Import from past adventures to carry a familiar hero forward with a short history summary.',
+    placement: 'top' as const,
+  }] : []),
+  {
+    id: 'image-toggle',
+    selector: '[data-tutorial="image-toggle"]',
+    title: 'Portrait mode',
+    body: 'Images creates portraits and scene art. Saving mode is faster and skips generated images.',
+    placement: 'left',
+  },
+  {
+    id: 'start-adventure',
+    selector: '[data-tutorial="start-adventure"]',
+    title: 'Start the realm',
+    body: 'When your party is ready, begin the adventure and the DM will set the first scene.',
+    placement: 'top',
+  },
+];
 
 export const CharacterAssembly = () => {
   const { id } = useParams<{ id: string }>();
@@ -164,19 +218,29 @@ export const CharacterAssembly = () => {
     const species = formData.get('species') as string;
     const gender = (formData.get('gender') as string) || undefined;
     const quirk = formData.get('quirk') as string;
-
     let stats = { might: 2, magic: 2, mischief: 3 };
-    try {
-      const statsRes = await apiFetch('/character/suggest-stats', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, class: charClass, species, quirk })
-      });
-      if (statsRes.ok) {
-        stats = await statsRes.json();
+    const presetMight = formData.get('might');
+    const presetMagic = formData.get('magic');
+    const presetMischief = formData.get('mischief');
+    if (presetMight !== null && presetMagic !== null && presetMischief !== null) {
+      stats = {
+        might: Number(presetMight),
+        magic: Number(presetMagic),
+        mischief: Number(presetMischief),
+      };
+    } else {
+      try {
+        const statsRes = await apiFetch('/character/suggest-stats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, class: charClass, species, quirk })
+        });
+        if (statsRes.ok) {
+          stats = await statsRes.json();
+        }
+      } catch {
+        // fallback to defaults
       }
-    } catch {
-      // fallback to defaults
     }
 
     const charData = {
@@ -241,6 +305,26 @@ export const CharacterAssembly = () => {
       .filter(char => !session?.party.find(p => p.name === char.name))
       .reduce<Record<string, Character>>((acc, char) => ({ ...acc, [char.name]: char }), {})
   );
+  const tutorial = useSetupTutorial(
+    CHARACTER_ASSEMBLY_TUTORIAL_KEY,
+    buildAssemblyTutorialSteps(importableCharacters.length > 0)
+  );
+  const openCreateHero = useCallback(() => {
+    setEditingChar(null);
+    generateSuggestions();
+    setIsCreating(true);
+  }, [generateSuggestions]);
+  const advanceTutorial = useCallback(() => {
+    if (tutorial.step?.id === 'create-hero' && !isCreating) {
+      openCreateHero();
+    }
+    tutorial.advance();
+  }, [isCreating, openCreateHero, tutorial]);
+  const visibleTutorialStep = isCreating &&
+    tutorial.step?.id !== 'preset-chooser' &&
+    tutorial.step?.id !== 'character-form'
+    ? null
+    : tutorial.step;
 
   return (
     <div className="h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 text-white flex flex-col overflow-hidden">
@@ -256,14 +340,22 @@ export const CharacterAssembly = () => {
       {confirmDialog && <ConfirmDialog message={confirmDialog.message} onConfirm={() => {
         confirmDialog.onConfirm(); setConfirmDialog(null);
       }} onCancel={() => setConfirmDialog(null)} />}
+      <SetupTutorialOverlay
+        step={visibleTutorialStep}
+        stepNumber={tutorial.stepNumber}
+        totalSteps={tutorial.totalSteps}
+        onAdvance={advanceTutorial}
+        onDismiss={tutorial.dismiss}
+      />
 
       <div className="flex-1 overflow-y-auto px-4 md:px-6 py-6 min-h-0">
         <div className="max-w-4xl mx-auto space-y-8 md:space-y-12 relative z-[10]">
-          <div className="flex items-center justify-between gap-4">
+          <div data-tutorial="party-overview" className="flex items-center justify-between gap-4">
             <h1 className="text-3xl md:text-6xl font-display font-black text-amber-500 italic tracking-tighter drop-shadow-[0_6px_6px_rgba(0,0,0,0.5)]">Assemble Your Party</h1>
             {session && (
               <Tooltip content={session.savingsMode ? 'Images off - tap to enable' : 'Images on - tap to disable'} position="bottom" portal>
                 <button
+                  data-tutorial="image-toggle"
                   onClick={toggleSavingsMode}
                   className={`px-3 py-2 rounded-xl border font-black text-xs tracking-widest uppercase transition-all cursor-pointer flex-shrink-0 ${session.savingsMode ? 'border-amber-500 text-amber-400 bg-amber-500/10' : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'}`}
                 >
@@ -303,20 +395,16 @@ export const CharacterAssembly = () => {
 
           {session && session.party.length === 0 ? (
             <div className="flex flex-col gap-3">
-              <button onClick={() => {
-                setEditingChar(null); generateSuggestions(); setIsCreating(true);
-              }} className="w-full py-6 bg-amber-600 hover:bg-amber-500 rounded-[28px] font-black uppercase tracking-widest text-sm shadow-[0_6px_0_rgb(146,64,14)] transition-all">+ Create New Hero</button>
+              <button data-tutorial="create-hero" onClick={openCreateHero} className="w-full py-6 bg-amber-600 hover:bg-amber-500 rounded-[28px] font-black uppercase tracking-widest text-sm shadow-[0_6px_0_rgb(146,64,14)] transition-all">+ Create New Hero</button>
               {importableCharacters.length > 0 && (
-                <button onClick={() => setShowImportModal(true)} className="w-full py-4 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm text-slate-400 transition-all">+ Import from Past</button>
+                <button data-tutorial="import-hero" onClick={() => setShowImportModal(true)} className="w-full py-4 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm text-slate-400 transition-all">+ Import from Past</button>
               )}
             </div>
           ) : (
             <div className="flex gap-4">
-              <button onClick={() => {
-                setEditingChar(null); generateSuggestions(); setIsCreating(true);
-              }} className="flex-1 py-6 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm transition-all">+ Add Another Hero</button>
+              <button data-tutorial="create-hero" onClick={openCreateHero} className="flex-1 py-6 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm transition-all">+ Add Another Hero</button>
               {importableCharacters.length > 0 && (
-                <button onClick={() => setShowImportModal(true)} className="flex-1 py-6 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm transition-all">+ Import from Past</button>
+                <button data-tutorial="import-hero" onClick={() => setShowImportModal(true)} className="flex-1 py-6 bg-slate-800 hover:bg-slate-700 rounded-[28px] border border-slate-700 font-black uppercase tracking-widest text-sm transition-all">+ Import from Past</button>
               )}
             </div>
           )}
@@ -335,7 +423,7 @@ export const CharacterAssembly = () => {
           )}
 
           {session && session.party.length > 0 && (
-            <button onClick={startJourney} disabled={isStarting || loading} className="w-full py-6 md:py-8 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-2xl md:text-4xl font-black shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter disabled:opacity-50 disabled:shadow-none">
+            <button data-tutorial="start-adventure" onClick={startJourney} disabled={isStarting || loading} className="w-full py-6 md:py-8 bg-amber-600 hover:bg-amber-500 rounded-[32px] text-2xl md:text-4xl font-black shadow-[0_12px_0_rgb(146,64,14)] transition-all uppercase italic tracking-tighter disabled:opacity-50 disabled:shadow-none">
               {isStarting ? 'SUMMONING THE DM...' : 'BEGIN ADVENTURE'}
             </button>
           )}
