@@ -6,6 +6,7 @@ import { StateService } from '../services/stateService.js';
 import { executeTurnAction } from '../services/turnService.js';
 import { sendRateLimitResponse } from './routeErrors.js';
 import { parseBody } from './routeValidation.js';
+import { registerSessionIdParam } from '../middleware/sessionParam.js';
 
 const actionBodySchema = z.object({
   action: z.string(),
@@ -22,18 +23,9 @@ const actionBodySchema = z.object({
 
 export const createTurnRouter = () => {
   const router = Router();
+  registerSessionIdParam(router);
 
   router.get('/session/:id/summary', asyncHandler(async (req, res) => {
-    const sessionNamespace = StateService.getSessionNamespaceId(req.params.id as string);
-    if (!sessionNamespace || sessionNamespace !== req.namespaceId) {
-      res.status(404).json({ error: 'Session not found' });
-      return;
-    }
-    const session = await StateService.getSession(req.params.id as string);
-    if (!session) {
-      res.status(404).json({ error: 'Session not found' });
-      return;
-    }
     const history = await StateService.getTurnHistory(req.params.id as string);
     const prompt = `Summarize the adventure so far in 3 sentences, focusing on the main plot points: ${history.map(h => h.narration).join(' ')}`;
     const { client, model } = createChatClient();
@@ -81,11 +73,6 @@ export const createTurnRouter = () => {
   }));
 
   router.get('/session/:id/history', asyncHandler(async (req, res) => {
-    const sessionNamespace = StateService.getSessionNamespaceId(req.params.id as string);
-    if (!sessionNamespace || sessionNamespace !== req.namespaceId) {
-      res.status(404).json({ error: 'Session not found' });
-      return;
-    }
     const history = await StateService.getTurnHistory(req.params.id as string);
     res.json(history);
   }));

@@ -60,7 +60,9 @@ backend/src/
     imageService.ts                # OpenAI-compatible image generation
     gameEngine.ts                  # Dice, damage, turn mechanics
     storySummaryService.ts         # Rolling story compression
-  middleware/auth.ts               # Attaches req.namespaceId + req.userEmail
+  middleware/
+    auth.ts                        # Attaches req.namespaceId + req.userEmail
+    sessionParam.ts                # Loads namespace-scoped req.session for session id routes
   providers/
     ai/                            # OpenAI-compatible narration + image helpers
     storage/                       # LocalImageStorageProvider + S3ImageStorageProvider
@@ -108,6 +110,8 @@ When enabled:
 ## Namespace isolation
 
 Every session belongs to a namespace. Users have a primary namespace (1:1) but can be granted access to additional namespaces via `namespaces add-user`. All session queries scoped to `req.namespaceId`. Default: `local` when auth disabled.
+
+Routes with a session id should use `registerSessionIdParam()` so missing sessions and sessions outside `req.namespaceId` return 404 before route handlers run, with the loaded session available as `req.session`.
 
 `StateService.deleteSession()` deletes all S3/local turn images and character avatars before deleting DB rows.
 

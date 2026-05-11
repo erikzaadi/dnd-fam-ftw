@@ -58,6 +58,12 @@ The character edge bonus is currently `+2` and applies when the submitted action
 
 Free-text inferred bonuses are conservative and capped at two inferred bonus categories per action.
 
+### Free-text action preview
+
+Typed custom actions are previewed before the turn is spent. The preview API accepts only the action text. The backend infers the active character, class, quirk, stats, current scene, story summary, recent turns, warnings, and possible free-text bonuses from the saved session.
+
+This keeps preview, narrating state, and final turn resolution aligned with the current active hero. The client should not send character class, quirk, or previous-turn context in the preview body.
+
 The backend also assigns an `impact` to rolled actions:
 
 | Impact | Meaning |
@@ -110,6 +116,16 @@ Essential campaign progress should not be locked behind one failed roll. If the 
 ### Roll narration
 
 After resolving the roll, the AI returns a short `rollNarration` : a one-line flavour comment tied to the die result (e.g. *"🎲 A focused eye! You spot the mechanism."*). This is displayed inside the D20 result popup and stored in turn history. It is separate from the main narration paragraph.
+
+### Narration validation
+
+Narration uses OpenAI Structured Outputs. The backend accepts only parsed structured output from the SDK for main turn narration.
+
+After schema parsing, lightweight gameplay guards normalize and check the response: item choice metadata must refer to real inventory, heal suggestions must match healing actions, helper choices must use active allies, repeated generic choices are rejected, stale hidden-path loops are rejected, and victory exits are retried when they do not clearly move the party into a new beat.
+
+If a response fails a gameplay guard, the backend retries once with the validation error included in the prompt. If the retry is valid structured output but still fails a gameplay guard, the game uses that retry output and records the validation error on the turn instead of replacing it with a generic fallback. A fallback is used only when the model response cannot be parsed into the required structured schema or the provider call fails.
+
+Narration fields are sanitized before persistence. Em dashes are replaced with hyphens in main narration, roll narration, image prompts, and choice text.
 
 ---
 

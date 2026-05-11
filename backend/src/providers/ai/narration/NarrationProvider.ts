@@ -28,6 +28,7 @@ export type NarrationInput = {
     species: string;
     hp: number;
     maxHp: number;
+    stats: { might: number; magic: number; mischief: number };
     status: 'active' | 'downed';
     quirk?: string;
     gender?: string;

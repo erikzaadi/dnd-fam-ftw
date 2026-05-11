@@ -2,23 +2,19 @@ import { Router } from 'express';
 import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { createChatClient } from '../providers/ai/AiProviderFactory.js';
-import { StateService } from '../services/stateService.js';
 import { parseSuggestedStats, previewFreeAction, STAT_FALLBACK, suggestStatForSessionAction } from '../services/statSuggestionService.js';
 import { parseBody } from './routeValidation.js';
 import type { FreeActionPreview } from '@dnd-fam-ftw/shared';
 import { buildFreeActionWarnings, getFreeActionDifficulty } from '../services/freeActionPolicyService.js';
+import { registerSessionIdParam } from '../middleware/sessionParam.js';
 
 const suggestStatBodySchema = z.object({
-  action: z.string(),
-  characterClass: z.string().optional(),
-  characterQuirk: z.string().optional(),
-});
+  action: z.string().min(1),
+}).strict();
 
 const previewActionBodySchema = z.object({
-  action: z.string(),
-  characterClass: z.string().optional(),
-  characterQuirk: z.string().optional(),
-});
+  action: z.string().min(1),
+}).strict();
 
 const suggestCharacterStatsBodySchema = z.object({
   name: z.string().optional(),
@@ -29,15 +25,11 @@ const suggestCharacterStatsBodySchema = z.object({
 
 export const createStatSuggestionRouter = () => {
   const router = Router();
+  registerSessionIdParam(router);
 
   router.post('/session/:id/suggest-stat', asyncHandler(async (req, res) => {
     const body = parseBody(req, res, suggestStatBodySchema);
     if (!body) {
-      return;
-    }
-    const session = await StateService.getSession(req.params.id as string);
-    if (!session) {
-      res.status(404).json({ stat: 'mischief' });
       return;
     }
     const suggestion = await suggestStatForSessionAction(req.params.id as string, body);
@@ -49,11 +41,7 @@ export const createStatSuggestionRouter = () => {
     if (!body) {
       return;
     }
-    const session = await StateService.getSession(req.params.id as string);
-    if (!session) {
-      res.status(404).json({ error: 'Session not found' });
-      return;
-    }
+    const session = req.session!;
     const suggestion = await previewFreeAction(req.params.id as string, body);
     const { difficulty, difficultyValue } = getFreeActionDifficulty(body.action);
     const preview: FreeActionPreview = {

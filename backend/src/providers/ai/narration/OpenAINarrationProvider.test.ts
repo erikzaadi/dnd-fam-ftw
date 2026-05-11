@@ -24,7 +24,7 @@ import { OpenAINarrationProvider } from './OpenAINarrationProvider.js';
 const input: NarrationInput = {
   scene: 'A ruined keep',
   party: [
-    { name: 'Pip', class: 'Rogue', species: 'Halfling', hp: 8, maxHp: 8, status: 'active' },
+    { name: 'Pip', class: 'Rogue', species: 'Halfling', hp: 8, maxHp: 8, stats: { might: 2, magic: 1, mischief: 5 }, status: 'active' },
   ],
   inventory: [],
   actionAttempt: 'Search the hall',
@@ -199,6 +199,51 @@ describe('OpenAINarrationProvider', () => {
         'Raw:',
         JSON.stringify(malformed)
       );
+    } finally {
+      warn.mockRestore();
+      error.mockRestore();
+    }
+  });
+
+  it('uses structured retry output when only gameplay guards still fail', async () => {
+    const stalledVictory = output({
+      narration: 'Pip wins the fight and the room goes quiet.',
+      choices: [
+        { label: 'Attack again', difficulty: 'normal', stat: 'might', difficultyValue: 12 },
+        { label: 'Strike the last enemy', difficulty: 'normal', stat: 'might', difficultyValue: 12 },
+        { label: 'Fight through the room', difficulty: 'hard', stat: 'might', difficultyValue: 16 },
+      ],
+    });
+
+    mocks.parse
+      .mockResolvedValueOnce({ choices: [{ message: { parsed: stalledVictory } }] })
+      .mockResolvedValueOnce({ choices: [{ message: { parsed: stalledVictory } }] });
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    try {
+      const result = await new OpenAINarrationProvider().generateTurn({
+        ...input,
+        recentHistory: ['Pip dodged flying pans.', 'Zara pinned the last foe with silver light.'],
+        sceneMomentum: {
+          directive: 'victory_exit',
+          staleChoiceCount: 0,
+          turnsSinceSceneChange: 3,
+          turnsSinceCombat: 0,
+          justCompletedCombat: true,
+          justCompletedDifficultChallenge: false,
+          suggestedNextBeat: 'Move from the resolved fight into the next clue, route, reward, threat, or decision.',
+          reason: 'Combat has already had enough successful beats.',
+        },
+      });
+
+      expect(result.narration).toBe(stalledVictory.narration);
+      expect(result.choices.map(choice => choice.label)).toEqual(stalledVictory.choices.map(choice => choice.label));
+      expect(result.narrationRetried).toBe(true);
+      expect(result.narrationFailed).toBeUndefined();
+      expect(result.narrationRetryValidationError).toContain('Victory exit');
+      expect(error).not.toHaveBeenCalled();
     } finally {
       warn.mockRestore();
       error.mockRestore();

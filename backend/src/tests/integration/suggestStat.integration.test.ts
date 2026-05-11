@@ -44,13 +44,12 @@ describe('suggest-stat integration', () => {
 
     const suggestion = await suggestStatForSessionAction('suggest-stat-session', {
       action: 'I conjure a shield of moonlight',
-      characterClass: 'Wizard',
-      characterQuirk: 'Talks to books',
     });
 
     expect(suggestion.stat).toBe('magic');
     expect(mockCreateCompletion).toHaveBeenCalledTimes(1);
     expect(mockCreateCompletion.mock.calls[0][0].messages[0].content).toContain('I conjure a shield of moonlight');
+    expect(mockCreateCompletion.mock.calls[0][0].messages[0].content).toContain('The current fantasy RPG character is');
   });
 
   it('returns character edge preview for social free-text actions', async () => {
@@ -58,8 +57,6 @@ describe('suggest-stat integration', () => {
 
     const suggestion = await suggestStatForSessionAction('suggest-stat-edge-session', {
       action: 'I persuade the guard to let everyone pass',
-      characterClass: 'Rogue',
-      characterQuirk: 'Talks to books',
     });
 
     expect(suggestion).toMatchObject({
@@ -75,8 +72,6 @@ describe('suggest-stat integration', () => {
 
     const suggestion = await suggestStatForSessionAction('suggest-stat-heal-session', {
       action: 'Heal the entire party',
-      characterClass: 'Cleric',
-      characterQuirk: 'Hums lullabies',
     });
 
     expect(suggestion).toMatchObject({
@@ -92,8 +87,6 @@ describe('suggest-stat integration', () => {
 
     const suggestion = await suggestStatForSessionAction('suggest-stat-teleport-session', {
       action: 'Teleport the party using your magic through the portal',
-      characterClass: 'Mage',
-      characterQuirk: 'Times every spell with a wink',
     });
 
     expect(suggestion).toMatchObject({
@@ -112,8 +105,6 @@ describe('suggest-stat integration', () => {
 
     const preview = await previewFreeAction('preview-action-session', {
       action: 'Cast a shield of moonlight',
-      characterClass: 'Wizard',
-      characterQuirk: 'Talks to books',
     });
 
     expect(preview).toMatchObject({
@@ -140,8 +131,6 @@ describe('suggest-stat integration', () => {
 
     await previewFreeAction('preview-action-context-session', {
       action: 'Check whether the claw marks fit the key',
-      characterClass: 'Rogue',
-      characterQuirk: 'Always hungry',
     });
 
     const prompt = mockCreateCompletion.mock.calls[0][0].messages[0].content;

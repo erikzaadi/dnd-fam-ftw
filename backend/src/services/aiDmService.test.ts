@@ -74,6 +74,12 @@ describe('toNarrationInput', () => {
     expect(out.party[1].species).toBe('Elf');
   });
 
+  it('passes party stats through for character-specific choice generation', () => {
+    const out = toNarrationInput(makeAIInput());
+    expect(out.party[0].stats).toEqual({ might: 1, magic: 2, mischief: 4 });
+    expect(out.party[1].stats).toEqual({ might: 1, magic: 5, mischief: 2 });
+  });
+
   it('passes downed status through', () => {
     const out = toNarrationInput(makeAIInput({
       party: [{ ...makeAIInput().party[0], status: 'downed', hp: 0 }],

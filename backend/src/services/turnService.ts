@@ -66,6 +66,10 @@ export const executeTurnAction = async (
       ? 'give_item'
       : undefined);
 
+  const sessionNamespace = StateService.getSessionNamespaceId(sessionId);
+  if (!sessionNamespace || sessionNamespace !== (namespaceId ?? 'local')) {
+    return { ok: false, status: 404, body: { error: 'Session not found' } };
+  }
   const session = await StateService.getSession(sessionId);
   if (!session) {
     return { ok: false, status: 404, body: { error: 'Session not found' } };

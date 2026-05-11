@@ -137,6 +137,33 @@ function normalizeNarrationMetadata(input: NarrationInput, output: ValidNarratio
   }
 }
 
+function replaceEmDashes(value: string): string {
+  return value.replace(/[—]/g, '-');
+}
+
+function stripNarrationEmDashes(output: ValidNarrationOutput): void {
+  output.narration = replaceEmDashes(output.narration);
+  if (output.rollNarration) {
+    output.rollNarration = replaceEmDashes(output.rollNarration);
+  }
+  if (output.imagePrompt) {
+    output.imagePrompt = replaceEmDashes(output.imagePrompt);
+  }
+
+  for (const choice of output.choices) {
+    choice.label = replaceEmDashes(choice.label);
+    if (choice.narration) {
+      choice.narration = replaceEmDashes(choice.narration);
+    }
+    if (choice.riddleAnswer) {
+      choice.riddleAnswer = replaceEmDashes(choice.riddleAnswer);
+    }
+    if (choice.environmentFeature) {
+      choice.environmentFeature = replaceEmDashes(choice.environmentFeature);
+    }
+  }
+}
+
 function validateMomentumOutput(input: NarrationInput, output: ValidNarrationOutput): string | null {
   const momentum = input.sceneMomentum;
   if (!momentum) {
@@ -207,17 +234,25 @@ function validateMomentumOutput(input: NarrationInput, output: ValidNarrationOut
   return null;
 }
 
-export function parseNarrationOutput(input: NarrationInput, raw: unknown): { success: true; data: NarrationOutput } | { success: false; error: string } {
+export function parseNarrationOutput(
+  input: NarrationInput,
+  raw: unknown,
+  options: { enforceGameplayGuards?: boolean } = {},
+): { success: true; data: NarrationOutput } | { success: false; error: string } {
+  const enforceGameplayGuards = options.enforceGameplayGuards ?? true;
   const parsed = narrationOutputSchema.safeParse(raw);
   if (!parsed.success) {
     return { success: false, error: parsed.error.message };
   }
 
+  stripNarrationEmDashes(parsed.data);
   canonicalizeItemChoices(input, parsed.data);
   normalizeNarrationMetadata(input, parsed.data);
-  const momentumError = validateMomentumOutput(input, parsed.data);
-  if (momentumError) {
-    return { success: false, error: momentumError };
+  if (enforceGameplayGuards) {
+    const momentumError = validateMomentumOutput(input, parsed.data);
+    if (momentumError) {
+      return { success: false, error: momentumError };
+    }
   }
 
   // The schema uses .nullable() on optional fields for OpenAI Structured Outputs compatibility.

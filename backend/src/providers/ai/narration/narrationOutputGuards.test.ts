@@ -5,7 +5,7 @@ import { parseNarrationOutput } from './narrationOutputGuards.js';
 const input: NarrationInput = {
   scene: 'A ruined keep',
   party: [
-    { name: 'Pip', class: 'Rogue', species: 'Halfling', hp: 8, maxHp: 8, status: 'active' },
+    { name: 'Pip', class: 'Rogue', species: 'Halfling', hp: 8, maxHp: 8, stats: { might: 2, magic: 1, mischief: 5 }, status: 'active' },
   ],
   inventory: [],
   actionAttempt: 'Search the hall',
@@ -110,6 +110,26 @@ describe('parseNarrationOutput', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.suggestedHeal).toBeNull();
+    }
+  });
+
+  it('strips em dashes from narration fields', () => {
+    const result = parseNarrationOutput(input, output({
+      narration: 'Pip finds a clue — then pockets it.',
+      rollNarration: 'No roll — just nerve.',
+      choices: [
+        { label: 'Follow the clue — carefully', difficulty: 'easy', stat: 'mischief', difficultyValue: 8, narration: 'Move — quietly.' },
+        { label: 'Check for traps', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+        { label: 'Call for help', difficulty: 'easy', stat: 'magic', difficultyValue: 7 },
+      ],
+    }));
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.narration).not.toContain('—');
+      expect(result.data.rollNarration).not.toContain('—');
+      expect(result.data.choices[0].label).not.toContain('—');
+      expect(result.data.choices[0].narration).not.toContain('—');
     }
   });
 

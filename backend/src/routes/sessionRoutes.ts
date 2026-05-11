@@ -14,6 +14,7 @@ import { StorySummaryService } from '../services/storySummaryService.js';
 import { GAME_MODE_VALUES, type GameMode } from '../types.js';
 import { sendRateLimitResponse } from './routeErrors.js';
 import { booleanBodySchema, parseBody } from './routeValidation.js';
+import { registerSessionIdParam } from '../middleware/sessionParam.js';
 
 const createSessionBodySchema = z.object({
   worldDescription: z.string().optional(),
@@ -37,6 +38,7 @@ const regenerateDmPrepBodySchema = z.object({
 
 export const createSessionRouter = () => {
   const router = Router();
+  registerSessionIdParam(router);
 
   router.get('/sessions', asyncHandler(async (req, res) => {
     const sessions = await StateService.listSessions(req.namespaceId);
@@ -96,9 +98,8 @@ export const createSessionRouter = () => {
 
   router.delete('/session/:id', asyncHandler(async (req, res) => {
     const sessionId = req.params.id as string;
-    const namespaceId = StateService.getSessionNamespaceId(sessionId) ?? req.namespaceId;
     await StateService.deleteSession(sessionId);
-    broadcastSessionChanged(namespaceId, sessionId, 'deleted');
+    broadcastSessionChanged(req.namespaceId, sessionId, 'deleted');
     res.json({ success: true });
   }));
 
@@ -142,20 +143,11 @@ export const createSessionRouter = () => {
   }));
 
   router.get('/session/:id', asyncHandler(async (req, res) => {
-    const session = await StateService.getSession(req.params.id as string);
-    if (!session) {
-      res.status(404).json({ error: 'Session not found' });
-      return;
-    }
-    res.json(session);
+    res.json(req.session);
   }));
 
   router.patch('/session/:id', asyncHandler(async (req, res) => {
-    const session = await StateService.getSession(req.params.id as string);
-    if (!session) {
-      res.status(404).json({ error: 'Session not found' });
-      return;
-    }
+    const session = req.session!;
     const body = parseBody(req, res, patchSessionBodySchema);
     if (!body) {
       return;
@@ -191,11 +183,7 @@ export const createSessionRouter = () => {
   }));
 
   router.post('/session/:id/preview-image', asyncHandler(async (req, res) => {
-    const session = await StateService.getSession(req.params.id as string);
-    if (!session) {
-      res.status(404).json({ error: 'Session not found' });
-      return;
-    }
+    const session = req.session!;
     if (session.savingsMode) {
       res.json({ previewImageUrl: null });
       return;
@@ -210,11 +198,7 @@ export const createSessionRouter = () => {
   }));
 
   router.post('/session/:id/regenerate-dm-prep', asyncHandler(async (req, res) => {
-    const session = await StateService.getSession(req.params.id as string);
-    if (!session) {
-      res.status(404).json({ error: 'Session not found' });
-      return;
-    }
+    const session = req.session!;
     const body = parseBody(req, res, regenerateDmPrepBodySchema);
     if (body === undefined && req.body !== undefined && Object.keys(req.body as Record<string, unknown>).length > 0) {
       return;
@@ -232,11 +216,7 @@ export const createSessionRouter = () => {
 
   router.post('/session/:id/start', asyncHandler(async (req, res) => {
     const sessionId = req.params.id as string;
-    const session = await StateService.getSession(sessionId);
-    if (!session) {
-      res.status(404).json({ error: 'Session not found' });
-      return;
-    }
+    const session = req.session!;
 
     const history = await StateService.getTurnHistory(sessionId);
     if (history.length > 0) {

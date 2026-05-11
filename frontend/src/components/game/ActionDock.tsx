@@ -134,8 +134,6 @@ export const ActionDock = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: trimmed,
-          characterClass: activeCharacter?.class,
-          characterQuirk: activeCharacter?.quirk,
         }),
       });
       if (res.ok) {
@@ -162,7 +160,7 @@ export const ActionDock = ({
       };
     }
     setFreeActionPreview(preview);
-  }, [activeCharacter, loading, sessionId]);
+  }, [loading, sessionId]);
 
   const confirmFreeAction = useCallback(async () => {
     if (!freeActionPreview) {
@@ -210,8 +208,6 @@ export const ActionDock = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: trimmed,
-          characterClass: activeCharacter?.class,
-          characterQuirk: activeCharacter?.quirk,
         }),
       });
       if (res.ok) {
@@ -220,7 +216,7 @@ export const ActionDock = ({
       }
     } catch { /* fallback to mischief */ }
     await onSubmit(trimmed, stat, 'normal', undefined, undefined, undefined, undefined, preview);
-  }, [activeCharacter, loading, onSubmit, sessionId]);
+  }, [loading, onSubmit, sessionId]);
 
   const confirmSpeechTranscript = useCallback(async (transcript: string) => {
     const intent = parseSpeechIntent(transcript);

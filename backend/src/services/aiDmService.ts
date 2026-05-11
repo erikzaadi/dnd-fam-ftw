@@ -38,6 +38,7 @@ export function toNarrationInput(input: AIInput): NarrationInput {
       species: c.species,
       hp: c.hp,
       maxHp: c.max_hp,
+      stats: c.stats,
       status: c.status ?? 'active',
       quirk: c.quirk,
       ...(c.gender && { gender: c.gender }),

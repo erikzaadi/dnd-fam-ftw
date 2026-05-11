@@ -25,6 +25,17 @@ export class OpenAINarrationProvider implements NarrationProvider {
       };
     }
 
+    const usableRetry = parseNarrationOutput(input, retryRaw, { enforceGameplayGuards: false });
+    if (usableRetry.success) {
+      console.warn('[OpenAINarration] Retry failed gameplay validation, using structured retry output.', retryParsed.error);
+      return {
+        ...usableRetry.data,
+        narrationRetried: true,
+        narrationValidationError: parsed.error,
+        narrationRetryValidationError: retryParsed.error,
+      };
+    }
+
     console.error('[OpenAINarration] Retry also failed, using fallback.', retryParsed.error, 'Raw:', JSON.stringify(retryRaw));
     return {
       ...buildNarrationFallback(input),
@@ -50,6 +61,9 @@ export class OpenAINarrationProvider implements NarrationProvider {
     if (message.refusal) {
       throw new Error(`OpenAI refused: ${message.refusal}`);
     }
-    return message.parsed ?? JSON.parse(message.content ?? '{}');
+    if (!message.parsed) {
+      throw new Error('OpenAI response did not include parsed structured output.');
+    }
+    return message.parsed;
   }
 }

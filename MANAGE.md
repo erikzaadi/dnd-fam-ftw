@@ -92,7 +92,7 @@ Per-namespace usage stats: sessions, turns, images, avatars, TTS, and savings mo
 ./dnd-fam-ftw-cli metrics --json
 ```
 
-Narration retry and fallback diagnostics are available as analysis-friendly JSON or CSV. The default includes any turn that retried narration or fell back after retry failure.
+Narration retry and fallback diagnostics are available as analysis-friendly JSON or CSV. The default includes any turn that retried narration, kept a structured retry after a gameplay guard warning, or fell back after schema/provider failure.
 
 ```bash
 ./dnd-fam-ftw-cli metrics narration --json

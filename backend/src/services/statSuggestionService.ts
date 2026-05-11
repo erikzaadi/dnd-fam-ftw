@@ -2,6 +2,7 @@ import { createChatClient } from '../providers/ai/AiProviderFactory.js';
 import type { FreeActionBonusPreview } from './freeActionInferenceService.js';
 import { inferFreeActionBonuses, toFreeActionBonusPreview } from './freeActionInferenceService.js';
 import { StateService } from './stateService.js';
+import type { Character } from '../types.js';
 
 export const STAT_FALLBACK = { might: 2, magic: 2, mischief: 3 };
 export type SuggestedStat = 'might' | 'magic' | 'mischief';
@@ -32,9 +33,9 @@ async function buildFreeActionStoryContext(sessionId: string): Promise<string> {
 
 export async function previewFreeAction(
   sessionId: string,
-  input: { action: string; characterClass?: string; characterQuirk?: string },
+  input: { action: string },
 ): Promise<SessionActionStatSuggestion & { narration?: string }> {
-  const { action, characterClass, characterQuirk } = input;
+  const { action } = input;
   const session = await StateService.getSession(sessionId);
   if (!session) {
     return { stat: 'mischief' };
@@ -51,7 +52,7 @@ export async function previewFreeAction(
       model,
       messages: [{
         role: 'user',
-        content: `A fantasy RPG character${characterClass ? ` (${characterClass})` : ''}${characterQuirk ? `, quirk: ${characterQuirk}` : ''} wants to: "${action}".
+        content: `${describeActiveCharacter(character)} wants to: "${action}".
 ${storyContext ? `\nUse this story context so the preview fits the current scene without spoiling the result:\n${storyContext}\n` : ''}
 
 Reply with ONLY valid JSON (no markdown):
@@ -81,9 +82,9 @@ Stat guide: might = physical/combat/force, magic = spells/arcane/healing/divine,
 
 export async function suggestStatForSessionAction(
   sessionId: string,
-  input: { action: string; characterClass?: string; characterQuirk?: string },
+  input: { action: string },
 ): Promise<SessionActionStatSuggestion> {
-  const { action, characterClass, characterQuirk } = input;
+  const { action } = input;
   const session = await StateService.getSession(sessionId);
   if (!session) {
     return { stat: 'mischief' };
@@ -100,7 +101,7 @@ export async function suggestStatForSessionAction(
       model,
       messages: [{
         role: 'user',
-        content: `A fantasy RPG character${characterClass ? ` (${characterClass})` : ''}${characterQuirk ? `, quirk: ${characterQuirk}` : ''} wants to: "${action}".${storyContext ? `\n\nCurrent story context:\n${storyContext}` : ''}\n\nWhich single stat fits best in this scene: might (physical strength, combat, force), magic (spells, arcane, healing, divine), or mischief (stealth, trickery, charm, persuasion, deception)? Reply with ONLY one word: might, magic, or mischief.`
+        content: `${describeActiveCharacter(character)} wants to: "${action}".${storyContext ? `\n\nCurrent story context:\n${storyContext}` : ''}\n\nWhich single stat fits best in this scene: might (physical strength, combat, force), magic (spells, arcane, healing, divine), or mischief (stealth, trickery, charm, persuasion, deception)? Reply with ONLY one word: might, magic, or mischief.`
       }],
       max_tokens: 10,
     }, { signal: AbortSignal.timeout(8_000) });
@@ -110,6 +111,16 @@ export async function suggestStatForSessionAction(
   } catch {
     return { stat: 'mischief', ...bonusPreview };
   }
+}
+
+function describeActiveCharacter(character: Character | null): string {
+  if (!character) {
+    return 'The current fantasy RPG character';
+  }
+
+  const stats = `might ${character.stats.might}, magic ${character.stats.magic}, mischief ${character.stats.mischief}`;
+  const quirk = character.quirk ? `, quirk: ${character.quirk}` : '';
+  return `The current fantasy RPG character is ${character.name}, a ${character.species} ${character.class} (${stats}${quirk})`;
 }
 
 export function parseSuggestedStats(raw: string): { might: number; magic: number; mischief: number } {

@@ -10,6 +10,7 @@ import { getStartingMaxHp } from '../services/characterHpService.js';
 import { triggerPreviewRegen } from '../services/sessionPreviewService.js';
 import type { Character } from '../types.js';
 import { parseBody } from './routeValidation.js';
+import { registerSessionIdParam } from '../middleware/sessionParam.js';
 
 const characterDataSchema = z.object({
   name: z.string().min(1),
@@ -32,6 +33,7 @@ const characterBodySchema = z.object({
 
 export const createCharacterRouter = () => {
   const router = Router();
+  registerSessionIdParam(router, 'sessionId');
 
   router.get('/characters/all', asyncHandler(async (req, res) => {
     const characters = await StateService.listAllCharacters(req.namespaceId);
@@ -51,6 +53,11 @@ export const createCharacterRouter = () => {
       return;
     }
     const { sessionId, characterData } = body;
+    const sessionNamespace = StateService.getSessionNamespaceId(sessionId);
+    if (!sessionNamespace || sessionNamespace !== req.namespaceId) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
     const session = await StateService.getSession(sessionId);
     if (!session) {
       res.status(404).json({ error: 'Session not found' });
@@ -93,6 +100,11 @@ export const createCharacterRouter = () => {
     }
     const { sessionId, characterData } = body;
     const charId = req.params.charId;
+    const sessionNamespace = StateService.getSessionNamespaceId(sessionId);
+    if (!sessionNamespace || sessionNamespace !== req.namespaceId) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
     const session = await StateService.getSession(sessionId);
     if (!session) {
       res.status(404).json({ error: 'Session not found' });
@@ -152,11 +164,7 @@ export const createCharacterRouter = () => {
 
   router.delete('/session/:sessionId/character/:charId', asyncHandler(async (req, res) => {
     const { sessionId, charId } = req.params;
-    const session = await StateService.getSession(sessionId as string);
-    if (!session) {
-      res.status(404).json({ error: 'Session not found' });
-      return;
-    }
+    const session = req.session!;
 
     StateService.deleteCharacter(charId as string);
     broadcastUpdate(sessionId as string, 'party_update', { session });
