@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAudioSettings } from '../audio/useAudioSettings';
-import { saveFirstRunPreferences } from '../firstRun/firstRunPreferences';
+import { loadFirstRunPreferences, saveFirstRunPreferences } from '../firstRun/firstRunPreferences';
 import { useCapabilities } from '../hooks/useCapabilities';
 import { apiFetch, imgSrc } from '../lib/api';
 import { getSpeechRecognitionCtor } from '../stt/browserSpeechRecognitionService';
@@ -79,9 +79,23 @@ const ToggleRow = ({
 
 export const FirstRunWizard = ({ onComplete, onSkip, onStartGetMeRollin }: FirstRunWizardProps) => {
   const { capabilities } = useCapabilities();
-  const audio = useAudioSettings();
-  const tts = useTtsSettings();
-  const stt = useSttSettings();
+  const {
+    settings: audioSettings,
+    setEnabled: setAudioSettingEnabled,
+    setMusicEnabled: setAudioSettingMusicEnabled,
+    setSfxEnabled: setAudioSettingSfxEnabled,
+    setSillyMode: setAudioSettingSillyMode,
+  } = useAudioSettings();
+  const {
+    settings: ttsSettings,
+    setEnabled: setTtsSettingEnabled,
+    setAutoSpeakNarration: setTtsSettingAutoSpeakNarration,
+    setProvider: setTtsSettingProvider,
+  } = useTtsSettings();
+  const {
+    settings: sttSettings,
+    setEnabled: setSttSettingEnabled,
+  } = useSttSettings();
   const browserTtsSupported = browserTtsService.isSupported();
   const speechInputSupported = getSpeechRecognitionCtor() !== null;
   const ttsAvailable = capabilities.hasTts || browserTtsSupported;
@@ -91,16 +105,76 @@ export const FirstRunWizard = ({ onComplete, onSkip, onStartGetMeRollin }: First
   const [error, setError] = useState<string | null>(null);
   const [assetSrc, setAssetSrc] = useState(imgSrc('/images/first_run_wizard.png'));
   const [imagesEnabled, setImagesEnabled] = useState(true);
-  const [narrationEnabled, setNarrationEnabled] = useState(false);
-  const [autoSpeakNarration, setAutoSpeakNarration] = useState(false);
-  const [audioEnabled, setAudioEnabled] = useState(audio.settings.enabled);
-  const [musicEnabled, setMusicEnabled] = useState(audio.settings.musicEnabled);
-  const [sfxEnabled, setSfxEnabled] = useState(audio.settings.sfxEnabled);
-  const [sillyMode, setSillyMode] = useState(audio.settings.sillyMode);
-  const [voiceActionsEnabled, setVoiceActionsEnabled] = useState(stt.settings.enabled);
-  const [preferredGameMode, setPreferredGameMode] = useState<GameMode>('balanced');
+  const [narrationEnabled, setNarrationEnabled] = useState(ttsSettings.enabled);
+  const [autoSpeakNarration, setAutoSpeakNarration] = useState(ttsSettings.autoSpeakNarration);
+  const [audioEnabled, setAudioEnabled] = useState(audioSettings.enabled);
+  const [musicEnabled, setMusicEnabled] = useState(audioSettings.musicEnabled);
+  const [sfxEnabled, setSfxEnabled] = useState(audioSettings.sfxEnabled);
+  const [sillyMode, setSillyMode] = useState(audioSettings.sillyMode);
+  const [voiceActionsEnabled, setVoiceActionsEnabled] = useState(sttSettings.enabled);
+  const [preferredGameMode, setPreferredGameMode] = useState<GameMode>(() => loadFirstRunPreferences().preferredGameMode);
 
   const preferredTtsProvider = capabilities.hasTts ? 'openai' : 'browser';
+
+  const persistImagesEnabled = useCallback((value: boolean) => {
+    setImagesEnabled(value);
+    setError(null);
+    apiFetch('/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imagesEnabled: value }),
+    }).then(res => {
+      if (!res.ok) {
+        throw new Error('Failed to save image setting');
+      }
+    }).catch(() => {
+      setError('Could not save setup choices. Try again in a moment.');
+    });
+  }, []);
+
+  const persistNarrationEnabled = useCallback((value: boolean) => {
+    setNarrationEnabled(value);
+    setTtsSettingProvider(preferredTtsProvider);
+    setTtsSettingEnabled(ttsAvailable && value);
+    setTtsSettingAutoSpeakNarration(ttsAvailable && value && autoSpeakNarration);
+  }, [autoSpeakNarration, preferredTtsProvider, setTtsSettingAutoSpeakNarration, setTtsSettingEnabled, setTtsSettingProvider, ttsAvailable]);
+
+  const persistAutoSpeakNarration = useCallback((value: boolean) => {
+    setAutoSpeakNarration(value);
+    setTtsSettingProvider(preferredTtsProvider);
+    setTtsSettingEnabled(ttsAvailable && narrationEnabled);
+    setTtsSettingAutoSpeakNarration(ttsAvailable && narrationEnabled && value);
+  }, [narrationEnabled, preferredTtsProvider, setTtsSettingAutoSpeakNarration, setTtsSettingEnabled, setTtsSettingProvider, ttsAvailable]);
+
+  const persistAudioEnabled = useCallback((value: boolean) => {
+    setAudioEnabled(value);
+    setAudioSettingEnabled(value);
+  }, [setAudioSettingEnabled]);
+
+  const persistMusicEnabled = useCallback((value: boolean) => {
+    setMusicEnabled(value);
+    setAudioSettingMusicEnabled(value);
+  }, [setAudioSettingMusicEnabled]);
+
+  const persistSfxEnabled = useCallback((value: boolean) => {
+    setSfxEnabled(value);
+    setAudioSettingSfxEnabled(value);
+  }, [setAudioSettingSfxEnabled]);
+
+  const persistSillyMode = useCallback((value: boolean) => {
+    setSillyMode(value);
+    setAudioSettingSillyMode(value);
+  }, [setAudioSettingSillyMode]);
+
+  const persistVoiceActionsEnabled = useCallback((value: boolean) => {
+    setVoiceActionsEnabled(value);
+    setSttSettingEnabled(value);
+  }, [setSttSettingEnabled]);
+
+  const persistPreferredGameMode = useCallback((value: GameMode) => {
+    setPreferredGameMode(value);
+    saveFirstRunPreferences({ preferredGameMode: value });
+  }, []);
 
   useEffect(() => {
     apiFetch('/settings')
@@ -116,8 +190,12 @@ export const FirstRunWizard = ({ onComplete, onSkip, onStartGetMeRollin }: First
   useEffect(() => {
     if (capabilities.hasTts && isMobileBrowser()) {
       setNarrationEnabled(true);
+      setAutoSpeakNarration(true);
+      setTtsSettingProvider('openai');
+      setTtsSettingEnabled(true);
+      setTtsSettingAutoSpeakNarration(true);
     }
-  }, [capabilities.hasTts]);
+  }, [capabilities.hasTts, setTtsSettingAutoSpeakNarration, setTtsSettingEnabled, setTtsSettingProvider]);
 
   const steps = useMemo(() => {
     const base = ['Look', 'Voice', 'Pace', 'Sound'];
@@ -137,15 +215,15 @@ export const FirstRunWizard = ({ onComplete, onSkip, onStartGetMeRollin }: First
         throw new Error('Failed to save settings');
       }
 
-      tts.setProvider(preferredTtsProvider);
-      tts.setEnabled(ttsAvailable && narrationEnabled);
-      tts.setAutoSpeakNarration(ttsAvailable && narrationEnabled && autoSpeakNarration);
-      audio.setEnabled(audioEnabled);
-      audio.setMusicEnabled(musicEnabled);
-      audio.setSfxEnabled(sfxEnabled);
-      audio.setSillyMode(sillyMode);
+      setTtsSettingProvider(preferredTtsProvider);
+      setTtsSettingEnabled(ttsAvailable && narrationEnabled);
+      setTtsSettingAutoSpeakNarration(ttsAvailable && narrationEnabled && autoSpeakNarration);
+      setAudioSettingEnabled(audioEnabled);
+      setAudioSettingMusicEnabled(musicEnabled);
+      setAudioSettingSfxEnabled(sfxEnabled);
+      setAudioSettingSillyMode(sillyMode);
       if (speechInputSupported) {
-        stt.setEnabled(voiceActionsEnabled);
+        setSttSettingEnabled(voiceActionsEnabled);
       }
       saveFirstRunPreferences({ preferredGameMode });
       onComplete();
@@ -163,6 +241,10 @@ export const FirstRunWizard = ({ onComplete, onSkip, onStartGetMeRollin }: First
       return;
     }
     setStep(s => s + 1);
+  };
+
+  const completeToHome = () => {
+    void finish();
   };
 
   return (
@@ -212,13 +294,13 @@ export const FirstRunWizard = ({ onComplete, onSkip, onStartGetMeRollin }: First
                     active={imagesEnabled}
                     title="Images On"
                     description="Scene art and hero portraits for new realms."
-                    onClick={() => setImagesEnabled(true)}
+                    onClick={() => persistImagesEnabled(true)}
                   />
                   <StepButton
                     active={!imagesEnabled}
                     title="Saving Mode"
                     description="Faster turns and fewer generated images."
-                    onClick={() => setImagesEnabled(false)}
+                    onClick={() => persistImagesEnabled(false)}
                   />
                 </div>
               </div>
@@ -236,13 +318,13 @@ export const FirstRunWizard = ({ onComplete, onSkip, onStartGetMeRollin }: First
                         active={narrationEnabled}
                         title={capabilities.hasTts ? 'AI Narrator' : 'Browser Voice'}
                         description={capabilities.hasTts ? 'Use the OpenAI narrator for spoken story moments.' : 'Use this device voice for spoken story moments.'}
-                        onClick={() => setNarrationEnabled(true)}
+                        onClick={() => persistNarrationEnabled(true)}
                       />
                       <StepButton
                         active={!narrationEnabled}
                         title="Quiet Reading"
                         description="Keep narration text on screen without voice."
-                        onClick={() => setNarrationEnabled(false)}
+                        onClick={() => persistNarrationEnabled(false)}
                       />
                     </div>
                     {narrationEnabled && (
@@ -250,7 +332,7 @@ export const FirstRunWizard = ({ onComplete, onSkip, onStartGetMeRollin }: First
                         checked={autoSpeakNarration}
                         label="Read new turns automatically"
                         description="The replay button still works when this is off."
-                        onChange={setAutoSpeakNarration}
+                        onChange={persistAutoSpeakNarration}
                       />
                     )}
                   </>
@@ -268,7 +350,7 @@ export const FirstRunWizard = ({ onComplete, onSkip, onStartGetMeRollin }: First
                       active={preferredGameMode === option.id}
                       title={option.label}
                       description={option.description}
-                      onClick={() => setPreferredGameMode(option.id)}
+                      onClick={() => persistPreferredGameMode(option.id)}
                     />
                   ))}
                 </div>
@@ -278,10 +360,10 @@ export const FirstRunWizard = ({ onComplete, onSkip, onStartGetMeRollin }: First
             {step === 3 && (
               <div className="space-y-3">
                 <h2 className="text-2xl font-black uppercase italic tracking-tighter text-white">Table sound</h2>
-                <ToggleRow checked={audioEnabled} label="Audio" description="Master switch for music, effects, and narration." onChange={setAudioEnabled} />
-                <ToggleRow checked={musicEnabled} label="Music" description="Ambient tracks during adventures." onChange={setMusicEnabled} />
-                <ToggleRow checked={sfxEnabled} label="Sound effects" description="Dice and action sounds." onChange={setSfxEnabled} />
-                <ToggleRow checked={sillyMode} label="Silly mode" description="Swap in silly effects sometimes." onChange={setSillyMode} />
+                <ToggleRow checked={audioEnabled} label="Audio" description="Master switch for music, effects, and narration." onChange={persistAudioEnabled} />
+                <ToggleRow checked={musicEnabled} label="Music" description="Ambient tracks during adventures." onChange={persistMusicEnabled} />
+                <ToggleRow checked={sfxEnabled} label="Sound effects" description="Dice and action sounds." onChange={persistSfxEnabled} />
+                <ToggleRow checked={sillyMode} label="Silly mode" description="Swap in silly effects sometimes." onChange={persistSillyMode} />
               </div>
             )}
 
@@ -293,13 +375,13 @@ export const FirstRunWizard = ({ onComplete, onSkip, onStartGetMeRollin }: First
                     active={voiceActionsEnabled}
                     title="Mic Button On"
                     description="Speak actions into the action dock."
-                    onClick={() => setVoiceActionsEnabled(true)}
+                    onClick={() => persistVoiceActionsEnabled(true)}
                   />
                   <StepButton
                     active={!voiceActionsEnabled}
                     title="Typing Only"
                     description="Use buttons and text input for actions."
-                    onClick={() => setVoiceActionsEnabled(false)}
+                    onClick={() => persistVoiceActionsEnabled(false)}
                   />
                 </div>
               </div>
@@ -351,16 +433,16 @@ export const FirstRunWizard = ({ onComplete, onSkip, onStartGetMeRollin }: First
                 disabled={saving}
                 className="min-h-12 rounded-2xl border-2 border-violet-700 bg-violet-900 px-5 py-3 text-sm font-black uppercase italic tracking-widest text-violet-100 transition-colors hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Get Me Rollin'
+                Onboarding
               </button>
             )}
             <button
               type="button"
-              onClick={next}
+              onClick={step === steps.length - 1 ? completeToHome : next}
               disabled={saving}
               className="min-h-12 flex-1 rounded-2xl bg-amber-600 px-5 py-3 text-sm font-black uppercase italic tracking-widest text-white shadow-[0_5px_0_rgb(146,64,14)] transition-colors hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {saving ? 'Saving...' : step === steps.length - 1 ? 'Save Setup' : 'Next'}
+              {saving ? 'Saving...' : step === steps.length - 1 ? "Let's Roll" : 'Next'}
             </button>
           </div>
         </div>

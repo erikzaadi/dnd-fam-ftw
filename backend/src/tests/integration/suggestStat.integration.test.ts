@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { previewFreeAction, suggestStatForSessionAction } from '../../services/statSuggestionService.js';
+import { StateService } from '../../services/stateService.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
 
 const { mockCreateCompletion } = vi.hoisted(() => ({
@@ -120,5 +121,32 @@ describe('suggest-stat integration', () => {
       narration: 'Pip raises a bright shield.',
     });
     expect(mockCreateCompletion).toHaveBeenCalledTimes(1);
+  });
+
+  it('includes story summary and recent narration in free-text previews', async () => {
+    await insertSessionState(makeTestSession({
+      id: 'preview-action-context-session',
+      storySummary: 'The party promised Mira they would recover the moon key.',
+    }));
+    await StateService.addTurnResult('preview-action-context-session', {
+      narration: 'Pip found silver claw marks beside the locked pantry door.',
+      choices: [],
+      imagePrompt: null,
+      imageSuggested: false,
+    }, null);
+    mockCreateCompletion.mockResolvedValueOnce({
+      choices: [{ message: { content: '{"stat":"mischief","narration":"Pip studies the claw marks."}' } }],
+    });
+
+    await previewFreeAction('preview-action-context-session', {
+      action: 'Check whether the claw marks fit the key',
+      characterClass: 'Rogue',
+      characterQuirk: 'Always hungry',
+    });
+
+    const prompt = mockCreateCompletion.mock.calls[0][0].messages[0].content;
+    expect(prompt).toContain('The party promised Mira they would recover the moon key.');
+    expect(prompt).toContain('Current turn narration:');
+    expect(prompt).toContain('Pip found silver claw marks beside the locked pantry door.');
   });
 });

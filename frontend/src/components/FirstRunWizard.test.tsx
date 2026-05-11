@@ -89,7 +89,7 @@ describe('FirstRunWizard', () => {
     fireEvent.click(screen.getByText('Silly mode'));
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     expect(screen.getByText(/change voices, audio, images/i)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Save Setup' }));
+    fireEvent.click(screen.getByRole('button', { name: "Let's Roll" }));
 
     await waitFor(() => expect(onComplete).toHaveBeenCalled());
 
@@ -104,7 +104,30 @@ describe('FirstRunWizard', () => {
     expect(JSON.parse(localStorage.getItem('dnd-first-run-preferences') ?? '{}')).toEqual({ preferredGameMode: 'zug-ma-geddon' });
   });
 
-  it('can save and hand off to Get Me Rollin', async () => {
+  it('persists choices as soon as they are selected', async () => {
+    render(<FirstRunWizard onComplete={() => {}} onSkip={() => {}} />);
+
+    fireEvent.click(screen.getByText('Saving Mode'));
+    await waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/settings', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ imagesEnabled: false }),
+    })));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByText('AI Narrator'));
+    expect(mocks.tts.setProvider).toHaveBeenCalledWith('openai');
+    expect(mocks.tts.setEnabled).toHaveBeenCalledWith(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByText('Fast'));
+    expect(JSON.parse(localStorage.getItem('dnd-first-run-preferences') ?? '{}')).toEqual({ preferredGameMode: 'fast' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByText('Silly mode'));
+    expect(mocks.audio.setSillyMode).toHaveBeenCalledWith(true);
+  });
+
+  it('can save and hand off to onboarding', async () => {
     const onComplete = vi.fn();
     const onStartGetMeRollin = vi.fn();
     render(<FirstRunWizard onComplete={onComplete} onSkip={() => {}} onStartGetMeRollin={onStartGetMeRollin} />);
@@ -113,7 +136,7 @@ describe('FirstRunWizard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    fireEvent.click(screen.getByRole('button', { name: "Get Me Rollin'" }));
+    fireEvent.click(screen.getByRole('button', { name: 'Onboarding' }));
 
     await waitFor(() => expect(onComplete).toHaveBeenCalled());
     expect(onStartGetMeRollin).toHaveBeenCalled();

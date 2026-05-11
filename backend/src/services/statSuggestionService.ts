@@ -7,6 +7,29 @@ export const STAT_FALLBACK = { might: 2, magic: 2, mischief: 3 };
 export type SuggestedStat = 'might' | 'magic' | 'mischief';
 export type SessionActionStatSuggestion = FreeActionBonusPreview & { stat: SuggestedStat };
 
+async function buildFreeActionStoryContext(sessionId: string): Promise<string> {
+  const [session, history] = await Promise.all([
+    StateService.getSession(sessionId),
+    StateService.getTurnHistory(sessionId),
+  ]);
+  if (!session) {
+    return '';
+  }
+
+  const currentNarration = history[history.length - 1]?.narration ?? session.recentHistory.at(-1);
+  const previousNarrations = history
+    .slice(-5, -1)
+    .map((turn, index) => `${index + 1}. ${turn.narration}`)
+    .join('\n');
+  const storySummary = session.storySummary?.trim();
+
+  return [
+    storySummary ? `Story summary:\n${storySummary}` : '',
+    previousNarrations ? `Previous turn narrations:\n${previousNarrations}` : '',
+    currentNarration ? `Current turn narration:\n${currentNarration}` : '',
+  ].filter(Boolean).join('\n\n');
+}
+
 export async function previewFreeAction(
   sessionId: string,
   input: { action: string; characterClass?: string; characterQuirk?: string },
@@ -20,6 +43,7 @@ export async function previewFreeAction(
   const bonusPreview = character
     ? toFreeActionBonusPreview(inferFreeActionBonuses(action, character, session))
     : {};
+  const storyContext = await buildFreeActionStoryContext(sessionId);
 
   const { client, model } = createChatClient();
   try {
@@ -28,6 +52,7 @@ export async function previewFreeAction(
       messages: [{
         role: 'user',
         content: `A fantasy RPG character${characterClass ? ` (${characterClass})` : ''}${characterQuirk ? `, quirk: ${characterQuirk}` : ''} wants to: "${action}".
+${storyContext ? `\nUse this story context so the preview fits the current scene without spoiling the result:\n${storyContext}\n` : ''}
 
 Reply with ONLY valid JSON (no markdown):
 {
@@ -67,6 +92,7 @@ export async function suggestStatForSessionAction(
   const bonusPreview = character
     ? toFreeActionBonusPreview(inferFreeActionBonuses(action, character, session))
     : {};
+  const storyContext = await buildFreeActionStoryContext(sessionId);
 
   const { client, model } = createChatClient();
   try {
@@ -74,7 +100,7 @@ export async function suggestStatForSessionAction(
       model,
       messages: [{
         role: 'user',
-        content: `A fantasy RPG character${characterClass ? ` (${characterClass})` : ''}${characterQuirk ? `, quirk: ${characterQuirk}` : ''} wants to: "${action}". Which single stat fits best: might (physical strength, combat, force), magic (spells, arcane, healing, divine), or mischief (stealth, trickery, charm, persuasion, deception)? Reply with ONLY one word: might, magic, or mischief.`
+        content: `A fantasy RPG character${characterClass ? ` (${characterClass})` : ''}${characterQuirk ? `, quirk: ${characterQuirk}` : ''} wants to: "${action}".${storyContext ? `\n\nCurrent story context:\n${storyContext}` : ''}\n\nWhich single stat fits best in this scene: might (physical strength, combat, force), magic (spells, arcane, healing, divine), or mischief (stealth, trickery, charm, persuasion, deception)? Reply with ONLY one word: might, magic, or mischief.`
       }],
       max_tokens: 10,
     }, { signal: AbortSignal.timeout(8_000) });

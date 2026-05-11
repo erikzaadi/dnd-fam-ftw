@@ -142,13 +142,13 @@ const MovieView = ({ history, party, previewImageUrl, onEnter, hasTts }: { histo
   const defaultImageUrl = previewImageUrl ?? imgSrc('/images/default_scene.png');
 
   return (
-    <div className="flex-1 flex min-h-0 w-full animate-in fade-in duration-500 relative z-[10]">
+    <div className="flex-1 flex flex-col md:flex-row min-h-0 w-full animate-in fade-in duration-500 relative z-[10]">
       {fullscreenUrl && <FullscreenImage url={fullscreenUrl} onClose={() => setFullscreenUrl(null)} />}
 
       {/* Left: full-bleed cinematic scene */}
       <div
         key={idx}
-        className="relative flex-1 min-w-0 animate-in fade-in zoom-in-95 duration-700 overflow-hidden cursor-zoom-in"
+        className="relative flex-1 min-h-[38dvh] md:min-h-0 min-w-0 animate-in fade-in zoom-in-95 duration-700 overflow-hidden cursor-zoom-in"
         onClick={() => {
           setFullscreenUrl(imageUrl ?? defaultImageUrl); setPlaying(false);
         }}
@@ -157,7 +157,7 @@ const MovieView = ({ history, party, previewImageUrl, onEnter, hasTts }: { histo
 
         {/* Narration card - centered vertically */}
         <div
-          className="absolute inset-0 flex items-center justify-center p-6 z-10"
+          className="absolute inset-0 hidden md:flex items-center justify-center p-6 z-10"
           onClick={e => e.stopPropagation()}
         >
           <div
@@ -192,12 +192,21 @@ const MovieView = ({ history, party, previewImageUrl, onEnter, hasTts }: { histo
         </div>
       </div>
 
-      {/* Right: wider info panel with character + roll + action + nav controls */}
+      {/* Details panel: narration is shown here on mobile so it has readable, scrollable space. */}
       <div
         key={`info-${idx}`}
-        className="w-[28rem] xl:w-[32rem] flex-shrink-0 flex flex-col gap-3 p-5 bg-slate-950/80 border-l border-slate-800 overflow-y-auto animate-in fade-in slide-in-from-right-4 duration-500"
+        className="w-full md:w-[28rem] xl:w-[32rem] md:flex-shrink-0 flex flex-col gap-3 p-4 md:p-5 bg-slate-950/90 md:bg-slate-950/80 border-t md:border-t-0 md:border-l border-slate-800 overflow-y-auto max-h-[52dvh] md:max-h-none animate-in fade-in md:slide-in-from-right-4 duration-500"
         onClick={e => e.stopPropagation()}
       >
+        <div className="md:hidden rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+          <p className="font-narrative text-slate-100 italic leading-relaxed text-lg">
+            {turn.narration}
+          </p>
+          <div className="mt-3">
+            <NarrationTtsButton text={turn.narration} ttsSettings={ttsSettings} hasTts={hasTts} turnId={turn.id} />
+          </div>
+        </div>
+
         {/* Actor */}
         {actor && (
           <div className="flex items-center gap-3 p-4 bg-slate-900/60 rounded-2xl border border-slate-800">
