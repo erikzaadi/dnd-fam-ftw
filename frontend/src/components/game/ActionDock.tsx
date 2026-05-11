@@ -345,22 +345,25 @@ export const ActionDock = ({
                   {(['might', 'magic', 'mischief'] as const).map(stat => {
                     const base = activeCharacter.stats[stat];
                     const bonusItems = activeCharacter.inventory.filter(item => (item.statBonuses?.[stat] ?? 0) > 0);
-                    const bonus = bonusItems.reduce((s, item) => s + (item.statBonuses![stat]!), 0);
-                    const total = base + bonus;
-                    const hasBonus = bonus > 0;
+                    const effectBuffs = (activeCharacter.buffs ?? []).filter(buff => (buff.statBonuses?.[stat] ?? 0) !== 0);
+                    const itemBonus = bonusItems.reduce((s, item) => s + (item.statBonuses![stat]!), 0);
+                    const effectModifier = Math.min(3, Math.max(-3, effectBuffs.reduce((s, buff) => s + (buff.statBonuses![stat]!), 0)));
+                    const modifier = itemBonus + effectModifier;
+                    const total = base + modifier;
+                    const hasModifier = modifier !== 0;
                     const isOpen = expandedStat === stat;
 
                     const inner = (
                       <>
                         <StatImg stat={stat} size="5" tooltip className="rounded" />
-                        <span className={`text-sm font-black tabular-nums ${hasBonus ? 'text-amber-400' : STAT_TEXT_COLORS[stat]}`}>{total}</span>
-                        {hasBonus && (
-                          <span className={`text-[11px] text-amber-500/70 leading-none transition-transform duration-150 inline-block ${isOpen ? 'rotate-180' : ''}`}>▾</span>
+                        <span className={`text-sm font-black tabular-nums ${hasModifier ? (modifier > 0 ? 'text-amber-400' : 'text-rose-300') : STAT_TEXT_COLORS[stat]}`}>{total}</span>
+                        {hasModifier && (
+                          <span className={`text-[11px] leading-none transition-transform duration-150 inline-block ${modifier > 0 ? 'text-amber-500/70' : 'text-rose-300/80'} ${isOpen ? 'rotate-180' : ''}`}>▾</span>
                         )}
                       </>
                     );
 
-                    if (!hasBonus) {
+                    if (!hasModifier) {
                       return <div key={stat} className="flex items-center gap-1">{inner}</div>;
                     }
 
@@ -394,12 +397,16 @@ export const ActionDock = ({
                 {expandedStat && (() => {
                   const key = expandedStat as 'might' | 'magic' | 'mischief';
                   const bonusItems = activeCharacter.inventory.filter(item => (item.statBonuses?.[key] ?? 0) > 0);
+                  const effectBuffs = (activeCharacter.buffs ?? []).filter(buff => (buff.statBonuses?.[key] ?? 0) !== 0);
                   const base = activeCharacter.stats[key];
-                  return bonusItems.length > 0 ? (
+                  return bonusItems.length > 0 || effectBuffs.length > 0 ? (
                     <div className="flex flex-col gap-0.5 px-1 py-1.5 rounded-lg bg-slate-700/30 text-xs border border-slate-700/50">
                       <div className="text-slate-400">{base} base</div>
                       {bonusItems.map(item => (
                         <div key={item.id} className="text-amber-400">+{item.statBonuses![key]} {item.name}</div>
+                      ))}
+                      {effectBuffs.map(buff => (
+                        <div key={buff.id} className={buff.kind === 'curse' ? 'text-rose-300' : 'text-emerald-300'}>{buff.statBonuses![key]! > 0 ? '+' : ''}{buff.statBonuses![key]} {buff.name}</div>
                       ))}
                     </div>
                   ) : null;

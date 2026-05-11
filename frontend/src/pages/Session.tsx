@@ -63,7 +63,7 @@ export const SessionPage = () => {
   const [confirmDialog, setConfirmDialog] = useState<{message: string; confirmLabel?: string; onConfirm: () => void} | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
-  const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; helperBonus?: number; helperCharacterName?: string; choiceItemBonus?: number; choiceItemName?: string; choiceItemOwnerName?: string; characterBonus?: number; characterBonusLabel?: string; impact?: 'normal' | 'strong' | 'extreme'; isCritical?: boolean; difficultyTarget?: number; rollNarration?: string; hpChanges?: HpChange[]; inventoryChanges?: InventoryChange[] } | null>(null);
+  const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; helperBonus?: number; helperCharacterName?: string; choiceItemBonus?: number; choiceItemName?: string; choiceItemOwnerName?: string; characterBonus?: number; characterBonusLabel?: string; buffBonus?: number; buffBonusLabel?: string; impact?: 'normal' | 'strong' | 'extreme'; isCritical?: boolean; difficultyTarget?: number; rollNarration?: string; hpChanges?: HpChange[]; inventoryChanges?: InventoryChange[] } | null>(null);
   const [dieExiting, setDieExiting] = useState(false);
   const [interventionBanner, setInterventionBanner] = useState<string | null>(null);
   const [sanctuaryBanner, setSanctuaryBanner] = useState<string | null>(null);
@@ -281,6 +281,8 @@ export const SessionPage = () => {
           choiceItemOwnerName: roll.choiceItemOwnerName,
           characterBonus: roll.characterBonus,
           characterBonusLabel: roll.characterBonusLabel,
+          buffBonus: roll.buffBonus,
+          buffBonusLabel: roll.buffBonusLabel,
           impact: roll.impact,
           isCritical: roll.isCritical,
           difficultyTarget: roll.difficultyTarget,
@@ -761,6 +763,8 @@ export const SessionPage = () => {
               choiceItemName={lastRoll.choiceItemName}
               characterBonus={lastRoll.characterBonus}
               characterBonusLabel={lastRoll.characterBonusLabel}
+              buffBonus={lastRoll.buffBonus}
+              buffBonusLabel={lastRoll.buffBonusLabel}
               stat={lastRoll.stat}
               success={lastRoll.success}
               difficultyTarget={lastRoll.difficultyTarget}

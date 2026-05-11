@@ -68,7 +68,7 @@ export const HowToPlay = () => {
               <Row label={<span className="flex items-center gap-2"><StatImg stat="might" size="10" rounded /> Might</span>} value="Hit things, break things, be a wrecking ball" />
               <Row label={<span className="flex items-center gap-2"><StatImg stat="magic" size="10" rounded /> Magic</span>} value="Spells, arcane effects, summoning problems" />
               <Row label={<span className="flex items-center gap-2"><StatImg stat="mischief" size="10" rounded /> Mischief</span>} value="Sneak, lie, steal, convince the dragon you're the tax collector" />
-              <p className="text-slate-500 text-base mt-3">Items in your inventory can grant passive bonuses to any stat. No equipping needed.</p>
+              <p className="text-slate-500 text-base mt-3">Items in your inventory can grant passive bonuses to any stat. No equipping needed. Short-lived hero effects can briefly boost or penalize a stat.</p>
             </Section>
 
             <Section title="Damage & HP">
@@ -92,6 +92,15 @@ export const HowToPlay = () => {
               </p>
               <p className="text-slate-500 text-base mt-3">
                 Failed healing or support actions should not hurt the healer just because the roll missed. If the story says someone recovers, their HP should change too.
+              </p>
+            </Section>
+
+            <Section title="Temporary Effects">
+              <p className="text-slate-300 text-lg leading-relaxed">
+                Support actions can briefly empower a teammate with courage, haste, shield magic, luck, or a blessing. NPCs and enemies can also curse, rattle, slow, or jinx a hero with small temporary penalties.
+              </p>
+              <p className="text-slate-500 text-base mt-3">
+                Effects belong to the hero, fade after a few turns or uses, and clear when that hero is downed. Bless Finn directly for a temporary effect; bless Finn's dagger to change the item.
               </p>
             </Section>
 

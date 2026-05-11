@@ -59,6 +59,8 @@ const makeTurnResult = (overrides: Partial<TurnResult> = {}): TurnResult => ({
   imageSuggested: false,
   suggestedHeal: null,
   suggestedRevive: null,
+  suggestedBuffAdd: null,
+  suggestedBuffRemove: null,
   ...overrides,
 });
 

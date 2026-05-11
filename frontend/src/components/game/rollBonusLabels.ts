@@ -24,3 +24,6 @@ export const formatChoiceItemBonusLabel = (bonus: number, choiceItemName?: strin
 
 export const formatCharacterBonusLabel = (bonus: number, characterBonusLabel?: string): string =>
   `${bonus} ${characterBonusLabel ?? 'edge'}`;
+
+export const formatBuffBonusLabel = (bonus: number, buffBonusLabel?: string): string =>
+  `${bonus > 0 ? bonus : `-${Math.abs(bonus)}`} ${buffBonusLabel ?? (bonus < 0 ? 'curse' : 'buff')}`;

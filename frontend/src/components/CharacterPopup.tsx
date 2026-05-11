@@ -19,6 +19,21 @@ const STAT_META = [
   { key: 'mischief' as const, label: 'Mischief', color: 'text-purple-400', bg: 'bg-purple-500', track: 'bg-purple-950' },
 ];
 
+const formatBuffSummary = (buff: NonNullable<Character['buffs']>[number]): string => {
+  const statBonus = (['might', 'magic', 'mischief'] as const)
+    .map(stat => ({ stat, value: buff.statBonuses?.[stat] ?? 0 }))
+    .find(({ value }) => value !== 0);
+  const bonusLabel = statBonus
+    ? ` ${statBonus.value > 0 ? '+' : ''}${statBonus.value} ${statBonus.stat[0].toUpperCase()}${statBonus.stat.slice(1)}`
+    : '';
+  const durationLabel = buff.remainingUses != null
+    ? ` · ${buff.remainingUses} use${buff.remainingUses === 1 ? '' : 's'}`
+    : buff.remainingTurns != null
+      ? ` · ${buff.remainingTurns} turn${buff.remainingTurns === 1 ? '' : 's'}`
+      : '';
+  return `${buff.name}${bonusLabel}${durationLabel}`;
+};
+
 export const CharacterPopup = ({ character, onClose, onAvatarClick }: CharacterPopupProps) => {
   const [expandedStat, setExpandedStat] = useState<'might' | 'magic' | 'mischief' | null>(null);
 
@@ -34,6 +49,7 @@ export const CharacterPopup = ({ character, onClose, onAvatarClick }: CharacterP
 
   const hpPct = Math.max(0, Math.min(100, (character.hp / character.max_hp) * 100));
   const { bar: hpColor } = getHpColors(character.hp, character.max_hp);
+  const buffs = character.buffs ?? [];
 
   return (
     <Modal className="animate-in fade-in duration-300">
@@ -67,48 +83,67 @@ export const CharacterPopup = ({ character, onClose, onAvatarClick }: CharacterP
           </div>
         </div>
 
+        {buffs.length > 0 && (
+          <div className="mb-6">
+            <h4 className="text-xs font-black uppercase tracking-widest text-slate-600 mb-3">Effects</h4>
+            <div className="flex flex-wrap gap-2">
+              {buffs.map(buff => (
+                <span key={buff.id} className={`px-2.5 py-1 rounded-full border text-[11px] font-black ${buff.kind === 'curse' ? 'bg-rose-950/60 border-rose-500/30 text-rose-200' : 'bg-emerald-950/60 border-emerald-500/30 text-emerald-200'}`}>
+                  {formatBuffSummary(buff)}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Stats */}
         <h4 className="text-xs font-black uppercase tracking-widest text-slate-600 mb-3">Stats</h4>
         <div className="grid grid-cols-3 gap-2 mb-6">
           {STAT_META.map(({ key, label, color, bg, track }) => {
             const base = character.stats[key];
             const bonusItems = character.inventory.filter(item => (item.statBonuses?.[key] ?? 0) > 0);
-            const bonus = bonusItems.reduce((s, item) => s + (item.statBonuses![key]!), 0);
-            const total = base + bonus;
-            const hasBonus = bonus > 0;
+            const effectBuffs = buffs.filter(buff => (buff.statBonuses?.[key] ?? 0) !== 0);
+            const itemBonus = bonusItems.reduce((s, item) => s + (item.statBonuses![key]!), 0);
+            const effectModifier = Math.min(3, Math.max(-3, effectBuffs.reduce((s, buff) => s + (buff.statBonuses![key]!), 0)));
+            const modifier = itemBonus + effectModifier;
+            const total = base + modifier;
+            const hasModifier = modifier !== 0;
             const isOpen = expandedStat === key;
-            const barPct = Math.min(100, (total / 10) * 100);
+            const barPct = Math.max(0, Math.min(100, (total / 10) * 100));
             return (
               <div key={key} className={`p-3 rounded-2xl ${track}/40 border border-slate-800`}>
                 <button
                   type="button"
-                  disabled={!hasBonus}
+                  disabled={!hasModifier}
                   onClick={() => setExpandedStat(stat => stat === key ? null : key)}
-                  className={`w-full text-left ${hasBonus ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-300 rounded' : 'cursor-default'}`}
-                  aria-expanded={hasBonus ? isOpen : undefined}
+                  className={`w-full text-left ${hasModifier ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-300 rounded' : 'cursor-default'}`}
+                  aria-expanded={hasModifier ? isOpen : undefined}
                 >
                   <div className="flex items-center gap-1 mb-1">
                     <StatImg stat={key} size="8" />
                     <span className={`text-[10px] font-black uppercase tracking-widest ${color}`}>{label}</span>
-                    {hasBonus && (
+                    {hasModifier && (
                       <span className={`ml-auto text-[10px] text-amber-500/70 leading-none transition-transform duration-150 inline-block ${isOpen ? 'rotate-180' : ''}`}>▾</span>
                     )}
                   </div>
                   <div className="flex items-baseline gap-1">
-                    <span className={`text-2xl font-black tabular-nums ${hasBonus ? 'text-amber-400' : STAT_TEXT_COLORS[key]}`}>{total}</span>
-                    {hasBonus && (
-                      <span className="text-xs font-black text-amber-500/70">+{bonus}</span>
+                    <span className={`text-2xl font-black tabular-nums ${hasModifier ? (modifier > 0 ? 'text-amber-400' : 'text-rose-300') : STAT_TEXT_COLORS[key]}`}>{total}</span>
+                    {hasModifier && (
+                      <span className={`text-xs font-black ${modifier > 0 ? 'text-amber-500/70' : 'text-rose-300/80'}`}>{modifier > 0 ? '+' : ''}{modifier}</span>
                     )}
                   </div>
                 </button>
                 <div className="h-1.5 rounded-full bg-slate-800 mt-2 overflow-hidden">
                   <div className={`h-full rounded-full ${bg}`} style={{ width: `${barPct}%` }} />
                 </div>
-                {hasBonus && isOpen && (
+                {hasModifier && isOpen && (
                   <div className="mt-2 flex flex-col gap-0.5 px-2 py-1.5 rounded-lg bg-slate-800/60 text-xs border border-slate-700/50">
                     <div className="text-slate-400">{base} base</div>
                     {bonusItems.map(item => (
                       <div key={item.id} className="text-amber-400">+{item.statBonuses![key]} {item.name}</div>
+                    ))}
+                    {effectBuffs.map(buff => (
+                      <div key={buff.id} className={buff.kind === 'curse' ? 'text-rose-300' : 'text-emerald-300'}>{buff.statBonuses![key]! > 0 ? '+' : ''}{buff.statBonuses![key]} {buff.name}</div>
                     ))}
                   </div>
                 )}

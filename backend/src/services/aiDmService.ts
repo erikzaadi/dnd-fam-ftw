@@ -17,8 +17,9 @@ export function toNarrationInput(input: AIInput): NarrationInput {
   const helperBonus = input.actionResult.helperBonus ?? 0;
   const choiceItemBonus = input.actionResult.choiceItemBonus ?? 0;
   const characterBonus = input.actionResult.characterBonus ?? 0;
+  const buffBonus = input.actionResult.buffBonus ?? 0;
   const total = typeof roll === 'number' && input.actionResult.statUsed !== 'none'
-    ? roll + statBonus + itemBonus + helperBonus + choiceItemBonus + characterBonus
+    ? roll + statBonus + itemBonus + helperBonus + choiceItemBonus + characterBonus + buffBonus
     : undefined;
   const margin = total !== undefined && input.actionResult.difficultyTarget !== undefined
     ? total - input.actionResult.difficultyTarget
@@ -41,6 +42,7 @@ export function toNarrationInput(input: AIInput): NarrationInput {
       quirk: c.quirk,
       ...(c.gender && { gender: c.gender }),
       ...(c.history && { history: c.history }),
+      ...(c.buffs && c.buffs.length > 0 && { buffs: c.buffs }),
     })),
     inventory: input.party.flatMap(c =>
       (c.inventory ?? []).map(item => ({
@@ -72,6 +74,8 @@ export function toNarrationInput(input: AIInput): NarrationInput {
       choiceItemOwnerName: input.actionResult.choiceItemOwnerName,
       characterBonus: input.actionResult.characterBonus,
       characterBonusLabel: input.actionResult.characterBonusLabel,
+      buffBonus: input.actionResult.buffBonus,
+      buffBonusLabel: input.actionResult.buffBonusLabel,
       total,
       margin,
       difficultyTarget: input.actionResult.difficultyTarget,
@@ -114,6 +118,8 @@ export class AiDmService {
         suggestedInventoryUpdate: output.suggestedInventoryUpdate ?? null,
         suggestedRevive: output.suggestedRevive ?? null,
         suggestedHeal: output.suggestedHeal ?? null,
+        suggestedBuffAdd: output.suggestedBuffAdd ?? null,
+        suggestedBuffRemove: output.suggestedBuffRemove ?? null,
         suggestedDamage: output.suggestedDamage ?? null,
         narrationRetried: output.narrationRetried ?? false,
         narrationFailed: output.narrationFailed ?? false,

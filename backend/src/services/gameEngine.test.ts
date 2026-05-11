@@ -193,6 +193,44 @@ describe('GameEngine.resolveAction - edge cases', () => {
     expect(result.actionResult.characterBonusLabel).toBe('social edge');
   });
 
+  it('buff bonus is applied to rolls and capped at three total', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const buffedChar = makeChar({
+      stats: { might: 1, magic: 1, mischief: 1 },
+      buffs: [
+        { id: 'bless', name: 'Blessed', description: 'Light guides the strike.', statBonuses: { might: 2 }, remainingTurns: 2 },
+        { id: 'courage', name: 'Courage', description: 'Fear falls away.', statBonuses: { might: 2 }, remainingTurns: 2 },
+      ],
+    });
+
+    const result = GameEngine.resolveAction(buffedChar, 'Strike with blessed courage', 'might', 'normal', 15);
+    vi.restoreAllMocks();
+
+    expect(result.actionResult.roll).toBe(11);
+    expect(result.actionResult.success).toBe(true);
+    expect(result.actionResult.buffBonus).toBe(3);
+    expect(result.actionResult.buffBonusLabel).toBe('buffs');
+  });
+
+  it('curse penalty is applied to rolls and capped at negative three total', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const cursedChar = makeChar({
+      stats: { might: 1, magic: 1, mischief: 1 },
+      buffs: [
+        { id: 'jinx', name: 'Jinxed', kind: 'curse', description: 'Bad luck clings.', statBonuses: { mischief: -2 }, remainingTurns: 2 },
+        { id: 'rattled', name: 'Rattled', kind: 'curse', description: 'Fear shakes focus.', statBonuses: { mischief: -2 }, remainingTurns: 2 },
+      ],
+    });
+
+    const result = GameEngine.resolveAction(cursedChar, 'Slip past the guard', 'mischief', 'normal', 10);
+    vi.restoreAllMocks();
+
+    expect(result.actionResult.roll).toBe(11);
+    expect(result.actionResult.success).toBe(false);
+    expect(result.actionResult.buffBonus).toBe(-3);
+    expect(result.actionResult.buffBonusLabel).toBe('curses');
+  });
+
   it('strong impact is set when the result beats the target by a lot', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
     const strongChar = makeChar({ stats: { might: 8, magic: 1, mischief: 1 } });
@@ -374,6 +412,164 @@ describe('GameEngine.applyItemUse - error paths', () => {
     const revived = newState.party.find(c => c.id === 'downed');
     expect(revived!.status).toBe('active');
     expect(revived!.hp).toBeGreaterThan(0);
+  });
+});
+
+describe('GameEngine short-lived buffs and curses', () => {
+  it('adds a clamped buff to the target character', () => {
+    const session = makeSession({
+      party: [makeChar({ id: 'caster', name: 'Mira' }), makeChar({ id: 'target', name: 'Brom' })],
+      activeCharacterId: 'caster',
+    });
+    const attempt = { actionAttempt: 'Bless Brom', actionResult: { success: true, roll: 16, statUsed: 'magic' as const } };
+
+    const result = GameEngine.updateState(session, attempt, {
+      suggestedBuffAdd: {
+        characterName: 'Brom',
+        name: 'Blessed',
+        description: 'A quick blessing steadies his hands.',
+        statBonuses: { might: 9 },
+        remainingTurns: 99,
+        sourceCharacterName: 'Mira',
+      },
+    });
+
+    const target = result.party.find(c => c.id === 'target')!;
+    expect(target.buffs).toHaveLength(1);
+    expect(target.buffs![0].id).toBeTruthy();
+    expect(target.buffs![0].statBonuses?.might).toBe(2);
+    expect(target.buffs![0].remainingTurns).toBe(3);
+  });
+
+  it('adds a clamped curse from an enemy source', () => {
+    const session = makeSession({
+      party: [makeChar({ id: 'target', name: 'Brom' })],
+      activeCharacterId: 'target',
+    });
+    const attempt = { actionAttempt: 'Face the bog witch', actionResult: { success: false, roll: 5, statUsed: 'magic' as const } };
+
+    const result = GameEngine.updateState(session, attempt, {
+      suggestedDamage: 0,
+      suggestedBuffAdd: {
+        characterName: 'Brom',
+        name: 'Jinxed',
+        kind: 'curse',
+        description: 'The bog witch hooks bad luck onto him.',
+        statBonuses: { mischief: -9 },
+        remainingUses: 1,
+        sourceCharacterName: 'Bog Witch',
+      },
+    });
+
+    expect(result.party[0].buffs).toHaveLength(1);
+    expect(result.party[0].buffs![0].kind).toBe('curse');
+    expect(result.party[0].buffs![0].statBonuses?.mischief).toBe(-2);
+    expect(result.party[0].buffs![0].sourceCharacterName).toBe('Bog Witch');
+  });
+
+  it('refreshes an existing buff with the same name instead of stacking it', () => {
+    const target = makeChar({
+      id: 'target',
+      name: 'Brom',
+      buffs: [{ id: 'existing', name: 'Blessed', description: 'Old light.', statBonuses: { might: 1 }, remainingTurns: 1 }],
+    });
+    const session = makeSession({
+      party: [makeChar({ id: 'caster', name: 'Mira' }), target],
+      activeCharacterId: 'caster',
+    });
+    const attempt = { actionAttempt: 'Refresh Brom blessing', actionResult: { success: true, roll: 16, statUsed: 'magic' as const } };
+
+    const result = GameEngine.updateState(session, attempt, {
+      suggestedBuffAdd: {
+        characterName: 'Brom',
+        name: 'Blessed',
+        description: 'New light.',
+        statBonuses: { might: 2 },
+        remainingTurns: 2,
+      },
+    });
+
+    const refreshed = result.party.find(c => c.id === 'target')!.buffs!;
+    expect(refreshed).toHaveLength(1);
+    expect(refreshed[0].id).toBe('existing');
+    expect(refreshed[0].description).toBe('New light.');
+    expect(refreshed[0].remainingTurns).toBe(2);
+  });
+
+  it('expires remainingUses after a buff helps a roll', () => {
+    const acting = makeChar({
+      id: 'hero-1',
+      buffs: [{ id: 'haste', name: 'Hasted', description: 'Fast feet.', statBonuses: { mischief: 1 }, remainingUses: 1 }],
+    });
+    const session = makeSession({ party: [acting], activeCharacterId: 'hero-1' });
+    const attempt = { actionAttempt: 'Dash through the trap', actionResult: { success: true, roll: 12, statUsed: 'mischief' as const, buffBonus: 1 } };
+
+    const result = GameEngine.updateState(session, attempt, {});
+
+    expect(result.party[0].buffs).toEqual([]);
+  });
+
+  it('expires remainingUses after a curse affects a roll', () => {
+    const acting = makeChar({
+      id: 'hero-1',
+      buffs: [{ id: 'jinx', name: 'Jinxed', kind: 'curse', description: 'Bad luck clings.', statBonuses: { mischief: -1 }, remainingUses: 1 }],
+    });
+    const session = makeSession({ party: [acting], activeCharacterId: 'hero-1' });
+    const attempt = { actionAttempt: 'Pick the lock', actionResult: { success: false, roll: 8, statUsed: 'mischief' as const, buffBonus: -1 } };
+
+    const result = GameEngine.updateState(session, attempt, {});
+
+    expect(result.party[0].buffs).toEqual([]);
+  });
+
+  it('expires remainingTurns after the buffed character acts', () => {
+    const acting = makeChar({
+      id: 'hero-1',
+      buffs: [{ id: 'shield', name: 'Shielded', description: 'A fading ward.', statBonuses: { might: 1 }, remainingTurns: 1 }],
+    });
+    const session = makeSession({ party: [acting], activeCharacterId: 'hero-1' });
+    const attempt = { actionAttempt: 'Hold the bridge', actionResult: { success: true, roll: 12, statUsed: 'might' as const } };
+
+    const result = GameEngine.updateState(session, attempt, {});
+
+    expect(result.party[0].buffs).toEqual([]);
+  });
+
+  it('clears buffs when a character is downed and does not restore them on revive', () => {
+    const target = makeChar({
+      id: 'hero-1',
+      hp: 1,
+      buffs: [{ id: 'shield', name: 'Shielded', description: 'A fading ward.', statBonuses: { might: 1 }, remainingTurns: 2 }],
+    });
+    const session = makeSession({ party: [target], activeCharacterId: 'hero-1' });
+    const failedAttempt = { actionAttempt: 'Block the ogre', actionResult: { success: false, roll: 2, statUsed: 'might' as const } };
+
+    const downed = GameEngine.updateState(session, failedAttempt, { suggestedDamage: 1 });
+    expect(downed.party[0].status).toBe('downed');
+    expect(downed.party[0].buffs).toEqual([]);
+
+    const revived = GameEngine.updateState(downed, { actionAttempt: 'Revive Barnaby', actionResult: { success: true, roll: 20, statUsed: 'magic' as const } }, {
+      suggestedRevive: { characterName: 'Barnaby', hp: 3 },
+    });
+    expect(revived.party[0].status).toBe('active');
+    expect(revived.party[0].buffs).toEqual([]);
+  });
+
+  it('discards invalid buff suggestions', () => {
+    const session = makeSession();
+    const attempt = { actionAttempt: 'Bless Nobody', actionResult: { success: true, roll: 16, statUsed: 'magic' as const } };
+
+    const result = GameEngine.updateState(session, attempt, {
+      suggestedBuffAdd: {
+        characterName: 'Nobody',
+        name: '',
+        description: '',
+        statBonuses: { magic: 10 },
+        remainingTurns: 99,
+      },
+    });
+
+    expect(result.party[0].buffs ?? []).toEqual([]);
   });
 });
 

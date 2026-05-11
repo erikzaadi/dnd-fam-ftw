@@ -119,6 +119,7 @@ export const sessionRepository = {
       status: string | null;
       history: string | null;
       gender: string | null;
+      buffs: string | null;
     }[];
     for (const char of characters) {
       const rawInv = db.prepare('SELECT * FROM inventory WHERE characterId = ?').all(char.id) as {
@@ -178,6 +179,7 @@ export const sessionRepository = {
         gender: c.gender || undefined,
         stats: (c as unknown as { stats: { might: number, magic: number, mischief: number } }).stats,
         inventory: (c as unknown as { inventory: InventoryItem[] }).inventory,
+        buffs: c.buffs ? JSON.parse(c.buffs) : [],
       })),
       activeCharacterId: row.activeCharacterId || "",
       npcs: [],
@@ -217,8 +219,8 @@ export const sessionRepository = {
       .run(state.scene, state.sceneId, state.turn, state.activeCharacterId, state.tone, rescuesUsed > 0 ? 1 : 0, rescuesUsed, state.gameOver ? 1 : 0, state.storySummary ?? '', state.difficulty, state.gameMode ?? 'balanced', id);
 
     for (const char of state.party) {
-      db.prepare('INSERT OR REPLACE INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt, status, avatar_storage_key, avatar_storage_provider, history, gender) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(char.id, id, char.name, char.class, char.species, char.quirk, char.hp, char.max_hp, char.stats.might, char.stats.magic, char.stats.mischief, char.avatarUrl || null, char.avatarPrompt || null, char.status ?? 'active', char.avatarStorageKey || null, char.avatarStorageProvider || null, char.history || null, char.gender || null);
+      db.prepare('INSERT OR REPLACE INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt, status, avatar_storage_key, avatar_storage_provider, history, gender, buffs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(char.id, id, char.name, char.class, char.species, char.quirk, char.hp, char.max_hp, char.stats.might, char.stats.magic, char.stats.mischief, char.avatarUrl || null, char.avatarPrompt || null, char.status ?? 'active', char.avatarStorageKey || null, char.avatarStorageProvider || null, char.history || null, char.gender || null, char.buffs && char.buffs.length > 0 ? JSON.stringify(char.buffs) : null);
 
       db.prepare('DELETE FROM inventory WHERE characterId = ?').run(char.id);
       for (const item of (char.inventory ?? [])) {

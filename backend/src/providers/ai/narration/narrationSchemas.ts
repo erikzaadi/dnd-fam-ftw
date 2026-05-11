@@ -65,6 +65,28 @@ const reviveSchema = z.object({
   hp: z.number().int().min(1).max(999),
 });
 
+const buffStatBonusesSchema = z.object({
+  might: z.number().optional().nullable(),
+  magic: z.number().optional().nullable(),
+  mischief: z.number().optional().nullable(),
+}).optional().nullable();
+
+const buffAddSchema = z.object({
+  characterName: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().min(1),
+  kind: z.enum(['buff', 'curse']).optional().nullable(),
+  statBonuses: buffStatBonusesSchema,
+  remainingTurns: z.number().int().min(1).max(99).optional().nullable(),
+  remainingUses: z.number().int().min(1).max(99).optional().nullable(),
+  sourceCharacterName: z.string().min(1).optional().nullable(),
+});
+
+const buffRemoveSchema = z.object({
+  characterName: z.string().min(1),
+  buffName: z.string().min(1),
+});
+
 export const narrationOutputSchema = z.object({
   narration: z.string().min(1),
   choices: z.array(choiceSchema).length(3),
@@ -77,6 +99,8 @@ export const narrationOutputSchema = z.object({
   suggestedInventoryUpdate: inventoryUpdateSchema.nullable().default(null),
   suggestedRevive: reviveSchema.nullable().default(null),
   suggestedHeal: z.array(reviveSchema).nullable().default(null),
+  suggestedBuffAdd: buffAddSchema.nullable().default(null),
+  suggestedBuffRemove: buffRemoveSchema.nullable().default(null),
   suggestedDamage: z.number().int().min(0).max(20).nullable().default(null),
 });
 
@@ -97,5 +121,7 @@ export const NARRATION_FALLBACK: ValidNarrationOutput = {
   suggestedInventoryUpdate: null,
   suggestedRevive: null,
   suggestedHeal: null,
+  suggestedBuffAdd: null,
+  suggestedBuffRemove: null,
   suggestedDamage: null,
 };

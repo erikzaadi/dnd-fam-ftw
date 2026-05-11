@@ -14,6 +14,7 @@ export type {
   MomentumDirective,
   SceneMomentum,
   InventoryItem,
+  CharacterBuff,
   Character,
   InterventionState,
   Choice,

@@ -224,6 +224,22 @@ describe('toNarrationInput', () => {
     expect(out.actionResult.summary).toBe('The action succeeded with strong impact.');
   });
 
+  it('passes active buffs and buff roll bonuses through', () => {
+    const out = toNarrationInput(makeAIInput({
+      party: [{
+        ...makeAIInput().party[0],
+        buffs: [{ id: 'bless', name: 'Blessed', description: 'A bright charm.', statBonuses: { mischief: 1 }, remainingTurns: 2 }],
+      }],
+      actionResult: { success: true, roll: 10, statUsed: 'mischief', statBonus: 4, buffBonus: 1, buffBonusLabel: 'Blessed', difficultyTarget: 14 },
+    }));
+
+    expect(out.party[0].buffs?.[0].name).toBe('Blessed');
+    expect(out.actionResult.buffBonus).toBe(1);
+    expect(out.actionResult.buffBonusLabel).toBe('Blessed');
+    expect(out.actionResult.total).toBe(15);
+    expect(out.actionResult.margin).toBe(1);
+  });
+
   it('passes a high total and positive margin when a low die succeeds through bonuses', () => {
     const out = toNarrationInput(makeAIInput({
       actionResult: {

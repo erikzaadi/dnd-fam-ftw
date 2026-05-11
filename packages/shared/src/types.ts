@@ -49,6 +49,17 @@ export interface InventoryItem {
   boundToCharacterId?: string;
 }
 
+export interface CharacterBuff {
+  id: string;
+  name: string;
+  description: string;
+  kind?: 'buff' | 'curse';
+  statBonuses?: { might?: number; magic?: number; mischief?: number };
+  remainingTurns?: number;
+  remainingUses?: number;
+  sourceCharacterName?: string;
+}
+
 export interface Character {
   id: string;
   name: string;
@@ -71,6 +82,7 @@ export interface Character {
     mischief: number;
   };
   inventory: InventoryItem[];
+  buffs?: CharacterBuff[];
 }
 
 export interface InterventionState {
@@ -123,6 +135,8 @@ export interface ActionAttempt {
     choiceItemOwnerName?: string;
     characterBonus?: number;
     characterBonusLabel?: string;
+    buffBonus?: number;
+    buffBonusLabel?: string;
     impact?: Impact;
     isCritical?: boolean;
     difficultyTarget?: number;
@@ -156,6 +170,8 @@ export interface TurnResult {
   } | null;
   suggestedRevive?: { characterName: string; hp: number } | null;
   suggestedHeal?: Array<{ characterName: string; hp: number }> | null;
+  suggestedBuffAdd?: ({ characterName: string } & Omit<CharacterBuff, 'id'>) | null;
+  suggestedBuffRemove?: { characterName: string; buffName: string } | null;
   suggestedDamage?: number | null;
   lastAction?: ActionAttempt | null;
   characterId?: string;

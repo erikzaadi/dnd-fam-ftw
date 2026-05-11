@@ -25,6 +25,7 @@ export const characterRepository = {
       status: string | null;
       history: string | null;
       gender: string | null;
+      buffs: string | null;
     }[];
     return rows.map(char => ({
       id: char.id,
@@ -38,6 +39,7 @@ export const characterRepository = {
       avatarUrl: char.avatarUrl || undefined,
       history: char.history || undefined,
       gender: char.gender || undefined,
+      buffs: char.buffs ? JSON.parse(char.buffs) : [],
       stats: { might: char.might, magic: char.magic, mischief: char.mischief },
       inventory: [],
     }));

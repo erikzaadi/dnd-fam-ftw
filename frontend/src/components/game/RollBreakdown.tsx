@@ -1,5 +1,5 @@
 import { imgSrc } from '../../lib/api';
-import { formatCharacterBonusLabel, formatChoiceItemBonusLabel, formatHelperBonusLabel } from './rollBonusLabels';
+import { formatBuffBonusLabel, formatCharacterBonusLabel, formatChoiceItemBonusLabel, formatHelperBonusLabel } from './rollBonusLabels';
 
 interface RollBreakdownProps {
   roll: number;
@@ -11,6 +11,8 @@ interface RollBreakdownProps {
   choiceItemName?: string;
   characterBonus?: number;
   characterBonusLabel?: string;
+  buffBonus?: number;
+  buffBonusLabel?: string;
   stat?: string;
   success: boolean;
   difficultyTarget?: number;
@@ -35,13 +37,15 @@ export const RollBreakdown = ({
   choiceItemName,
   characterBonus,
   characterBonusLabel,
+  buffBonus,
+  buffBonusLabel,
   stat,
   success,
   difficultyTarget,
   className = '',
   iconSize = '6',
 }: RollBreakdownProps) => {
-  const total = roll + (statBonus ?? 0) + (itemBonus ?? 0) + (helperBonus ?? 0) + (choiceItemBonus ?? 0) + (characterBonus ?? 0);
+  const total = roll + (statBonus ?? 0) + (itemBonus ?? 0) + (helperBonus ?? 0) + (choiceItemBonus ?? 0) + (characterBonus ?? 0) + (buffBonus ?? 0);
   return (
     <div className={`flex flex-col items-center gap-0.5 ${className}`}>
       <div className="flex items-center gap-0.5 font-black flex-wrap justify-center">
@@ -75,6 +79,12 @@ export const RollBreakdown = ({
 	  <>
 	    <span className="text-slate-600">+</span>
 	    <span className="text-fuchsia-300">{formatCharacterBonusLabel(characterBonus ?? 0, characterBonusLabel)}</span>
+	  </>
+        )}
+        {(buffBonus ?? 0) !== 0 && (
+	  <>
+	    {(buffBonus ?? 0) > 0 && <span className="text-slate-600">+</span>}
+	    <span className={(buffBonus ?? 0) > 0 ? 'text-emerald-300' : 'text-rose-300'}>{formatBuffBonusLabel(buffBonus ?? 0, buffBonusLabel)}</span>
 	  </>
         )}
         <span className="text-slate-600">=</span>

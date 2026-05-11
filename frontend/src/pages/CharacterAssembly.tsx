@@ -149,7 +149,7 @@ export const CharacterAssembly = () => {
       return;
     }
     setLoading(true);
-    const { id: originalCharId, avatarUrl: _avatarUrl, sessionName: _sessionName, status: _status, hp: _hp, ...rest } = char as Character & { sessionName?: string };
+    const { id: originalCharId, avatarUrl: _avatarUrl, sessionName: _sessionName, status: _status, hp: _hp, buffs: _buffs, ...rest } = char as Character & { sessionName?: string };
 
     let stats = rest.stats;
     try {

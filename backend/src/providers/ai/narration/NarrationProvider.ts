@@ -1,4 +1,4 @@
-import type { ChoiceFlavor, Difficulty, GameMode, Impact, SceneMomentum, ScenePressure, Stat, TensionLevel } from '../../../types.js';
+import type { CharacterBuff, ChoiceFlavor, Difficulty, GameMode, Impact, SceneMomentum, ScenePressure, Stat, TensionLevel } from '../../../types.js';
 
 export type NarrationChoice = {
   label: string;
@@ -32,6 +32,7 @@ export type NarrationInput = {
     quirk?: string;
     gender?: string;
     history?: string;
+    buffs?: CharacterBuff[];
   }>;
   inventory: Array<{
     ownerName: string;
@@ -61,6 +62,8 @@ export type NarrationInput = {
     choiceItemOwnerName?: string;
     characterBonus?: number;
     characterBonusLabel?: string;
+    buffBonus?: number;
+    buffBonusLabel?: string;
     total?: number;
     margin?: number;
     difficultyTarget?: number;
@@ -120,6 +123,8 @@ export type NarrationOutput = {
   } | null;
   suggestedRevive: { characterName: string; hp: number } | null;
   suggestedHeal: Array<{ characterName: string; hp: number }> | null;
+  suggestedBuffAdd: ({ characterName: string } & Omit<CharacterBuff, 'id'>) | null;
+  suggestedBuffRemove: { characterName: string; buffName: string } | null;
   suggestedDamage: number | null;
   narrationRetried?: boolean;
   narrationFailed?: boolean;

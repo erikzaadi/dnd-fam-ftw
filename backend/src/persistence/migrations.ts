@@ -108,6 +108,12 @@ export const migrate = (db: DB): void => {
   if (!turnCols.includes('actionCharacterBonusLabel')) {
     db.prepare("ALTER TABLE turn_history ADD COLUMN actionCharacterBonusLabel TEXT").run();
   }
+  if (!turnCols.includes('actionBuffBonus')) {
+    db.prepare("ALTER TABLE turn_history ADD COLUMN actionBuffBonus INTEGER").run();
+  }
+  if (!turnCols.includes('actionBuffBonusLabel')) {
+    db.prepare("ALTER TABLE turn_history ADD COLUMN actionBuffBonusLabel TEXT").run();
+  }
   if (!turnCols.includes('image_storage_key')) {
     db.prepare("ALTER TABLE turn_history ADD COLUMN image_storage_key TEXT").run();
     db.prepare("ALTER TABLE turn_history ADD COLUMN image_storage_provider TEXT").run();
@@ -140,6 +146,9 @@ export const migrate = (db: DB): void => {
   if (!charCols.includes('avatar_storage_key')) {
     db.prepare("ALTER TABLE characters ADD COLUMN avatar_storage_key TEXT").run();
     db.prepare("ALTER TABLE characters ADD COLUMN avatar_storage_provider TEXT").run();
+  }
+  if (!charCols.includes('buffs')) {
+    db.prepare("ALTER TABLE characters ADD COLUMN buffs TEXT").run();
   }
 
   const invCols = (db.prepare("PRAGMA table_info(inventory)").all() as { name: string }[]).map(r => r.name);

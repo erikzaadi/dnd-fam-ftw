@@ -104,6 +104,24 @@ function normalizeNarrationMetadata(input: NarrationInput, output: ValidNarratio
     output.suggestedHeal = null;
   }
 
+  if (output.suggestedBuffAdd) {
+    const target = input.party.find(c => c.name === output.suggestedBuffAdd?.characterName);
+    if (!target || target.status !== 'active') {
+      output.suggestedBuffAdd = null;
+    } else {
+      output.suggestedBuffAdd.characterName = target.name;
+    }
+  }
+
+  if (output.suggestedBuffRemove) {
+    const target = input.party.find(c => c.name === output.suggestedBuffRemove?.characterName);
+    if (!target) {
+      output.suggestedBuffRemove = null;
+    } else {
+      output.suggestedBuffRemove.characterName = target.name;
+    }
+  }
+
   for (const choice of output.choices) {
     if (choice.flavor === 'environment' && !choice.environmentFeature) {
       choice.flavor = 'standard';

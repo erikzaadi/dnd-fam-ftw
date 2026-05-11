@@ -31,6 +31,8 @@ const output = (overrides: Partial<NarrationOutput> = {}): NarrationOutput => ({
   suggestedInventoryUpdate: null,
   suggestedRevive: null,
   suggestedHeal: null,
+  suggestedBuffAdd: null,
+  suggestedBuffRemove: null,
   suggestedDamage: null,
   ...overrides,
 });
@@ -108,6 +110,43 @@ describe('parseNarrationOutput', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.suggestedHeal).toBeNull();
+    }
+  });
+
+  it('keeps valid buff suggestions for active characters', () => {
+    const result = parseNarrationOutput(input, output({
+      suggestedBuffAdd: {
+        characterName: 'Pip',
+        name: 'Blessed',
+        description: 'A quick blessing sharpens Pip.',
+        statBonuses: { mischief: 1 },
+        remainingTurns: 2,
+      },
+    }));
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.suggestedBuffAdd?.characterName).toBe('Pip');
+    }
+  });
+
+  it('strips buff suggestions for downed targets', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      party: [{ ...input.party[0], status: 'downed' }],
+    }, output({
+      suggestedBuffAdd: {
+        characterName: 'Pip',
+        name: 'Blessed',
+        description: 'A quick blessing sharpens Pip.',
+        statBonuses: { mischief: 1 },
+        remainingTurns: 2,
+      },
+    }));
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.suggestedBuffAdd).toBeNull();
     }
   });
 

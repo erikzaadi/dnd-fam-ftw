@@ -55,6 +55,8 @@ export function buildNarrationFallback(input: NarrationInput): NarrationOutput {
     suggestedInventoryUpdate: null,
     suggestedRevive: null,
     suggestedHeal: null,
+    suggestedBuffAdd: null,
+    suggestedBuffRemove: null,
     suggestedDamage: null,
   };
 }

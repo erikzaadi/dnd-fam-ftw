@@ -16,6 +16,8 @@ export const FIXED_NARRATION_OUTPUT: NarrationOutput = {
   suggestedInventoryUpdate: null,
   suggestedRevive: null,
   suggestedHeal: null,
+  suggestedBuffAdd: null,
+  suggestedBuffRemove: null,
   suggestedDamage: null,
 };
 

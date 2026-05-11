@@ -25,6 +25,12 @@ const hpBorderClass = (c: Character): string => {
   return 'border-green-500';
 };
 
+const tooltipContent = (c: Character): string => {
+  const hp = c.status === 'downed' ? 'DOWNED' : `${c.hp}/${c.max_hp} HP`;
+  const buffs = (c.buffs ?? []).map(buff => buff.name).join(', ');
+  return `${c.name} · ${hp}${buffs ? ` · ${buffs}` : ''}`;
+};
+
 export const PartyBox = ({ party, activeCharacterId, onCharacterClick }: PartyBoxProps) => (
   <div className="flex items-center gap-3 bg-slate-950/60 backdrop-blur-md px-5 py-2 rounded-full border border-slate-800 shadow-xl pointer-events-auto">
     <div className="flex gap-3 items-center">
@@ -33,7 +39,7 @@ export const PartyBox = ({ party, activeCharacterId, onCharacterClick }: PartyBo
         return (
           <Tooltip
             key={c.id}
-            content={`${c.name}${c.status === 'downed' ? ' · DOWNED' : ` · ${c.hp}/${c.max_hp} HP`}`}
+            content={tooltipContent(c)}
             position="bottom"
             as="div"
             wrapperClassName="flex flex-col items-center gap-1"
@@ -50,6 +56,9 @@ export const PartyBox = ({ party, activeCharacterId, onCharacterClick }: PartyBo
                 <div className="absolute inset-0 flex items-center justify-center rounded-full pointer-events-none">
                   <span className="text-lg">💀</span>
                 </div>
+              )}
+              {c.status !== 'downed' && (c.buffs?.length ?? 0) > 0 && (
+                <span className={`absolute -right-1 -bottom-0.5 w-3 h-3 rounded-full border-2 border-slate-950 ${c.buffs?.some(buff => buff.kind === 'curse') ? 'bg-rose-400' : 'bg-emerald-400'}`} />
               )}
             </div>
             <span className={`font-black uppercase tracking-widest leading-none truncate text-center ${isActive ? 'text-[9px] xl:text-[10px] text-amber-400 max-w-[48px] xl:max-w-[56px]' : 'text-[8px] xl:text-[9px] text-slate-500 max-w-[36px] xl:max-w-[44px]'}`}>

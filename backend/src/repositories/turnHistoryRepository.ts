@@ -25,6 +25,8 @@ type TurnHistoryRow = {
   actionChoiceItemOwnerName: string | null;
   actionCharacterBonus: number | null;
   actionCharacterBonusLabel: string | null;
+  actionBuffBonus: number | null;
+  actionBuffBonusLabel: string | null;
   actionIsCritical: number | null;
   actionImpact: string | null;
   actionDifficultyTarget: number | null;
@@ -54,7 +56,7 @@ const mapTurnHistoryRow = (row: TurnHistoryRow): TurnResult => {
     itemName: string | null;
     environmentFeature: string | null;
   }[];
-  const rollTotal = (row.actionRoll ?? 0) + (row.actionStatBonus ?? 0) + (row.actionItemBonus ?? 0) + (row.actionHelperBonus ?? 0) + (row.actionChoiceItemBonus ?? 0) + (row.actionCharacterBonus ?? 0);
+  const rollTotal = (row.actionRoll ?? 0) + (row.actionStatBonus ?? 0) + (row.actionItemBonus ?? 0) + (row.actionHelperBonus ?? 0) + (row.actionChoiceItemBonus ?? 0) + (row.actionCharacterBonus ?? 0) + (row.actionBuffBonus ?? 0);
   const margin = row.actionDifficultyTarget != null
     ? (row.actionSuccess ? rollTotal - row.actionDifficultyTarget : row.actionDifficultyTarget - rollTotal)
     : 0;
@@ -78,6 +80,8 @@ const mapTurnHistoryRow = (row: TurnHistoryRow): TurnResult => {
       ...(row.actionChoiceItemOwnerName && { choiceItemOwnerName: row.actionChoiceItemOwnerName }),
       ...(row.actionCharacterBonus != null && row.actionCharacterBonus > 0 && { characterBonus: row.actionCharacterBonus }),
       ...(row.actionCharacterBonusLabel && { characterBonusLabel: row.actionCharacterBonusLabel }),
+      ...(row.actionBuffBonus != null && row.actionBuffBonus !== 0 && { buffBonus: row.actionBuffBonus }),
+      ...(row.actionBuffBonusLabel && { buffBonusLabel: row.actionBuffBonusLabel }),
       impact: (row.actionImpact ?? derivedImpact) as Impact,
       ...(row.actionIsCritical && { isCritical: true }),
       ...(row.actionDifficultyTarget != null && { difficultyTarget: row.actionDifficultyTarget }),
@@ -140,7 +144,7 @@ export const turnHistoryRepository = {
   async addTurnResult(sessionId: string, turn: TurnResult, characterId: string | null): Promise<number> {
     const db = getDb();
     const action = turn.lastAction ?? null;
-    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionChoiceItemBonus, actionChoiceItemName, actionChoiceItemOwnerName, actionCharacterBonus, actionCharacterBonusLabel, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges, narrationRetried, narrationFailed, narrationValidationError, narrationRetryValidationError) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionChoiceItemBonus, actionChoiceItemName, actionChoiceItemOwnerName, actionCharacterBonus, actionCharacterBonusLabel, actionBuffBonus, actionBuffBonusLabel, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges, narrationRetried, narrationFailed, narrationValidationError, narrationRetryValidationError) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(
         sessionId, characterId || null, turn.narration, turn.rollNarration || null, turn.imagePrompt, turn.imageSuggested ? 1 : 0, turn.imageUrl || null,
         action?.actionAttempt ?? null,
@@ -156,6 +160,8 @@ export const turnHistoryRepository = {
         action?.actionResult?.choiceItemOwnerName ?? null,
         action?.actionResult?.characterBonus ?? null,
         action?.actionResult?.characterBonusLabel ?? null,
+        action?.actionResult?.buffBonus ?? null,
+        action?.actionResult?.buffBonusLabel ?? null,
         action?.actionResult?.isCritical ? 1 : null,
         action?.actionResult?.impact ?? null,
         action?.actionResult?.difficultyTarget ?? null,

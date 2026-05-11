@@ -1,4 +1,4 @@
-import { Character, SessionState, ActionAttempt, InventoryItem, Choice, type Stat, type Difficulty } from '../types.js';
+import { Character, SessionState, ActionAttempt, InventoryItem, Choice, type CharacterBuff, type Stat, type Difficulty } from '../types.js';
 import { createId } from '../lib/ids.js';
 
 export class GameEngine {
@@ -46,6 +46,113 @@ export class GameEngine {
       }
     }
     return Object.keys(capped).length > 0 ? capped : undefined;
+  }
+
+  private static capEffectStatBonuses(statBonuses: CharacterBuff['statBonuses']): CharacterBuff['statBonuses'] {
+    if (!statBonuses) {
+      return undefined;
+    }
+    const capped: CharacterBuff['statBonuses'] = {};
+    for (const stat of ['might', 'magic', 'mischief'] as const) {
+      const value = statBonuses[stat];
+      if (typeof value === 'number' && value !== 0) {
+        capped[stat] = Math.min(2, Math.max(-2, Math.round(value)));
+      }
+    }
+    return Object.keys(capped).length > 0 ? capped : undefined;
+  }
+
+  private static buildBuffBonus(character: Character, statName: Stat): { bonus: number; label?: string } {
+    const buffEntries = (character.buffs ?? [])
+      .map(buff => ({ buff, bonus: buff.statBonuses?.[statName] ?? 0 }))
+      .filter(entry => entry.bonus !== 0);
+    const rawBonus = buffEntries.reduce((sum, entry) => sum + entry.bonus, 0);
+    const bonus = Math.min(3, Math.max(-3, rawBonus));
+    if (bonus === 0) {
+      return { bonus: 0 };
+    }
+    const positiveCount = buffEntries.filter(entry => entry.bonus > 0).length;
+    const negativeCount = buffEntries.filter(entry => entry.bonus < 0).length;
+    const fallbackLabel = positiveCount > 0 && negativeCount > 0
+      ? 'effects'
+      : positiveCount > 0
+        ? 'buffs'
+        : 'curses';
+    return {
+      bonus,
+      label: buffEntries.length === 1 ? buffEntries[0].buff.name : fallbackLabel,
+    };
+  }
+
+  private static cleanBuff(rawBuff: Omit<CharacterBuff, 'id'>): Omit<CharacterBuff, 'id'> | null {
+    const name = typeof rawBuff.name === 'string' ? rawBuff.name.trim() : '';
+    const description = typeof rawBuff.description === 'string' ? rawBuff.description.trim() : '';
+    if (!name || !description) {
+      return null;
+    }
+
+    const statBonuses = this.capEffectStatBonuses(rawBuff.statBonuses);
+    const hasTurns = typeof rawBuff.remainingTurns === 'number';
+    const hasUses = typeof rawBuff.remainingUses === 'number';
+    const remainingTurns = hasTurns
+      ? Math.min(3, Math.max(1, Math.round(rawBuff.remainingTurns!)))
+      : undefined;
+    const remainingUses = hasUses
+      ? Math.min(3, Math.max(1, Math.round(rawBuff.remainingUses!)))
+      : undefined;
+    const fallbackDuration = !remainingTurns && !remainingUses ? { remainingTurns: 2 } : {};
+
+    return {
+      name,
+      description,
+      ...(rawBuff.kind === 'curse' || rawBuff.kind === 'buff' ? { kind: rawBuff.kind } : {}),
+      ...(statBonuses && { statBonuses }),
+      ...(remainingTurns && { remainingTurns }),
+      ...(remainingUses && { remainingUses }),
+      ...fallbackDuration,
+      ...(typeof rawBuff.sourceCharacterName === 'string' && rawBuff.sourceCharacterName.trim() && {
+        sourceCharacterName: rawBuff.sourceCharacterName.trim(),
+      }),
+    };
+  }
+
+  private static refreshOrAddBuff(character: Character, buff: Omit<CharacterBuff, 'id'>): void {
+    character.buffs = character.buffs ?? [];
+    const existing = character.buffs.find(active => this.normalize(active.name) === this.normalize(buff.name));
+    if (existing) {
+      existing.description = buff.description;
+      existing.kind = buff.kind;
+      existing.statBonuses = buff.statBonuses;
+      existing.sourceCharacterName = buff.sourceCharacterName;
+      existing.remainingTurns = buff.remainingTurns;
+      existing.remainingUses = buff.remainingUses;
+      return;
+    }
+    character.buffs.push({ id: createId(), ...buff });
+  }
+
+  private static decrementUsedBuffs(character: Character, statName: Stat | 'none'): void {
+    if (statName === 'none' || !character.buffs?.length) {
+      return;
+    }
+    for (const buff of character.buffs) {
+      if ((buff.statBonuses?.[statName] ?? 0) !== 0 && typeof buff.remainingUses === 'number') {
+        buff.remainingUses = Math.max(0, buff.remainingUses - 1);
+      }
+    }
+    character.buffs = character.buffs.filter(buff => (buff.remainingUses ?? 1) > 0);
+  }
+
+  private static decrementTurnBuffs(character: Character): void {
+    if (!character.buffs?.length) {
+      return;
+    }
+    for (const buff of character.buffs) {
+      if (typeof buff.remainingTurns === 'number') {
+        buff.remainingTurns = Math.max(0, buff.remainingTurns - 1);
+      }
+    }
+    character.buffs = character.buffs.filter(buff => (buff.remainingTurns ?? 1) > 0);
   }
 
   private static cleanItemTags(tags: unknown): string[] | undefined {
@@ -149,6 +256,7 @@ export class GameEngine {
       if (char.status === 'downed') {
         char.status = 'active';
         char.hp = 1;
+        char.buffs = [];
       }
     }
     if (newState.party.length > 0) {
@@ -164,6 +272,7 @@ export class GameEngine {
       if (char.status === 'downed') {
         char.status = 'active';
         char.hp = 1;
+        char.buffs = [];
       }
     }
     newState.interventionState = { rescuesUsed: (state.interventionState?.rescuesUsed ?? 0) + 1 };
@@ -204,6 +313,7 @@ export class GameEngine {
       targetChar.hp = Math.min(targetChar.max_hp, targetChar.hp + item.healValue);
       if (targetChar.hp > 0 && targetChar.status === 'downed') {
         targetChar.status = 'active';
+        targetChar.buffs = [];
       }
       description += wasDown
         ? `, reviving ${targetChar.name} to ${targetChar.hp} HP`
@@ -286,9 +396,10 @@ export class GameEngine {
     const helperBonus = helper?.bonus ?? 0;
     const choiceItemBonus = choiceItem?.bonus ?? 0;
     const characterBonus = characterEdge?.bonus ?? 0;
+    const { bonus: buffBonus, label: buffBonusLabel } = this.buildBuffBonus(character, statName);
     const { roll, total } = this.rollDice(statValue);
     const target = difficultyValue ?? this.DIFFICULTIES[difficulty] ?? 12;
-    const finalTotal = total + itemBonus + helperBonus + choiceItemBonus + characterBonus;
+    const finalTotal = total + itemBonus + helperBonus + choiceItemBonus + characterBonus + buffBonus;
     const success = roll === 20 || (roll !== 1 && this.checkSuccess(finalTotal, target));
     const margin = success ? finalTotal - target : target - finalTotal;
     const impact = roll === 1 || roll === 20 || margin >= 12
@@ -314,6 +425,8 @@ export class GameEngine {
         ...(choiceItemBonus > 0 && choiceItem?.ownerName && { choiceItemOwnerName: choiceItem.ownerName }),
         ...(characterBonus > 0 && { characterBonus }),
         ...(characterBonus > 0 && characterEdge?.label && { characterBonusLabel: characterEdge.label }),
+        ...(buffBonus !== 0 && { buffBonus }),
+        ...(buffBonus !== 0 && buffBonusLabel && { buffBonusLabel }),
       }
     };
   }
@@ -364,9 +477,12 @@ export class GameEngine {
           actingChar.hp = Math.max(0, actingChar.hp - damage);
           if (actingChar.hp === 0) {
             actingChar.status = 'downed';
+            actingChar.buffs = [];
           }
         }
       }
+
+      this.decrementUsedBuffs(actingChar, actionAttempt.actionResult.statUsed);
 
       // Character revival from AI suggestion (perform action that narratively revives a downed party member)
       const revive = aiSuggestedChanges?.suggestedRevive as { characterName: string; hp: number } | null | undefined;
@@ -375,6 +491,7 @@ export class GameEngine {
         if (target && target.status === 'downed') {
           target.hp = Math.min(target.max_hp, Math.max(1, Math.round(revive.hp)));
           target.status = 'active';
+          target.buffs = [];
         }
       }
 
@@ -390,6 +507,7 @@ export class GameEngine {
             // AI should have used suggestedRevive but didn't — revive anyway
             target.hp = Math.min(target.max_hp, Math.max(1, Math.round(heal.hp)));
             target.status = 'active';
+            target.buffs = [];
           } else {
             target.hp = Math.min(target.max_hp, target.hp + Math.max(0, Math.round(heal.hp)));
           }
@@ -480,6 +598,26 @@ export class GameEngine {
               targetItem.boundToCharacterId = GameEngine.findCharacter(newState.party, update.boundToCharacterName)?.id;
             }
           }
+        }
+      }
+
+      this.decrementTurnBuffs(actingChar);
+
+      const buffRemove = aiSuggestedChanges?.suggestedBuffRemove as { characterName: string; buffName: string } | null | undefined;
+      if (buffRemove && typeof buffRemove === 'object' && buffRemove.characterName && buffRemove.buffName) {
+        const target = GameEngine.findCharacter(newState.party, buffRemove.characterName);
+        if (target?.buffs?.length) {
+          const buffName = this.normalize(buffRemove.buffName);
+          target.buffs = target.buffs.filter(buff => this.normalize(buff.name) !== buffName);
+        }
+      }
+
+      const buffAdd = aiSuggestedChanges?.suggestedBuffAdd as ({ characterName: string } & Omit<CharacterBuff, 'id'>) | null | undefined;
+      if (buffAdd && typeof buffAdd === 'object' && buffAdd.characterName) {
+        const target = GameEngine.findCharacter(newState.party, buffAdd.characterName);
+        const cleaned = this.cleanBuff(buffAdd);
+        if (target && target.status === 'active' && cleaned) {
+          this.refreshOrAddBuff(target, cleaned);
         }
       }
 
