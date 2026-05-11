@@ -61,6 +61,20 @@ const buildHomeTutorialSteps = (showGettingStarted: boolean, hasSessions: boolea
     body: 'Saved realms live here. Open one to continue, assemble missing heroes, edit details, or view the chronicle.',
     placement: 'top' as const,
   }] : []),
+  {
+    id: 'how-to-play',
+    selector: '[data-tutorial="home-how-to-play"]',
+    title: 'How to play',
+    body: 'New to the game? This explains stats, rolls, buffs, and how turns work.',
+    placement: 'top' as const,
+  },
+  {
+    id: 'settings',
+    selector: '[data-tutorial="home-settings"]',
+    title: 'Settings',
+    body: 'Adjust voice input, speech speed, and other preferences here.',
+    placement: 'top' as const,
+  },
 ];
 
 const HomeTutorial = ({
@@ -813,12 +827,14 @@ export const Home = () => {
 
           <div className="flex gap-4">
             <button
+              data-tutorial="home-how-to-play"
               onClick={() => navigate('/how-to-play')}
               className="flex-1 px-8 py-4 bg-slate-800 hover:bg-slate-700 rounded-[24px] text-base font-black uppercase italic tracking-tighter transition-colors border-2 border-slate-700"
             >
               📖 How to Play
             </button>
             <button
+              data-tutorial="home-settings"
               onClick={() => navigate('/settings')}
               className="flex-1 px-8 py-4 bg-slate-800 hover:bg-slate-700 rounded-[24px] text-base font-black uppercase italic tracking-tighter transition-colors border-2 border-slate-700"
             >
