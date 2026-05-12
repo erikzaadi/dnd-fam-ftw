@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 
 const STORAGE_KEY = 'onboarding_tutorial_step';
 const EVER_STARTED_KEY = 'tutorial_ever_started';
-const COMPLETE_STEP = 8;
+const COMPLETE_STEP = 9;
 
 function readStep(): number | null {
   const stored = localStorage.getItem(STORAGE_KEY);

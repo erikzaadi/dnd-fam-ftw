@@ -1,8 +1,11 @@
-import type { ActionAttempt, Difficulty, SessionState, TurnResult } from '../types.js';
+import type { ActionAttempt, Character, Difficulty, SessionState, TurnResult } from '../types.js';
 
 const HEALING_ACTION_RE = /\b(heal|healing|restore|restoring|revive|reviving|mend|mending|soothe|soothing|recover|recovery|rest|resting|sleep|sleeping|eat|eating|meal|care|treat|treating|medicine|potion|bandage|sanctuary)\b/i;
 const ENCHANT_ACTION_RE = /\b(enchant|enchanting|bless|blessing|empower|empowering|infuse|infusing|imbue|imbuing|charge|charging|strengthen|strengthening|upgrade|upgrading)\b/i;
 const PARTY_WIDE_RE = /\b(party|everyone|everybody|all|whole group|the group|the team|teammates|friends|allies|share|shared|together|feast|meal)\b/i;
+const BLESS_AID_ACTION_RE = /\b(bless|blessing|aid|assist|inspire|encourage|embolden|bolster|invigorate|uplift|fortify|courage|rally|hymn|melody|song|tune|chant|shield|ward|channel|weave|strengthen|empower|boost)\b/i;
+const BLESS_RE = /\b(bless|blessing)\b/i;
+const AID_RE = /\b(aid|assist)\b/i;
 const SIMPLE_PATH_ACTION_RE = /\b(follow|take|walk|go|move|head|continue|proceed)\b.*\b(path|paths|trail|route|road|track|tracks|passage|tunnel|corridor|hallway)\b/i;
 
 const searchable = (text: string | undefined): string => (text ?? '')
@@ -159,4 +162,114 @@ export function ensureSuccessfulEnchantmentSuggestion(
       condition: 'Enchanted',
     },
   };
+}
+
+function findSupportTarget(action: string, session: SessionState): Character | null {
+  if (!BLESS_AID_ACTION_RE.test(action)) {
+    return null;
+  }
+  const normalizedAction = searchable(action);
+  return session.party.find(c =>
+    c.id !== session.activeCharacterId &&
+    c.status !== 'downed' &&
+    containsSearchable(normalizedAction, c.name)
+  ) ?? null;
+}
+
+export function ensureSuccessfulSupportSuggestion(
+  session: SessionState,
+  actionAttempt: ActionAttempt,
+  turnResult: TurnResult,
+  actionIntent?: string,
+  targetCharacterName?: string,
+): TurnResult {
+  const hasExistingBuff = Array.isArray(turnResult.suggestedBuffAdd) && turnResult.suggestedBuffAdd.length > 0;
+  if (!actionAttempt.actionResult.success || hasExistingBuff || turnResult.suggestedInventoryUpdate) {
+    return turnResult;
+  }
+
+  const action = actionAttempt.actionAttempt;
+  const impact = actionAttempt.actionResult.impact;
+  const statUsed = actionAttempt.actionResult.statUsed === 'none' ? 'magic' : actionAttempt.actionResult.statUsed;
+  const activeChar = session.party.find(c => c.id === session.activeCharacterId) ?? session.party[0];
+  const remainingTurns = impact === 'extreme' ? 3 : 2;
+
+  if (actionIntent === 'bless_character' || actionIntent === 'aid_character') {
+    const target = targetCharacterName
+      ? session.party.find(c => c.name === targetCharacterName && c.status !== 'downed')
+      : findSupportTarget(action, session);
+    if (target) {
+      const isAid = actionIntent === 'aid_character';
+      return {
+        ...turnResult,
+        suggestedBuffAdd: [{
+          characterName: target.name,
+          name: isAid ? 'Aided' : 'Blessed',
+          kind: 'buff',
+          description: `A short-lived ${statUsed} boost from ${activeChar?.name ?? 'an ally'}.`,
+          statBonuses: { [statUsed]: 1 },
+          remainingTurns: isAid ? undefined : remainingTurns,
+          remainingUses: isAid ? 1 : undefined,
+          sourceCharacterName: activeChar?.name,
+        }],
+      };
+    }
+  }
+
+  if (actionIntent === 'party_boost') {
+    const candidates = session.party.filter(c => c.id !== session.activeCharacterId && c.status !== 'downed');
+    if (candidates.length > 0) {
+      return {
+        ...turnResult,
+        suggestedBuffAdd: candidates.map(c => ({
+          characterName: c.name,
+          name: 'Inspired',
+          kind: 'buff' as const,
+          description: `Inspired by ${activeChar?.name ?? 'an ally'}'s rallying call.`,
+          statBonuses: { [statUsed]: 1 },
+          remainingTurns,
+          sourceCharacterName: activeChar?.name,
+        })),
+      };
+    }
+  }
+
+  const supportTarget = findSupportTarget(action, session);
+  if (supportTarget) {
+    const isAid = AID_RE.test(action);
+    const isBlessing = BLESS_RE.test(action);
+    return {
+      ...turnResult,
+      suggestedBuffAdd: [{
+        characterName: supportTarget.name,
+        name: isBlessing ? 'Blessed' : isAid ? 'Aided' : 'Inspired',
+        kind: 'buff',
+        description: `A short-lived ${statUsed} boost from ${activeChar?.name ?? 'an ally'}.`,
+        statBonuses: { [statUsed]: 1 },
+        remainingTurns: isAid ? undefined : remainingTurns,
+        remainingUses: isAid ? 1 : undefined,
+        sourceCharacterName: activeChar?.name,
+      }],
+    };
+  }
+
+  if (BLESS_AID_ACTION_RE.test(action) && PARTY_WIDE_RE.test(action)) {
+    const candidates = session.party.filter(c => c.id !== session.activeCharacterId && c.status !== 'downed');
+    if (candidates.length > 0) {
+      return {
+        ...turnResult,
+        suggestedBuffAdd: candidates.map(c => ({
+          characterName: c.name,
+          name: 'Inspired',
+          kind: 'buff' as const,
+          description: `Inspired by ${activeChar?.name ?? 'an ally'}'s rallying call.`,
+          statBonuses: { [statUsed]: 1 },
+          remainingTurns,
+          sourceCharacterName: activeChar?.name,
+        })),
+      };
+    }
+  }
+
+  return turnResult;
 }

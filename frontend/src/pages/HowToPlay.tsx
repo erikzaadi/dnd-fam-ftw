@@ -141,7 +141,26 @@ export const HowToPlay = () => {
                   <strong className="text-amber-400">Example:</strong> Mira blesses Finn's dagger with a tiny spark of healing magic.
                 </div>
               </div>
-              <p className="text-slate-500 text-base mt-3">Item changes can add or adjust bonuses, charges, tags, effects, conditions, healing value, or who an item is bound to.</p>
+              <p className="text-slate-500 text-base mt-3">Shortcut: open the inventory panel and tap the <strong className="text-indigo-300">Enchant</strong> button next to any item. The active hero will attempt the enchant and a confirmation popup previews the roll before you commit.</p>
+              <p className="text-slate-500 text-base mt-2">Item changes can add or adjust bonuses, charges, tags, effects, conditions, healing value, or who an item is bound to.</p>
+            </Section>
+
+            <Section title="Support Actions">
+              <p className="text-slate-300 text-lg leading-relaxed">
+                The active hero can spend their turn supporting the party instead of fighting or exploring. Two quick support actions are available without typing:
+              </p>
+              <div className="space-y-2 mt-3">
+                <div className="text-base text-slate-300 p-4 bg-slate-800/60 border border-slate-700 rounded-2xl">
+                  <strong className="text-emerald-400">Party Boost ✦</strong> - Tap the glowing icon in the party bar to rally the whole group. The active hero uses their strongest stat to inspire an advantage for everyone. A confirmation popup previews the roll first.
+                </div>
+                <div className="text-base text-slate-300 p-4 bg-slate-800/60 border border-slate-700 rounded-2xl">
+                  <strong className="text-blue-400">Bless</strong> - Tap any party member's portrait, then tap <strong className="text-blue-300">Bless</strong>. The active hero grants that teammate a short-lived magical protection or lucky edge.
+                </div>
+                <div className="text-base text-slate-300 p-4 bg-slate-800/60 border border-slate-700 rounded-2xl">
+                  <strong className="text-emerald-400">Aid</strong> - Tap any party member's portrait, then tap <strong className="text-emerald-300">Aid</strong>. The active hero sets up a clever assist so the target gets a small bonus on their next action.
+                </div>
+              </div>
+              <p className="text-slate-500 text-base mt-3">Bless and Aid can only target active (non-downed) party members, and the acting hero cannot target themselves. All three support actions use a confirmation popup so you see the roll preview before committing.</p>
             </Section>
 
             <Section title="🪙 Trading">

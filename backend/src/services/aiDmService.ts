@@ -98,6 +98,7 @@ export function toNarrationInput(input: AIInput): NarrationInput {
     isFirstTurn: input.turn === 1,
     interventionRescue: input.interventionRescue,
     sanctuaryRecovery: input.sanctuaryRecovery,
+    ...(input.actionIntent && { actionIntent: input.actionIntent }),
   };
 }
 

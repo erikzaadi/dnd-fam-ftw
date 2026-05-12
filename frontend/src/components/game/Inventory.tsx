@@ -15,6 +15,7 @@ interface InventoryProps {
   onImproveItemInScene?: (ownerCharId: string, itemId: string, method: 'enchant' | 'craft' | 'tinker') => void;
   onGiveItem?: (ownerCharId: string, itemId: string, targetCharId: string) => void;
   disabled?: boolean;
+  previewThinking?: boolean;
   /** Only show this character's items (no character name header) */
   filterCharId?: string;
   /** Compact right-aligned inline mode for embedding in ActionControls */
@@ -57,63 +58,61 @@ export const InventoryItemCard = ({
   const hasEvolution = !!(item.condition || item.effect || item.charges !== undefined || (item.tags && item.tags.length > 0) || item.boundToCharacterId);
 
   return (
-    <Tooltip as="div" content={pending ? undefined : item.description} position="top" portal variant="description" wrapperClassName="min-w-0">
-      <div className={`p-3 rounded-2xl border transition-colors min-w-0 ${pending ? 'border-amber-500/60 bg-amber-950/20' : active ? 'bg-amber-950/20 border-amber-500/30' : 'bg-slate-800/60 border-slate-700/50'}`}>
-        <div className="flex items-start justify-between gap-2 min-w-0">
-          <div className="min-w-0">
-            <p className="font-black text-sm text-slate-200 truncate">{item.name}</p>
-            <div className="flex gap-1 mt-1 flex-wrap">
-              {(item.healValue ?? 0) > 0 && (
-                <ItemBonusBadge type="hp" value={item.healValue!} label="hp" />
-              )}
-              {bonuses.map(([stat, val]) => (
-                <ItemBonusBadge key={stat} type="stat" value={val!} label={stat} />
-              ))}
-              {item.condition && (
-                <span className="px-1.5 py-0.5 rounded bg-indigo-900/40 border border-indigo-700/50 text-[9px] font-black uppercase tracking-wider text-indigo-300">{item.condition}</span>
-              )}
-              {item.charges !== undefined && (
-                <span className="px-1.5 py-0.5 rounded bg-sky-900/40 border border-sky-700/50 text-[9px] font-black uppercase tracking-wider text-sky-300">{item.charges} charge{item.charges === 1 ? '' : 's'}</span>
-              )}
-            </div>
-          </div>
-          {(canUse || canUseInScene || canGive || sceneActions) && !pending && (
-            <div className="flex gap-1 shrink-0">
-              {canUse && onUse && (
-                <Tooltip content="Use this item" position="top" groupName="use">
-                  <ActionButton action="use" onClick={onUse} />
-                </Tooltip>
-              )}
-              {canUseInScene && onUseInScene && (
-                <Tooltip content="Preview how this gear could help now" position="top" groupName="use">
-                  <ActionButton action="use" onClick={onUseInScene} />
-                </Tooltip>
-              )}
-              {canGive && onGive && (
-                <Tooltip content="Give to another character" position="top" groupName="give">
-                  <ActionButton action="give" onClick={onGive} />
-                </Tooltip>
-              )}
-              {sceneActions}
-            </div>
-          )}
-        </div>
-        {targetPicker}
-        {hasEvolution && !pending && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {item.tags?.map(tag => (
-              <span key={tag} className="px-1.5 py-0.5 rounded bg-slate-950/60 border border-slate-700/60 text-[9px] font-black uppercase tracking-wider text-slate-400">{tag}</span>
+    <div className={`p-3 rounded-2xl border transition-colors min-w-0 ${pending ? 'border-amber-500/60 bg-amber-950/20' : active ? 'bg-amber-950/20 border-amber-500/30' : 'bg-slate-800/60 border-slate-700/50'}`}>
+      <div className="flex items-start justify-between gap-2 min-w-0">
+        <Tooltip as="div" content={pending ? undefined : item.description} position="top" portal variant="description" wrapperClassName="min-w-0 flex-1">
+          <p className="font-black text-sm text-slate-200 truncate">{item.name}</p>
+          <div className="flex gap-1 mt-1 flex-wrap">
+            {(item.healValue ?? 0) > 0 && (
+              <ItemBonusBadge type="hp" value={item.healValue!} label="hp" />
+            )}
+            {bonuses.map(([stat, val]) => (
+              <ItemBonusBadge key={stat} type="stat" value={val!} label={stat} />
             ))}
-            {item.effect && (
-              <span className="text-[10px] leading-snug text-slate-400">{item.effect}</span>
+            {item.condition && (
+              <span className="px-1.5 py-0.5 rounded bg-indigo-900/40 border border-indigo-700/50 text-[9px] font-black uppercase tracking-wider text-indigo-300">{item.condition}</span>
             )}
-            {item.boundToCharacterId && (
-              <span className="px-1.5 py-0.5 rounded bg-amber-950/40 border border-amber-700/40 text-[9px] font-black uppercase tracking-wider text-amber-300">bonded</span>
+            {item.charges !== undefined && (
+              <span className="px-1.5 py-0.5 rounded bg-sky-900/40 border border-sky-700/50 text-[9px] font-black uppercase tracking-wider text-sky-300">{item.charges} charge{item.charges === 1 ? '' : 's'}</span>
             )}
+          </div>
+        </Tooltip>
+        {(canUse || canUseInScene || canGive || sceneActions) && !pending && (
+          <div className="flex gap-1 shrink-0">
+            {canUse && onUse && (
+              <Tooltip content="Use this item" position="top" groupName="use">
+                <ActionButton action="use" onClick={onUse} />
+              </Tooltip>
+            )}
+            {canUseInScene && onUseInScene && (
+              <Tooltip content="Preview how this gear could help now" position="top" groupName="use">
+                <ActionButton action="use" onClick={onUseInScene} />
+              </Tooltip>
+            )}
+            {canGive && onGive && (
+              <Tooltip content="Give to another character" position="top" groupName="give">
+                <ActionButton action="give" onClick={onGive} />
+              </Tooltip>
+            )}
+            {sceneActions}
           </div>
         )}
       </div>
-    </Tooltip>
+      {targetPicker}
+      {hasEvolution && !pending && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {item.tags?.map(tag => (
+            <span key={tag} className="px-1.5 py-0.5 rounded bg-slate-950/60 border border-slate-700/60 text-[9px] font-black uppercase tracking-wider text-slate-400">{tag}</span>
+          ))}
+          {item.effect && (
+            <span className="text-[10px] leading-snug text-slate-400">{item.effect}</span>
+          )}
+          {item.boundToCharacterId && (
+            <span className="px-1.5 py-0.5 rounded bg-amber-950/40 border border-amber-700/40 text-[9px] font-black uppercase tracking-wider text-amber-300">bonded</span>
+          )}
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -149,7 +148,7 @@ const improveLabel = (method: 'enchant' | 'craft' | 'tinker'): string => {
   return 'Tinker';
 };
 
-export const Inventory = ({ party, activeCharacterId, onUseItem, onUseItemInScene, onImproveItemInScene, onGiveItem, disabled, filterCharId, compact }: InventoryProps) => {
+export const Inventory = ({ party, activeCharacterId, onUseItem, onUseItemInScene, onImproveItemInScene, onGiveItem, disabled, previewThinking, filterCharId, compact }: InventoryProps) => {
   const [pending, setPending] = useState<PendingAction | null>(null);
 
   const displayParty = filterCharId ? party.filter(c => c.id === filterCharId) : party;
@@ -187,13 +186,14 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onUseItemInScen
     const canGive = canAct && isGiveable(item) && party.filter(c => c.id !== char.id).length > 0;
     const isPendingThis = pending?.itemId === item.id && pending.ownerCharId === char.id;
     const sceneImproveButton = canImproveInScene && !isPendingThis ? (
-      <Tooltip content={`${improveButtonLabel} this gear in the scene`} position="top" groupName="use">
+      <Tooltip content={previewThinking ? 'Thinking...' : `${improveButtonLabel} this gear in the scene`} position="top" groupName="use">
         <button
           type="button"
           onClick={() => onImproveItemInScene?.(char.id, item.id, improveMethod)}
-          className={`${compact ? 'px-1.5 py-0.5 rounded text-[8px] xl:text-[10px]' : 'px-2.5 py-1 rounded-lg text-xs'} font-black uppercase tracking-widest bg-indigo-900/60 text-indigo-300 hover:bg-indigo-800/60 border border-indigo-700/40 transition-all`}
+          disabled={previewThinking}
+          className={`${compact ? 'px-1.5 py-0.5 rounded text-[8px] xl:text-[10px]' : 'px-2.5 py-1 rounded-lg text-xs'} font-black uppercase tracking-widest bg-indigo-900/60 text-indigo-300 hover:bg-indigo-800/60 border border-indigo-700/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
         >
-          {improveButtonLabel}
+          {previewThinking ? 'Thinking...' : improveButtonLabel}
         </button>
       </Tooltip>
     ) : null;

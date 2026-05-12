@@ -75,18 +75,18 @@ describe('useOnboardingTutorial', () => {
     expect(result.current.step).toBe(5);
   });
 
-  it('clears localStorage when advancing past step 7', () => {
-    ls.setItem(STORAGE_KEY, '7');
+  it('clears localStorage when advancing past step 8', () => {
+    ls.setItem(STORAGE_KEY, '8');
     const { result } = renderHook(() => useOnboardingTutorial({ isLoading: false, lastRollVisible: false }));
     act(() => {
-      result.current.advance(); 
+      result.current.advance();
     });
     expect(result.current.step).toBeNull();
     expect(ls.getItem(STORAGE_KEY)).toBeNull();
   });
 
-  it('treats stored value >= 8 as null (already complete)', () => {
-    ls.setItem(STORAGE_KEY, '8');
+  it('treats stored value >= 9 as null (already complete)', () => {
+    ls.setItem(STORAGE_KEY, '9');
     const { result } = renderHook(() => useOnboardingTutorial({ isLoading: false, lastRollVisible: false }));
     expect(result.current.step).toBeNull();
   });

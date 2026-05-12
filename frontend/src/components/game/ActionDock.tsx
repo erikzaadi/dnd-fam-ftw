@@ -19,6 +19,7 @@ import { formatCharacterBonusLabel, formatChoiceItemBonusLabel, formatHelperBonu
 interface ActionDockProps {
   turn: TurnResult | null;
   loading: boolean;
+  previewThinking?: boolean;
   activeCharacter: Character | null;
   isDown: boolean | undefined;
   party: Character[];
@@ -69,6 +70,7 @@ const calcProb = (statTotal: number, target: number) => {
 export const ActionDock = ({
   turn,
   loading,
+  previewThinking = false,
   activeCharacter,
   isDown,
   party,
@@ -390,6 +392,33 @@ export const ActionDock = ({
                     </button>
                   </Tooltip>
                 </div>
+                {/* Active buffs/curses */}
+                {(activeCharacter.buffs ?? []).length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {(activeCharacter.buffs ?? []).map(buff => {
+                      const isCurse = buff.kind === 'curse';
+                      const duration = buff.remainingTurns !== undefined
+                        ? `${buff.remainingTurns} turn${buff.remainingTurns !== 1 ? 's' : ''} left`
+                        : buff.remainingUses !== undefined
+                          ? `${buff.remainingUses} use${buff.remainingUses !== 1 ? 's' : ''} left`
+                          : 'permanent';
+                      const statLine = buff.statBonuses
+                        ? Object.entries(buff.statBonuses)
+                          .filter(([, v]) => v !== 0)
+                          .map(([k, v]) => `${v! > 0 ? '+' : ''}${v} ${k}`)
+                          .join(', ')
+                        : '';
+                      const tooltipText = [buff.description, statLine && `(${statLine})`, duration].filter(Boolean).join(' - ');
+                      return (
+                        <Tooltip key={buff.id} content={tooltipText} position="top" portal wrapperClassName="inline-flex">
+                          <span className={`px-1.5 py-0.5 rounded-full border text-[10px] font-black uppercase tracking-wide ${isCurse ? 'bg-rose-950/50 border-rose-700/50 text-rose-300' : 'bg-emerald-950/50 border-emerald-700/50 text-emerald-300'}`}>
+                            {buff.name}
+                          </span>
+                        </Tooltip>
+                      );
+                    })}
+                  </div>
+                )}
                 {expandedStat && (() => {
                   const key = expandedStat as 'might' | 'magic' | 'mischief';
                   const bonusItems = activeCharacter.inventory.filter(item => (item.statBonuses?.[key] ?? 0) > 0);
@@ -441,15 +470,18 @@ export const ActionDock = ({
                   const isRiddleAnswer = !!choice.riddleAnswer;
                   const flavorBadge = choice.flavor && choice.flavor !== 'standard' ? CHOICE_FLAVOR_BADGES[choice.flavor] : null;
                   const risk = RISK_MAP[choice.difficulty] ?? RISK_MAP.normal;
-                  const statBase = activeCharacter?.stats[choice.stat as keyof typeof activeCharacter.stats] ?? 0;
-                  const statBonus = activeCharacter?.inventory.reduce((s, item) => s + (item.statBonuses?.[choice.stat as keyof typeof item.statBonuses] ?? 0), 0) ?? 0;
+                  const choiceStat = choice.stat as 'might' | 'magic' | 'mischief';
+                  const statBase = activeCharacter?.stats[choiceStat] ?? 0;
+                  const statBonus = activeCharacter?.inventory.reduce((s, item) => s + (item.statBonuses?.[choiceStat] ?? 0), 0) ?? 0;
+                  const rawBuffBonus = (activeCharacter?.buffs ?? []).reduce((s, buff) => s + (buff.statBonuses?.[choiceStat] ?? 0), 0);
+                  const buffBonus = Math.min(3, Math.max(-3, rawBuffBonus));
                   const hasActiveHelper = choice.flavor === 'combo' && !!choice.helperCharacterName && party.some(c => c.name === choice.helperCharacterName && c.status === 'active' && c.id !== activeCharacter?.id);
                   const helperBonus = hasActiveHelper ? COMBO_HELPER_BONUS : 0;
                   const hasChoiceItem = choice.flavor === 'item' && !!activeCharacter && choice.itemOwnerName === activeCharacter.name && !!choice.itemName && activeCharacter.inventory.some(item => item.name === choice.itemName);
                   const choiceItemBonus = hasChoiceItem ? CHOICE_ITEM_BONUS : 0;
                   const characterBonus = choice.flavor === 'spotlight' || choice.flavor === 'social' ? CHARACTER_EDGE_BONUS : 0;
                   const characterBonusLabel = choice.flavor === 'spotlight' ? 'spotlight' : choice.flavor === 'social' ? 'social' : '';
-                  const statTotal = statBase + statBonus + helperBonus + choiceItemBonus + characterBonus;
+                  const statTotal = statBase + statBonus + buffBonus + helperBonus + choiceItemBonus + characterBonus;
                   const target = beatTarget(choice.difficultyValue, choice.difficulty);
                   const shortcut = i + 1;
                   const prob = calcProb(statTotal, target);
@@ -502,7 +534,7 @@ export const ActionDock = ({
                             <>
                               <StatImg stat={choice.stat} size="4" tooltip className="rounded-xl" />
                               <span className="text-xs font-black">
-                                <span className={statBonus > 0 ? 'text-amber-400' : (STAT_TEXT_COLORS[choice.stat] ?? 'text-slate-300')}>{statTotal}</span>
+                                <span className={(statBonus + buffBonus) > 0 ? 'text-amber-400' : (statBonus + buffBonus) < 0 ? 'text-rose-300' : (STAT_TEXT_COLORS[choice.stat] ?? 'text-slate-300')}>{statTotal}</span>
                                 <span className="text-slate-400"> vs {target}</span>
                               </span>
 			      {helperBonus > 0 && (
@@ -580,10 +612,10 @@ export const ActionDock = ({
               </div>
               <button
                 onClick={submitCustom}
-                disabled={loading || statThinking || !customAction.trim()}
+                disabled={loading || statThinking || previewThinking || !customAction.trim()}
                 className="w-full py-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 rounded-2xl font-black uppercase tracking-tighter text-xl xl:text-2xl shadow-[0_6px_0_rgb(146,64,14)] transition-all italic"
               >
-                {statThinking ? 'Thinking...' : 'UNLEASH'}
+                {statThinking || previewThinking ? 'Thinking...' : 'UNLEASH'}
               </button>
             </div>
           </>

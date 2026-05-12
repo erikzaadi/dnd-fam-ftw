@@ -14,6 +14,7 @@ interface CharacterPopupProps {
   onAvatarClick: (url: string) => void;
   onBlessCharacter?: (targetCharacterId: string) => void;
   onAidCharacter?: (targetCharacterId: string) => void;
+  previewThinking?: boolean;
 }
 
 const STAT_META = [
@@ -37,7 +38,7 @@ const formatBuffSummary = (buff: NonNullable<Character['buffs']>[number]): strin
   return `${buff.name}${bonusLabel}${durationLabel}`;
 };
 
-export const CharacterPopup = ({ character, activeCharacter, onClose, onAvatarClick, onBlessCharacter, onAidCharacter }: CharacterPopupProps) => {
+export const CharacterPopup = ({ character, activeCharacter, onClose, onAvatarClick, onBlessCharacter, onAidCharacter, previewThinking }: CharacterPopupProps) => {
   const [expandedStat, setExpandedStat] = useState<'might' | 'magic' | 'mischief' | null>(null);
 
   useEffect(() => {
@@ -110,18 +111,20 @@ export const CharacterPopup = ({ character, activeCharacter, onClose, onAvatarCl
               <button
                 type="button"
                 onClick={() => onBlessCharacter(character.id)}
-                className="px-3 py-2 rounded-xl border border-blue-700/50 bg-blue-950/40 text-blue-200 text-xs font-black uppercase tracking-widest hover:bg-blue-900/50 transition-colors"
+                disabled={previewThinking}
+                className="px-3 py-2 rounded-xl border border-blue-700/50 bg-blue-950/40 text-blue-200 text-xs font-black uppercase tracking-widest hover:bg-blue-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Bless
+                {previewThinking ? 'Thinking...' : 'Bless'}
               </button>
             )}
             {onAidCharacter && (
               <button
                 type="button"
                 onClick={() => onAidCharacter(character.id)}
-                className="px-3 py-2 rounded-xl border border-emerald-700/50 bg-emerald-950/40 text-emerald-200 text-xs font-black uppercase tracking-widest hover:bg-emerald-900/50 transition-colors"
+                disabled={previewThinking}
+                className="px-3 py-2 rounded-xl border border-emerald-700/50 bg-emerald-950/40 text-emerald-200 text-xs font-black uppercase tracking-widest hover:bg-emerald-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Aid
+                {previewThinking ? 'Thinking...' : 'Aid'}
               </button>
             )}
           </div>

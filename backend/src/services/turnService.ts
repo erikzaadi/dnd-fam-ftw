@@ -4,7 +4,7 @@ import { AiDmService } from './aiDmService.js';
 import { GameEngine } from './gameEngine.js';
 import { StateService } from './stateService.js';
 import { queueCompletedTurnSideEffects } from './turnSideEffectService.js';
-import { computeHpChanges, computeInventoryChanges } from './turnChangeService.js';
+import { computeBuffChanges, computeHpChanges, computeInventoryChanges } from './turnChangeService.js';
 import { resolveRiddleAnswer } from './riddleService.js';
 import {
   CHARACTER_EDGE_BONUS,
@@ -15,7 +15,7 @@ import {
   toFreeActionBonusPreview,
 } from './freeActionInferenceService.js';
 import { buildSceneMomentum, buildScenePressure } from './sceneMomentumService.js';
-import { ensureSuccessfulEnchantmentSuggestion, ensureSuccessfulHealingSuggestion } from './freeActionPolicyService.js';
+import { ensureSuccessfulEnchantmentSuggestion, ensureSuccessfulHealingSuggestion, ensureSuccessfulSupportSuggestion } from './freeActionPolicyService.js';
 
 export interface TurnActionRequest {
   action: string;
@@ -28,6 +28,7 @@ export interface TurnActionRequest {
   targetCharacterId?: string;
   targetCharId?: string;
   actionType?: 'use_item' | 'give_item';
+  actionIntent?: string;
 }
 
 export type TurnActionResult =
@@ -57,6 +58,7 @@ export const executeTurnAction = async (
     difficulty,
     difficultyValue,
     itemId,
+    actionIntent,
   } = request;
   const characterId = request.characterId ?? request.ownerCharId;
   const targetCharacterId = request.targetCharacterId ?? request.targetCharId;
@@ -109,6 +111,7 @@ export const executeTurnAction = async (
     turnResult.characterId = actingCharId;
     turnResult.hpChanges = computeHpChanges(session.party, newState.party);
     turnResult.inventoryChanges = computeInventoryChanges(session.party, newState.party);
+    turnResult.buffChanges = computeBuffChanges(session.party, newState.party);
     turnResult.id = await StateService.addTurnResult(sessionId, turnResult, actingCharId);
     broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
     broadcastSessionChanged(namespaceId, sessionId, 'updated');
@@ -186,11 +189,13 @@ export const executeTurnAction = async (
   const nextCharId = GameEngine.getNextActiveCharacter(session.party, actingCharId);
   const scenePressure = buildScenePressure(history, actionAttempt, session.scene);
   const sceneMomentum = buildSceneMomentum(history, actionAttempt, session, scenePressure);
-  const aiInput: AIInput = { ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId, scenePressure, sceneMomentum };
+  const aiInput: AIInput = { ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId, scenePressure, sceneMomentum, ...(actionIntent && { actionIntent }) };
+  const targetCharName = targetCharacterId ? session.party.find(c => c.id === targetCharacterId)?.name : undefined;
 
   let turnResult = await AiDmService.generateTurnResult(aiInput);
   turnResult = ensureSuccessfulHealingSuggestion(session, actionAttempt, turnResult);
   turnResult = ensureSuccessfulEnchantmentSuggestion(session, actionAttempt, turnResult);
+  turnResult = ensureSuccessfulSupportSuggestion(session, actionAttempt, turnResult, actionIntent, targetCharName);
   const newState = GameEngine.updateState(session, actionAttempt, turnResult as unknown as Record<string, unknown>);
   await StateService.updateSession(sessionId, newState);
 
@@ -198,6 +203,7 @@ export const executeTurnAction = async (
   turnResult.characterId = actingCharId;
   turnResult.hpChanges = computeHpChanges(session.party, newState.party);
   turnResult.inventoryChanges = computeInventoryChanges(session.party, newState.party);
+  turnResult.buffChanges = computeBuffChanges(session.party, newState.party);
 
   turnResult.id = await StateService.addTurnResult(sessionId, turnResult, actingCharId);
   broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });

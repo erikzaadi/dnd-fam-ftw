@@ -120,6 +120,13 @@ export interface InventoryChange {
   type: 'added' | 'removed' | 'updated';
 }
 
+export interface BuffChange {
+  characterName: string;
+  buffName: string;
+  kind: 'buff' | 'curse';
+  type: 'added' | 'removed';
+}
+
 export interface ActionAttempt {
   actionAttempt: string;
   actionResult: {
@@ -170,7 +177,7 @@ export interface TurnResult {
   } | null;
   suggestedRevive?: { characterName: string; hp: number } | null;
   suggestedHeal?: Array<{ characterName: string; hp: number }> | null;
-  suggestedBuffAdd?: ({ characterName: string } & Omit<CharacterBuff, 'id'>) | null;
+  suggestedBuffAdd?: Array<{ characterName: string } & Omit<CharacterBuff, 'id'>> | null;
   suggestedBuffRemove?: { characterName: string; buffName: string } | null;
   suggestedDamage?: number | null;
   lastAction?: ActionAttempt | null;
@@ -179,6 +186,7 @@ export interface TurnResult {
   currentTensionLevel?: TensionLevel;
   hpChanges?: HpChange[];
   inventoryChanges?: InventoryChange[];
+  buffChanges?: BuffChange[];
   narrationRetried?: boolean;
   narrationFailed?: boolean;
   narrationValidationError?: string;
@@ -239,4 +247,6 @@ export interface FreeActionPreview {
   characterBonus?: number;
   characterBonusLabel?: string;
   flavor?: ChoiceFlavor;
+  pendingIntent?: string;
+  pendingTargetCharacterId?: string;
 }

@@ -612,12 +612,14 @@ export class GameEngine {
         }
       }
 
-      const buffAdd = aiSuggestedChanges?.suggestedBuffAdd as ({ characterName: string } & Omit<CharacterBuff, 'id'>) | null | undefined;
-      if (buffAdd && typeof buffAdd === 'object' && buffAdd.characterName) {
-        const target = GameEngine.findCharacter(newState.party, buffAdd.characterName);
-        const cleaned = this.cleanBuff(buffAdd);
-        if (target && target.status === 'active' && cleaned) {
-          this.refreshOrAddBuff(target, cleaned);
+      const buffAdds = aiSuggestedChanges?.suggestedBuffAdd as Array<{ characterName: string } & Omit<CharacterBuff, 'id'>> | null | undefined;
+      if (Array.isArray(buffAdds)) {
+        for (const buffAdd of buffAdds) {
+          const target = GameEngine.findCharacter(newState.party, buffAdd.characterName);
+          const cleaned = this.cleanBuff(buffAdd);
+          if (target && target.status === 'active' && cleaned) {
+            this.refreshOrAddBuff(target, cleaned);
+          }
         }
       }
 

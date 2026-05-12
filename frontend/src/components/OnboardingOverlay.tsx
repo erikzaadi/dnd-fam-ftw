@@ -1,6 +1,6 @@
 import { type ReactNode, type CSSProperties, useState, useEffect } from 'react';
 
-// Steps 1-3 are anchored callouts. Steps 5-7 are full bottom panels.
+// Steps 1-3 are anchored callouts. Steps 5-8 are full bottom panels.
 // Step 4 = silent wait while roll resolves.
 
 function useElementRect(selector: string | null): DOMRect | null {
@@ -194,12 +194,29 @@ export const OnboardingOverlay = ({
   // Step 7: Chronicle + TTS
   if (step === 7) {
     return (
-      <BottomPanel title="The Chronicle" cta="Let's go!" onAdvance={onAdvance}>
+      <BottomPanel title="The Chronicle" cta="Got it" onAdvance={onAdvance}>
         <p>
           Every turn is saved in the <span className="text-amber-300 font-bold">Chronicle</span>. Tap the scroll icon in the story box (or press <span className="font-mono text-xs bg-slate-800 px-1 rounded">c</span>) to browse the full history of your campaign.
         </p>
         <p>
           One more thing: the DM can <span className="text-amber-300 font-bold">read narration aloud</span>. Enable it in Settings if you want the full tavern experience.
+        </p>
+      </BottomPanel>
+    );
+  }
+
+  // Step 8: Support actions
+  if (step === 8) {
+    return (
+      <BottomPanel title="Support Actions" cta="Let's go!" onAdvance={onAdvance}>
+        <p>
+          The active hero can support the party instead of acting alone. Tap the <span className="text-emerald-300 font-bold">✦ button</span> in the party bar for a <span className="text-amber-300 font-bold">party boost</span> - a roll to inspire everyone at once.
+        </p>
+        <p>
+          Tap any hero's portrait to open their sheet. From there you can <span className="text-blue-300 font-bold">Bless</span> them (a magical edge) or <span className="text-emerald-300 font-bold">Aid</span> them (a setup bonus for their next action). All three show a confirmation preview before you commit.
+        </p>
+        <p>
+          You can also open the <span className="text-indigo-300 font-bold">inventory</span> and tap <span className="text-indigo-300 font-bold">Enchant</span> on any item to try upgrading it in the scene.
         </p>
       </BottomPanel>
     );

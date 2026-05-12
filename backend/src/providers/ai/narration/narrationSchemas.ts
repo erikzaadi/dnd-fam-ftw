@@ -99,7 +99,7 @@ export const narrationOutputSchema = z.object({
   suggestedInventoryUpdate: inventoryUpdateSchema.nullable().default(null),
   suggestedRevive: reviveSchema.nullable().default(null),
   suggestedHeal: z.array(reviveSchema).nullable().default(null),
-  suggestedBuffAdd: buffAddSchema.nullable().default(null),
+  suggestedBuffAdd: z.preprocess(val => (val !== null && val !== undefined && !Array.isArray(val) ? [val] : val), z.array(buffAddSchema).nullable()).default(null),
   suggestedBuffRemove: buffRemoveSchema.nullable().default(null),
   suggestedDamage: z.number().int().min(0).max(20).nullable().default(null),
 });

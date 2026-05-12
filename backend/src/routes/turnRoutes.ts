@@ -19,6 +19,7 @@ const actionBodySchema = z.object({
   targetCharacterId: z.string().optional(),
   targetCharId: z.string().optional(),
   actionType: z.enum(['use_item', 'give_item']).optional(),
+  actionIntent: z.string().optional(),
 });
 
 export const createTurnRouter = () => {

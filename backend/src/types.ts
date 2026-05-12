@@ -29,4 +29,5 @@ export interface AIInput extends SessionState, ActionAttempt {
   sceneMomentum?: SceneMomentum;
   interventionRescue?: boolean;
   sanctuaryRecovery?: boolean;
+  actionIntent?: string;
 }

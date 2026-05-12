@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { TurnResult, Character, HpChange, InventoryChange } from '../../types';
+import type { TurnResult, Character, HpChange, InventoryChange, BuffChange } from '../../types';
 import { imgSrc } from '../../lib/api';
 import { StatImg } from './StatIcon';
 import { beatTarget } from '../../lib/game';
@@ -51,6 +51,29 @@ const InventoryChangeBadges = ({ inventoryChanges }: { inventoryChanges: Invento
   </div>
 );
 
+const BuffChangeBadges = ({ buffChanges }: { buffChanges: BuffChange[] }) => (
+  <div className="flex flex-wrap gap-1.5">
+    {buffChanges.map((bc, i) => {
+      const isCurse = bc.kind === 'curse';
+      const isAdded = bc.type === 'added';
+      return (
+        <div
+          key={i}
+          className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-black border ${
+            isCurse
+              ? 'bg-rose-900/40 border-rose-700/50 text-rose-300'
+              : 'bg-emerald-900/40 border-emerald-700/50 text-emerald-300'
+          }`}
+        >
+          <span>{isAdded ? (isCurse ? '⚑' : '✦') : '✕'}</span>
+          <span className="normal-case tracking-normal font-semibold truncate max-w-[120px]">{bc.buffName}</span>
+          <span className="opacity-60 shrink-0">→ {bc.characterName.split(' ')[0]}</span>
+        </div>
+      );
+    })}
+  </div>
+);
+
 // Narrow-column expanded turn view, designed for ~380-420px panels
 const TurnDetail = ({
   turn,
@@ -59,6 +82,7 @@ const TurnDetail = ({
   takenChar,
   nextTurnHpChanges,
   nextTurnInventoryChanges,
+  nextTurnBuffChanges,
   ttsSettings,
   hasTts,
 }: {
@@ -68,6 +92,7 @@ const TurnDetail = ({
   takenChar: Character | null;
   nextTurnHpChanges?: HpChange[];
   nextTurnInventoryChanges?: InventoryChange[];
+  nextTurnBuffChanges?: BuffChange[];
   ttsSettings: TtsSettings;
   hasTts: boolean;
 }) => {
@@ -152,6 +177,9 @@ const TurnDetail = ({
       )}
       {nextTurnInventoryChanges && nextTurnInventoryChanges.length > 0 && (
         <InventoryChangeBadges inventoryChanges={nextTurnInventoryChanges} />
+      )}
+      {nextTurnBuffChanges && nextTurnBuffChanges.length > 0 && (
+        <BuffChangeBadges buffChanges={nextTurnBuffChanges} />
       )}
 
       {/* Custom action */}
@@ -319,6 +347,7 @@ export const ChronicleDrawer = ({
                       takenChar={takenChar}
                       nextTurnHpChanges={nextTurn?.hpChanges}
                       nextTurnInventoryChanges={nextTurn?.inventoryChanges}
+                      nextTurnBuffChanges={nextTurn?.buffChanges}
                       ttsSettings={ttsSettings}
                       hasTts={hasTts}
                     />

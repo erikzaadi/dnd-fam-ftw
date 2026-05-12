@@ -84,7 +84,7 @@ describe('parseNarrationOutput', () => {
     }
   });
 
-  it('rejects item choices when the item belongs to a different character than the next actor', () => {
+  it('downgrades item choices when the item belongs to a different character than the next actor', () => {
     const result = parseNarrationOutput({
       ...input,
       nextCharacterName: 'Pip',
@@ -103,9 +103,11 @@ describe('parseNarrationOutput', () => {
       ],
     }));
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toContain('Item choices may only use the next actor');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.choices[0].flavor).toBe('standard');
+      expect(result.data.choices[0].itemOwnerName).toBeUndefined();
+      expect(result.data.choices[0].itemName).toBeUndefined();
     }
   });
 
@@ -207,18 +209,18 @@ describe('parseNarrationOutput', () => {
 
   it('keeps valid buff suggestions for active characters', () => {
     const result = parseNarrationOutput(input, output({
-      suggestedBuffAdd: {
+      suggestedBuffAdd: [{
         characterName: 'Pip',
         name: 'Blessed',
         description: 'A quick blessing sharpens Pip.',
         statBonuses: { mischief: 1 },
         remainingTurns: 2,
-      },
+      }],
     }));
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.suggestedBuffAdd?.characterName).toBe('Pip');
+      expect(result.data.suggestedBuffAdd?.[0]?.characterName).toBe('Pip');
     }
   });
 
@@ -227,13 +229,13 @@ describe('parseNarrationOutput', () => {
       ...input,
       party: [{ ...input.party[0], status: 'downed' }],
     }, output({
-      suggestedBuffAdd: {
+      suggestedBuffAdd: [{
         characterName: 'Pip',
         name: 'Blessed',
         description: 'A quick blessing sharpens Pip.',
         statBonuses: { mischief: 1 },
         remainingTurns: 2,
-      },
+      }],
     }));
 
     expect(result.success).toBe(true);

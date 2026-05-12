@@ -424,14 +424,14 @@ describe('GameEngine short-lived buffs and curses', () => {
     const attempt = { actionAttempt: 'Bless Brom', actionResult: { success: true, roll: 16, statUsed: 'magic' as const } };
 
     const result = GameEngine.updateState(session, attempt, {
-      suggestedBuffAdd: {
+      suggestedBuffAdd: [{
         characterName: 'Brom',
         name: 'Blessed',
         description: 'A quick blessing steadies his hands.',
         statBonuses: { might: 9 },
         remainingTurns: 99,
         sourceCharacterName: 'Mira',
-      },
+      }],
     });
 
     const target = result.party.find(c => c.id === 'target')!;
@@ -450,7 +450,7 @@ describe('GameEngine short-lived buffs and curses', () => {
 
     const result = GameEngine.updateState(session, attempt, {
       suggestedDamage: 0,
-      suggestedBuffAdd: {
+      suggestedBuffAdd: [{
         characterName: 'Brom',
         name: 'Jinxed',
         kind: 'curse',
@@ -458,7 +458,7 @@ describe('GameEngine short-lived buffs and curses', () => {
         statBonuses: { mischief: -9 },
         remainingUses: 1,
         sourceCharacterName: 'Bog Witch',
-      },
+      }],
     });
 
     expect(result.party[0].buffs).toHaveLength(1);
@@ -480,13 +480,13 @@ describe('GameEngine short-lived buffs and curses', () => {
     const attempt = { actionAttempt: 'Refresh Brom blessing', actionResult: { success: true, roll: 16, statUsed: 'magic' as const } };
 
     const result = GameEngine.updateState(session, attempt, {
-      suggestedBuffAdd: {
+      suggestedBuffAdd: [{
         characterName: 'Brom',
         name: 'Blessed',
         description: 'New light.',
         statBonuses: { might: 2 },
         remainingTurns: 2,
-      },
+      }],
     });
 
     const refreshed = result.party.find(c => c.id === 'target')!.buffs!;
@@ -560,13 +560,13 @@ describe('GameEngine short-lived buffs and curses', () => {
     const attempt = { actionAttempt: 'Bless Nobody', actionResult: { success: true, roll: 16, statUsed: 'magic' as const } };
 
     const result = GameEngine.updateState(session, attempt, {
-      suggestedBuffAdd: {
+      suggestedBuffAdd: [{
         characterName: 'Nobody',
         name: '',
         description: '',
         statBonuses: { magic: 10 },
         remainingTurns: 99,
-      },
+      }],
     });
 
     expect(result.party[0].buffs ?? []).toEqual([]);

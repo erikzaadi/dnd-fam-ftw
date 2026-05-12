@@ -71,8 +71,8 @@ describe('OnboardingOverlay', () => {
     expect(onAdvance).toHaveBeenCalledOnce();
   });
 
-  it('shows Let\'s go! on step 7', () => {
-    render(<OnboardingOverlay step={7} onAdvance={vi.fn()} />);
+  it('shows Let\'s go! on step 8', () => {
+    render(<OnboardingOverlay step={8} onAdvance={vi.fn()} />);
     expect(screen.getByRole('button').textContent).toContain("Let's go");
   });
 });

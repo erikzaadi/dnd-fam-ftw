@@ -211,7 +211,7 @@ CRITICAL - Healing (Active and Passive):
 - Otherwise set suggestedHeal: null.
 
 Buffs and Curses:
-- To add a character-bound temporary effect, set \`suggestedBuffAdd\`: { "characterName": "exact active target", "name": "Blessed", "kind": "buff", "description": "A short concrete effect", "statBonuses": {"magic": 1}, "remainingTurns": 2, "remainingUses": null, "sourceCharacterName": "optional caster/helper/NPC/enemy exact name" }.
+- To add a character-bound temporary effect, set \`suggestedBuffAdd\` to an array: [{ "characterName": "exact active target", "name": "Blessed", "kind": "buff", "description": "A short concrete effect", "statBonuses": {"magic": 1}, "remainingTurns": 2, "remainingUses": null, "sourceCharacterName": "optional caster/helper/NPC/enemy exact name" }]. For single-target effects, wrap the object in an array. For party-wide effects, include one entry per affected character.
 - For curses, use the same field with \`kind: "curse"\` and a negative stat modifier. Example: { "characterName": "Brom", "name": "Jinxed", "kind": "curse", "description": "Shadow luck clings to him.", "statBonuses": {"mischief": -1}, "remainingUses": 1, "sourceCharacterName": "Bog Witch" }.
 - Use \`remainingTurns\` for effects that linger through the target's next few turns. Use \`remainingUses\` for a one-shot modifier that fades after affecting a roll.
 - Good buffs: Blessed +1 magic for 2 turns, Hasted +1 mischief for 1 use, Courage +1 might for 2 turns, Shielded +1 might for 1 use.
@@ -219,6 +219,21 @@ Buffs and Curses:
 - Bad effects: healing over time, permanent stat changes, item enchantments, huge modifiers, unclear targets, or effects with no end.
 - To remove a named active effect because the story cancels it, set \`suggestedBuffRemove\`: { "characterName": "exact target", "buffName": "exact buff or curse name" }.
 - Otherwise set suggestedBuffAdd: null and suggestedBuffRemove: null.
+
+SUPPORT ACTION PAYOFF (CRITICAL - follow these rules exactly when the action is bless, aid, party boost, or enchant):
+- If the action is a BLESS (granting magical protection, luck, or a divine edge to a specific ally) and the roll SUCCEEDS: you MUST set suggestedBuffAdd with kind "buff", a +1 stat bonus in the stat most fitting to the scene (magic for arcane bless, might for martial bless, mischief for luck-bless), remainingTurns: 2. Do NOT leave suggestedBuffAdd null on a successful bless.
+- If the action is an AID (setting up an assist, a clever distraction, or a supportive setup for a specific ally's next action) and the roll SUCCEEDS: you MUST set suggestedBuffAdd with kind "buff", name "Aided", +1 in the stat most relevant to the ally's next likely action, remainingUses: 1. Do NOT leave suggestedBuffAdd null on a successful aid.
+- If the action is a PARTY BOOST (rallying, inspiring, or encouraging the whole group) and the roll SUCCEEDS: you MUST set suggestedBuffAdd as an ARRAY containing one entry per non-active, non-downed party member, each with kind "buff", name "Inspired", +1 might or +1 magic (whichever fits the acting hero's style), remainingTurns: 2. Every eligible ally gets the buff.
+- If the action is an ENCHANT or IMPROVE on an existing item and the roll SUCCEEDS: you MUST set suggestedInventoryUpdate for the named item. Choose an appropriate stat bonus (+1 in might, magic, or mischief), add "Enchanted" to tags, update the description to reflect the change. Do NOT leave suggestedInventoryUpdate null on a successful enchant.
+- On a FAILED support roll: set both suggestedBuffAdd: null and suggestedInventoryUpdate: null. Narrate the attempt falling short without punishing the acting hero with HP damage.
+
+ACTION INTENT (use when actionIntent is provided):
+- \`actionIntent\` tells you exactly what kind of support action this is. It overrides any guessing from the action text.
+- "bless_character": MUST set suggestedBuffAdd on the named target (use actingCharacterName's target from actionAttempt text or nextCharacterName as fallback). Kind "buff", name "Blessed", +1 magic or might.
+- "aid_character": MUST set suggestedBuffAdd with name "Aided", kind "buff", remainingUses: 1. Find the target name in the actionAttempt text.
+- "party_boost": MUST set suggestedBuffAdd with name "Inspired", kind "buff", targeting the party member with lowest HP. Never null on success.
+- "improve_item": MUST set suggestedInventoryUpdate for the item referenced in actionAttempt. +1 stat bonus, add "Enchanted" to tags.
+- These are MANDATORY on success. The backend enforces them as a fallback, but the AI narration should still set them for narrative coherence.
 
 Inventory:
 - \`ownerName\` tells you which character carries each item.

@@ -84,6 +84,7 @@ export type NarrationInput = {
   isFirstTurn?: boolean;
   interventionRescue?: boolean;
   sanctuaryRecovery?: boolean;
+  actionIntent?: string;
 };
 
 export type NarrationOutput = {
@@ -125,7 +126,7 @@ export type NarrationOutput = {
   } | null;
   suggestedRevive: { characterName: string; hp: number } | null;
   suggestedHeal: Array<{ characterName: string; hp: number }> | null;
-  suggestedBuffAdd: ({ characterName: string } & Omit<CharacterBuff, 'id'>) | null;
+  suggestedBuffAdd: Array<{ characterName: string } & Omit<CharacterBuff, 'id'>> | null;
   suggestedBuffRemove: { characterName: string; buffName: string } | null;
   suggestedDamage: number | null;
   narrationRetried?: boolean;

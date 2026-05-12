@@ -50,7 +50,11 @@ export const createStatSuggestionRouter = () => {
     const action = body.action?.trim() || await suggestPreviewActionText(req.params.id as string, body);
     const suggestion = await previewFreeAction(req.params.id as string, { action });
     const interpretedAction = suggestion.interpretedAction ?? action;
-    const { difficulty, difficultyValue } = getFreeActionDifficulty(interpretedAction);
+    const SUPPORT_INTENTS = new Set(['bless_character', 'aid_character', 'improve_item', 'party_boost']);
+    const isSupportIntent = !!body.intent && SUPPORT_INTENTS.has(body.intent);
+    const { difficulty, difficultyValue } = isSupportIntent
+      ? { difficulty: 'easy' as const, difficultyValue: 8 }
+      : getFreeActionDifficulty(interpretedAction);
     const preview: FreeActionPreview = {
       originalAction: body.action?.trim() ?? action,
       interpretedAction,

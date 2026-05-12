@@ -1,4 +1,4 @@
-import type { Character, HpChange, InventoryChange } from '../types.js';
+import type { BuffChange, Character, HpChange, InventoryChange } from '../types.js';
 
 export const computeHpChanges = (before: Character[], after: Character[]): HpChange[] => {
   const changes: HpChange[] = [];
@@ -40,6 +40,29 @@ export const computeInventoryChanges = (before: Character[], after: Character[])
     for (const item of beforeChar.inventory) {
       if (!afterIds.has(item.id)) {
         changes.push({ characterName: beforeChar.name, itemName: item.name, type: 'removed' });
+      }
+    }
+  }
+  return changes;
+};
+
+export const computeBuffChanges = (before: Character[], after: Character[]): BuffChange[] => {
+  const changes: BuffChange[] = [];
+  for (const beforeChar of before) {
+    const afterChar = after.find(c => c.id === beforeChar.id);
+    if (!afterChar) {
+      continue;
+    }
+    const beforeIds = new Set((beforeChar.buffs ?? []).map(b => b.id));
+    const afterIds = new Set((afterChar.buffs ?? []).map(b => b.id));
+    for (const buff of afterChar.buffs ?? []) {
+      if (!beforeIds.has(buff.id)) {
+        changes.push({ characterName: afterChar.name, buffName: buff.name, kind: buff.kind ?? 'buff', type: 'added' });
+      }
+    }
+    for (const buff of beforeChar.buffs ?? []) {
+      if (!afterIds.has(buff.id)) {
+        changes.push({ characterName: beforeChar.name, buffName: buff.name, kind: buff.kind ?? 'buff', type: 'removed' });
       }
     }
   }

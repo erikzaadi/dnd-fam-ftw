@@ -57,6 +57,7 @@ export const SessionPage = () => {
   const [history, setHistory] = useState<TurnResult[]>([]);
   const [viewedTurnIdx, setViewedTurnIdx] = useState(-1);
   const [loading, setLoading] = useState(false);
+  const [previewThinking, setPreviewThinking] = useState(false);
   const [customAction, setCustomAction] = useState("");
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
@@ -386,7 +387,7 @@ export const SessionPage = () => {
     setSession({ ...session, savingsMode: enabled });
   };
 
-  const submitAction = async (action: string, statUsed: string = 'none', difficulty: string = 'normal', difficultyValue: number | null = null, ownerCharId: string | null = null, itemId: string | null = null, targetCharId: string | null = null, preview: Partial<LastSubmittedAction> = {}) => {
+  const submitAction = async (action: string, statUsed: string = 'none', difficulty: string = 'normal', difficultyValue: number | null = null, ownerCharId: string | null = null, itemId: string | null = null, targetCharId: string | null = null, preview: Partial<LastSubmittedAction> = {}, actionIntent?: string) => {
     if (!session) {
       return;
     }
@@ -418,6 +419,7 @@ export const SessionPage = () => {
           actionType,
           itemId: itemId ?? undefined,
           targetCharacterId: targetCharId ?? undefined,
+          ...(actionIntent && { actionIntent }),
         }),
       });
       const data = await res.json();
@@ -516,11 +518,15 @@ export const SessionPage = () => {
         warnings: ['Preview failed - submitting with default stat. You can still confirm or cancel.'],
       };
     }
-    setGearActionPreview(preview);
+    setGearActionPreview({
+      ...preview,
+      ...(request.intent && { pendingIntent: request.intent }),
+      ...(request.targetCharacterId && { pendingTargetCharacterId: request.targetCharacterId }),
+    });
   };
 
   const previewImproveGearAction = async (ownerCharId: string, itemId: string, method: 'enchant' | 'craft' | 'tinker') => {
-    if (!session || loading) {
+    if (!session || loading || previewThinking) {
       return;
     }
     const owner = session.party.find(c => c.id === ownerCharId);
@@ -532,6 +538,7 @@ export const SessionPage = () => {
 
     setActionError(null);
     setShowFullInventory(false);
+    setPreviewThinking(true);
     await previewSceneAction({
       intent: 'improve_item',
       itemOwnerCharacterId: owner.id,
@@ -543,10 +550,11 @@ export const SessionPage = () => {
       choiceItemOwnerName: owner.name,
       flavor: 'item',
     }, `${actor.name} tries to ${method} ${owner.name}'s ${item.name}`);
+    setPreviewThinking(false);
   };
 
   const previewCharacterSupportAction = async (targetCharacterId: string, kind: 'bless' | 'aid') => {
-    if (!session || loading) {
+    if (!session || loading || previewThinking) {
       return;
     }
     const actor = session.party.find(c => c.id === session.activeCharacterId);
@@ -557,6 +565,7 @@ export const SessionPage = () => {
 
     setActionError(null);
     setSelectedCharacter(null);
+    setPreviewThinking(true);
     await previewSceneAction({
       intent: kind === 'bless' ? 'bless_character' : 'aid_character',
       targetCharacterId: target.id,
@@ -567,10 +576,11 @@ export const SessionPage = () => {
     }, kind === 'bless'
       ? `${actor.name} blesses ${target.name} with short-lived protective magic`
       : `${actor.name} aids ${target.name} with a coordinated setup`);
+    setPreviewThinking(false);
   };
 
   const previewPartyBoostAction = async () => {
-    if (!session || loading) {
+    if (!session || loading || previewThinking) {
       return;
     }
     const actor = session.party.find(c => c.id === session.activeCharacterId);
@@ -583,11 +593,13 @@ export const SessionPage = () => {
       { stat: 'magic' as const, value: actor.stats.magic },
       { stat: 'mischief' as const, value: actor.stats.mischief },
     ].sort((a, b) => b.value - a.value)[0]?.stat) ?? 'mischief';
+    setPreviewThinking(true);
     await previewSceneAction({ intent: 'party_boost' }, {
       characterBonus: 2,
       characterBonusLabel: strongest === 'magic' ? 'spotlight' : 'social edge',
       flavor: strongest === 'magic' ? 'spotlight' : 'social',
     }, `${actor.name} rallies the whole party with a short-lived boost`);
+    setPreviewThinking(false);
   };
 
   const confirmGearAction = async () => {
@@ -605,10 +617,10 @@ export const SessionPage = () => {
       ...(gearActionPreview.characterBonusLabel !== undefined && { characterBonusLabel: gearActionPreview.characterBonusLabel }),
       ...(gearActionPreview.flavor !== undefined && { flavor: gearActionPreview.flavor }),
     };
-    const { interpretedAction, stat, difficulty, difficultyValue } = gearActionPreview;
+    const { interpretedAction, stat, difficulty, difficultyValue, pendingIntent, pendingTargetCharacterId } = gearActionPreview;
     setGearActionPreview(null);
     setGearPreviewSubmitting(false);
-    await submitAction(interpretedAction, stat, difficulty, difficultyValue ?? null, null, null, null, preview);
+    await submitAction(interpretedAction, stat, difficulty, difficultyValue ?? null, null, null, pendingTargetCharacterId ?? null, preview, pendingIntent);
   };
 
   const editGearAction = () => {
@@ -709,6 +721,7 @@ export const SessionPage = () => {
         <SessionHud
           session={session}
           onCharacterClick={setSelectedCharacter}
+          previewThinking={previewThinking}
           onPartyBoost={() => {
             void previewPartyBoostAction();
           }}
@@ -802,7 +815,8 @@ export const SessionPage = () => {
           <div className="h-[calc(100dvh-3.5rem)] min-h-0">
             <ActionDock
               turn={displayTurn}
-              loading={loading}
+              loading={loading || previewThinking}
+              previewThinking={previewThinking}
               activeCharacter={activeChar}
               isDown={isDown}
               party={session.party}
@@ -893,7 +907,8 @@ export const SessionPage = () => {
               <div className="min-h-0 flex-1">
                 <ActionDock
                   turn={displayTurn}
-                  loading={loading}
+                  loading={loading || previewThinking}
+                  previewThinking={previewThinking}
                   activeCharacter={activeChar}
                   isDown={isDown}
                   party={session.party}
@@ -1012,7 +1027,8 @@ export const SessionPage = () => {
                 submitAction('give item', 'none', 'easy', null, ownerCharId, itemId, targetCharId);
                 setShowFullInventory(false);
               }}
-              disabled={loading}
+              disabled={loading || previewThinking}
+              previewThinking={previewThinking}
             />
           </div>
         </div>
@@ -1109,6 +1125,7 @@ export const SessionPage = () => {
             setSelectedCharacter(null);
             setFullscreenImage(url);
           }}
+          previewThinking={previewThinking}
           onBlessCharacter={targetCharacterId => {
             void previewCharacterSupportAction(targetCharacterId, 'bless');
           }}

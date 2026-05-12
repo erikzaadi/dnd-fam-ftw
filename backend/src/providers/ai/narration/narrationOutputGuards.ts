@@ -4,7 +4,7 @@ import { narrationOutputSchema, type ValidNarrationOutput } from './narrationSch
 const HEALING_ACTION_RE = /\b(heal|healing|restore|restoring|revive|reviving|mend|mending|soothe|soothing|recover|recovery|rest|resting|sleep|sleeping|eat|eating|meal|care|treat|treating|medicine|potion|bandage|sanctuary)\b/i;
 const LOW_MOTION_RE = /\b(inspect|wait|look around|look|listen|rest|discuss|search)\b/i;
 const GENERIC_LABEL_RE = /\b(attack|strike|search|inspect|look|wait|listen|rest|discuss)\b/i;
-const CONCRETE_TRANSITION_RE = /\b(stair|stairs|door|gate|path|paths|pathway|pathways|trail|route|bridge|ferry|passage|tunnel|portal|shortcut|chamber|room|cave|cavern|tower|map|key|clue|clues|symbol|symbols|hazard|hazards|danger|dangers|guide|track|tracks|smoke|light|opens?|deeper|beyond|toward|descend|descends|enter|arrive|follow)\b/i;
+const CONCRETE_TRANSITION_RE = /\b(stair|stairs|door|gate|path|paths|pathway|pathways|trail|route|bridge|ferry|passage|tunnel|portal|shortcut|chamber|room|cave|cavern|tower|map|key|clue|clues|symbol|symbols|hazard|hazards|danger|dangers|guide|track|tracks|smoke|light|opens?|deeper|beyond|toward|descend|descends|enter|arrive|follow|inspect|examine|investigate|study|explore|search|speak|listen|offer|share|discover|reveal|relic|artifact|shrine|ruins|alcove|gather|ancient|glade|clearing|grove|merchant|npc|village|camp|campfire|library|tavern|market|forge|vault|altar|chest|treasure|reward|loot|bounty|signal|beacon|seal|shard|fragment|crystal|gem|stone|scroll|tome|journal|note|letter|message|riddle|puzzle|trap|mechanism|lever|rune|ward|barrier|seal)\b/i;
 const COMBAT_LABEL_RE = /\b(attack|strike|slash|stab|fight|battle|enemy|foe|monster|goblin|wolf|wolves)\b/i;
 const PORTAL_TRANSITION_RE = /\b(portal|teleport|teleports|teleported|teleporting|gateway|gateways|waygate|waygates)\b/i;
 const HIDDEN_PATH_RE = /\b(hidden|secret|concealed|veiled)\b.{0,24}\b(path|paths|trail|route|passage|tunnel|door|doorway)\b/i;
@@ -122,12 +122,14 @@ function canonicalizeItemChoices(input: NarrationInput, output: ValidNarrationOu
       i.ownerName === choice.itemOwnerName &&
       normalizedItemName(i.name) === normalizedItemName(choice.itemName)
     );
-    if (item) {
+    if (item && (!input.nextCharacterName || item.ownerName === input.nextCharacterName)) {
       choice.itemOwnerName = item.ownerName;
       choice.itemName = item.name;
       continue;
     }
 
+    // Item missing or belongs to a character other than the next actor - degrade to standard.
+    // This handles cross-character enchants where the AI wants to reference the updated item.
     choice.flavor = 'standard';
     delete choice.itemOwnerName;
     delete choice.itemName;
@@ -144,12 +146,15 @@ function normalizeNarrationMetadata(input: NarrationInput, output: ValidNarratio
   }
 
   if (output.suggestedBuffAdd) {
-    const target = input.party.find(c => c.name === output.suggestedBuffAdd?.characterName);
-    if (!target || target.status !== 'active') {
-      output.suggestedBuffAdd = null;
-    } else {
-      output.suggestedBuffAdd.characterName = target.name;
-    }
+    const validated = output.suggestedBuffAdd.flatMap(buff => {
+      const target = input.party.find(c => c.name === buff.characterName);
+      if (!target || target.status !== 'active') {
+        return [];
+      }
+      buff.characterName = target.name;
+      return [buff];
+    });
+    output.suggestedBuffAdd = validated.length > 0 ? validated : null;
   }
 
   if (output.suggestedBuffRemove) {
@@ -258,16 +263,6 @@ function validateMomentumOutput(input: NarrationInput, output: ValidNarrationOut
   }
 
   const previousLabels = new Set((input.previousChoiceLabels ?? []).map(normalizedText));
-  const offOwnerItemChoice = output.choices.find(choice =>
-    choice.flavor === 'item' &&
-    choice.itemOwnerName &&
-    input.nextCharacterName &&
-    choice.itemOwnerName !== input.nextCharacterName
-  );
-  if (offOwnerItemChoice?.itemOwnerName) {
-    return `Item choice uses gear from "${offOwnerItemChoice.itemOwnerName}", but the next actor is "${input.nextCharacterName}". Item choices may only use the next actor's own gear.`;
-  }
-
   const repeatedGenericChoice = output.choices.find(choice => {
     const label = normalizedText(choice.label);
     return previousLabels.has(label) && GENERIC_LABEL_RE.test(label);

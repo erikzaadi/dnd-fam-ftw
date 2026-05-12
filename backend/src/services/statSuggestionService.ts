@@ -135,7 +135,7 @@ export async function suggestPreviewActionText(
     : null;
   const storyContext = await buildFreeActionStoryContext(sessionId);
 
-  const targetLine = target
+  const targetLine = target && context.intent !== 'party_boost'
     ? `Target ally: ${target.name}, ${target.species} ${target.class}, stats might ${target.stats.might}, magic ${target.stats.magic}, mischief ${target.stats.mischief}.`
     : '';
   const itemLine = item && itemOwner
@@ -159,6 +159,7 @@ Write the exact player action to preview for this intent. It must:
 - fit the current scene and the acting character's class, stats, and quirk
 - be one sentence, 8-18 words
 - name the target ally or gear when provided
+- for party_boost intent: address the whole group (everyone, the party, all allies) - never name a single character
 - avoid promising success or final results
 
 Reply with ONLY valid JSON: {"action":"..."}`,

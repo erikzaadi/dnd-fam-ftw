@@ -12,6 +12,7 @@ export type {
   TurnType,
   HpChange,
   InventoryChange,
+  BuffChange,
   ActionAttempt,
   TurnResult,
   SessionPreview,
