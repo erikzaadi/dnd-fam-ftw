@@ -154,8 +154,8 @@ Choices:
 - Reward good help in the choice design: if an active ally's class, trait, spell, or item clearly supports \`nextCharacterName\`, make that combo choice a little easier or safer than doing it alone.
 - For combo choices, set \`flavor: "combo"\` and \`helperCharacterName\` to the exact active ally helping.
 - Trait-aware social encounters: when an NPC can be talked to, tailor options to strengths. Rogues deceive or read tells, mages charm or sense magic, holy characters appeal to honor or detect corruption, strong characters intimidate or protect, performers distract or negotiate.
-- Inventory-aware choices: when an item could logically help, make one choice use it. Include the owner in the label when another hero's item matters. Do not overuse the same item every turn.
-- For item choices, set \`flavor: "item"\`, \`itemOwnerName\`, and \`itemName\` using exact names from current inventory. The backend can reward this with a small marked gear bonus if the item owner is active and still carries the item.
+- Inventory-aware choices: when the next acting character carries an item that could logically help, you may make one choice use it. Do not suggest gear carried by another hero. Do not overuse the same item every turn.
+- For item choices, set \`flavor: "item"\`, \`itemOwnerName\`, and \`itemName\` using exact names from \`nextCharacterName\`'s own inventory only. The backend can reward this with a small marked gear bonus if the next acting character still carries the item.
 - Environmental obstacles should be fast, actionable, and specific: collapsing bridge, rotating room, flooded tunnel, unstable runes, living vines, sliding walls, falling stones, magical fog, brittle ice, or similar concrete scene features.
 - Environment choices should use active verbs, not "inspect the area" unless investigation is the real challenge.
 - When a scene is primarily an obstacle, offer 2-3 different approaches: force or brace with \`might\`, timing or stealth with \`mischief\`, magic, sensing, or stabilizing with \`magic\`.
@@ -227,7 +227,7 @@ Inventory:
 - Items with \`transferable: true\` can be given to other characters.
 - Items with \`consumable: true\` are used up on action.
 - Reference carried items in narration when relevant (torch in dark cave, sword in fight).
-- Suggest actions that use existing gear when it makes sense.
+- Suggest actions that use existing gear when it makes sense, but only for gear carried by the next acting character.
 - Treat carried clue-like and quest-like items as durable story memory. If an item description says it opens, proves, reveals, decodes, points to, unlocks, identifies, or answers something, look for chances to pay it off in later obstacles.
 - ITEM EVOLUTION: A meaningful success, discovery, blessing, enchantment, curse, repair, damage, revelation, or bonding moment may change an existing item instead of granting a new one. Use \`suggestedInventoryUpdate\` for this.
 - Good item evolutions: Blessed, Enchanted, Cursed, Revealed, Damaged, Repaired, Charged, Drained, or Bonded to a character.
@@ -277,8 +277,41 @@ Image Strategy:
 
 export function buildNarrationRetryInstructions(validationError: string): string {
   const fixes: string[] = [
-    `Revise the same turn and fix these validation errors: ${validationError}`,
+    `Revise the same turn and fix this validation error: ${validationError}`,
+    'Do not lightly rephrase the rejected output. Change the story beat enough that the same guard would not fail again.',
   ];
+
+  if (validationError.includes('Victory exit')) {
+    fixes.push('For victory exits, the fight or difficult challenge is over. State the resolution in one sentence, then carry the party into a new concrete beat: a different room, route, clue, NPC, reward, visible consequence, or named location. At least two choices must act inside that new beat, and at most one choice may sound defensive or combat-ready.');
+  }
+
+  if (validationError.includes('Hidden-path beat repeats')) {
+    fixes.push('For hidden-path loops, stop discovering another hidden path. Pay off the existing path now: arrive somewhere specific, reveal a concrete clue, introduce an NPC with new information, unlock a named obstacle, or show a clear consequence of taking the route.');
+  }
+
+  if (validationError.includes('Output revives recently resolved threat')) {
+    fixes.push('For resolved-threat repeats, do not bring back the named defeated, calmed, banished, or retreating threat. Replace it with a different consequence, clue, NPC move, location change, or campaign-relevant pressure.');
+  }
+
+  if (validationError.includes('Narration repeats vague atmosphere filler')) {
+    fixes.push('For repeated atmosphere, remove vague mood phrases and add a concrete fact: a name, object, wound, clue, route, location, NPC reaction, or visible consequence.');
+  }
+
+  if (validationError.includes('Narration repeats the previous turn')) {
+    fixes.push('For repeated narration, start from the submitted action result and add only what changed after it. Do not restate the prior setup.');
+  }
+
+  if (validationError.includes('Choice label repeats')) {
+    fixes.push('For repeated choice labels, replace them with specific verbs plus concrete objects, routes, NPCs, hazards, or items from the current scene.');
+  }
+
+  if (validationError.includes('Item choice repeats recently suggested gear')) {
+    fixes.push('For repeated gear choices, do not suggest that same item again. Offer a different carried item only if it truly fits, otherwise use a route, NPC, obstacle, clue, or standard action.');
+  }
+
+  if (validationError.includes('Item choices may only use the next actor')) {
+    fixes.push('For off-owner gear choices, remove that item choice. Only suggest gear carried by nextCharacterName; if their gear does not fit, offer a route, NPC, obstacle, clue, or standard action instead.');
+  }
 
   if (validationError.includes('No more than two bonus-bearing choices')) {
     fixes.push('For bonus-count errors, change excess combo, item, social, or spotlight choices to standard or environment choices, or replace them entirely.');

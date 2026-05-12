@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { CSSProperties } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import type { Session, Character, TurnResult, HpChange, InventoryChange } from '../types';
+import type { Session, Character, TurnResult, HpChange, InventoryChange, FreeActionPreview } from '../types';
 import { apiFetch, imgSrc } from '../lib/api';
 import { useSessionEvents } from '../hooks/useSessionEvents';
 import { PageLoader } from '../components/PageLoader';
@@ -14,6 +14,7 @@ import { D20 } from '../components/game/D20';
 import { SessionHud, GearPopover } from '../components/game/SessionHud';
 import { StoryStage } from '../components/game/StoryStage';
 import { ActionDock } from '../components/game/ActionDock';
+import { FreeActionConfirmDialog } from '../components/game/FreeActionConfirmDialog';
 import { DmDecisionRecapPanel } from '../components/game/DmDecisionRecapPanel';
 import { ChronicleDrawer } from '../components/game/ChronicleDrawer';
 import { audioManager } from '../audio/audioManager';
@@ -71,6 +72,8 @@ export const SessionPage = () => {
   const [showChronicle, setShowChronicle] = useState(false);
   const [showKeybindingsHelp, setShowKeybindingsHelp] = useState(false);
   const [lastSubmittedAction, setLastSubmittedAction] = useState<LastSubmittedAction | null>(null);
+  const [gearActionPreview, setGearActionPreview] = useState<FreeActionPreview | null>(null);
+  const [gearPreviewSubmitting, setGearPreviewSubmitting] = useState(false);
   const [currentTensionLevel, setCurrentTensionLevel] = useState<'low' | 'medium' | 'high' | null>(null);
   const [showBanner, setShowBanner] = useState(true);
   const [gearOpen, setGearOpen] = useState(false);
@@ -442,6 +445,180 @@ export const SessionPage = () => {
     }
   };
 
+  const previewGearAction = async (ownerCharId: string, itemId: string) => {
+    if (!session || loading) {
+      return;
+    }
+
+    const owner = session.party.find(c => c.id === ownerCharId);
+    const item = owner?.inventory.find(i => i.id === itemId);
+    if (!owner || !item || owner.id !== session.activeCharacterId) {
+      return;
+    }
+
+    setActionError(null);
+    setShowFullInventory(false);
+    await previewSceneAction({
+      intent: 'use_item_scene',
+      itemOwnerCharacterId: owner.id,
+      itemId: item.id,
+    }, {
+      choiceItemBonus: 2,
+      choiceItemName: item.name,
+      choiceItemOwnerName: owner.name,
+      flavor: 'item',
+    }, `Use ${item.name} to help with the current situation`);
+  };
+
+  const previewSceneAction = async (
+    request: { action?: string; intent?: string; targetCharacterId?: string; itemOwnerCharacterId?: string; itemId?: string; method?: string },
+    defaults: Partial<FreeActionPreview> = {},
+    fallbackAction = request.action ?? 'Try a support action for the current situation',
+  ) => {
+    const actionText = request.action ?? fallbackAction;
+    let preview: FreeActionPreview = {
+      originalAction: actionText,
+      interpretedAction: actionText,
+      stat: 'mischief',
+      difficulty: 'normal',
+      warnings: [],
+      ...defaults,
+    };
+
+    try {
+      const res = await apiFetch(`/session/${id}/preview-action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      });
+      if (res.ok) {
+        const responsePreview = await res.json() as Partial<FreeActionPreview>;
+        preview = {
+          ...preview,
+          ...responsePreview,
+          originalAction: responsePreview.originalAction ?? actionText,
+          interpretedAction: responsePreview.interpretedAction ?? actionText,
+          warnings: responsePreview.warnings ?? [],
+          choiceItemBonus: responsePreview.choiceItemBonus ?? preview.choiceItemBonus,
+          choiceItemName: responsePreview.choiceItemName ?? preview.choiceItemName,
+          choiceItemOwnerName: responsePreview.choiceItemOwnerName ?? preview.choiceItemOwnerName,
+          flavor: responsePreview.flavor ?? preview.flavor,
+        };
+      } else {
+        preview = {
+          ...preview,
+          warnings: ['Preview failed - submitting with default stat. You can still confirm or cancel.'],
+        };
+      }
+    } catch {
+      preview = {
+        ...preview,
+        warnings: ['Preview failed - submitting with default stat. You can still confirm or cancel.'],
+      };
+    }
+    setGearActionPreview(preview);
+  };
+
+  const previewImproveGearAction = async (ownerCharId: string, itemId: string, method: 'enchant' | 'craft' | 'tinker') => {
+    if (!session || loading) {
+      return;
+    }
+    const owner = session.party.find(c => c.id === ownerCharId);
+    const item = owner?.inventory.find(i => i.id === itemId);
+    const actor = session.party.find(c => c.id === session.activeCharacterId);
+    if (!owner || !item || !actor || actor.status === 'downed') {
+      return;
+    }
+
+    setActionError(null);
+    setShowFullInventory(false);
+    await previewSceneAction({
+      intent: 'improve_item',
+      itemOwnerCharacterId: owner.id,
+      itemId: item.id,
+      method,
+    }, {
+      choiceItemBonus: 2,
+      choiceItemName: item.name,
+      choiceItemOwnerName: owner.name,
+      flavor: 'item',
+    }, `${actor.name} tries to ${method} ${owner.name}'s ${item.name}`);
+  };
+
+  const previewCharacterSupportAction = async (targetCharacterId: string, kind: 'bless' | 'aid') => {
+    if (!session || loading) {
+      return;
+    }
+    const actor = session.party.find(c => c.id === session.activeCharacterId);
+    const target = session.party.find(c => c.id === targetCharacterId);
+    if (!actor || !target || actor.id === target.id || actor.status === 'downed' || target.status === 'downed') {
+      return;
+    }
+
+    setActionError(null);
+    setSelectedCharacter(null);
+    await previewSceneAction({
+      intent: kind === 'bless' ? 'bless_character' : 'aid_character',
+      targetCharacterId: target.id,
+    }, {
+      characterBonus: 2,
+      characterBonusLabel: kind === 'bless' ? 'spotlight' : 'social edge',
+      flavor: kind === 'bless' ? 'spotlight' : 'social',
+    }, kind === 'bless'
+      ? `${actor.name} blesses ${target.name} with short-lived protective magic`
+      : `${actor.name} aids ${target.name} with a coordinated setup`);
+  };
+
+  const previewPartyBoostAction = async () => {
+    if (!session || loading) {
+      return;
+    }
+    const actor = session.party.find(c => c.id === session.activeCharacterId);
+    if (!actor || actor.status === 'downed') {
+      return;
+    }
+
+    const strongest = ([
+      { stat: 'might' as const, value: actor.stats.might },
+      { stat: 'magic' as const, value: actor.stats.magic },
+      { stat: 'mischief' as const, value: actor.stats.mischief },
+    ].sort((a, b) => b.value - a.value)[0]?.stat) ?? 'mischief';
+    await previewSceneAction({ intent: 'party_boost' }, {
+      characterBonus: 2,
+      characterBonusLabel: strongest === 'magic' ? 'spotlight' : 'social edge',
+      flavor: strongest === 'magic' ? 'spotlight' : 'social',
+    }, `${actor.name} rallies the whole party with a short-lived boost`);
+  };
+
+  const confirmGearAction = async () => {
+    if (!gearActionPreview) {
+      return;
+    }
+    setGearPreviewSubmitting(true);
+    const preview: Partial<LastSubmittedAction> = {
+      ...(gearActionPreview.helperBonus !== undefined && { helperBonus: gearActionPreview.helperBonus }),
+      ...(gearActionPreview.helperCharacterName !== undefined && { helperCharacterName: gearActionPreview.helperCharacterName }),
+      ...(gearActionPreview.choiceItemBonus !== undefined && { choiceItemBonus: gearActionPreview.choiceItemBonus }),
+      ...(gearActionPreview.choiceItemName !== undefined && { choiceItemName: gearActionPreview.choiceItemName }),
+      ...(gearActionPreview.choiceItemOwnerName !== undefined && { choiceItemOwnerName: gearActionPreview.choiceItemOwnerName }),
+      ...(gearActionPreview.characterBonus !== undefined && { characterBonus: gearActionPreview.characterBonus }),
+      ...(gearActionPreview.characterBonusLabel !== undefined && { characterBonusLabel: gearActionPreview.characterBonusLabel }),
+      ...(gearActionPreview.flavor !== undefined && { flavor: gearActionPreview.flavor }),
+    };
+    const { interpretedAction, stat, difficulty, difficultyValue } = gearActionPreview;
+    setGearActionPreview(null);
+    setGearPreviewSubmitting(false);
+    await submitAction(interpretedAction, stat, difficulty, difficultyValue ?? null, null, null, null, preview);
+  };
+
+  const editGearAction = () => {
+    if (!gearActionPreview) {
+      return;
+    }
+    setCustomAction(gearActionPreview.interpretedAction);
+    setGearActionPreview(null);
+  };
+
   if (!session) {
     return <PageLoader />;
   }
@@ -532,6 +709,9 @@ export const SessionPage = () => {
         <SessionHud
           session={session}
           onCharacterClick={setSelectedCharacter}
+          onPartyBoost={() => {
+            void previewPartyBoostAction();
+          }}
         />
       )}
 
@@ -822,6 +1002,12 @@ export const SessionPage = () => {
                 submitAction('use item', 'none', 'easy', null, ownerCharId, itemId, targetCharId);
                 setShowFullInventory(false);
               }}
+              onUseItemInScene={(ownerCharId, itemId) => {
+                void previewGearAction(ownerCharId, itemId);
+              }}
+              onImproveItemInScene={(ownerCharId, itemId, method) => {
+                void previewImproveGearAction(ownerCharId, itemId, method);
+              }}
               onGiveItem={(ownerCharId, itemId, targetCharId) => {
                 submitAction('give item', 'none', 'easy', null, ownerCharId, itemId, targetCharId);
                 setShowFullInventory(false);
@@ -831,6 +1017,24 @@ export const SessionPage = () => {
           </div>
         </div>
       )}
+
+      {gearActionPreview && (() => {
+        const previewStat = gearActionPreview.stat;
+        const base = activeChar?.stats[previewStat] ?? 0;
+        const itemBonus = activeChar?.inventory.reduce((s, item) => s + (item.statBonuses?.[previewStat] ?? 0), 0) ?? 0;
+        return (
+          <FreeActionConfirmDialog
+            preview={gearActionPreview}
+            statBonus={base + itemBonus}
+            submitting={gearPreviewSubmitting}
+            onConfirm={() => {
+              void confirmGearAction();
+            }}
+            onEdit={editGearAction}
+            onCancel={() => setGearActionPreview(null)}
+          />
+        );
+      })()}
 
       {/* Fullscreen image */}
       {fullscreenImage && <FullscreenImage url={fullscreenImage} onClose={() => setFullscreenImage(null)} />}
@@ -899,10 +1103,17 @@ export const SessionPage = () => {
       {selectedCharacter && (
         <CharacterPopup
           character={selectedCharacter}
+          activeCharacter={activeChar}
           onClose={() => setSelectedCharacter(null)}
           onAvatarClick={url => {
             setSelectedCharacter(null);
             setFullscreenImage(url);
+          }}
+          onBlessCharacter={targetCharacterId => {
+            void previewCharacterSupportAction(targetCharacterId, 'bless');
+          }}
+          onAidCharacter={targetCharacterId => {
+            void previewCharacterSupportAction(targetCharacterId, 'aid');
           }}
         />
       )}

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { createChatClient } from '../providers/ai/AiProviderFactory.js';
-import { parseSuggestedStats, previewFreeAction, STAT_FALLBACK, suggestStatForSessionAction } from '../services/statSuggestionService.js';
+import { parseSuggestedStats, previewFreeAction, STAT_FALLBACK, suggestPreviewActionText, suggestStatForSessionAction } from '../services/statSuggestionService.js';
 import { parseBody } from './routeValidation.js';
 import type { FreeActionPreview } from '@dnd-fam-ftw/shared';
 import { buildFreeActionWarnings, getFreeActionDifficulty } from '../services/freeActionPolicyService.js';
@@ -13,7 +13,12 @@ const suggestStatBodySchema = z.object({
 }).strict();
 
 const previewActionBodySchema = z.object({
-  action: z.string().min(1),
+  action: z.string().min(1).optional(),
+  intent: z.enum(['use_item_scene', 'improve_item', 'bless_character', 'aid_character', 'party_boost']).optional(),
+  targetCharacterId: z.string().optional(),
+  itemOwnerCharacterId: z.string().optional(),
+  itemId: z.string().optional(),
+  method: z.enum(['enchant', 'craft', 'tinker']).optional(),
 }).strict();
 
 const suggestCharacterStatsBodySchema = z.object({
@@ -42,15 +47,17 @@ export const createStatSuggestionRouter = () => {
       return;
     }
     const session = req.session!;
-    const suggestion = await previewFreeAction(req.params.id as string, body);
-    const { difficulty, difficultyValue } = getFreeActionDifficulty(body.action);
+    const action = body.action?.trim() || await suggestPreviewActionText(req.params.id as string, body);
+    const suggestion = await previewFreeAction(req.params.id as string, { action });
+    const interpretedAction = suggestion.interpretedAction ?? action;
+    const { difficulty, difficultyValue } = getFreeActionDifficulty(interpretedAction);
     const preview: FreeActionPreview = {
-      originalAction: body.action.trim(),
-      interpretedAction: body.action.trim(),
+      originalAction: body.action?.trim() ?? action,
+      interpretedAction,
       stat: suggestion.stat,
       difficulty,
       ...(difficultyValue !== undefined && { difficultyValue }),
-      warnings: buildFreeActionWarnings(body.action, session),
+      warnings: buildFreeActionWarnings(interpretedAction, session),
       ...(suggestion.narration !== undefined && { narration: suggestion.narration }),
       ...(suggestion.helperBonus !== undefined && { helperBonus: suggestion.helperBonus }),
       ...(suggestion.helperCharacterName !== undefined && { helperCharacterName: suggestion.helperCharacterName }),

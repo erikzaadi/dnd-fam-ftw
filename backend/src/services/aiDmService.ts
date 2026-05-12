@@ -88,6 +88,7 @@ export function toNarrationInput(input: AIInput): NarrationInput {
     },
     recentHistory: input.recentHistory ?? [],
     ...(input.lastChoices.length > 0 && { previousChoiceLabels: input.lastChoices.map(choice => choice.label) }),
+    ...(input.lastChoices.some(choice => choice.itemName) && { previousChoiceItemNames: input.lastChoices.map(choice => choice.itemName).filter((name): name is string => !!name) }),
     ...(previousChoiceFlavors.length > 0 && { previousChoiceFlavors }),
     ...(selectedChoice?.flavor && { selectedChoiceFlavor: selectedChoice.flavor }),
     ...(selectedChoice?.environmentFeature && { selectedEnvironmentFeature: selectedChoice.environmentFeature }),

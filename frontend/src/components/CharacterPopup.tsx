@@ -9,8 +9,11 @@ import { STAT_TEXT_COLORS } from '../lib/statColors';
 
 interface CharacterPopupProps {
   character: Character;
+  activeCharacter?: Character | null;
   onClose: () => void;
   onAvatarClick: (url: string) => void;
+  onBlessCharacter?: (targetCharacterId: string) => void;
+  onAidCharacter?: (targetCharacterId: string) => void;
 }
 
 const STAT_META = [
@@ -34,7 +37,7 @@ const formatBuffSummary = (buff: NonNullable<Character['buffs']>[number]): strin
   return `${buff.name}${bonusLabel}${durationLabel}`;
 };
 
-export const CharacterPopup = ({ character, onClose, onAvatarClick }: CharacterPopupProps) => {
+export const CharacterPopup = ({ character, activeCharacter, onClose, onAvatarClick, onBlessCharacter, onAidCharacter }: CharacterPopupProps) => {
   const [expandedStat, setExpandedStat] = useState<'might' | 'magic' | 'mischief' | null>(null);
 
   useEffect(() => {
@@ -50,6 +53,11 @@ export const CharacterPopup = ({ character, onClose, onAvatarClick }: CharacterP
   const hpPct = Math.max(0, Math.min(100, (character.hp / character.max_hp) * 100));
   const { bar: hpColor } = getHpColors(character.hp, character.max_hp);
   const buffs = character.buffs ?? [];
+  const canTargetWithSupport = !!activeCharacter &&
+    activeCharacter.id !== character.id &&
+    activeCharacter.status !== 'downed' &&
+    character.status !== 'downed' &&
+    (!!onBlessCharacter || !!onAidCharacter);
 
   return (
     <Modal className="animate-in fade-in duration-300">
@@ -93,6 +101,29 @@ export const CharacterPopup = ({ character, onClose, onAvatarClick }: CharacterP
                 </span>
               ))}
             </div>
+          </div>
+        )}
+
+        {canTargetWithSupport && (
+          <div className="mb-6 flex flex-wrap gap-2">
+            {onBlessCharacter && (
+              <button
+                type="button"
+                onClick={() => onBlessCharacter(character.id)}
+                className="px-3 py-2 rounded-xl border border-blue-700/50 bg-blue-950/40 text-blue-200 text-xs font-black uppercase tracking-widest hover:bg-blue-900/50 transition-colors"
+              >
+                Bless
+              </button>
+            )}
+            {onAidCharacter && (
+              <button
+                type="button"
+                onClick={() => onAidCharacter(character.id)}
+                className="px-3 py-2 rounded-xl border border-emerald-700/50 bg-emerald-950/40 text-emerald-200 text-xs font-black uppercase tracking-widest hover:bg-emerald-900/50 transition-colors"
+              >
+                Aid
+              </button>
+            )}
           </div>
         )}
 

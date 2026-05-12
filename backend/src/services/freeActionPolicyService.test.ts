@@ -90,6 +90,32 @@ describe('freeActionPolicyService', () => {
     expect(turnResult.suggestedHeal).toEqual([{ characterName: 'Barnaby', hp: 2 }]);
   });
 
+  it('treats a shared victory feast as party-wide recovery', () => {
+    const turnResult = ensureSuccessfulHealingSuggestion(
+      makeSession({
+        party: [
+          makeChar({ id: 'hero-1', name: 'Barnaby', hp: 5, max_hp: 10 }),
+          makeChar({ id: 'hero-2', name: 'Zara', hp: 7, max_hp: 10 }),
+        ],
+      }),
+      makeAttempt({
+        actionAttempt: 'Rest and share a "victory feast" to regain strength',
+        actionResult: {
+          success: true,
+          roll: 18,
+          statUsed: 'might',
+          impact: 'strong',
+        },
+      }),
+      makeTurnResult(),
+    );
+
+    expect(turnResult.suggestedHeal).toEqual([
+      { characterName: 'Barnaby', hp: 4 },
+      { characterName: 'Zara', hp: 4 },
+    ]);
+  });
+
   it('adds fallback revive for a downed party member', () => {
     const turnResult = ensureSuccessfulHealingSuggestion(
       makeSession({ party: [makeChar({ name: 'Zara', hp: 0, status: 'downed' })] }),

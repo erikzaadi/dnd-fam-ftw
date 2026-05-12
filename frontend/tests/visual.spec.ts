@@ -43,6 +43,12 @@ const CHARACTER_POPUP_TARGET = {
 } as const;
 
 type SessionListItem = { id: string; displayName: string; gameOver?: boolean };
+type VisualCharacter = { id: string; name: string; status?: string };
+type SessionDetail = {
+  id: string;
+  activeCharacterId?: string;
+  party: VisualCharacter[];
+};
 
 async function dismissAudioOverlay(page: Page): Promise<void> {
   const btn = page.getByRole('button', { name: 'Enable Audio' });
@@ -95,6 +101,32 @@ async function setSavingsMode(request: APIRequestContext, sessionId: string, ena
 
 async function enableSavingsMode(request: APIRequestContext, sessionId: string): Promise<void> {
   await setSavingsMode(request, sessionId, true);
+}
+
+async function getSessionDetailOrFail(request: APIRequestContext, id: string): Promise<SessionDetail> {
+  const res = await request.get(`/api/session/${id}`);
+  expect(res.ok()).toBe(true);
+  return await res.json() as SessionDetail;
+}
+
+async function mockPreviewAction(page: Page): Promise<void> {
+  await page.route('**/api/session/*/preview-action', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      originalAction: 'Improve this gear for the current problem.',
+      interpretedAction: 'Barnabas tunes the arcane focus so it hums in rhythm with the shifting path.',
+      stat: 'magic',
+      difficulty: 'normal',
+      difficultyValue: 12,
+      warnings: [],
+      narration: 'The focus glows softly, turning a risky idea into a clear next move.',
+      choiceItemBonus: 2,
+      choiceItemName: '🔮 Arcane Focus',
+      choiceItemOwnerName: 'Barnabas Strongarm',
+      flavor: 'item',
+    }),
+  }));
 }
 
 // Suppress first-run overlays in visual tests. Each test calls this
@@ -360,6 +392,32 @@ test('session inventory panel', async ({ page, request }) => {
   await screenshotViewports(page, 'session-inventory');
 });
 
+test('session inventory gear helper preview', async ({ page, request }) => {
+  test.setTimeout(60_000);
+  await suppressFirstRunOverlays(page);
+  await mockPreviewAction(page);
+  const session = await getSessionOrFail(request, SESSIONS.inventory);
+  await enableSavingsMode(request, session.id);
+
+  await page.goto(`/session/${session.id}`);
+  await dismissAudioOverlay(page);
+  await waitForSessionReady(page);
+
+  await expect(page.getByRole('button', { name: 'Preview party boost' })).toBeVisible();
+  await page.getByRole('button', { name: 'Show party gear' }).click();
+  await expect(page.getByRole('heading', { name: /Treasure & Gear/i })).toBeVisible();
+
+  const improveGearButton = page.getByRole('button', { name: /Enchant|Craft|Tinker/ }).first();
+  await expect(improveGearButton).toBeVisible();
+  await improveGearButton.click();
+
+  await expect(page.getByText('Confirm your action')).toBeVisible();
+  await expect(page.getByText('Barnabas tunes the arcane focus')).toBeVisible();
+  await expect(page.getByText('+2 gear (🔮 Arcane)')).toBeVisible();
+
+  await screenshotViewports(page, 'session-inventory-gear-helper-preview');
+});
+
 test('session character popup', async ({ page, request }) => {
   test.setTimeout(60_000);
   await suppressFirstRunOverlays(page);
@@ -390,6 +448,34 @@ test('session character popup', async ({ page, request }) => {
   await screenshotViewports(page, 'session-character-popup');
 });
 
+test('session character support popup', async ({ page, request }) => {
+  test.setTimeout(60_000);
+  await suppressFirstRunOverlays(page);
+  const session = await getSessionOrFail(request, CHARACTER_POPUP_TARGET.sessionId);
+  await enableSavingsMode(request, session.id);
+  const detail = await getSessionDetailOrFail(request, session.id);
+  const target = detail.party.find(c =>
+    c.id !== detail.activeCharacterId &&
+    c.status !== 'downed'
+  );
+  if (!target) {
+    test.skip(true, `Seed session ${session.id} has no active ally target`);
+    return;
+  }
+
+  await page.goto(`/session/${session.id}`);
+  await dismissAudioOverlay(page);
+  await waitForSessionReady(page);
+
+  await page.getByAltText(target.name).first().click();
+  const popup = page.getByRole('dialog', { name: `${target.name} character details` });
+  await expect(popup).toBeVisible();
+  await expect(popup.getByRole('button', { name: 'Bless' })).toBeVisible();
+  await expect(popup.getByRole('button', { name: 'Aid' })).toBeVisible();
+
+  await screenshotViewports(page, 'session-character-support-popup');
+});
+
 test('session mechanics showcase visual asserts', async ({ page, request }) => {
   test.setTimeout(120_000);
   await suppressFirstRunOverlays(page);
@@ -409,9 +495,10 @@ test('session mechanics showcase visual asserts', async ({ page, request }) => {
   for (const label of ['Team Up', 'Gear', 'Social', 'Obstacle']) {
     await expect(page.getByText(label, { exact: true })).toBeVisible();
   }
-  for (const bonus of ['+2 help (Zara)', '+2 gear (🪢 Anchor)', '+2 social']) {
+  for (const bonus of ['+2 help (Zara)', '+2 social']) {
     await expect(page.getByText(bonus, { exact: true })).toBeVisible();
   }
+  await expect(page.getByText('+2 gear (🪢 Anchor)', { exact: true })).not.toBeVisible();
   for (const pill of ['with Zara', '🪢 Anchor Rope', 'swinging counterweights']) {
     await expect(page.getByText(pill, { exact: true })).toBeVisible();
   }

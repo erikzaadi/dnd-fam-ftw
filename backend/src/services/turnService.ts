@@ -139,7 +139,7 @@ export const executeTurnAction = async (
       c.status === 'active'
     )
     : inferredFreeActionBonuses.helperCharacter;
-  const choiceItemOwner = submittedChoice?.flavor === 'item' && submittedChoice.itemOwnerName
+  const choiceItemOwner = submittedChoice?.flavor === 'item' && submittedChoice.itemOwnerName === character.name
     ? session.party.find(c => c.name === submittedChoice.itemOwnerName && c.status === 'active')
     : inferredFreeActionBonuses.choiceItemOwner;
   const choiceItem = choiceItemOwner && submittedChoice?.itemName

@@ -84,6 +84,78 @@ describe('parseNarrationOutput', () => {
     }
   });
 
+  it('rejects item choices when the item belongs to a different character than the next actor', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      nextCharacterName: 'Pip',
+      party: [
+        ...input.party,
+        { name: 'Zara', class: 'Mage', species: 'Elf', hp: 8, maxHp: 8, stats: { might: 1, magic: 5, mischief: 2 }, status: 'active' },
+      ],
+      inventory: [
+        { ownerName: 'Zara', name: '✨ Enchanted Oak Token', description: 'Whispers forest secrets.', statBonuses: {} },
+      ],
+    }, output({
+      choices: [
+        { label: 'Use Zara\'s token', difficulty: 'normal', stat: 'magic', difficultyValue: 12, flavor: 'item', itemOwnerName: 'Zara', itemName: '✨ Enchanted Oak Token' },
+        { label: 'Check for traps', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+        { label: 'Call for help', difficulty: 'easy', stat: 'magic', difficultyValue: 7 },
+      ],
+    }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('Item choices may only use the next actor');
+    }
+  });
+
+  it('keeps item choices when the next actor owns the item', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      nextCharacterName: 'Pip',
+      inventory: [
+        { ownerName: 'Pip', name: '✨ Enchanted Oak Token', description: 'Whispers forest secrets.', statBonuses: {} },
+      ],
+    }, output({
+      choices: [
+        { label: 'Use the token', difficulty: 'normal', stat: 'magic', difficultyValue: 12, flavor: 'item', itemOwnerName: 'Pip', itemName: 'Enchanted Oak Token' },
+        { label: 'Check for traps', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+        { label: 'Call for help', difficulty: 'easy', stat: 'magic', difficultyValue: 7 },
+      ],
+    }));
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.choices[0]).toMatchObject({
+        flavor: 'item',
+        itemOwnerName: 'Pip',
+        itemName: '✨ Enchanted Oak Token',
+      });
+    }
+  });
+
+  it('rejects item choices that repeat recently suggested gear', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      nextCharacterName: 'Pip',
+      previousChoiceItemNames: ['✨ Enchanted Oak Token'],
+      inventory: [
+        { ownerName: 'Pip', name: '✨ Enchanted Oak Token', description: 'Whispers forest secrets.', statBonuses: {} },
+      ],
+    }, output({
+      choices: [
+        { label: 'Use the token again', difficulty: 'normal', stat: 'magic', difficultyValue: 12, flavor: 'item', itemOwnerName: 'Pip', itemName: '✨ Enchanted Oak Token' },
+        { label: 'Check for traps', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+        { label: 'Call for help', difficulty: 'easy', stat: 'magic', difficultyValue: 7 },
+      ],
+    }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('repeats recently suggested gear');
+    }
+  });
+
   it('allows more than two bonus-bearing choices without discarding a successful party heal', () => {
     const result = parseNarrationOutput({ ...input, actionAttempt: 'Heal the party' }, output({
       narration: 'Pip chants a bright healing rhyme, and the whole party steadies themselves.',

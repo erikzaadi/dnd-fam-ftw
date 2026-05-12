@@ -238,5 +238,5 @@ export interface FreeActionPreview {
   choiceItemOwnerName?: string;
   characterBonus?: number;
   characterBonusLabel?: string;
-  flavor?: 'social' | 'spotlight';
+  flavor?: ChoiceFlavor;
 }

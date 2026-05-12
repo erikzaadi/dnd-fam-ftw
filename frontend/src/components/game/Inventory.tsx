@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import type { Character, InventoryItem } from '../../types';
+import type { Character, InventoryItem, Stat } from '../../types';
 import { imgSrc } from '../../lib/api';
 import { TargetPicker } from './TargetPicker';
 import { Tooltip } from '../Tooltip';
@@ -11,6 +11,8 @@ interface InventoryProps {
   party: Character[];
   activeCharacterId?: string;
   onUseItem?: (ownerCharId: string, itemId: string, targetCharId: string) => void;
+  onUseItemInScene?: (ownerCharId: string, itemId: string) => void;
+  onImproveItemInScene?: (ownerCharId: string, itemId: string, method: 'enchant' | 'craft' | 'tinker') => void;
   onGiveItem?: (ownerCharId: string, itemId: string, targetCharId: string) => void;
   disabled?: boolean;
   /** Only show this character's items (no character name header) */
@@ -29,9 +31,12 @@ interface InventoryItemCardProps {
   active?: boolean;
   pending?: boolean;
   canUse?: boolean;
+  canUseInScene?: boolean;
   canGive?: boolean;
   onUse?: () => void;
+  onUseInScene?: () => void;
   onGive?: () => void;
+  sceneActions?: ReactNode;
   targetPicker?: ReactNode;
 }
 
@@ -40,9 +45,12 @@ export const InventoryItemCard = ({
   active = false,
   pending = false,
   canUse = false,
+  canUseInScene = false,
   canGive = false,
   onUse,
+  onUseInScene,
   onGive,
+  sceneActions,
   targetPicker,
 }: InventoryItemCardProps) => {
   const bonuses = item.statBonuses ? Object.entries(item.statBonuses).filter(([, v]) => v && v > 0) : [];
@@ -69,11 +77,16 @@ export const InventoryItemCard = ({
               )}
             </div>
           </div>
-          {(canUse || canGive) && !pending && (
+          {(canUse || canUseInScene || canGive || sceneActions) && !pending && (
             <div className="flex gap-1 shrink-0">
               {canUse && onUse && (
                 <Tooltip content="Use this item" position="top" groupName="use">
                   <ActionButton action="use" onClick={onUse} />
+                </Tooltip>
+              )}
+              {canUseInScene && onUseInScene && (
+                <Tooltip content="Preview how this gear could help now" position="top" groupName="use">
+                  <ActionButton action="use" onClick={onUseInScene} />
                 </Tooltip>
               )}
               {canGive && onGive && (
@@ -81,6 +94,7 @@ export const InventoryItemCard = ({
                   <ActionButton action="give" onClick={onGive} />
                 </Tooltip>
               )}
+              {sceneActions}
             </div>
           )}
         </div>
@@ -103,18 +117,53 @@ export const InventoryItemCard = ({
   );
 };
 
-export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, disabled, filterCharId, compact }: InventoryProps) => {
+const strongestStat = (character: Character | undefined): Stat => {
+  if (!character) {
+    return 'mischief';
+  }
+  const entries: Array<{ stat: Stat; value: number }> = [
+    { stat: 'might', value: character.stats.might },
+    { stat: 'magic', value: character.stats.magic },
+    { stat: 'mischief', value: character.stats.mischief },
+  ];
+  return entries.sort((a, b) => b.value - a.value)[0]?.stat ?? 'mischief';
+};
+
+const improveMethodFor = (stat: Stat): 'enchant' | 'craft' | 'tinker' => {
+  if (stat === 'magic') {
+    return 'enchant';
+  }
+  if (stat === 'might') {
+    return 'craft';
+  }
+  return 'tinker';
+};
+
+const improveLabel = (method: 'enchant' | 'craft' | 'tinker'): string => {
+  if (method === 'enchant') {
+    return 'Enchant';
+  }
+  if (method === 'craft') {
+    return 'Craft';
+  }
+  return 'Tinker';
+};
+
+export const Inventory = ({ party, activeCharacterId, onUseItem, onUseItemInScene, onImproveItemInScene, onGiveItem, disabled, filterCharId, compact }: InventoryProps) => {
   const [pending, setPending] = useState<PendingAction | null>(null);
 
   const displayParty = filterCharId ? party.filter(c => c.id === filterCharId) : party;
   const partyWithItems = displayParty.filter(c => c.inventory?.length > 0);
+  const activeCharacter = party.find(c => c.id === activeCharacterId);
+  const improveMethod = improveMethodFor(strongestStat(activeCharacter));
+  const improveButtonLabel = improveLabel(improveMethod);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setPending(null), 0);
     return () => window.clearTimeout(timeout);
   }, [activeCharacterId]);
 
-  const interactive = !!(onUseItem || onGiveItem) && !disabled;
+  const interactive = !!(onUseItem || onUseItemInScene || onImproveItemInScene || onGiveItem) && !disabled;
 
   const confirm = (targetCharId: string) => {
     if (!pending) {
@@ -133,8 +182,21 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
     const hasEvolution = !!(item.condition || item.effect || item.charges !== undefined || (item.tags && item.tags.length > 0) || item.boundToCharacterId);
     const canAct = interactive && isActive;
     const canUse = canAct && isUsable(item);
+    const canUseInScene = canAct && !canUse && !!onUseItemInScene;
+    const canImproveInScene = interactive && !!onImproveItemInScene && !!activeCharacterId;
     const canGive = canAct && isGiveable(item) && party.filter(c => c.id !== char.id).length > 0;
     const isPendingThis = pending?.itemId === item.id && pending.ownerCharId === char.id;
+    const sceneImproveButton = canImproveInScene && !isPendingThis ? (
+      <Tooltip content={`${improveButtonLabel} this gear in the scene`} position="top" groupName="use">
+        <button
+          type="button"
+          onClick={() => onImproveItemInScene?.(char.id, item.id, improveMethod)}
+          className={`${compact ? 'px-1.5 py-0.5 rounded text-[8px] xl:text-[10px]' : 'px-2.5 py-1 rounded-lg text-xs'} font-black uppercase tracking-widest bg-indigo-900/60 text-indigo-300 hover:bg-indigo-800/60 border border-indigo-700/40 transition-all`}
+        >
+          {improveButtonLabel}
+        </button>
+      </Tooltip>
+    ) : null;
 
     if (compact) {
       return (
@@ -143,11 +205,16 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
             {/* Name + action buttons row */}
             <div className="flex items-center gap-1 justify-end flex-wrap">
               <span className="text-[9px] xl:text-xs text-slate-300 font-black text-right leading-tight max-w-[120px] xl:max-w-[180px]">{item.name}</span>
-              {(canUse || canGive) && !isPendingThis && (
+              {(canUse || canUseInScene || canGive || sceneImproveButton) && !isPendingThis && (
                 <>
                   {canUse && (
                     <Tooltip content="Use this item" position="top" groupName="use">
                       <ActionButton compact action="use" onClick={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'use' })} />
+                    </Tooltip>
+                  )}
+                  {canUseInScene && (
+                    <Tooltip content="Preview how this gear could help now" position="top" groupName="use">
+                      <ActionButton compact action="use" onClick={() => onUseItemInScene?.(char.id, item.id)} />
                     </Tooltip>
                   )}
                   {canGive && (
@@ -155,6 +222,7 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
                       <ActionButton compact action="give" onClick={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'give' })} />
                     </Tooltip>
                   )}
+                  {sceneImproveButton}
                 </>
               )}
             </div>
@@ -205,9 +273,12 @@ export const Inventory = ({ party, activeCharacterId, onUseItem, onGiveItem, dis
         active={isActive}
         pending={isPendingThis}
         canUse={canUse}
+        canUseInScene={canUseInScene}
         canGive={canGive}
         onUse={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'use' })}
+        onUseInScene={() => onUseItemInScene?.(char.id, item.id)}
         onGive={() => setPending({ itemId: item.id, ownerCharId: char.id, action: 'give' })}
+        sceneActions={sceneImproveButton}
         targetPicker={isPendingThis ? (
           <TargetPicker
             party={party}

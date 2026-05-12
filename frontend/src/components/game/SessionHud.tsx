@@ -140,9 +140,10 @@ export const GearPopover = ({ savingsMode, onToggleSavingsMode, audioSettings, o
 interface SessionHudProps {
   session: Session;
   onCharacterClick: (c: Character) => void;
+  onPartyBoost?: () => void;
 }
 
-export const SessionHud = ({ session, onCharacterClick }: SessionHudProps) => (
+export const SessionHud = ({ session, onCharacterClick, onPartyBoost }: SessionHudProps) => (
   <header className={`fixed top-0 left-0 right-0 ${Z.hud} flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3 pointer-events-none`}>
     <h1 className="text-amber-500 text-lg md:text-2xl xl:text-3xl font-display font-black italic tracking-tight shrink-0 bg-slate-950/60 backdrop-blur-md ml-4 px-4 py-2 rounded-2xl pointer-events-auto self-start">
       {session.displayName}
@@ -152,6 +153,7 @@ export const SessionHud = ({ session, onCharacterClick }: SessionHudProps) => (
         party={session.party}
         activeCharacterId={session.activeCharacterId}
         onCharacterClick={onCharacterClick}
+        onPartyBoost={onPartyBoost}
       />
     </div>
   </header>

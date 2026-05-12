@@ -10,18 +10,33 @@ const sceneNoun = (scene: string): string => {
   return cleaned.length > 44 ? `${cleaned.slice(0, 41).trim()}...` : cleaned;
 };
 
+const nextBeat = (input: NarrationInput, scene: string): string => {
+  const suggested = cleanLabel(input.sceneMomentum?.suggestedNextBeat ?? '');
+  if (input.sceneMomentum?.directive === 'victory_exit') {
+    return suggested || `The resolved danger stays behind them as the party reaches a fresh route beyond ${scene}.`;
+  }
+  if (input.sceneMomentum?.directive === 'advance_campaign') {
+    return suggested || `A fresh clue, route, or witness changes what the party can do in ${scene}.`;
+  }
+  if (input.sceneMomentum?.directive === 'climax_pressure') {
+    return suggested || `The main threat leaves a clear mark on ${scene}, pointing the party toward the next confrontation.`;
+  }
+  return suggested || `The situation shifts in ${scene}.`;
+};
+
 export function buildNarrationFallback(input: NarrationInput): NarrationOutput {
   const actor = input.actingCharacterName ?? input.party.find(character => character.status === 'active')?.name ?? 'The party';
   const nextActor = input.nextCharacterName ?? actor;
   const scene = sceneNoun(input.scene);
   const action = cleanLabel(input.actionAttempt);
   const succeeded = input.actionResult.success;
+  const beat = nextBeat(input, scene);
   const result = succeeded
-    ? `${actor}'s ${action || 'move'} works, giving the party a clearer angle on ${scene}.`
-    : `${actor}'s ${action || 'move'} does not land cleanly, but it reveals a new pressure point in ${scene}.`;
+    ? `${actor}'s ${action || 'move'} works. ${beat}`
+    : `${actor}'s ${action || 'move'} does not land cleanly, but it still exposes what must happen next. ${beat}`;
 
   return {
-    narration: `${result} ${nextActor} has the next move as the situation shifts.`,
+    narration: `${result} ${nextActor} has the next move from this new position.`,
     choices: [
       {
         label: `Press deeper into ${scene}`,

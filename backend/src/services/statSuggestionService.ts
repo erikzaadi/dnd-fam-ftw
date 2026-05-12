@@ -7,6 +7,20 @@ import type { Character } from '../types.js';
 export const STAT_FALLBACK = { might: 2, magic: 2, mischief: 3 };
 export type SuggestedStat = 'might' | 'magic' | 'mischief';
 export type SessionActionStatSuggestion = FreeActionBonusPreview & { stat: SuggestedStat };
+export type PreviewActionIntent =
+  | 'use_item_scene'
+  | 'improve_item'
+  | 'bless_character'
+  | 'aid_character'
+  | 'party_boost';
+
+export type PreviewActionContext = {
+  intent?: PreviewActionIntent;
+  targetCharacterId?: string;
+  itemOwnerCharacterId?: string;
+  itemId?: string;
+  method?: 'enchant' | 'craft' | 'tinker';
+};
 
 async function buildFreeActionStoryContext(sessionId: string): Promise<string> {
   const [session, history] = await Promise.all([
@@ -34,7 +48,7 @@ async function buildFreeActionStoryContext(sessionId: string): Promise<string> {
 export async function previewFreeAction(
   sessionId: string,
   input: { action: string },
-): Promise<SessionActionStatSuggestion & { narration?: string }> {
+): Promise<SessionActionStatSuggestion & { narration?: string; interpretedAction?: string }> {
   const { action } = input;
   const session = await StateService.getSession(sessionId);
   if (!session) {
@@ -57,6 +71,7 @@ ${storyContext ? `\nUse this story context so the preview fits the current scene
 
 Reply with ONLY valid JSON (no markdown):
 {
+  "action": "<polished first-person or third-person action sentence, preserving the player's intent>",
   "stat": "might" | "magic" | "mischief",
   "narration": "<one short evocative sentence, 8-14 words, describing what the character does>"
 }
@@ -69,15 +84,100 @@ Stat guide: might = physical/combat/force, magic = spells/arcane/healing/divine,
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]) as { stat?: string; narration?: string };
+      const interpretedAction = typeof (parsed as { action?: unknown }).action === 'string'
+        ? (parsed as { action: string }).action.trim()
+        : undefined;
       const stat = (['might', 'magic', 'mischief'] as const).find(s => parsed.stat === s) ?? 'mischief';
       const narration = typeof parsed.narration === 'string' ? parsed.narration.trim() : undefined;
-      return { stat, narration, ...bonusPreview };
+      return { stat, ...(interpretedAction && { interpretedAction }), narration, ...bonusPreview };
     }
     const stat = (['might', 'magic', 'mischief'] as const).find(s => raw.includes(s)) ?? 'mischief';
     return { stat, ...bonusPreview };
   } catch {
     return { stat: 'mischief', ...bonusPreview };
   }
+}
+
+function fallbackActionForIntent(character: Character | null, context: PreviewActionContext): string {
+  const actorName = character?.name ?? 'The hero';
+  if (context.intent === 'party_boost') {
+    return `${actorName} rallies the whole party with a short-lived boost`;
+  }
+  if (context.intent === 'bless_character') {
+    return `${actorName} blesses an ally with short-lived protective magic`;
+  }
+  if (context.intent === 'aid_character') {
+    return `${actorName} aids an ally with a coordinated setup`;
+  }
+  if (context.intent === 'improve_item') {
+    return `${actorName} improves a piece of gear for the current danger`;
+  }
+  return `${actorName} uses carried gear to help with the current situation`;
+}
+
+export async function suggestPreviewActionText(
+  sessionId: string,
+  context: PreviewActionContext,
+): Promise<string> {
+  const session = await StateService.getSession(sessionId);
+  if (!session) {
+    return fallbackActionForIntent(null, context);
+  }
+  const actor = session.party.find(c => c.id === session.activeCharacterId) ?? session.party[0] ?? null;
+  const target = context.targetCharacterId
+    ? session.party.find(c => c.id === context.targetCharacterId)
+    : null;
+  const itemOwner = context.itemOwnerCharacterId
+    ? session.party.find(c => c.id === context.itemOwnerCharacterId)
+    : actor;
+  const item = context.itemId
+    ? itemOwner?.inventory.find(i => i.id === context.itemId)
+    : null;
+  const storyContext = await buildFreeActionStoryContext(sessionId);
+
+  const targetLine = target
+    ? `Target ally: ${target.name}, ${target.species} ${target.class}, stats might ${target.stats.might}, magic ${target.stats.magic}, mischief ${target.stats.mischief}.`
+    : '';
+  const itemLine = item && itemOwner
+    ? `Target gear: ${itemOwner.name}'s ${item.name}. Description: ${item.description}. Effect: ${item.effect ?? 'none'}. Tags: ${(item.tags ?? []).join(', ') || 'none'}.`
+    : '';
+
+  const { client, model } = createChatClient();
+  try {
+    const response = await client.chat.completions.create({
+      model,
+      messages: [{
+        role: 'user',
+        content: `${describeActiveCharacter(actor)}
+Intent: ${context.intent ?? 'custom'}
+Method: ${context.method ?? 'none'}
+${targetLine}
+${itemLine}
+${storyContext ? `\nCurrent story context:\n${storyContext}\n` : ''}
+
+Write the exact player action to preview for this intent. It must:
+- fit the current scene and the acting character's class, stats, and quirk
+- be one sentence, 8-18 words
+- name the target ally or gear when provided
+- avoid promising success or final results
+
+Reply with ONLY valid JSON: {"action":"..."}`,
+      }],
+      max_tokens: 90,
+    }, { signal: AbortSignal.timeout(8_000) });
+    const raw = (response.choices[0].message.content ?? '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]) as { action?: string };
+      if (typeof parsed.action === 'string' && parsed.action.trim()) {
+        return parsed.action.trim();
+      }
+    }
+  } catch {
+    // Fall through to deterministic fallback.
+  }
+
+  return fallbackActionForIntent(actor, context);
 }
 
 export async function suggestStatForSessionAction(

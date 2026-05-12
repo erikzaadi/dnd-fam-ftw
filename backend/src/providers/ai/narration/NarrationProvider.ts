@@ -74,6 +74,7 @@ export type NarrationInput = {
   };
   recentHistory: string[];
   previousChoiceLabels?: string[];
+  previousChoiceItemNames?: string[];
   previousChoiceFlavors?: ChoiceFlavor[];
   selectedChoiceFlavor?: ChoiceFlavor;
   selectedEnvironmentFeature?: string;

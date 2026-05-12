@@ -8,6 +8,9 @@ const CONCRETE_TRANSITION_RE = /\b(stair|stairs|door|gate|path|paths|pathway|pat
 const COMBAT_LABEL_RE = /\b(attack|strike|slash|stab|fight|battle|enemy|foe|monster|goblin|wolf|wolves)\b/i;
 const PORTAL_TRANSITION_RE = /\b(portal|teleport|teleports|teleported|teleporting|gateway|gateways|waygate|waygates)\b/i;
 const HIDDEN_PATH_RE = /\b(hidden|secret|concealed|veiled)\b.{0,24}\b(path|paths|trail|route|passage|tunnel|door|doorway)\b/i;
+const RESOLVED_THREAT_RE = /\b(defeated|vanquished|banished|calmed|retreats?|retreated|dissipates?|dissipated|dissolves?|dissolved|fades?|faded|clears?|cleared|silenced|gone)\b/i;
+const REVIVED_THREAT_RE = /\b(ambush|attack|attacks|battle|block|blocks|burst|bursts|confront|confronts|danger|emerges?|fight|growl|hungry|lunges?|menacing|menace|ready to fight|revenge|returns?|shadow|shadows|strike|threat|vengeful|writhes?|writhing)\b/i;
+const THREAT_PHRASE_RE = /\b(?:shadowy|spectral|twisted|vengeful|massive|mechanical|vine|wolf|guardian|shadow|root|clockwork)\s+(?:figure|creature|wolf|guardian|menace|beast|roots?|vines?)\b/gi;
 const VAGUE_ATMOSPHERE_PHRASES = [
   'tension in the air',
   'tension hangs in the air',
@@ -71,6 +74,42 @@ function narrationSimilarity(a: string, b: string): { shared: number; score: num
   const shared = [...aTokens].filter(token => bTokens.has(token)).length;
   const union = new Set([...aTokens, ...bTokens]).size;
   return { shared, score: shared / union };
+}
+
+function resolvedThreatPhrases(input: NarrationInput): Set<string> {
+  const sourceTexts = [
+    input.storySummary ?? '',
+    ...input.recentHistory,
+  ];
+  const phrases = new Set<string>();
+
+  for (const text of sourceTexts) {
+    if (!RESOLVED_THREAT_RE.test(text)) {
+      continue;
+    }
+
+    for (const match of text.matchAll(THREAT_PHRASE_RE)) {
+      phrases.add(normalizedText(match[0]));
+    }
+  }
+
+  return phrases;
+}
+
+function repeatsResolvedThreat(input: NarrationInput, outputText: string): string | null {
+  const outputNormalized = normalizedText(outputText);
+  const outputIsThreatening = REVIVED_THREAT_RE.test(outputText);
+  if (!outputIsThreatening) {
+    return null;
+  }
+
+  for (const phrase of resolvedThreatPhrases(input)) {
+    if (phrase && outputNormalized.includes(phrase)) {
+      return phrase;
+    }
+  }
+
+  return null;
 }
 
 function canonicalizeItemChoices(input: NarrationInput, output: ValidNarrationOutput): void {
@@ -166,30 +205,29 @@ function stripNarrationEmDashes(output: ValidNarrationOutput): void {
 
 function validateMomentumOutput(input: NarrationInput, output: ValidNarrationOutput): string | null {
   const momentum = input.sceneMomentum;
-  if (!momentum) {
-    return null;
-  }
-
   const choiceText = output.choices.map(choice => `${choice.label} ${choice.narration ?? ''}`).join(' ');
   const fullText = `${output.narration} ${choiceText}`;
-  const hasPortalTransition = PORTAL_TRANSITION_RE.test(fullText);
-  const completedMajorBeat = momentum.justCompletedCombat || momentum.justCompletedDifficultChallenge;
 
-  if (hasPortalTransition && !completedMajorBeat) {
-    return 'Portal, teleport, or magical gateway transitions require this turn to complete combat or a difficult challenge.';
-  }
+  if (momentum) {
+    const hasPortalTransition = PORTAL_TRANSITION_RE.test(fullText);
+    const completedMajorBeat = momentum.justCompletedCombat || momentum.justCompletedDifficultChallenge;
 
-  if (momentum.directive === 'victory_exit') {
-    const choicesInNewBeat = output.choices.filter(choice => CONCRETE_TRANSITION_RE.test(`${choice.label} ${choice.narration ?? ''}`)).length;
-    const allChoicesStillCombat = output.choices.every(choice => COMBAT_LABEL_RE.test(`${choice.label} ${choice.narration ?? ''}`));
-    const combatChoiceCount = output.choices.filter(choice => COMBAT_LABEL_RE.test(`${choice.label} ${choice.narration ?? ''}`)).length;
-    if (!CONCRETE_TRANSITION_RE.test(fullText) || choicesInNewBeat < 2 || allChoicesStillCombat || combatChoiceCount > 1) {
-      return 'Victory exit must move the party into a new beat, and at least two choices must act inside that new beat. No more than one choice may read as another attack.';
+    if (hasPortalTransition && !completedMajorBeat) {
+      return 'Portal, teleport, or magical gateway transitions require this turn to complete combat or a difficult challenge.';
     }
-  }
 
-  if (momentum.directive === 'advance_campaign' && output.choices.every(choice => LOW_MOTION_RE.test(choice.label) && !CONCRETE_TRANSITION_RE.test(`${choice.label} ${choice.narration ?? ''}`))) {
-    return 'Advance-campaign choices cannot all be low-motion actions without concrete objects, routes, NPCs, hazards, or items.';
+    if (momentum.directive === 'victory_exit') {
+      const choicesInNewBeat = output.choices.filter(choice => CONCRETE_TRANSITION_RE.test(`${choice.label} ${choice.narration ?? ''}`)).length;
+      const allChoicesStillCombat = output.choices.every(choice => COMBAT_LABEL_RE.test(`${choice.label} ${choice.narration ?? ''}`));
+      const combatChoiceCount = output.choices.filter(choice => COMBAT_LABEL_RE.test(`${choice.label} ${choice.narration ?? ''}`)).length;
+      if (!CONCRETE_TRANSITION_RE.test(fullText) || choicesInNewBeat < 2 || allChoicesStillCombat || combatChoiceCount > 1) {
+        return 'Victory exit must move the party into a new beat, and at least two choices must act inside that new beat. No more than one choice may read as another attack.';
+      }
+    }
+
+    if (momentum.directive === 'advance_campaign' && output.choices.every(choice => LOW_MOTION_RE.test(choice.label) && !CONCRETE_TRANSITION_RE.test(`${choice.label} ${choice.narration ?? ''}`))) {
+      return 'Advance-campaign choices cannot all be low-motion actions without concrete objects, routes, NPCs, hazards, or items.';
+    }
   }
 
   const narrationNormalized = normalizedText(output.narration);
@@ -209,12 +247,27 @@ function validateMomentumOutput(input: NarrationInput, output: ValidNarrationOut
     return 'Narration repeats the previous turn too closely. Continue from the current action instead of restating the same scene setup.';
   }
 
+  const repeatedResolvedThreat = repeatsResolvedThreat(input, fullText);
+  if (repeatedResolvedThreat) {
+    return `Output revives recently resolved threat: "${repeatedResolvedThreat}". Move to a different beat, consequence, clue, NPC, or location.`;
+  }
+
   const hiddenPathLoop = HIDDEN_PATH_RE.test(fullText) && input.recentHistory.some(previous => HIDDEN_PATH_RE.test(previous));
   if (hiddenPathLoop) {
     return 'Hidden-path beat repeats recent story continuity. Pay off the discovered route or introduce a different concrete obstacle, clue, NPC, or location.';
   }
 
   const previousLabels = new Set((input.previousChoiceLabels ?? []).map(normalizedText));
+  const offOwnerItemChoice = output.choices.find(choice =>
+    choice.flavor === 'item' &&
+    choice.itemOwnerName &&
+    input.nextCharacterName &&
+    choice.itemOwnerName !== input.nextCharacterName
+  );
+  if (offOwnerItemChoice?.itemOwnerName) {
+    return `Item choice uses gear from "${offOwnerItemChoice.itemOwnerName}", but the next actor is "${input.nextCharacterName}". Item choices may only use the next actor's own gear.`;
+  }
+
   const repeatedGenericChoice = output.choices.find(choice => {
     const label = normalizedText(choice.label);
     return previousLabels.has(label) && GENERIC_LABEL_RE.test(label);
@@ -229,6 +282,16 @@ function validateMomentumOutput(input: NarrationInput, output: ValidNarrationOut
   });
   if (repeatedExactChoice) {
     return `Choice label repeats the previous turn exactly: "${repeatedExactChoice.label}". Continue the scene with a fresh specific action.`;
+  }
+
+  const previousItemNames = new Set((input.previousChoiceItemNames ?? []).map(normalizedItemName));
+  const repeatedItemChoice = output.choices.find(choice =>
+    choice.flavor === 'item' &&
+    choice.itemName &&
+    previousItemNames.has(normalizedItemName(choice.itemName))
+  );
+  if (repeatedItemChoice?.itemName) {
+    return `Item choice repeats recently suggested gear: "${repeatedItemChoice.itemName}". Use a different item, route, NPC, obstacle, or standard action.`;
   }
 
   return null;

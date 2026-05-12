@@ -6,6 +6,7 @@ interface PartyBoxProps {
   party: Character[];
   activeCharacterId: string;
   onCharacterClick: (c: Character) => void;
+  onPartyBoost?: () => void;
 }
 
 const hpBorderClass = (c: Character): string => {
@@ -31,7 +32,7 @@ const tooltipContent = (c: Character): string => {
   return `${c.name} · ${hp}${buffs ? ` · ${buffs}` : ''}`;
 };
 
-export const PartyBox = ({ party, activeCharacterId, onCharacterClick }: PartyBoxProps) => (
+export const PartyBox = ({ party, activeCharacterId, onCharacterClick, onPartyBoost }: PartyBoxProps) => (
   <div className="flex items-center gap-3 bg-slate-950/60 backdrop-blur-md px-5 py-2 rounded-full border border-slate-800 shadow-xl pointer-events-auto">
     <div className="flex gap-3 items-center">
       {party.map(c => {
@@ -68,5 +69,17 @@ export const PartyBox = ({ party, activeCharacterId, onCharacterClick }: PartyBo
         );
       })}
     </div>
+    {onPartyBoost && (
+      <Tooltip content="Preview a party boost" position="bottom" groupName="use">
+        <button
+          type="button"
+          onClick={onPartyBoost}
+          className="ml-1 flex h-9 w-9 items-center justify-center rounded-full border border-emerald-700/50 bg-emerald-950/50 text-xs font-black text-emerald-200 transition-all hover:bg-emerald-900/60 hover:border-emerald-500/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+          aria-label="Preview party boost"
+        >
+          ✦
+        </button>
+      </Tooltip>
+    )}
   </div>
 );

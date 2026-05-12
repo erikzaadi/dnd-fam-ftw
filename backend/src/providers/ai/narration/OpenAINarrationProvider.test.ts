@@ -98,7 +98,7 @@ describe('OpenAINarrationProvider', () => {
         '[OpenAINarration] First attempt failed validation, retrying...',
         expect.any(String)
       );
-      expect(retryRequest?.messages[1].content).toContain('fix these validation errors');
+      expect(retryRequest?.messages[1].content).toContain('fix this validation error');
       expect(error).not.toHaveBeenCalled();
     } finally {
       warn.mockRestore();
@@ -153,6 +153,7 @@ describe('OpenAINarrationProvider', () => {
       expect(result.narrationValidationError).toContain('Victory exit');
       expect(mocks.parse).toHaveBeenCalledTimes(2);
       expect(retryRequest?.messages[1].content).toContain('Victory exit');
+      expect(retryRequest?.messages[1].content).toContain('At least two choices must act inside that new beat');
       expect(error).not.toHaveBeenCalled();
     } finally {
       warn.mockRestore();
@@ -205,7 +206,7 @@ describe('OpenAINarrationProvider', () => {
     }
   });
 
-  it('uses structured retry output when only gameplay guards still fail', async () => {
+  it('uses the contextual fallback when gameplay guards still reject the retry', async () => {
     const stalledVictory = output({
       narration: 'Pip wins the fight and the room goes quiet.',
       choices: [
@@ -238,12 +239,22 @@ describe('OpenAINarrationProvider', () => {
         },
       });
 
-      expect(result.narration).toBe(stalledVictory.narration);
-      expect(result.choices.map(choice => choice.label)).toEqual(stalledVictory.choices.map(choice => choice.label));
+      expect(result.narration).toContain('Move from the resolved fight into the next clue, route, reward, threat, or decision');
+      expect(result.choices.map(choice => choice.label)).toEqual([
+        'Press deeper into A ruined keep',
+        'Search A ruined keep for a clue',
+        'Read the magic around A ruined keep',
+      ]);
       expect(result.narrationRetried).toBe(true);
-      expect(result.narrationFailed).toBeUndefined();
+      expect(result.narrationFailed).toBe(true);
+      expect(result.narrationValidationError).toContain('Victory exit');
       expect(result.narrationRetryValidationError).toContain('Victory exit');
-      expect(error).not.toHaveBeenCalled();
+      expect(error).toHaveBeenCalledWith(
+        '[OpenAINarration] Retry also failed, using fallback.',
+        expect.any(String),
+        'Raw:',
+        JSON.stringify(stalledVictory)
+      );
     } finally {
       warn.mockRestore();
       error.mockRestore();

@@ -99,7 +99,7 @@ export const ActionDock = ({
       return;
     }
     const hasActiveHelper = choice.flavor === 'combo' && !!choice.helperCharacterName && party.some(c => c.name === choice.helperCharacterName && c.status === 'active' && c.id !== activeCharacter?.id);
-    const choiceItemOwner = choice.flavor === 'item' && choice.itemOwnerName
+    const choiceItemOwner = choice.flavor === 'item' && choice.itemOwnerName === activeCharacter?.name
       ? party.find(c => c.name === choice.itemOwnerName && c.status === 'active')
       : null;
     const choiceItem = choiceItemOwner && choice.itemName
@@ -177,10 +177,10 @@ export const ActionDock = ({
       ...(freeActionPreview.characterBonusLabel !== undefined && { characterBonusLabel: freeActionPreview.characterBonusLabel }),
       ...(freeActionPreview.flavor !== undefined && { flavor: freeActionPreview.flavor }),
     };
-    const { originalAction, stat, difficulty, difficultyValue } = freeActionPreview;
+    const { interpretedAction, stat, difficulty, difficultyValue } = freeActionPreview;
     setFreeActionPreview(null);
     setPreviewSubmitting(false);
-    await onSubmit(originalAction, stat, difficulty, difficultyValue, undefined, undefined, undefined, preview);
+    await onSubmit(interpretedAction, stat, difficulty, difficultyValue, undefined, undefined, undefined, preview);
   }, [freeActionPreview, onSubmit]);
 
   const editFreeAction = useCallback(() => {
@@ -445,7 +445,7 @@ export const ActionDock = ({
                   const statBonus = activeCharacter?.inventory.reduce((s, item) => s + (item.statBonuses?.[choice.stat as keyof typeof item.statBonuses] ?? 0), 0) ?? 0;
                   const hasActiveHelper = choice.flavor === 'combo' && !!choice.helperCharacterName && party.some(c => c.name === choice.helperCharacterName && c.status === 'active' && c.id !== activeCharacter?.id);
                   const helperBonus = hasActiveHelper ? COMBO_HELPER_BONUS : 0;
-                  const hasChoiceItem = choice.flavor === 'item' && !!choice.itemOwnerName && !!choice.itemName && party.some(c => c.name === choice.itemOwnerName && c.status === 'active' && c.inventory.some(item => item.name === choice.itemName));
+                  const hasChoiceItem = choice.flavor === 'item' && !!activeCharacter && choice.itemOwnerName === activeCharacter.name && !!choice.itemName && activeCharacter.inventory.some(item => item.name === choice.itemName);
                   const choiceItemBonus = hasChoiceItem ? CHOICE_ITEM_BONUS : 0;
                   const characterBonus = choice.flavor === 'spotlight' || choice.flavor === 'social' ? CHARACTER_EDGE_BONUS : 0;
                   const characterBonusLabel = choice.flavor === 'spotlight' ? 'spotlight' : choice.flavor === 'social' ? 'social' : '';

@@ -25,17 +25,6 @@ export class OpenAINarrationProvider implements NarrationProvider {
       };
     }
 
-    const usableRetry = parseNarrationOutput(input, retryRaw, { enforceGameplayGuards: false });
-    if (usableRetry.success) {
-      console.warn('[OpenAINarration] Retry failed gameplay validation, using structured retry output.', retryParsed.error);
-      return {
-        ...usableRetry.data,
-        narrationRetried: true,
-        narrationValidationError: parsed.error,
-        narrationRetryValidationError: retryParsed.error,
-      };
-    }
-
     console.error('[OpenAINarration] Retry also failed, using fallback.', retryParsed.error, 'Raw:', JSON.stringify(retryRaw));
     return {
       ...buildNarrationFallback(input),
