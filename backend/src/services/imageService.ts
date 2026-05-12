@@ -30,18 +30,20 @@ export type SceneImageContext = {
 const IMAGE_COMPOSITION_GUARDRAIL = [
   'Finished standalone fantasy illustration.',
   'No text, pseudo-text, glyph rows, fake writing, decorative calligraphy, title blocks, or paragraph-like marks anywhere in the image.',
+  'No centered overlay text, no stacked title lines, no subtitle bands, no credit blocks, no menu copy, no label-like marks, and no blank space reserved for words.',
   'Single full-bleed image filling the entire square frame from edge to edge.',
   'Continuous painted in-world scene only, not a book page, parchment sheet, manuscript, illuminated manuscript, title card, poster, trading card, gallery mat, collectible card, tabletop card, character card, or framed illustration.',
   'One shared camera view with every figure occupying the same physical environment.',
   'Only the described characters, creatures, props, and environment are visible.',
   'All books, scrolls, maps, signs, banners, plaques, cards, and carved surfaces are plain blank visual props with no visible marks, lines, alphabets, icons, diagrams, or symbols.',
+  'Sky, clouds, water, streets, walls, windows, clothing, armor, and magical effects stay clean and unmarked.',
   'No captions, lettering, numbers, logos, watermarks, signatures, borders, mats, picture frames, panels, split views, grids, tables, stat blocks, character sheets, reference sheets, portrait cards, character cards, name labels under figures, name tags, labels under figures, header bands, footer bands, blank margins, text areas, menus, toolbars, editor controls, crop handles, selection boxes, rulers, guides, or software interface elements.',
   'No artist hands, brushes, paint palettes, color swatches, easels, stretched canvas, linen texture, canvas wrap, painting mounted on wall, artwork displayed in gallery, display box, pedestal base, art supplies, or image-creation process visible.',
   'If the scene includes magic, show it as light, color, particles, mist, or motion only, never as readable marks or floating writing.',
 ].join(' ');
 
 export const IMAGE_PROMPT_STYLE = {
-  avatar: 'Highly detailed digital fantasy adventurer bust view, sharp rendering, tight centered face and shoulders crop. The character is a real living being in the image, not a figurine, game piece, card art, printed portrait, framed artwork, or display object.',
+  avatar: 'Highly detailed digital fantasy adventurer avatar, sharp rendering, extreme tight centered face and shoulders crop. Head, neck, shoulders, costume collar, and expression fill nearly the entire square frame. Simple dark atmospheric background only, no visible room, desk, table, workbench, candles, tools, art supplies, papers, scrolls, books, maps, frames, matting, plaques, callout lines, annotation lines, or reference-sheet layout. The character is a real living being in the image, not a figurine, game piece, card art, printed portrait, framed artwork, or display object.',
   scene: 'Dungeons and Dragons adventure moment, detailed fantasy art, cinematic lighting, vibrant colors, painterly in-world action scene.',
   preview: 'Painterly fantasy adventure art, cinematic lighting, vibrant colors, full-bleed landscape composition with no margins.',
 } as const;
@@ -76,7 +78,7 @@ export class ImageService {
     const visualQuirk = this.getSafeVisualQuirk(char.quirk);
     const quirkPart = visualQuirk ? ` The character visibly has ${visualQuirk}.` : '';
     const prompt = buildImagePrompt(
-      `Close-up bust view of one ${genderDesc}${char.species.toLowerCase()} ${char.class.toLowerCase()} adventurer standing in a dark atmospheric fantasy location with dramatic rim lighting. Face, shoulders, costume, and expression fill the frame directly.${quirkPart}`,
+      `Extreme close-up avatar of one ${genderDesc}${char.species.toLowerCase()} ${char.class.toLowerCase()} adventurer facing the camera against a simple dark atmospheric background with dramatic rim lighting. Only the living character's head, shoulders, costume collar, and expression are visible; crop out hands, weapons, tables, surrounding rooms, props, framed art, and display surfaces.${quirkPart}`,
       IMAGE_PROMPT_STYLE.avatar,
     );
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
@@ -247,8 +249,8 @@ export class ImageService {
     const moodHint = this.getSessionPreviewMood(session.difficulty, session.gameMode);
     const moodPart = moodHint ? ` Overall atmosphere: ${moodHint}.` : '';
     const prompt = buildImagePrompt(
-      `Fantasy realm establishing scene.${worldPart} Several adventurers stand together in the same location as a single group: ${heroList}.${villainHint}${moodPart} Wide establishing shot with detailed scenery and characters integrated naturally into one continuous environment.`,
-      `${IMAGE_PROMPT_STYLE.preview} Single unified group scene, not separate portraits.`,
+      `Wide camera view inside a living fantasy realm.${worldPart} Several adventurers stand together in the same location as a single group: ${heroList}.${villainHint}${moodPart} Fill the frame with detailed scenery, architecture, terrain, sky, and characters integrated naturally into one continuous environment. The center of the image contains only in-world scenery and adventurers, never a title area, caption area, poster layout, or empty text space.`,
+      `${IMAGE_PROMPT_STYLE.preview} Single unified group scene, not separate portraits or a title-screen layout.`,
     );
 
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');

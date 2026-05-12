@@ -33,6 +33,8 @@
         "tsc": "npm run tsc:shared && npm run tsc:backend && npm run tsc:frontend",
         "verify": "npm run lint && npm run tsc && npm run test",
         "cli": "npm run cli --prefix backend --",
+        "generate-static-assets": "npm --prefix backend run generate-static-assets",
+        "generate-image-samples": "npm --prefix backend run generate-image-samples",
         "test:visual": "npm run test:visual --prefix frontend",
         "test:visual:update": "npm run test:visual:update --prefix frontend",
         "setup:playwright": "npm exec --prefix frontend -- playwright install chromium"

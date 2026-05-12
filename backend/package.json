@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "cli": "tsx src/scripts/cli.ts",
-    "generate-static-assets": "tsx src/scripts/generateStaticAssets.ts"
+    "generate-static-assets": "tsx --env-file=../.env src/scripts/generateStaticAssets.ts",
+    "generate-image-samples": "tsx --env-file=../.env src/scripts/generateImageServiceSamples.ts"
   },
   "keywords": [],
   "author": "",

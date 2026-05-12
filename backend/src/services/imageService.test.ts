@@ -61,6 +61,7 @@ describe('ImageService.generateImage', () => {
     expect(provider.calls[0]).toContain('A dragon attacks');
     expect(provider.calls[0]).toContain('Finished standalone fantasy illustration');
     expect(provider.calls[0]).toContain('No text, pseudo-text, glyph rows');
+    expect(provider.calls[0]).toContain('No centered overlay text, no stacked title lines');
     expect(provider.calls[0]).toContain('No captions, lettering, numbers, logos');
     expect(provider.calls[0]).toContain('Dungeons and Dragons adventure moment');
     expect(provider.calls[0]).not.toContain('storybook');
@@ -157,8 +158,11 @@ describe('ImageService.generateAvatar', () => {
     const result = await ImageService.generateAvatar(char, 'sess-avatar-1', provider, storage);
     expect(result.url).toBeTruthy();
     expect(result.prompt).toContain('halfling rogue');
-    expect(result.prompt).toContain('Close-up bust view of one');
-    expect(result.prompt).toContain('face and shoulders crop');
+    expect(result.prompt).toContain('Extreme close-up avatar of one');
+    expect(result.prompt).toContain('extreme tight centered face and shoulders crop');
+    expect(result.prompt).toContain('no visible room, desk, table, workbench');
+    expect(result.prompt).toContain('callout lines, annotation lines, or reference-sheet layout');
+    expect(result.prompt).toContain('crop out hands, weapons, tables, surrounding rooms, props, framed art, and display surfaces');
     expect(result.prompt).toContain('not a figurine, game piece, card art, printed portrait, framed artwork, or display object');
     expect(result.prompt).toContain('No text, pseudo-text, glyph rows');
     expect(result.prompt).not.toContain('fantasy RPG character');
@@ -171,7 +175,7 @@ describe('ImageService.generateAvatar', () => {
     const provider = makeMockImageProvider();
     const char = { name: 'Pip', class: 'Rogue', species: 'Halfling', quirk: 'Talks to plants' };
     const prompt = buildImagePrompt(
-      `Close-up bust view of one ${char.species.toLowerCase()} ${char.class.toLowerCase()} adventurer standing in a dark atmospheric fantasy location with dramatic rim lighting. Face, shoulders, costume, and expression fill the frame directly. The character visibly has expressive theatrical posture.`,
+      `Extreme close-up avatar of one ${char.species.toLowerCase()} ${char.class.toLowerCase()} adventurer facing the camera against a simple dark atmospheric background with dramatic rim lighting. Only the living character's head, shoulders, costume collar, and expression are visible; crop out hands, weapons, tables, surrounding rooms, props, framed art, and display surfaces. The character visibly has expressive theatrical posture.`,
       IMAGE_PROMPT_STYLE.avatar,
     );
     const hash = crypto.createHash('md5').update(prompt).digest('hex');
@@ -228,6 +232,8 @@ describe('ImageService.generateSessionPreview', () => {
     expect(provider.calls[0]).toContain('goblin king, glowing cheese artifact, mushroom cave throne');
     expect(provider.calls[0]).toContain('full-bleed');
     expect(provider.calls[0]).toContain('No text, pseudo-text, glyph rows');
+    expect(provider.calls[0]).toContain('The center of the image contains only in-world scenery and adventurers');
+    expect(provider.calls[0]).toContain('not separate portraits or a title-screen layout');
     expect(provider.calls[0]).toContain('not a book page, parchment sheet, manuscript, illuminated manuscript, title card, poster, trading card');
     expect(provider.calls[0]).not.toContain('talks to books');
     expect(provider.calls[0]).not.toContain('collects cursed spoons');
