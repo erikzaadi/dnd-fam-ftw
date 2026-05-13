@@ -564,3 +564,141 @@ test('seeded sessions', async ({ page, request }) => {
     await screenshotViewports(page, `session-${pick.slug}`);
   }
 });
+
+test('session encounter panel - all HP label states', async ({ page }) => {
+  const sessionId = 'visual-encounter-panel';
+  await suppressFirstRunOverlays(page);
+
+  const fakeSession = {
+    id: sessionId,
+    scene: 'Goblin Chief',
+    sceneId: 'goblin-cave',
+    turn: 5,
+    displayName: 'The Goblin Caves',
+    savingsMode: true,
+    gameMode: 'balanced',
+    difficulty: 'normal',
+    tone: 'thrilling',
+    storySummary: '',
+    npcs: [],
+    quests: [],
+    recentHistory: ['The battle rages on inside the goblin caves.'],
+    lastChoices: [
+      { label: 'Strike the chief', difficulty: 'normal', stat: 'might', flavor: 'standard' },
+      { label: 'Use the shadows', difficulty: 'normal', stat: 'mischief', flavor: 'standard' },
+    ],
+    activeCharacterId: 'char-1',
+    party: [{
+      id: 'char-1',
+      name: 'Barnabas',
+      class: 'Fighter',
+      species: 'Human',
+      quirk: 'Never backs down',
+      hp: 8,
+      max_hp: 10,
+      status: 'active',
+      stats: { might: 4, magic: 1, mischief: 2 },
+      inventory: [],
+    }],
+    interventionState: { rescuesUsed: 0 },
+    encounterState: {
+      id: 'enc-goblin',
+      name: 'Goblin Cave Brawl',
+      status: 'active',
+      round: 2,
+      objective: 'Drive back the goblin horde',
+      enemies: [
+        {
+          id: 'e-fresh',
+          name: 'Goblin Chief',
+          role: 'boss',
+          hp: 19,
+          maxHp: 20,
+          status: 'active',
+          weaknesses: [
+            { id: 'w1', label: 'fire', school: 'fire', revealed: true },
+          ],
+        },
+        {
+          id: 'e-wounded',
+          name: 'Orc Warrior',
+          role: 'elite',
+          hp: 9,
+          maxHp: 15,
+          status: 'active',
+          weaknesses: [
+            { id: 'w2', label: 'holy', school: 'holy', revealed: true },
+            { id: 'w3', label: 'frost', school: 'frost', revealed: false },
+          ],
+          effects: [{ id: 'ef1', name: 'Burning', description: 'On fire', kind: 'damage_over_time', remainingTurns: 2 }],
+        },
+        {
+          id: 'e-staggering',
+          name: 'Stone Golem',
+          role: 'standard',
+          hp: 5,
+          maxHp: 16,
+          status: 'active',
+        },
+        {
+          id: 'e-nearly-broken',
+          name: 'Skeleton Archer',
+          role: 'minion',
+          hp: 1,
+          maxHp: 8,
+          status: 'active',
+        },
+        {
+          id: 'e-defeated',
+          name: 'Cave Bat',
+          role: 'minion',
+          hp: 0,
+          maxHp: 4,
+          status: 'defeated',
+        },
+        {
+          id: 'e-fled',
+          name: 'Goblin Scout',
+          role: 'minion',
+          hp: 0,
+          maxHp: 3,
+          status: 'fled',
+        },
+      ],
+      areas: [
+        { id: 'a1', label: 'Torch Sconce', description: 'A lit torch on the wall', tags: ['fire', 'light'] },
+        { id: 'a2', label: 'Broken Crates', description: 'Cover made of shattered wood', tags: ['cover'] },
+      ],
+    },
+  };
+
+  const fakeTurnResult = {
+    narration: 'The battle rages on inside the goblin caves.',
+    choices: fakeSession.lastChoices,
+    imagePrompt: null,
+    imageSuggested: false,
+    imageUrl: null,
+  };
+
+  await page.route(`**/api/session/${sessionId}`, route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify(fakeSession),
+  }));
+  await page.route(`**/api/session/${sessionId}/history`, route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([fakeTurnResult]),
+  }));
+  await page.route('**/api/sessions/events', route => route.abort());
+  await page.route('**/api/capabilities', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ hasCloudAI: false, hasTts: false }),
+  }));
+
+  await page.goto(`/session/${sessionId}`);
+  await dismissAudioOverlay(page);
+  await expect(page.getByTestId('encounter-panel')).toBeVisible({ timeout: 10_000 });
+  await screenshotViewports(page, 'session-encounter-panel');
+});

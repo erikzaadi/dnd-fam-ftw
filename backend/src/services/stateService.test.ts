@@ -4,6 +4,7 @@ import fs from 'fs';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { getDb } from '../persistence/database.js';
 import { StateService } from './stateService.js';
+import type { SessionState } from '../types.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-test-${Date.now()}.sqlite`);
 const IMAGE_STORAGE_PATH = path.join(os.tmpdir(), `dnd-test-imgs-state-${Date.now()}`);
@@ -429,5 +430,92 @@ describe('StateService - Character history', () => {
     await StateService.updateStorySummary('sess-summary', 'The party defeated the goblin king.');
     const session = await StateService.getSession('sess-summary');
     expect(session!.storySummary).toBe('The party defeated the goblin king.');
+  });
+});
+
+describe('StateService - Encounter state persistence', () => {
+  it('persists a full encounter through updateSession + getSession', async () => {
+    insertTestSession('sess-enc-full', 'local', 'Encounter World');
+    const base = await StateService.getSession('sess-enc-full');
+    const withEncounter: SessionState = {
+      ...base!,
+      encounterState: {
+        id: 'enc-1',
+        name: 'Goblin Brawl',
+        status: 'active',
+        round: 3,
+        objective: 'Defeat the chief',
+        enemies: [{
+          id: 'e1',
+          name: 'Goblin Chief',
+          role: 'boss',
+          hp: 12,
+          maxHp: 20,
+          status: 'active',
+          weaknesses: [{ id: 'w1', label: 'fire', school: 'fire', revealed: true }],
+          effects: [{ id: 'ef1', name: 'Burning', description: 'Taking fire damage', kind: 'damage_over_time', remainingTurns: 2 }],
+        }],
+        areas: [{ id: 'a1', label: 'Broken Crates', description: 'Splintered wood covering the floor', tags: ['cover'] }],
+      },
+    };
+    await StateService.updateSession('sess-enc-full', withEncounter);
+    const loaded = await StateService.getSession('sess-enc-full');
+    expect(loaded!.encounterState?.id).toBe('enc-1');
+    expect(loaded!.encounterState?.name).toBe('Goblin Brawl');
+    expect(loaded!.encounterState?.round).toBe(3);
+    expect(loaded!.encounterState?.objective).toBe('Defeat the chief');
+    expect(loaded!.encounterState?.enemies[0].hp).toBe(12);
+    expect(loaded!.encounterState?.enemies[0].weaknesses?.[0].label).toBe('fire');
+    expect(loaded!.encounterState?.enemies[0].effects?.[0].name).toBe('Burning');
+    expect(loaded!.encounterState?.enemies[0].effects?.[0].remainingTurns).toBe(2);
+    expect(loaded!.encounterState?.areas[0].label).toBe('Broken Crates');
+  });
+
+  it('persists enemy HP changes across sequential updateSession calls', async () => {
+    insertTestSession('sess-enc-seq', 'local', 'Turn Tracking World');
+    const base = await StateService.getSession('sess-enc-seq');
+    const initial: SessionState = {
+      ...base!,
+      encounterState: {
+        id: 'enc-seq', name: 'Cave Fight', status: 'active', round: 1,
+        enemies: [{ id: 'troll', name: 'Troll', role: 'elite', hp: 10, maxHp: 10, status: 'active' }],
+        areas: [],
+      },
+    };
+    await StateService.updateSession('sess-enc-seq', initial);
+
+    const after1 = await StateService.getSession('sess-enc-seq');
+    await StateService.updateSession('sess-enc-seq', {
+      ...after1!,
+      encounterState: { ...after1!.encounterState!, round: 2, enemies: [{ ...after1!.encounterState!.enemies[0], hp: 6 }] },
+    });
+
+    const after2 = await StateService.getSession('sess-enc-seq');
+    await StateService.updateSession('sess-enc-seq', {
+      ...after2!,
+      encounterState: { ...after2!.encounterState!, round: 3, enemies: [{ ...after2!.encounterState!.enemies[0], hp: 2 }] },
+    });
+
+    const final = await StateService.getSession('sess-enc-seq');
+    expect(final!.encounterState?.round).toBe(3);
+    expect(final!.encounterState?.enemies[0].hp).toBe(2);
+  });
+
+  it('clears encounter state when removed from session via updateSession', async () => {
+    insertTestSession('sess-enc-clr', 'local', 'Clear World');
+    const base = await StateService.getSession('sess-enc-clr');
+    const withEnc: SessionState = {
+      ...base!,
+      encounterState: { id: 'enc-tmp', name: 'Temp Encounter', status: 'active', round: 1, enemies: [], areas: [] },
+    };
+    await StateService.updateSession('sess-enc-clr', withEnc);
+    const mid = await StateService.getSession('sess-enc-clr');
+    expect(mid!.encounterState?.id).toBe('enc-tmp');
+
+    const withoutEnc: SessionState = { ...mid! };
+    delete withoutEnc.encounterState;
+    await StateService.updateSession('sess-enc-clr', withoutEnc);
+    const cleared = await StateService.getSession('sess-enc-clr');
+    expect(cleared!.encounterState).toBeUndefined();
   });
 });
