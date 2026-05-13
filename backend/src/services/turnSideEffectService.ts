@@ -14,6 +14,16 @@ interface CompletedTurnSideEffectsInput {
   turnResult: TurnResult;
 }
 
+const getTurnEncounterId = (previousSession: SessionState, newState: SessionState): string | undefined => {
+  if (previousSession.encounterState?.status === 'active') {
+    return previousSession.encounterState.id;
+  }
+  if (newState.encounterState?.status === 'active' && previousSession.encounterState?.id !== newState.encounterState.id) {
+    return newState.encounterState.id;
+  }
+  return undefined;
+};
+
 export const queueCompletedTurnSideEffects = ({
   sessionId,
   namespaceId,
@@ -88,6 +98,7 @@ const queueInterventionRescue = (
 
       const postState = GameEngine.updateState(rescuedState, interventionInput, interventionTurn as unknown as Record<string, unknown>);
       await StateService.updateSession(sessionId, postState);
+      interventionTurn.encounterId = getTurnEncounterId(rescuedState, postState);
       interventionTurn.id = await StateService.addTurnResult(sessionId, interventionTurn, null);
       broadcastUpdate(sessionId, 'intervention', { session: postState, turnResult: interventionTurn });
       broadcastSessionChanged(namespaceId, sessionId, 'updated');
@@ -126,6 +137,7 @@ const queueSanctuaryRecovery = (
 
       const postState = GameEngine.updateState(sanctuaryState, sanctuaryInput, sanctuaryTurn as unknown as Record<string, unknown>);
       await StateService.updateSession(sessionId, postState);
+      sanctuaryTurn.encounterId = getTurnEncounterId(sanctuaryState, postState);
       sanctuaryTurn.id = await StateService.addTurnResult(sessionId, sanctuaryTurn, null);
       broadcastUpdate(sessionId, 'sanctuary_recovery', { session: postState, turnResult: sanctuaryTurn });
       broadcastSessionChanged(namespaceId, sessionId, 'updated');

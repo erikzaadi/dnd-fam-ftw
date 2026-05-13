@@ -186,7 +186,7 @@ describe('ActionDock speech input', () => {
     mocks.apiFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
-        originalAction: 'cast sheld',
+        originalAction: 'cast shield',
         interpretedAction: 'cast shield',
         stat: 'magic',
         difficulty: 'normal',
@@ -200,8 +200,40 @@ describe('ActionDock speech input', () => {
     await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
     await userEvent.click(await screen.findByRole('button', { name: /^edit$/i }));
 
-    expect(setCustomAction).toHaveBeenCalledWith('cast shield');
+    expect(setCustomAction).toHaveBeenCalledWith('cast sheld');
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('can force the original custom action text when confirming', async () => {
+    mocks.apiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        originalAction: 'cast shield',
+        interpretedAction: 'cast shield',
+        stat: 'magic',
+        difficulty: 'normal',
+        warnings: [],
+      }),
+    });
+    const onSubmit = vi.fn();
+    renderDock({ customAction: 'cast sheld', onSubmit });
+
+    await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
+    await userEvent.click(await screen.findByLabelText(/force original text/i));
+    await userEvent.click(screen.getByRole('button', { name: /^confirm$/i }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        'cast sheld',
+        'magic',
+        'normal',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        {},
+      );
+    });
   });
 
   it('does not submit when canceling a previewed custom action', async () => {

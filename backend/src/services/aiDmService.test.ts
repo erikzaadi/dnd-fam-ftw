@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { toNarrationInput } from './aiDmService.js';
-import type { AIInput } from '../types.js';
+import type { AIInput, EncounterSeed } from '../types.js';
 
 const makeAIInput = (overrides: Partial<AIInput> = {}): AIInput => ({
   id: 'session-1',
@@ -308,6 +308,35 @@ describe('toNarrationInput', () => {
   it('dmPrep is omitted when not set', () => {
     const out = toNarrationInput(makeAIInput({ dmPrep: undefined }));
     expect('dmPrep' in out).toBe(false);
+  });
+
+  it('passes prepared encounter seeds into narration when available', () => {
+    const dmPrepEncounters: EncounterSeed[] = [
+      {
+        name: 'Kitchen Knife Chorus',
+        triggerHint: 'When the goblin kitchen erupts into a clattering alarm.',
+        enemies: [
+          {
+            name: 'Cleaver Goblin',
+            role: 'standard',
+            weaknesses: [
+              { label: 'grease slick', school: 'mechanical' as const },
+            ],
+          },
+        ],
+        areas: [{ label: 'Greasy prep table', tags: ['slick', 'kitchen'] }],
+        objective: 'Drive the knife-wielding cooks away.',
+        lootHint: 'a moon-stamped pantry key',
+      },
+    ];
+
+    const out = toNarrationInput(makeAIInput({ dmPrepEncounters }));
+    expect(out.dmPrepEncounters).toEqual(dmPrepEncounters);
+  });
+
+  it('omits prepared encounter seeds when none are available', () => {
+    const out = toNarrationInput(makeAIInput({ dmPrepEncounters: [] }));
+    expect('dmPrepEncounters' in out).toBe(false);
   });
 
   it('character history is included in party entry when set', () => {

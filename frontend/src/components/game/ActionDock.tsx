@@ -143,7 +143,7 @@ export const ActionDock = ({
         preview = {
           ...preview,
           ...responsePreview,
-          originalAction: responsePreview.originalAction ?? trimmed,
+          originalAction: trimmed,
           interpretedAction: responsePreview.interpretedAction ?? trimmed,
           difficulty: responsePreview.difficulty ?? preview.difficulty,
           warnings: responsePreview.warnings ?? [],
@@ -164,7 +164,7 @@ export const ActionDock = ({
     setFreeActionPreview(preview);
   }, [loading, sessionId]);
 
-  const confirmFreeAction = useCallback(async () => {
+  const confirmFreeAction = useCallback(async (useOriginalAction: boolean = false) => {
     if (!freeActionPreview) {
       return;
     }
@@ -179,17 +179,18 @@ export const ActionDock = ({
       ...(freeActionPreview.characterBonusLabel !== undefined && { characterBonusLabel: freeActionPreview.characterBonusLabel }),
       ...(freeActionPreview.flavor !== undefined && { flavor: freeActionPreview.flavor }),
     };
-    const { interpretedAction, stat, difficulty, difficultyValue } = freeActionPreview;
+    const { interpretedAction, originalAction, stat, difficulty, difficultyValue } = freeActionPreview;
+    const submittedAction = useOriginalAction ? originalAction : interpretedAction;
     setFreeActionPreview(null);
     setPreviewSubmitting(false);
-    await onSubmit(interpretedAction, stat, difficulty, difficultyValue, undefined, undefined, undefined, preview);
+    await onSubmit(submittedAction, stat, difficulty, difficultyValue, undefined, undefined, undefined, preview);
   }, [freeActionPreview, onSubmit]);
 
   const editFreeAction = useCallback(() => {
     if (!freeActionPreview) {
       return;
     }
-    setCustomAction(freeActionPreview.interpretedAction);
+    setCustomAction(freeActionPreview.originalAction);
     setFreeActionPreview(null);
   }, [freeActionPreview, setCustomAction]);
 
@@ -639,8 +640,9 @@ export const ActionDock = ({
               preview={freeActionPreview}
               statBonus={base + itemBonus}
               submitting={previewSubmitting}
-              onConfirm={() => {
-                void confirmFreeAction();
+              showOriginalAction
+              onConfirm={useOriginalAction => {
+                void confirmFreeAction(useOriginalAction);
               }}
               onEdit={editFreeAction}
               onCancel={cancelFreeAction}

@@ -1,4 +1,4 @@
-import type { CharacterBuff, ChoiceFlavor, Difficulty, EncounterState, GameMode, Impact, SceneMomentum, ScenePressure, Stat, TensionLevel } from '../../../types.js';
+import type { CharacterBuff, ChoiceFlavor, Difficulty, EncounterSeed, EncounterState, GameMode, Impact, SceneMomentum, ScenePressure, Stat, TensionLevel } from '../../../types.js';
 import type { EncounterStartProposal, EncounterUpdateProposal } from './narrationSchemas.js';
 
 export type NarrationChoice = {
@@ -82,6 +82,7 @@ export type NarrationInput = {
   tone: string;
   gameMode?: GameMode;
   dmPrep?: string;
+  dmPrepEncounters?: EncounterSeed[];
   isFirstTurn?: boolean;
   interventionRescue?: boolean;
   sanctuaryRecovery?: boolean;

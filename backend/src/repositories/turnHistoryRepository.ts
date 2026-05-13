@@ -4,6 +4,7 @@ import { TurnResult, type Difficulty, type Impact, type Stat } from '../types.js
 
 type TurnHistoryRow = {
   id: number;
+  encounterId: string | null;
   narration: string;
   rollNarration: string | null;
   imagePrompt: string | null;
@@ -98,6 +99,7 @@ const mapTurnHistoryRow = (row: TurnHistoryRow): TurnResult => {
 
   return {
     id: row.id,
+    ...(row.encounterId && { encounterId: row.encounterId }),
     narration: row.narration,
     rollNarration: row.rollNarration || undefined,
     imagePrompt: row.imagePrompt,
@@ -144,9 +146,8 @@ export const turnHistoryRepository = {
   async addTurnResult(sessionId: string, turn: TurnResult, characterId: string | null): Promise<number> {
     const db = getDb();
     const action = turn.lastAction ?? null;
-    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionChoiceItemBonus, actionChoiceItemName, actionChoiceItemOwnerName, actionCharacterBonus, actionCharacterBonusLabel, actionBuffBonus, actionBuffBonusLabel, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges, narrationRetried, narrationFailed, narrationValidationError, narrationRetryValidationError) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(
-        sessionId, characterId || null, turn.narration, turn.rollNarration || null, turn.imagePrompt, turn.imageSuggested ? 1 : 0, turn.imageUrl || null,
+    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, encounterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionChoiceItemBonus, actionChoiceItemName, actionChoiceItemOwnerName, actionCharacterBonus, actionCharacterBonusLabel, actionBuffBonus, actionBuffBonusLabel, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges, narrationRetried, narrationFailed, narrationValidationError, narrationRetryValidationError) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(sessionId, characterId || null, turn.encounterId ?? null, turn.narration, turn.rollNarration || null, turn.imagePrompt, turn.imageSuggested ? 1 : 0, turn.imageUrl || null,
         action?.actionAttempt ?? null,
         action?.actionResult?.statUsed ?? null,
         action?.actionResult?.success ? 1 : 0,

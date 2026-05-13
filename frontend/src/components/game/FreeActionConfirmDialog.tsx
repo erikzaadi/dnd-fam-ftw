@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { FreeActionPreview } from '../../types';
 import { StatImg } from './StatIcon';
 import { STAT_TEXT_COLORS } from '../../lib/statColors';
@@ -18,7 +19,8 @@ type FreeActionConfirmDialogProps = {
   preview: FreeActionPreview | null;
   statBonus: number;
   submitting: boolean;
-  onConfirm: () => void;
+  showOriginalAction?: boolean;
+  onConfirm: (useOriginalAction?: boolean) => void;
   onEdit: () => void;
   onCancel: () => void;
 };
@@ -27,10 +29,13 @@ export const FreeActionConfirmDialog = ({
   preview,
   statBonus,
   submitting,
+  showOriginalAction = false,
   onConfirm,
   onEdit,
   onCancel,
 }: FreeActionConfirmDialogProps) => {
+  const [useOriginalAction, setUseOriginalAction] = useState(false);
+
   if (!preview) {
     return null;
   }
@@ -53,12 +58,32 @@ export const FreeActionConfirmDialog = ({
         </div>
 
         <div className="mt-4 rounded-2xl border border-slate-700 bg-slate-950/70 p-4">
-          <div className="text-xs font-black uppercase tracking-widest text-amber-400 mb-2">What you typed</div>
+          <div className="text-xs font-black uppercase tracking-widest text-amber-400 mb-2">Action the game will use</div>
           <p className="text-sm leading-relaxed text-slate-200">{preview.interpretedAction}</p>
           {preview.narration && (
             <p className="text-xs italic text-slate-300/70 mt-1.5 leading-snug">{preview.narration}</p>
           )}
         </div>
+
+        {showOriginalAction && (
+          <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+            <div className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">What you originally typed</div>
+            <textarea
+              readOnly
+              value={preview.originalAction}
+              className="h-16 w-full resize-none rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm leading-relaxed text-slate-300 outline-none"
+            />
+            <label className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2">
+              <span className="text-xs font-black uppercase tracking-widest text-slate-400">Force original text</span>
+              <input
+                type="checkbox"
+                checked={useOriginalAction}
+                onChange={e => setUseOriginalAction(e.target.checked)}
+                className="h-4 w-4 accent-amber-500"
+              />
+            </label>
+          </div>
+        )}
 
         <div className="mt-3 flex flex-wrap items-center gap-2 px-1">
           <StatImg stat={preview.stat} size="4" tooltip className="rounded-xl" />
@@ -112,7 +137,7 @@ export const FreeActionConfirmDialog = ({
         <div className="mt-5 flex flex-col sm:flex-row gap-2">
           <button
             type="button"
-            onClick={onConfirm}
+            onClick={() => onConfirm(showOriginalAction && useOriginalAction)}
             disabled={submitting}
             className="flex-1 py-3 rounded-2xl bg-amber-600 hover:bg-amber-500 disabled:opacity-40 font-black uppercase tracking-widest text-sm transition-colors"
           >

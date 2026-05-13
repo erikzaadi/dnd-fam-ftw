@@ -388,7 +388,7 @@ export const sessionRepository = {
     db.prepare('UPDATE sessions SET activeCharacterId = ? WHERE id = ?').run(newActiveCharId, newSessionId);
 
     const turns = db.prepare('SELECT * FROM turn_history WHERE sessionId = ? ORDER BY id ASC').all(templateId) as {
-      id: number; characterId: string | null; narration: string; rollNarration: string | null;
+      id: number; characterId: string | null; encounterId: string | null; narration: string; rollNarration: string | null;
       imagePrompt: string | null; imageSuggested: number; imageUrl: string | null;
       actionAttempt: string | null; actionStat: string | null; actionSuccess: number | null;
       actionRoll: number | null; actionStatBonus: number | null; actionImpact: string | null;
@@ -398,9 +398,9 @@ export const sessionRepository = {
 
     for (const turn of turns) {
       const newCharId = turn.characterId ? (charIdMap.get(turn.characterId) ?? null) : null;
-      const info = db.prepare(`INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-        .run(newSessionId, newCharId, turn.narration, turn.rollNarration, turn.imagePrompt, turn.imageSuggested, turn.imageUrl, turn.actionAttempt, turn.actionStat, turn.actionSuccess, turn.actionRoll, turn.actionStatBonus, turn.actionImpact, turn.actionDifficultyTarget, turn.turnType, turn.currentTensionLevel, turn.hpChanges, turn.inventoryChanges);
+      const info = db.prepare(`INSERT INTO turn_history (sessionId, characterId, encounterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(newSessionId, newCharId, turn.encounterId, turn.narration, turn.rollNarration, turn.imagePrompt, turn.imageSuggested, turn.imageUrl, turn.actionAttempt, turn.actionStat, turn.actionSuccess, turn.actionRoll, turn.actionStatBonus, turn.actionImpact, turn.actionDifficultyTarget, turn.turnType, turn.currentTensionLevel, turn.hpChanges, turn.inventoryChanges);
 
       const newTurnId = info.lastInsertRowid;
       const choices = db.prepare('SELECT * FROM turn_choices WHERE turnId = ?').all(turn.id) as {

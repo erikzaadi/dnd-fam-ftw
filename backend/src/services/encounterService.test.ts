@@ -15,7 +15,7 @@ const THORN_SEED: EncounterSeed = {
   name: 'Thornwood Guardian',
   triggerHint: 'when party enters the Thornwood',
   enemies: [
-    { name: 'Vine Beast', role: 'standard', weaknesses: [{ label: 'fire', school: 'fire' }], traits: ['regenerates'] },
+    { name: 'Vine Beast', role: 'standard', weaknesses: [{ label: 'dry thornwood sap', school: 'fire' }], traits: ['regenerates'] },
   ],
   areas: [{ label: 'Writhing Roots', tags: ['hazard'] }],
   objective: 'Defeat the guardian',
@@ -26,7 +26,7 @@ const SHADOW_SEED: EncounterSeed = {
   name: 'Shadow Ambush',
   triggerHint: 'entering the dark alley',
   enemies: [
-    { name: 'Shadow Wraith', role: 'elite', weaknesses: [{ label: 'holy', school: 'holy' }] },
+    { name: 'Shadow Wraith', role: 'elite', weaknesses: [{ label: 'old oath', school: 'holy' }] },
   ],
   areas: [{ label: 'Dark Alley', tags: ['hazard', 'shadow'] }],
 };
@@ -68,7 +68,7 @@ describe('resolveEncounterSeed', () => {
 describe('handleEncounterStart', () => {
   const PROPOSAL = {
     name: 'Thornwood Guardian',
-    enemies: [{ name: 'Vine Beast', role: 'standard' as const, weaknesses: [{ label: 'fire', school: 'fire' as const }] }],
+    enemies: [{ name: 'Vine Beast', role: 'standard' as const, weaknesses: [{ label: 'dry thornwood sap', school: 'fire' as const }] }],
     areas: [{ label: 'Writhing Roots', description: 'Tangled roots', tags: ['hazard'] }],
     objective: 'Defeat the guardian',
   };
@@ -207,7 +207,7 @@ describe('applyEncounterUpdate', () => {
         hp: 6,
         maxHp: 6,
         status: 'active',
-        weaknesses: [{ id: 'w1', label: 'fire', school: 'fire', revealed: false }],
+        weaknesses: [{ id: 'w1', label: 'dry thornwood sap', school: 'fire', revealed: false }],
         aliases: ['vine beast'],
       },
     ],
@@ -238,7 +238,7 @@ describe('applyEncounterUpdate', () => {
 
   it('reveals a weakness', () => {
     const result = applyEncounterUpdate(makeEnc(), {
-      revealWeakness: [{ enemyName: 'Vine Beast', label: 'fire' }],
+      revealWeakness: [{ enemyName: 'Vine Beast', label: 'dry thornwood sap' }],
     });
     expect(result.enemies[0].weaknesses![0].revealed).toBe(true);
   });

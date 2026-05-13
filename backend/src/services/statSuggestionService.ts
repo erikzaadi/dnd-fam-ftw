@@ -135,10 +135,10 @@ Reply with ONLY valid JSON (no markdown):
   "actionTags": ["<optional descriptive tags>"],
   "likelyEnemyId": "<id of the enemy most likely targeted, or null>",
   "likelyEnemyName": "<name of likely target enemy, or null>",
-  "weakPointMatch": {"label": "<weakness label>", "description": "<'exploits X weakness' or 'may exploit X weakness' if uncertain>"} | null` : ''}
+  "weakPointMatch": {"label": "<exact free-form weakness label from encounter data>", "description": "<'exploits X weakness' or 'may exploit X weakness' if uncertain>"} | null` : ''}
 }
 
-Stat guide: might = physical/combat/force, magic = spells/arcane/healing/divine, mischief = stealth/trickery/charm/persuasion.${hasEncounter ? '\nOnly set weakPointMatch when a revealed, non-broken weakness on the likely target clearly matches this action\'s school or tags. Use "may exploit" wording when confidence is low.' : ''}`,
+Stat guide: might = physical/combat/force, magic = spells/arcane/healing/divine, mischief = stealth/trickery/charm/persuasion.${hasEncounter ? '\nWeakness labels are flavorful display text. Keep the exact label from the encounter data; do not rewrite it to a generic school. Only set weakPointMatch when a revealed, non-broken weakness on the likely target clearly matches this action\'s school or tags. Use "may exploit" wording when confidence is low.' : ''}`,
       }],
       max_tokens: hasEncounter ? 160 : 80,
     }, { signal: AbortSignal.timeout(8_000) });

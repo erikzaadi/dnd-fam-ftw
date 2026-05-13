@@ -560,10 +560,10 @@ case 'sessions': {
         for (const turn of (session.turnHistory as Record<string, unknown>[]) ?? []) {
           const mappedCharId = turn.characterId ? (charIdMap.get(turn.characterId as string) ?? null) : null;
           const result = db.prepare(`
-            INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, image_storage_key, image_storage_provider, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionChoiceItemBonus, actionChoiceItemName, actionChoiceItemOwnerName, actionCharacterBonus, actionCharacterBonusLabel, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges, narrationRetried, narrationFailed, narrationValidationError, narrationRetryValidationError)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO turn_history (sessionId, characterId, encounterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, image_storage_key, image_storage_provider, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionChoiceItemBonus, actionChoiceItemName, actionChoiceItemOwnerName, actionCharacterBonus, actionCharacterBonusLabel, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges, narrationRetried, narrationFailed, narrationValidationError, narrationRetryValidationError)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
-            newSessionId, mappedCharId,
+            newSessionId, mappedCharId, turn.encounterId ?? null,
             turn.narration, turn.rollNarration ?? null,
             turn.imagePrompt ?? null, turn.imageSuggested ?? 0,
             turn.imageUrl ?? null, turn.image_storage_key ?? null, turn.image_storage_provider ?? null,

@@ -2,6 +2,9 @@ import type { EncounterEnemy, EncounterState } from '../../types';
 
 interface Props {
   encounter: EncounterState;
+  highlighted?: boolean;
+  latestTurnSummary?: string;
+  turnCount?: number;
 }
 
 type HpLabel = 'fresh' | 'wounded' | 'staggering' | 'nearly broken' | 'defeated';
@@ -127,13 +130,13 @@ const EnemyRow = ({ enemy }: EnemyRowProps) => {
   );
 };
 
-export const EncounterPanel = ({ encounter }: Props) => {
+export const EncounterPanel = ({ encounter, highlighted = false, latestTurnSummary, turnCount }: Props) => {
   const activeEnemies = encounter.enemies.filter(e => e.status === 'active');
   const resolvedEnemies = encounter.enemies.filter(e => e.status !== 'active');
 
   return (
     <div
-      className="rounded-xl border border-rose-900/50 bg-slate-950/80 px-3 py-2 text-xs"
+      className={`rounded-xl border bg-slate-950/80 px-3 py-2 text-xs transition-all ${highlighted ? 'border-amber-500/70 shadow-[0_0_24px_rgba(245,158,11,0.16)]' : 'border-rose-900/50'}`}
       data-testid="encounter-panel"
     >
       <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -143,6 +146,21 @@ export const EncounterPanel = ({ encounter }: Props) => {
         </div>
         <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Round {encounter.round}</span>
       </div>
+
+      {(latestTurnSummary || turnCount != null) && (
+        <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+          {latestTurnSummary && (
+            <span className="rounded-full border border-amber-700/40 bg-amber-950/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-amber-300">
+              {latestTurnSummary}
+            </span>
+          )}
+          {turnCount != null && turnCount > 0 && (
+            <span className="rounded-full border border-slate-700 bg-slate-900 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-slate-500">
+              {turnCount} turn{turnCount === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+      )}
 
       {encounter.objective && (
         <p className="mb-1.5 text-[10px] text-slate-400 italic leading-snug">{encounter.objective}</p>

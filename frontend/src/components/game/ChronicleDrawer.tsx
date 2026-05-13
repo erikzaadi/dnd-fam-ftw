@@ -10,10 +10,12 @@ import { NarrationTtsButton } from '../NarrationTtsButton';
 import { STAT_COLORS } from '../../lib/statColors';
 import { SPECIAL_TURNS } from '../../lib/specialTurns';
 import { getRollImpactOutcome } from '../../lib/rollOutcome';
+import { buildEncounterLookup } from '../../lib/encounters';
 
 interface ChronicleDrawerProps {
   history: TurnResult[];
   party: Character[];
+  activeEncounter?: EncounterState;
   pastEncounters?: EncounterState[];
   onClose: () => void;
   onSelectTurn: (idx: number) => void;
@@ -23,6 +25,7 @@ interface ChronicleDrawerProps {
 }
 
 const OUTCOME_STYLES: Record<string, { label: string; badge: string }> = {
+  active: { label: 'Active', badge: 'border-rose-700/60 bg-rose-900/40 text-rose-300' },
   defeated: { label: 'Defeated', badge: 'border-emerald-700/60 bg-emerald-900/40 text-emerald-400' },
   fled:     { label: 'Fled',     badge: 'border-amber-700/60 bg-amber-900/40 text-amber-400' },
   surrendered: { label: 'Surrendered', badge: 'border-sky-700/60 bg-sky-900/40 text-sky-400' },
@@ -129,6 +132,16 @@ const BuffChangeBadges = ({ buffChanges }: { buffChanges: BuffChange[] }) => (
   </div>
 );
 
+const EncounterTurnBadge = ({ encounter }: { encounter: EncounterState }) => {
+  const outcome = OUTCOME_STYLES[encounter.status] ?? OUTCOME_STYLES.defeated;
+  return (
+    <span className={`inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-widest ${outcome.badge}`}>
+      <span className="truncate">{encounter.name}</span>
+      <span className="opacity-70">{outcome.label}</span>
+    </span>
+  );
+};
+
 // Narrow-column expanded turn view, designed for ~380-420px panels
 const TurnDetail = ({
   turn,
@@ -138,6 +151,7 @@ const TurnDetail = ({
   nextTurnHpChanges,
   nextTurnInventoryChanges,
   nextTurnBuffChanges,
+  encounter,
   ttsSettings,
   hasTts,
 }: {
@@ -148,6 +162,7 @@ const TurnDetail = ({
   nextTurnHpChanges?: HpChange[];
   nextTurnInventoryChanges?: InventoryChange[];
   nextTurnBuffChanges?: BuffChange[];
+  encounter?: EncounterState | null;
   ttsSettings: TtsSettings;
   hasTts: boolean;
 }) => {
@@ -165,6 +180,13 @@ const TurnDetail = ({
         <div className="flex items-center gap-3">
           <img src={imgSrc(special.img)} className="w-10 h-10 rounded-xl object-cover border border-slate-600" alt="" />
           <span className={`text-xs font-black uppercase tracking-widest ${special.textClass}`}>{special.label}</span>
+        </div>
+      )}
+
+      {encounter && (
+        <div className="flex flex-wrap items-center gap-2">
+          <EncounterTurnBadge encounter={encounter} />
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Round {encounter.round}</span>
         </div>
       )}
 
@@ -290,6 +312,7 @@ const TurnDetail = ({
 export const ChronicleDrawer = ({
   history,
   party,
+  activeEncounter,
   pastEncounters,
   onClose,
   onSelectTurn,
@@ -298,6 +321,7 @@ export const ChronicleDrawer = ({
   hasTts,
 }: ChronicleDrawerProps) => {
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const encounterLookup = buildEncounterLookup(activeEncounter, pastEncounters);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -341,8 +365,8 @@ export const ChronicleDrawer = ({
       </div>
 
       {/* Combat log */}
-      {pastEncounters && pastEncounters.length > 0 && (
-        <CombatLog encounters={pastEncounters} />
+      {((activeEncounter ? 1 : 0) + (pastEncounters?.length ?? 0)) > 0 && (
+        <CombatLog encounters={[...(activeEncounter ? [activeEncounter] : []), ...(pastEncounters ?? [])]} />
       )}
 
       {/* Turn list */}
@@ -363,6 +387,7 @@ export const ChronicleDrawer = ({
             const roll = takenAction?.actionResult;
             const hasRoll = roll && roll.statUsed !== 'none';
             const rollOutcome = getRollImpactOutcome(roll?.roll, roll?.success, roll?.impact);
+            const turnEncounter = turn.encounterId ? encounterLookup.get(turn.encounterId) ?? null : null;
 
             return (
               <div key={i} className={`border-b border-slate-800/60 last:border-0 ${isSelected ? 'bg-amber-500/5' : ''}`}>
@@ -379,9 +404,16 @@ export const ChronicleDrawer = ({
                   ) : (
                     <div className="w-6 h-6 rounded-full bg-slate-800 border border-slate-700 shrink-0" />
                   )}
-                  <p className={`flex-1 min-w-0 text-xs italic leading-snug truncate ${isSelected ? 'text-slate-200' : 'text-slate-500'}`}>
-                    {turn.narration}
-                  </p>
+                  <div className="flex-1 min-w-0">
+                    <p className={`min-w-0 text-xs italic leading-snug truncate ${isSelected ? 'text-slate-200' : 'text-slate-500'}`}>
+                      {turn.narration}
+                    </p>
+                    {turnEncounter && (
+                      <div className="mt-1">
+                        <EncounterTurnBadge encounter={turnEncounter} />
+                      </div>
+                    )}
+                  </div>
                   {hasRoll && (
                     <span
                       className={`shrink-0 text-xs font-black px-1.5 py-0.5 rounded-full border ${
@@ -409,6 +441,7 @@ export const ChronicleDrawer = ({
                       nextTurnHpChanges={nextTurn?.hpChanges}
                       nextTurnInventoryChanges={nextTurn?.inventoryChanges}
                       nextTurnBuffChanges={nextTurn?.buffChanges}
+                      encounter={turnEncounter}
                       ttsSettings={ttsSettings}
                       hasTts={hasTts}
                     />

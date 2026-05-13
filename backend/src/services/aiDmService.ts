@@ -96,6 +96,7 @@ export function toNarrationInput(input: AIInput): NarrationInput {
     tone: input.tone,
     gameMode: input.gameMode,
     ...(input.dmPrep && { dmPrep: input.dmPrep }),
+    ...(input.dmPrepEncounters && input.dmPrepEncounters.length > 0 && { dmPrepEncounters: input.dmPrepEncounters }),
     isFirstTurn: input.turn === 1,
     interventionRescue: input.interventionRescue,
     sanctuaryRecovery: input.sanctuaryRecovery,

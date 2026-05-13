@@ -29,6 +29,7 @@ import { KeybindingsHelp } from '../components/KeybindingsHelp';
 import { OnboardingOverlay } from '../components/OnboardingOverlay';
 import { useOnboardingTutorial } from '../hooks/useOnboardingTutorial';
 import { getRollImpactOutcome } from '../lib/rollOutcome';
+import { buildEncounterLookup, countEncounterTurns, getTurnEncounter } from '../lib/encounters';
 
 interface LastSubmittedAction {
   label: string;
@@ -45,6 +46,17 @@ interface LastSubmittedAction {
   characterBonusLabel?: string;
   flavor?: string;
 }
+
+const formatEncounterTurnSummary = (turn: TurnResult | null | undefined): string | undefined => {
+  if (!turn) {
+    return undefined;
+  }
+  const roll = turn.lastAction?.actionResult;
+  if (roll && roll.statUsed !== 'none') {
+    return `${roll.success ? 'Hit' : 'Miss'} ${roll.roll}`;
+  }
+  return 'Combat beat';
+};
 
 export const SessionPage = () => {
   const { settings, setMasterMuted } = useAudioSettings();
@@ -66,7 +78,7 @@ export const SessionPage = () => {
   const [confirmDialog, setConfirmDialog] = useState<{message: string; confirmLabel?: string; onConfirm: () => void} | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
-  const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; helperBonus?: number; helperCharacterName?: string; choiceItemBonus?: number; choiceItemName?: string; choiceItemOwnerName?: string; characterBonus?: number; characterBonusLabel?: string; buffBonus?: number; buffBonusLabel?: string; impact?: 'normal' | 'strong' | 'extreme'; isCritical?: boolean; difficultyTarget?: number; rollNarration?: string; hpChanges?: HpChange[]; inventoryChanges?: InventoryChange[] } | null>(null);
+  const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; helperBonus?: number; helperCharacterName?: string; choiceItemBonus?: number; choiceItemName?: string; choiceItemOwnerName?: string; characterBonus?: number; characterBonusLabel?: string; buffBonus?: number; buffBonusLabel?: string; impact?: 'normal' | 'strong' | 'extreme'; isCritical?: boolean; difficultyTarget?: number; rollNarration?: string; hpChanges?: HpChange[]; inventoryChanges?: InventoryChange[]; encounterId?: string; encounterName?: string; encounterStatus?: string } | null>(null);
   const [dieExiting, setDieExiting] = useState(false);
   const [interventionBanner, setInterventionBanner] = useState<string | null>(null);
   const [sanctuaryBanner, setSanctuaryBanner] = useState<string | null>(null);
@@ -272,6 +284,9 @@ export const SessionPage = () => {
       }
       const roll = turnResult?.lastAction?.actionResult;
       const hasRollDetails = !!roll && roll.statUsed !== 'none';
+      const turnEncounter = turnResult
+        ? getTurnEncounter(turnResult, buildEncounterLookup(updatedSession?.encounterState, updatedSession?.pastEncounters))
+        : null;
       if (hasRollDetails) {
         setLastRoll({
           roll: roll.roll,
@@ -294,6 +309,9 @@ export const SessionPage = () => {
           rollNarration: turnResult?.rollNarration,
           hpChanges: turnResult?.hpChanges,
           inventoryChanges: turnResult?.inventoryChanges,
+          encounterId: turnResult?.encounterId,
+          encounterName: turnEncounter?.name,
+          encounterStatus: turnEncounter?.status,
         });
         setDieExiting(false);
         setTimeout(() => setDieExiting(true), 4000);
@@ -790,6 +808,7 @@ export const SessionPage = () => {
           <ChronicleDrawer
             history={history}
             party={session.party}
+            activeEncounter={session.encounterState}
             pastEncounters={session.pastEncounters}
             onClose={() => {
               setShowChronicle(false);
@@ -816,7 +835,12 @@ export const SessionPage = () => {
           </div>
           <div className="flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col gap-2">
             {session.encounterState && (
-              <EncounterPanel encounter={session.encounterState} />
+              <EncounterPanel
+                encounter={session.encounterState}
+                highlighted={lastRoll?.encounterId === session.encounterState.id}
+                latestTurnSummary={formatEncounterTurnSummary([...history].reverse().find(t => t.encounterId === session.encounterState?.id))}
+                turnCount={countEncounterTurns(history, session.encounterState.id)}
+              />
             )}
             <div className="min-h-0 flex-1">
               <ActionDock
@@ -912,7 +936,12 @@ export const SessionPage = () => {
           ) : (
             <div className="flex h-full min-h-0 flex-col gap-2">
               {session.encounterState && (
-                <EncounterPanel encounter={session.encounterState} />
+                <EncounterPanel
+                  encounter={session.encounterState}
+                  highlighted={lastRoll?.encounterId === session.encounterState.id}
+                  latestTurnSummary={formatEncounterTurnSummary([...history].reverse().find(t => t.encounterId === session.encounterState?.id))}
+                  turnCount={countEncounterTurns(history, session.encounterState.id)}
+                />
               )}
               <div className="min-h-0 flex-1">
                 <ActionDock
@@ -979,6 +1008,12 @@ export const SessionPage = () => {
               <p className="text-amber-100/90 text-center font-medium italic mt-2 max-w-xs leading-tight animate-in slide-in-from-bottom-2 duration-700">
                 {lastRoll.rollNarration}
               </p>
+            )}
+            {lastRoll.encounterName && (
+              <div className="mt-3 rounded-full border border-rose-800/50 bg-rose-950/30 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-rose-300">
+                Battle: {lastRoll.encounterName}
+                {lastRoll.encounterStatus && lastRoll.encounterStatus !== 'active' ? ` - ${lastRoll.encounterStatus}` : ''}
+              </div>
             )}
             {lastRoll.hpChanges && lastRoll.hpChanges.length > 0 && (
               <div className="flex flex-wrap gap-1.5 justify-center mt-3">

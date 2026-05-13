@@ -230,6 +230,9 @@ export const migrate = (db: DB): void => {
   if (!turnCols.includes('narrationRetryValidationError')) {
     db.prepare("ALTER TABLE turn_history ADD COLUMN narrationRetryValidationError TEXT").run();
   }
+  if (!turnCols.includes('encounterId')) {
+    db.prepare("ALTER TABLE turn_history ADD COLUMN encounterId TEXT").run();
+  }
 
   if (!choiceCols.includes('narration')) {
     db.prepare("ALTER TABLE turn_choices ADD COLUMN narration TEXT").run();

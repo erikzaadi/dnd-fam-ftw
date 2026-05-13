@@ -17,6 +17,16 @@ import {
 import { buildSceneMomentum, buildScenePressure } from './sceneMomentumService.js';
 import { ensureSuccessfulEnchantmentSuggestion, ensureSuccessfulHealingSuggestion, ensureSuccessfulSupportSuggestion } from './freeActionPolicyService.js';
 
+const getTurnEncounterId = (previousSession: SessionState, newState: SessionState): string | undefined => {
+  if (previousSession.encounterState?.status === 'active') {
+    return previousSession.encounterState.id;
+  }
+  if (newState.encounterState?.status === 'active' && previousSession.encounterState?.id !== newState.encounterState.id) {
+    return newState.encounterState.id;
+  }
+  return undefined;
+};
+
 export interface TurnActionRequest {
   action: string;
   statUsed: string;
@@ -109,6 +119,7 @@ export const executeTurnAction = async (
     await StateService.updateSession(sessionId, newState);
     turnResult.lastAction = itemAttempt;
     turnResult.characterId = actingCharId;
+    turnResult.encounterId = getTurnEncounterId(itemState, newState);
     turnResult.hpChanges = computeHpChanges(session.party, newState.party);
     turnResult.inventoryChanges = computeInventoryChanges(session.party, newState.party);
     turnResult.buffChanges = computeBuffChanges(session.party, newState.party);
@@ -201,6 +212,7 @@ export const executeTurnAction = async (
 
   turnResult.lastAction = actionAttempt;
   turnResult.characterId = actingCharId;
+  turnResult.encounterId = getTurnEncounterId(session, newState);
   turnResult.hpChanges = computeHpChanges(session.party, newState.party);
   turnResult.inventoryChanges = computeInventoryChanges(session.party, newState.party);
   turnResult.buffChanges = computeBuffChanges(session.party, newState.party);

@@ -107,6 +107,7 @@ describe('turnHistoryRepository', () => {
     ).run('repo-turn-char', 'repo-turn-history', 'Ranger', 'Ranger', 'Elf', 'Always prepared', 7, 10, 2, 2, 3, 'active');
 
     await turnHistoryRepository.addTurnResult('repo-turn-history', {
+      encounterId: 'repo-encounter-1',
       narration: 'The ranger steadies the group.',
       rollNarration: 'The result lands cleanly.',
       imagePrompt: 'a ranger in a moonlit ruin',
@@ -125,6 +126,7 @@ describe('turnHistoryRepository', () => {
 
     const history = await turnHistoryRepository.getTurnHistory('repo-turn-history');
     expect(history).toHaveLength(1);
+    expect(history[0].encounterId).toBe('repo-encounter-1');
     expect(history[0].choices[0]).toMatchObject({ label: 'Scout ahead', difficultyValue: 11, narration: 'Move quietly.', riddleAnswer: 'a river', riddleCorrect: true });
     expect(history[0].lastAction?.actionResult).toMatchObject({
       success: true,
@@ -325,7 +327,7 @@ describe('sessionRepository encounter state persistence', () => {
           hp: 6,
           maxHp: 8,
           status: 'active',
-          weaknesses: [{ id: 'wk-001', label: 'fire', school: 'fire', revealed: true }],
+          weaknesses: [{ id: 'wk-001', label: 'dry thornwood sap', school: 'fire', revealed: true }],
         }],
         areas: [{ id: 'area-001', label: 'Writhing Roots', description: 'Tangled roots cover the ground', tags: ['hazard'] }],
         objective: 'Defeat the guardian',
@@ -351,7 +353,7 @@ describe('sessionRepository encounter state persistence', () => {
       {
         name: 'Shadow Ambush',
         triggerHint: 'when party enters the dark alley',
-        enemies: [{ name: 'Shadow Wraith', role: 'elite' as const, weaknesses: [{ label: 'holy', school: 'holy' as const }] }],
+        enemies: [{ name: 'Shadow Wraith', role: 'elite' as const, weaknesses: [{ label: 'old oath', school: 'holy' as const }] }],
         areas: [{ label: 'Dark Alley', tags: ['hazard', 'shadow'] }],
         objective: 'Survive the ambush',
         lootHint: 'a shadow-touched amulet',

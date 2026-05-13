@@ -17,6 +17,7 @@ import { STAT_COLORS } from '../lib/statColors';
 import { PageLoader } from '../components/PageLoader';
 import { KeybindingsHelp } from '../components/KeybindingsHelp';
 import { useCapabilities } from '../hooks/useCapabilities';
+import { buildEncounterLookup } from '../lib/encounters';
 
 type Mode = 'choose' | 'tldr' | 'movie';
 
@@ -70,7 +71,9 @@ const TldrView = ({ sessionId, onEnter, hasTts }: { sessionId: string; onEnter: 
 
 // ── MOVIE ───────────────────────────────────────────────────────────────────
 
-type MovieSlide = { kind: 'turn'; turn: TurnResult } | { kind: 'encounter'; enc: EncounterState };
+type MovieSlide =
+  | { kind: 'turn'; turn: TurnResult; turnIndex: number; encounter: EncounterState | null }
+  | { kind: 'encounter'; enc: EncounterState; afterTurnIndex: number | null };
 
 const ENCOUNTER_OUTCOME: Record<string, { label: string; color: string }> = {
   defeated:    { label: 'Victory',    color: 'text-amber-400' },
@@ -107,11 +110,37 @@ const EncounterSlidePanel = ({ enc }: { enc: EncounterState }) => {
   );
 };
 
+const buildMovieSlides = (history: TurnResult[], encounters: EncounterState[]): MovieSlide[] => {
+  const lookup = buildEncounterLookup(null, encounters);
+  const lastTurnByEncounter = new Map<string, number>();
+  history.forEach((turn, index) => {
+    if (turn.encounterId && lookup.has(turn.encounterId)) {
+      lastTurnByEncounter.set(turn.encounterId, index);
+    }
+  });
+
+  const emittedEncounters = new Set<string>();
+  const slides: MovieSlide[] = [];
+  history.forEach((turn, index) => {
+    const encounter = turn.encounterId ? lookup.get(turn.encounterId) ?? null : null;
+    slides.push({ kind: 'turn', turn, turnIndex: index, encounter });
+    if (encounter && lastTurnByEncounter.get(encounter.id) === index) {
+      slides.push({ kind: 'encounter', enc: encounter, afterTurnIndex: index });
+      emittedEncounters.add(encounter.id);
+    }
+  });
+
+  for (const encounter of encounters) {
+    if (!emittedEncounters.has(encounter.id)) {
+      slides.push({ kind: 'encounter', enc: encounter, afterTurnIndex: null });
+    }
+  }
+
+  return slides;
+};
+
 const MovieView = ({ history, encounters, party, previewImageUrl, onEnter, hasTts }: { history: TurnResult[]; encounters: EncounterState[]; party: Character[]; previewImageUrl: string | null; onEnter: () => void; hasTts: boolean }) => {
-  const slides: MovieSlide[] = [
-    ...history.map(turn => ({ kind: 'turn' as const, turn })),
-    ...encounters.map(enc => ({ kind: 'encounter' as const, enc })),
-  ];
+  const slides = buildMovieSlides(history, encounters);
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [fullscreenUrl, setFullscreenUrl] = useState<string | null>(null);
@@ -120,6 +149,7 @@ const MovieView = ({ history, encounters, party, previewImageUrl, onEnter, hasTt
   const isLast = idx === slides.length - 1;
   const turn = slide.kind === 'turn' ? slide.turn : null;
   const enc = slide.kind === 'encounter' ? slide.enc : null;
+  const turnEncounter = slide.kind === 'turn' ? slide.encounter : null;
   const actor = turn?.characterId ? party.find(c => c.id === turn.characterId) : null;
   const roll = turn?.lastAction?.actionResult;
   const hasRoll = roll && roll.statUsed !== 'none';
@@ -183,6 +213,16 @@ const MovieView = ({ history, encounters, party, previewImageUrl, onEnter, hasTt
       narrationTtsService.stopNarration();
     };
   }, [idx, playing, isLast, ttsSettings, turn?.id, turn?.narration, hasTts, turn]);
+
+  useEffect(() => {
+    if (!enc || !playing || isLast) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      setIdx(i => i + 1);
+    }, MOVIE_INTERVAL_MS);
+    return () => clearTimeout(timer);
+  }, [enc, playing, isLast]);
 
   const imageUrl = turn?.imageUrl ? imgSrc(turn.imageUrl) : null;
   const defaultImageUrl = previewImageUrl ?? imgSrc('/images/default_scene.png');
@@ -286,6 +326,16 @@ const MovieView = ({ history, encounters, party, previewImageUrl, onEnter, hasTt
               </div>
             )}
 
+            {turnEncounter && (
+              <div className="p-3 bg-rose-950/20 rounded-2xl border border-rose-900/40">
+                <div className="text-[10px] font-black uppercase tracking-widest text-rose-400">Battle Thread</div>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <span className="text-sm font-black text-slate-200 truncate">{turnEncounter.name}</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Round {turnEncounter.round}</span>
+                </div>
+              </div>
+            )}
+
             {turn.lastAction && (() => {
               const statUsed = turn.lastAction.actionResult.statUsed;
               const statColors = STAT_COLORS[statUsed] ?? STAT_COLORS.none;
@@ -340,7 +390,9 @@ const MovieView = ({ history, encounters, party, previewImageUrl, onEnter, hasTt
         {/* Nav controls pinned at bottom */}
         <div className="mt-auto flex flex-col gap-3 pt-2">
           <div className="text-center text-[9px] font-black uppercase tracking-widest text-slate-700">
-            {slide.kind === 'encounter' ? `Battle ${idx - history.length + 1}` : `Turn ${idx + 1} / ${history.length}`}
+            {slide.kind === 'encounter'
+              ? (slide.afterTurnIndex == null ? `Battle debrief / ${slides.length}` : `Battle after turn ${slide.afterTurnIndex + 1} / ${slides.length}`)
+              : `Turn ${slide.turnIndex + 1} / ${slides.length}`}
           </div>
           <div className="flex items-center gap-2 justify-center">
             <button
@@ -540,7 +592,7 @@ export const SessionRecap = () => {
         )}
 
         {mode === 'tldr' && <TldrView sessionId={id!} onEnter={enter} hasTts={capabilities.hasTts} />}
-        {mode === 'movie' && history.length > 0 && <MovieView history={history} encounters={session.pastEncounters ?? []} party={session.party} previewImageUrl={previewImageUrl} onEnter={enter} hasTts={capabilities.hasTts} />}
+        {mode === 'movie' && history.length > 0 && <MovieView history={history} encounters={[...(session.pastEncounters ?? []), ...(session.encounterState ? [session.encounterState] : [])]} party={session.party} previewImageUrl={previewImageUrl} onEnter={enter} hasTts={capabilities.hasTts} />}
       </div>
 
       <DmFooter />

@@ -38,7 +38,7 @@ describe('parseEncounterSeeds', () => {
     {
       name: 'Thornwood Guardian',
       triggerHint: 'when party enters the Thornwood',
-      enemies: [{ name: 'Vine Beast', role: 'standard', weaknesses: [{ label: 'fire', school: 'fire' }] }],
+      enemies: [{ name: 'Vine Beast', role: 'standard', weaknesses: [{ label: 'dry thornwood sap', school: 'fire' }] }],
       areas: [{ label: 'Writhing Roots', tags: ['hazard'] }],
       objective: 'Defeat the guardian',
       lootHint: 'a thornwood key',
@@ -51,6 +51,7 @@ describe('parseEncounterSeeds', () => {
     expect(brief).toBe('PREMISE: A dark forest threatens the realm.');
     expect(seeds).toHaveLength(1);
     expect(seeds![0].name).toBe('Thornwood Guardian');
+    expect(seeds![0].enemies[0].weaknesses[0]).toEqual({ label: 'dry thornwood sap', school: 'fire' });
     expect(seeds![0].lootHint).toBe('a thornwood key');
   });
 

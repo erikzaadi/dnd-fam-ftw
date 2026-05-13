@@ -125,6 +125,7 @@ describe('StateService - Session CRUD', () => {
     insertTestSession('sess-turns', 'local', 'Turn World');
     insertTestCharacter('char-t1', 'sess-turns', 'Archer');
     const turnId = await StateService.addTurnResult('sess-turns', {
+      encounterId: 'enc-turns-1',
       narration: 'The hero attacks!',
       rollNarration: 'A solid blow.',
       imagePrompt: 'hero attacking goblin',
@@ -149,6 +150,7 @@ describe('StateService - Session CRUD', () => {
     const history = await StateService.getTurnHistory('sess-turns');
     expect(history).toHaveLength(1);
     expect(history[0].narration).toBe('The hero attacks!');
+    expect(history[0].encounterId).toBe('enc-turns-1');
     expect(history[0].rollNarration).toBe('A solid blow.');
     expect(history[0].choices).toHaveLength(2);
     expect(history[0].choices.find(c => c.label === 'Retreat')?.difficultyValue).toBe(10);
@@ -452,7 +454,7 @@ describe('StateService - Encounter state persistence', () => {
           hp: 12,
           maxHp: 20,
           status: 'active',
-          weaknesses: [{ id: 'w1', label: 'fire', school: 'fire', revealed: true }],
+          weaknesses: [{ id: 'w1', label: 'smoky cooking oil', school: 'fire', revealed: true }],
           effects: [{ id: 'ef1', name: 'Burning', description: 'Taking fire damage', kind: 'damage_over_time', remainingTurns: 2 }],
         }],
         areas: [{ id: 'a1', label: 'Broken Crates', description: 'Splintered wood covering the floor', tags: ['cover'] }],
@@ -465,7 +467,8 @@ describe('StateService - Encounter state persistence', () => {
     expect(loaded!.encounterState?.round).toBe(3);
     expect(loaded!.encounterState?.objective).toBe('Defeat the chief');
     expect(loaded!.encounterState?.enemies[0].hp).toBe(12);
-    expect(loaded!.encounterState?.enemies[0].weaknesses?.[0].label).toBe('fire');
+    expect(loaded!.encounterState?.enemies[0].weaknesses?.[0].label).toBe('smoky cooking oil');
+    expect(loaded!.encounterState?.enemies[0].weaknesses?.[0].school).toBe('fire');
     expect(loaded!.encounterState?.enemies[0].effects?.[0].name).toBe('Burning');
     expect(loaded!.encounterState?.enemies[0].effects?.[0].remainingTurns).toBe(2);
     expect(loaded!.encounterState?.areas[0].label).toBe('Broken Crates');

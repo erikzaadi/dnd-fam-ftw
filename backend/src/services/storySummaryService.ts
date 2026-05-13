@@ -165,7 +165,7 @@ A JSON array of the 1-4 combat encounters described in the ENCOUNTERS and STAGES
     {
       "name": "string",
       "role": "minion|standard|elite|boss|hazard",
-      "weaknesses": [{ "label": "string - e.g. 'fire' or 'holy light'", "school": "the attacker's magic school that exploits this weakness: fire|frost|light|shadow|nature|storm|mind|force|holy|mechanical|null" }],
+      "weaknesses": [{ "label": "free-form player-facing weakness label, e.g. 'mirror flash', 'old oath', 'cracked moonstone', 'rusted hinge', 'thornwood sap'", "school": "the constrained magic/mechanical category that exploits this weakness: fire|frost|light|shadow|nature|storm|mind|force|holy|mechanical|null" }],
       "traits": ["string"]
     }
   ],

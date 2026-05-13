@@ -69,6 +69,7 @@ export interface EncounterEffect extends BaseEffect {
 }
 
 export interface EncounterWeakness {
+  // Player-facing flavor label. Mechanics use school/stat below.
   id: string;
   label: string;
   school?: 'fire' | 'frost' | 'light' | 'shadow' | 'nature' | 'storm' | 'mind' | 'force' | 'holy' | 'mechanical';
@@ -228,6 +229,7 @@ export interface ActionAttempt {
 
 export interface TurnResult {
   id?: number;
+  encounterId?: string;
   narration: string;
   choices: Choice[];
   rollNarration?: string;
