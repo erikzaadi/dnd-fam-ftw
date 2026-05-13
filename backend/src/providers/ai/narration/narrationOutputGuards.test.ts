@@ -616,3 +616,143 @@ describe('parseNarrationOutput', () => {
     expect(result.success).toBe(true);
   });
 });
+
+describe('parseNarrationOutput - encounter guards', () => {
+  const activeEncounter = {
+    id: 'enc-1',
+    name: 'Goblin Brawl',
+    status: 'active' as const,
+    round: 2,
+    enemies: [
+      { id: 'enemy-1', name: 'Goblin', role: 'standard' as const, hp: 4, maxHp: 6, status: 'active' as const },
+      { id: 'enemy-2', name: 'Goblin Archer', role: 'minion' as const, hp: 0, maxHp: 2, status: 'defeated' as const },
+    ],
+    areas: [{ id: 'a1', label: 'Broken Crates', description: 'Splintered wood', tags: ['cover'] }],
+  };
+
+  it('clears suggestedEncounterStart when encounter already active', () => {
+    const result = parseNarrationOutput(
+      { ...input, encounterState: activeEncounter },
+      output({
+        suggestedEncounterStart: {
+          name: 'New Encounter',
+          enemies: [{ name: 'Troll', role: 'boss' }],
+        },
+      }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.suggestedEncounterStart).toBeNull();
+    }
+  });
+
+  it('clears suggestedEncounterUpdate when no active encounter', () => {
+    const result = parseNarrationOutput(
+      { ...input },
+      output({
+        suggestedEncounterUpdate: {
+          enemyDamage: [{ enemyName: 'Goblin', amount: 3, reason: 'stray hit' }],
+        },
+      }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.suggestedEncounterUpdate).toBeNull();
+    }
+  });
+
+  it('filters out damage entries targeting defeated enemies', () => {
+    const result = parseNarrationOutput(
+      { ...input, encounterState: activeEncounter },
+      output({
+        suggestedEncounterUpdate: {
+          enemyDamage: [
+            { enemyId: 'enemy-1', enemyName: 'Goblin', amount: 2, reason: 'sword slash' },
+            { enemyId: 'enemy-2', enemyName: 'Goblin Archer', amount: 2, reason: 'overkill' },
+          ],
+        },
+      }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const update = result.data.suggestedEncounterUpdate as { enemyDamage?: Array<{ enemyId?: string }> } | null;
+      expect(update?.enemyDamage).toHaveLength(1);
+      expect(update?.enemyDamage?.[0]?.enemyId).toBe('enemy-1');
+    }
+  });
+
+  it('filters out damage entries with zero amount', () => {
+    const result = parseNarrationOutput(
+      { ...input, encounterState: activeEncounter },
+      output({
+        suggestedEncounterUpdate: {
+          enemyDamage: [
+            { enemyId: 'enemy-1', enemyName: 'Goblin', amount: 0, reason: 'miss' },
+            { enemyId: 'enemy-1', enemyName: 'Goblin', amount: 3, reason: 'solid hit' },
+          ],
+        },
+      }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const update = result.data.suggestedEncounterUpdate as { enemyDamage?: Array<{ amount: number }> } | null;
+      expect(update?.enemyDamage).toHaveLength(1);
+      expect(update?.enemyDamage?.[0]?.amount).toBe(3);
+    }
+  });
+
+  it('filters out damage entries with no enemy reference', () => {
+    const result = parseNarrationOutput(
+      { ...input, encounterState: activeEncounter },
+      output({
+        suggestedEncounterUpdate: {
+          enemyDamage: [
+            { amount: 2, reason: 'nameless hit' },
+          ],
+        },
+      }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const update = result.data.suggestedEncounterUpdate as { enemyDamage?: unknown[] } | null;
+      expect(update?.enemyDamage).toHaveLength(0);
+    }
+  });
+
+  it('filters out enemyStatus entries targeting already-resolved enemies', () => {
+    const result = parseNarrationOutput(
+      { ...input, encounterState: activeEncounter },
+      output({
+        suggestedEncounterUpdate: {
+          enemyStatus: [
+            { enemyId: 'enemy-1', enemyName: 'Goblin', status: 'fled', reason: 'runs away' },
+            { enemyId: 'enemy-2', enemyName: 'Goblin Archer', status: 'fled', reason: 'already defeated' },
+          ],
+        },
+      }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const update = result.data.suggestedEncounterUpdate as { enemyStatus?: Array<{ enemyId?: string }> } | null;
+      expect(update?.enemyStatus).toHaveLength(1);
+      expect(update?.enemyStatus?.[0]?.enemyId).toBe('enemy-1');
+    }
+  });
+
+  it('allows valid damage entry for an active enemy', () => {
+    const result = parseNarrationOutput(
+      { ...input, encounterState: activeEncounter },
+      output({
+        suggestedEncounterUpdate: {
+          enemyDamage: [{ enemyId: 'enemy-1', enemyName: 'Goblin', amount: 2, reason: 'clean hit' }],
+        },
+      }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const update = result.data.suggestedEncounterUpdate as { enemyDamage?: Array<{ amount: number }> } | null;
+      expect(update?.enemyDamage).toHaveLength(1);
+      expect(update?.enemyDamage?.[0]?.amount).toBe(2);
+    }
+  });
+});

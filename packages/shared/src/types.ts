@@ -296,6 +296,7 @@ export interface Session {
   interventionState: InterventionState;
   gameOver?: boolean;
   previewImageUrl?: string;
+  encounterState?: EncounterState;
 }
 
 export interface AppSettings {
@@ -327,4 +328,9 @@ export interface FreeActionPreview {
   flavor?: ChoiceFlavor;
   pendingIntent?: string;
   pendingTargetCharacterId?: string;
+  school?: 'fire' | 'frost' | 'light' | 'shadow' | 'nature' | 'storm' | 'mind' | 'force' | 'holy' | 'mechanical' | null;
+  actionTags?: string[];
+  likelyEnemyId?: string;
+  likelyEnemyName?: string;
+  weakPointMatch?: { label: string; description: string } | null;
 }

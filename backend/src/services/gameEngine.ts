@@ -1,6 +1,6 @@
 import { Character, SessionState, ActionAttempt, InventoryItem, Choice, type CharacterBuff, type Stat, type Difficulty } from '../types.js';
 import { createId } from '../lib/ids.js';
-import { handleEncounterStart, applyEncounterUpdate } from './encounterService.js';
+import { handleEncounterStart, applyEncounterUpdate, computeImpactDamage, computeEnemyDamage } from './encounterService.js';
 import type { EncounterStartProposal, EncounterUpdateProposal } from '../providers/ai/narration/narrationSchemas.js';
 
 export class GameEngine {
@@ -603,10 +603,25 @@ export class GameEngine {
         }
       }
 
-      // Encounter: apply update first (damage/effects/status), then start if proposed
-      const encounterUpdate = aiSuggestedChanges?.suggestedEncounterUpdate;
-      if (encounterUpdate && typeof encounterUpdate === 'object' && newState.encounterState?.status === 'active') {
-        newState.encounterState = applyEncounterUpdate(newState.encounterState, encounterUpdate as EncounterUpdateProposal);
+      // Encounter: always apply update when active (ticks DoT, increments round); auto-damage when AI omitted enemy damage
+      if (newState.encounterState?.status === 'active') {
+        const aiEncounterUpdate = aiSuggestedChanges?.suggestedEncounterUpdate;
+        const baseUpdate: EncounterUpdateProposal = (aiEncounterUpdate && typeof aiEncounterUpdate === 'object')
+          ? aiEncounterUpdate as EncounterUpdateProposal
+          : {};
+
+        const aiDealtDamage = (baseUpdate.enemyDamage?.length ?? 0) > 0;
+        const { success, statUsed, impact } = actionAttempt.actionResult;
+        if (success && statUsed !== 'none' && !aiDealtDamage) {
+          const activeEnemy = newState.encounterState.enemies.find(e => e.status === 'active');
+          if (activeEnemy) {
+            const baseDamage = computeImpactDamage(impact);
+            const damage = computeEnemyDamage(activeEnemy, baseDamage, statUsed);
+            baseUpdate.enemyDamage = [{ enemyId: activeEnemy.id, enemyName: activeEnemy.name, amount: damage, reason: 'auto' }];
+          }
+        }
+
+        newState.encounterState = applyEncounterUpdate(newState.encounterState, baseUpdate);
       }
 
       const encounterStart = aiSuggestedChanges?.suggestedEncounterStart;

@@ -1,5 +1,5 @@
 import { createId } from '../lib/ids.js';
-import type { EncounterArea, EncounterEnemy, EncounterSeed, EncounterState } from '../types.js';
+import type { EncounterArea, EncounterEnemy, EncounterSeed, EncounterState, Impact, Stat } from '../types.js';
 import type { EncounterStartProposal, EncounterUpdateProposal } from '../providers/ai/narration/narrationSchemas.js';
 
 // HP bands by role (midpoint of range)
@@ -368,6 +368,44 @@ export const applyEncounterUpdate = (
   }
 
   return next;
+};
+
+// Map action impact to base enemy damage
+export const computeImpactDamage = (impact: Impact | undefined): number => {
+  if (impact === 'extreme') {
+    return 5;
+  }
+  if (impact === 'strong') {
+    return 3;
+  }
+  return 2;
+};
+
+// Apply weakness/resistance modifiers to base damage for a given stat
+export const computeEnemyDamage = (
+  enemy: EncounterEnemy,
+  baseDamage: number,
+  statUsed: Stat | 'none',
+): number => {
+  if (statUsed === 'none') {
+    return baseDamage;
+  }
+
+  const weakness = (enemy.weaknesses ?? []).find(
+    w => w.revealed && !w.broken && w.stat === statUsed,
+  );
+  if (weakness) {
+    const multiplier = weakness.damageMultiplier ?? 1;
+    const bonus = weakness.bonusDamage ?? 1;
+    return Math.round(baseDamage * multiplier) + bonus;
+  }
+
+  const resistance = (enemy.resistances ?? []).find(r => r.stat === statUsed);
+  if (resistance) {
+    return Math.max(1, Math.round(baseDamage * resistance.damageMultiplier));
+  }
+
+  return baseDamage;
 };
 
 // Derive hp label from HP ratio

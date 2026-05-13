@@ -6,8 +6,10 @@ import {
   resolveEnemy,
   applyEncounterUpdate,
   getEnemyHpLabel,
+  computeImpactDamage,
+  computeEnemyDamage,
 } from './encounterService.js';
-import type { EncounterSeed, EncounterState } from '../types.js';
+import type { EncounterEnemy, EncounterSeed, EncounterState } from '../types.js';
 
 const THORN_SEED: EncounterSeed = {
   name: 'Thornwood Guardian',
@@ -324,5 +326,93 @@ describe('getEnemyHpLabel', () => {
 
   it('returns defeated for non-active status', () => {
     expect(getEnemyHpLabel(makeEnemy(6, 6, 'fled'))).toBe('defeated');
+  });
+});
+
+describe('computeImpactDamage', () => {
+  it('returns 2 for normal impact', () => {
+    expect(computeImpactDamage('normal')).toBe(2);
+  });
+
+  it('returns 3 for strong impact', () => {
+    expect(computeImpactDamage('strong')).toBe(3);
+  });
+
+  it('returns 5 for extreme impact', () => {
+    expect(computeImpactDamage('extreme')).toBe(5);
+  });
+
+  it('returns 2 for undefined impact', () => {
+    expect(computeImpactDamage(undefined)).toBe(2);
+  });
+});
+
+describe('computeEnemyDamage', () => {
+  const makeTestEnemy = (overrides: Partial<EncounterEnemy> = {}): EncounterEnemy => ({
+    id: 'e1',
+    name: 'Vine Beast',
+    role: 'standard',
+    hp: 6,
+    maxHp: 6,
+    status: 'active',
+    ...overrides,
+  });
+
+  it('returns base damage with no modifiers', () => {
+    expect(computeEnemyDamage(makeTestEnemy(), 2, 'might')).toBe(2);
+  });
+
+  it('returns base damage when stat is none', () => {
+    expect(computeEnemyDamage(makeTestEnemy(), 3, 'none')).toBe(3);
+  });
+
+  it('adds +1 bonus for revealed non-broken weakness with matching stat', () => {
+    const enemy = makeTestEnemy({
+      weaknesses: [{ id: 'w1', label: 'brute force', stat: 'might', revealed: true }],
+    });
+    expect(computeEnemyDamage(enemy, 2, 'might')).toBe(3);
+  });
+
+  it('uses damageMultiplier and bonusDamage when set on weakness', () => {
+    const enemy = makeTestEnemy({
+      weaknesses: [{ id: 'w1', label: 'magic core', stat: 'magic', revealed: true, damageMultiplier: 2, bonusDamage: 0 }],
+    });
+    expect(computeEnemyDamage(enemy, 3, 'magic')).toBe(6);
+  });
+
+  it('does not apply weakness when not revealed', () => {
+    const enemy = makeTestEnemy({
+      weaknesses: [{ id: 'w1', label: 'brute force', stat: 'might', revealed: false }],
+    });
+    expect(computeEnemyDamage(enemy, 2, 'might')).toBe(2);
+  });
+
+  it('does not apply weakness when broken', () => {
+    const enemy = makeTestEnemy({
+      weaknesses: [{ id: 'w1', label: 'brute force', stat: 'might', revealed: true, broken: true }],
+    });
+    expect(computeEnemyDamage(enemy, 2, 'might')).toBe(2);
+  });
+
+  it('applies resistance multiplier when stat matches', () => {
+    const enemy = makeTestEnemy({
+      resistances: [{ id: 'r1', label: 'thick hide', stat: 'might', damageMultiplier: 0.5 }],
+    });
+    expect(computeEnemyDamage(enemy, 4, 'might')).toBe(2);
+  });
+
+  it('weakness takes priority over resistance for the same stat', () => {
+    const enemy = makeTestEnemy({
+      weaknesses: [{ id: 'w1', label: 'exposed flank', stat: 'might', revealed: true }],
+      resistances: [{ id: 'r1', label: 'thick hide', stat: 'might', damageMultiplier: 0.5 }],
+    });
+    expect(computeEnemyDamage(enemy, 2, 'might')).toBe(3);
+  });
+
+  it('clamps resistance result to at least 1', () => {
+    const enemy = makeTestEnemy({
+      resistances: [{ id: 'r1', label: 'near immunity', stat: 'mischief', damageMultiplier: 0.1 }],
+    });
+    expect(computeEnemyDamage(enemy, 2, 'mischief')).toBe(1);
   });
 });

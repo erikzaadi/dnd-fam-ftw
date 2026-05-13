@@ -2,7 +2,7 @@ import { Router } from 'express';
 import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { createChatClient } from '../providers/ai/AiProviderFactory.js';
-import { parseSuggestedStats, previewFreeAction, STAT_FALLBACK, suggestPreviewActionText, suggestStatForSessionAction } from '../services/statSuggestionService.js';
+import { buildEncounterContextFromEnemies, parseSuggestedStats, previewFreeAction, STAT_FALLBACK, suggestPreviewActionText, suggestStatForSessionAction } from '../services/statSuggestionService.js';
 import { parseBody } from './routeValidation.js';
 import type { FreeActionPreview } from '@dnd-fam-ftw/shared';
 import { buildFreeActionWarnings, getFreeActionDifficulty } from '../services/freeActionPolicyService.js';
@@ -48,7 +48,10 @@ export const createStatSuggestionRouter = () => {
     }
     const session = req.session!;
     const action = body.action?.trim() || await suggestPreviewActionText(req.params.id as string, body);
-    const suggestion = await previewFreeAction(req.params.id as string, { action });
+    const encounterContext = session.encounterState?.status === 'active'
+      ? buildEncounterContextFromEnemies(session.encounterState.enemies)
+      : null;
+    const suggestion = await previewFreeAction(req.params.id as string, { action, encounterContext });
     const interpretedAction = suggestion.interpretedAction ?? action;
     const SUPPORT_INTENTS = new Set(['bless_character', 'aid_character', 'improve_item', 'party_boost']);
     const isSupportIntent = !!body.intent && SUPPORT_INTENTS.has(body.intent);
@@ -71,6 +74,11 @@ export const createStatSuggestionRouter = () => {
       ...(suggestion.characterBonus !== undefined && { characterBonus: suggestion.characterBonus }),
       ...(suggestion.characterBonusLabel !== undefined && { characterBonusLabel: suggestion.characterBonusLabel }),
       ...(suggestion.flavor !== undefined && { flavor: suggestion.flavor }),
+      ...(suggestion.school !== undefined && { school: suggestion.school }),
+      ...(suggestion.actionTags !== undefined && { actionTags: suggestion.actionTags }),
+      ...(suggestion.likelyEnemyId !== undefined && { likelyEnemyId: suggestion.likelyEnemyId }),
+      ...(suggestion.likelyEnemyName !== undefined && { likelyEnemyName: suggestion.likelyEnemyName }),
+      ...(suggestion.weakPointMatch !== undefined && { weakPointMatch: suggestion.weakPointMatch }),
     };
     res.json(preview);
   }));

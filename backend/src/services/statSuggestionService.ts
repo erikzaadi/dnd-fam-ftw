@@ -2,7 +2,7 @@ import { createChatClient } from '../providers/ai/AiProviderFactory.js';
 import type { FreeActionBonusPreview } from './freeActionInferenceService.js';
 import { inferFreeActionBonuses, toFreeActionBonusPreview } from './freeActionInferenceService.js';
 import { StateService } from './stateService.js';
-import type { Character } from '../types.js';
+import type { Character, EncounterEnemy, EncounterWeakness, FreeActionPreview } from '../types.js';
 
 export const STAT_FALLBACK = { might: 2, magic: 2, mischief: 3 };
 export type SuggestedStat = 'might' | 'magic' | 'mischief';
@@ -45,11 +45,65 @@ async function buildFreeActionStoryContext(sessionId: string): Promise<string> {
   ].filter(Boolean).join('\n\n');
 }
 
+type EncounterPreviewContext = {
+  activeEnemies: Array<{
+    id: string;
+    name: string;
+    weaknesses: Array<{ id: string; label: string; school?: EncounterWeakness['school']; revealed: boolean; broken?: boolean }>;
+  }>;
+};
+
+type PreviewEncounterFields = Pick<FreeActionPreview, 'school' | 'actionTags' | 'likelyEnemyId' | 'likelyEnemyName' | 'weakPointMatch'>;
+
+function buildEncounterPromptSection(ctx: EncounterPreviewContext): string {
+  if (ctx.activeEnemies.length === 0) {
+    return '';
+  }
+  const lines = ctx.activeEnemies.map(e => {
+    const weaknesses = e.weaknesses.filter(w => w.revealed && !w.broken);
+    const wStr = weaknesses.length > 0
+      ? `revealed weaknesses: ${weaknesses.map(w => `${w.label} (id=${w.id})`).join(', ')}`
+      : 'no revealed weaknesses';
+    return `  - ${e.name} (id=${e.id}): ${wStr}`;
+  });
+  return `\nActive encounter enemies:\n${lines.join('\n')}\n`;
+}
+
+function parseEncounterFields(parsed: Record<string, unknown>, ctx: EncounterPreviewContext | null): PreviewEncounterFields {
+  if (!ctx) {
+    return {};
+  }
+  const VALID_SCHOOLS = ['fire', 'frost', 'light', 'shadow', 'nature', 'storm', 'mind', 'force', 'holy', 'mechanical'] as const;
+  const school = VALID_SCHOOLS.find(s => parsed.school === s) ?? null;
+  const actionTags = Array.isArray(parsed.actionTags)
+    ? (parsed.actionTags as unknown[]).filter((t): t is string => typeof t === 'string')
+    : undefined;
+  const likelyEnemyId = typeof parsed.likelyEnemyId === 'string' ? parsed.likelyEnemyId : undefined;
+  const likelyEnemy = likelyEnemyId ? ctx.activeEnemies.find(e => e.id === likelyEnemyId) : undefined;
+  const likelyEnemyName = likelyEnemy?.name ?? (typeof parsed.likelyEnemyName === 'string' ? parsed.likelyEnemyName : undefined);
+  let weakPointMatch: FreeActionPreview['weakPointMatch'] = null;
+  if (
+    parsed.weakPointMatch &&
+    typeof (parsed.weakPointMatch as Record<string, unknown>).label === 'string' &&
+    typeof (parsed.weakPointMatch as Record<string, unknown>).description === 'string'
+  ) {
+    const wp = parsed.weakPointMatch as { label: string; description: string };
+    weakPointMatch = { label: wp.label.trim(), description: wp.description.trim() };
+  }
+  return {
+    ...(school !== undefined && { school }),
+    ...(actionTags && actionTags.length > 0 && { actionTags }),
+    ...(likelyEnemyId && { likelyEnemyId }),
+    ...(likelyEnemyName && { likelyEnemyName }),
+    ...(weakPointMatch !== undefined && { weakPointMatch }),
+  };
+}
+
 export async function previewFreeAction(
   sessionId: string,
-  input: { action: string },
-): Promise<SessionActionStatSuggestion & { narration?: string; interpretedAction?: string }> {
-  const { action } = input;
+  input: { action: string; encounterContext?: EncounterPreviewContext | null },
+): Promise<SessionActionStatSuggestion & { narration?: string; interpretedAction?: string } & PreviewEncounterFields> {
+  const { action, encounterContext } = input;
   const session = await StateService.getSession(sessionId);
   if (!session) {
     return { stat: 'mischief' };
@@ -59,6 +113,9 @@ export async function previewFreeAction(
     ? toFreeActionBonusPreview(inferFreeActionBonuses(action, character, session))
     : {};
   const storyContext = await buildFreeActionStoryContext(sessionId);
+  const ctx = encounterContext ?? null;
+  const encounterSection = ctx ? buildEncounterPromptSection(ctx) : '';
+  const hasEncounter = !!encounterSection;
 
   const { client, model } = createChatClient();
   try {
@@ -68,28 +125,32 @@ export async function previewFreeAction(
         role: 'user',
         content: `${describeActiveCharacter(character)} wants to: "${action}".
 ${storyContext ? `\nUse this story context so the preview fits the current scene without spoiling the result:\n${storyContext}\n` : ''}
-
+${encounterSection}
 Reply with ONLY valid JSON (no markdown):
 {
   "action": "<polished first-person or third-person action sentence, preserving the player's intent>",
   "stat": "might" | "magic" | "mischief",
-  "narration": "<one short evocative sentence, 8-14 words, describing what the character does>"
+  "narration": "<one short evocative sentence, 8-14 words, describing what the character does>"${hasEncounter ? `,
+  "school": "<magic school this action uses: fire|frost|light|shadow|nature|storm|mind|force|holy|mechanical|null>",
+  "actionTags": ["<optional descriptive tags>"],
+  "likelyEnemyId": "<id of the enemy most likely targeted, or null>",
+  "likelyEnemyName": "<name of likely target enemy, or null>",
+  "weakPointMatch": {"label": "<weakness label>", "description": "<'exploits X weakness' or 'may exploit X weakness' if uncertain>"} | null` : ''}
 }
 
-Stat guide: might = physical/combat/force, magic = spells/arcane/healing/divine, mischief = stealth/trickery/charm/persuasion.`,
+Stat guide: might = physical/combat/force, magic = spells/arcane/healing/divine, mischief = stealth/trickery/charm/persuasion.${hasEncounter ? '\nOnly set weakPointMatch when a revealed, non-broken weakness on the likely target clearly matches this action\'s school or tags. Use "may exploit" wording when confidence is low.' : ''}`,
       }],
-      max_tokens: 80,
+      max_tokens: hasEncounter ? 160 : 80,
     }, { signal: AbortSignal.timeout(8_000) });
     const raw = (response.choices[0].message.content ?? '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]) as { stat?: string; narration?: string };
-      const interpretedAction = typeof (parsed as { action?: unknown }).action === 'string'
-        ? (parsed as { action: string }).action.trim()
-        : undefined;
+      const parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+      const interpretedAction = typeof parsed.action === 'string' ? parsed.action.trim() : undefined;
       const stat = (['might', 'magic', 'mischief'] as const).find(s => parsed.stat === s) ?? 'mischief';
       const narration = typeof parsed.narration === 'string' ? parsed.narration.trim() : undefined;
-      return { stat, ...(interpretedAction && { interpretedAction }), narration, ...bonusPreview };
+      const encounterFields = parseEncounterFields(parsed, ctx);
+      return { stat, ...(interpretedAction && { interpretedAction }), narration, ...bonusPreview, ...encounterFields };
     }
     const stat = (['might', 'magic', 'mischief'] as const).find(s => raw.includes(s)) ?? 'mischief';
     return { stat, ...bonusPreview };
@@ -97,6 +158,26 @@ Stat guide: might = physical/combat/force, magic = spells/arcane/healing/divine,
     return { stat: 'mischief', ...bonusPreview };
   }
 }
+
+function buildEncounterContextFromEnemies(enemies: EncounterEnemy[]): EncounterPreviewContext {
+  return {
+    activeEnemies: enemies
+      .filter(e => e.status === 'active')
+      .map(e => ({
+        id: e.id,
+        name: e.name,
+        weaknesses: (e.weaknesses ?? []).map(w => ({
+          id: w.id,
+          label: w.label,
+          school: w.school,
+          revealed: w.revealed,
+          broken: w.broken,
+        })),
+      })),
+  };
+}
+
+export { buildEncounterContextFromEnemies };
 
 function fallbackActionForIntent(character: Character | null, context: PreviewActionContext): string {
   const actorName = character?.name ?? 'The hero';

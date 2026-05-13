@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { GameEngine } from './gameEngine.js';
-import type { Character, SessionState } from '../types.js';
+import type { Character, EncounterState, SessionState } from '../types.js';
 
 const makeChar = (overrides: Partial<Character> = {}): Character => ({
   id: 'hero-1',
@@ -600,5 +600,100 @@ describe('GameEngine.applySanctuaryRecovery rescuesUsed', () => {
     const session = makeSession({ interventionState: { rescuesUsed: 1 } });
     const result = GameEngine.applySanctuaryRecovery(session);
     expect(result.interventionState.rescuesUsed).toBe(2);
+  });
+});
+
+describe('GameEngine.updateState - encounter auto-damage', () => {
+  const makeEncounter = (enemyHp = 6): EncounterState => ({
+    id: 'enc-1',
+    name: 'Goblin Brawl',
+    status: 'active',
+    round: 1,
+    enemies: [
+      { id: 'enemy-1', name: 'Goblin', role: 'standard', hp: enemyHp, maxHp: enemyHp, status: 'active' },
+    ],
+    areas: [],
+  });
+
+  it('deals base impact damage on success when AI provides no enemy damage', () => {
+    const session = makeSession({ encounterState: makeEncounter() });
+    const attempt = { actionAttempt: 'Strike', actionResult: { success: true, roll: 14, statUsed: 'might' as const, impact: 'normal' as const } };
+    const result = GameEngine.updateState(session, attempt, {});
+    expect(result.encounterState!.enemies[0].hp).toBe(4);
+  });
+
+  it('deals strong-impact damage (3) when impact is strong', () => {
+    const session = makeSession({ encounterState: makeEncounter() });
+    const attempt = { actionAttempt: 'Strike hard', actionResult: { success: true, roll: 18, statUsed: 'might' as const, impact: 'strong' as const } };
+    const result = GameEngine.updateState(session, attempt, {});
+    expect(result.encounterState!.enemies[0].hp).toBe(3);
+  });
+
+  it('deals extreme-impact damage (5) when impact is extreme', () => {
+    const session = makeSession({ encounterState: makeEncounter() });
+    const attempt = { actionAttempt: 'Devastating blow', actionResult: { success: true, roll: 20, statUsed: 'might' as const, impact: 'extreme' as const } };
+    const result = GameEngine.updateState(session, attempt, {});
+    expect(result.encounterState!.enemies[0].hp).toBe(1);
+  });
+
+  it('does not auto-damage on a failed action', () => {
+    const session = makeSession({ encounterState: makeEncounter() });
+    const attempt = { actionAttempt: 'Strike', actionResult: { success: false, roll: 4, statUsed: 'might' as const } };
+    const result = GameEngine.updateState(session, attempt, {});
+    expect(result.encounterState!.enemies[0].hp).toBe(6);
+  });
+
+  it('does not auto-damage when statUsed is none', () => {
+    const session = makeSession({ encounterState: makeEncounter() });
+    const attempt = { actionAttempt: 'Narrate', actionResult: { success: true, roll: 0, statUsed: 'none' as const } };
+    const result = GameEngine.updateState(session, attempt, {});
+    expect(result.encounterState!.enemies[0].hp).toBe(6);
+  });
+
+  it('does not auto-damage when encounter is not active', () => {
+    const session = makeSession({
+      encounterState: { ...makeEncounter(), status: 'defeated' },
+    });
+    const attempt = { actionAttempt: 'Strike', actionResult: { success: true, roll: 14, statUsed: 'might' as const, impact: 'normal' as const } };
+    const result = GameEngine.updateState(session, attempt, {});
+    expect(result.encounterState!.status).toBe('defeated');
+  });
+
+  it('uses AI-specified enemy damage instead of auto-damage', () => {
+    const session = makeSession({ encounterState: makeEncounter() });
+    const attempt = { actionAttempt: 'Strike', actionResult: { success: true, roll: 14, statUsed: 'might' as const, impact: 'normal' as const } };
+    const result = GameEngine.updateState(session, attempt, {
+      suggestedEncounterUpdate: {
+        enemyDamage: [{ enemyId: 'enemy-1', enemyName: 'Goblin', amount: 1, reason: 'glancing blow' }],
+      },
+    });
+    expect(result.encounterState!.enemies[0].hp).toBe(5);
+  });
+
+  it('resolves the encounter when auto-damage defeats the last enemy', () => {
+    const session = makeSession({ encounterState: makeEncounter(2) });
+    const attempt = { actionAttempt: 'Finish it', actionResult: { success: true, roll: 14, statUsed: 'might' as const, impact: 'normal' as const } };
+    const result = GameEngine.updateState(session, attempt, {});
+    expect(result.encounterState!.enemies[0].status).toBe('defeated');
+    expect(result.encounterState!.status).toBe('defeated');
+  });
+
+  it('ticks DoT effects on active enemies even without AI update', () => {
+    const enc: EncounterState = {
+      ...makeEncounter(6),
+      enemies: [{
+        id: 'enemy-1',
+        name: 'Goblin',
+        role: 'standard',
+        hp: 6,
+        maxHp: 6,
+        status: 'active',
+        effects: [{ id: 'ef1', name: 'Burning', description: 'On fire', kind: 'damage_over_time', damagePerTurn: 1, remainingTurns: 2 }],
+      }],
+    };
+    const session = makeSession({ encounterState: enc });
+    const attempt = { actionAttempt: 'Wait', actionResult: { success: false, roll: 3, statUsed: 'might' as const } };
+    const result = GameEngine.updateState(session, attempt, {});
+    expect(result.encounterState!.enemies[0].hp).toBeLessThan(6);
   });
 });

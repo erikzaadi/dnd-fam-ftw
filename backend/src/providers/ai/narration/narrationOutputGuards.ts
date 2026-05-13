@@ -292,6 +292,52 @@ function validateMomentumOutput(input: NarrationInput, output: ValidNarrationOut
   return null;
 }
 
+function normalizeEncounterOutput(input: NarrationInput, output: ValidNarrationOutput): void {
+  // Block encounter start when one is already active
+  if (output.suggestedEncounterStart != null && input.encounterState?.status === 'active') {
+    output.suggestedEncounterStart = null;
+  }
+
+  const update = output.suggestedEncounterUpdate;
+  if (update == null) {
+    return;
+  }
+
+  // Clear encounter update when no active encounter exists
+  if (input.encounterState?.status !== 'active') {
+    output.suggestedEncounterUpdate = null;
+    return;
+  }
+
+  // Filter out invalid damage entries
+  if (Array.isArray(update.enemyDamage)) {
+    update.enemyDamage = update.enemyDamage.filter(d => {
+      if (!d.enemyId && !d.enemyName) {
+        return false;
+      }
+      if (typeof d.amount !== 'number' || d.amount <= 0) {
+        return false;
+      }
+      const enemy = input.encounterState!.enemies.find(e =>
+        (d.enemyId && e.id === d.enemyId) ||
+        (d.enemyName && e.name.toLowerCase() === d.enemyName.toLowerCase())
+      );
+      return enemy?.status === 'active';
+    });
+  }
+
+  // Filter out status changes targeting already-resolved enemies
+  if (Array.isArray(update.enemyStatus)) {
+    update.enemyStatus = update.enemyStatus.filter(es => {
+      const enemy = input.encounterState!.enemies.find(e =>
+        (es.enemyId && e.id === es.enemyId) ||
+        (es.enemyName && e.name.toLowerCase() === es.enemyName.toLowerCase())
+      );
+      return enemy?.status === 'active';
+    });
+  }
+}
+
 export function parseNarrationOutput(
   input: NarrationInput,
   raw: unknown,
@@ -306,6 +352,7 @@ export function parseNarrationOutput(
   stripNarrationEmDashes(parsed.data);
   canonicalizeItemChoices(input, parsed.data);
   normalizeNarrationMetadata(input, parsed.data);
+  normalizeEncounterOutput(input, parsed.data);
   if (enforceGameplayGuards) {
     const momentumError = validateMomentumOutput(input, parsed.data);
     if (momentumError) {

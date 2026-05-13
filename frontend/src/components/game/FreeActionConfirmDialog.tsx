@@ -93,6 +93,14 @@ export const FreeActionConfirmDialog = ({
           </div>
         )}
 
+        {preview.weakPointMatch && (
+          <div className="mt-3 rounded-xl border border-amber-600/40 bg-amber-950/20 px-3 py-2">
+            <p className="text-xs font-black text-amber-300">
+              {preview.weakPointMatch.description}
+            </p>
+          </div>
+        )}
+
         {warnings.length > 0 && (
           <div className="mt-3 rounded-xl border border-amber-700/40 bg-amber-950/30 px-3 py-2">
             {warnings.map((w: string, i: number) => (

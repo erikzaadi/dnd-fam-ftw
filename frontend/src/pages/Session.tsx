@@ -16,6 +16,7 @@ import { StoryStage } from '../components/game/StoryStage';
 import { ActionDock } from '../components/game/ActionDock';
 import { FreeActionConfirmDialog } from '../components/game/FreeActionConfirmDialog';
 import { DmDecisionRecapPanel } from '../components/game/DmDecisionRecapPanel';
+import { EncounterPanel } from '../components/game/EncounterPanel';
 import { ChronicleDrawer } from '../components/game/ChronicleDrawer';
 import { audioManager } from '../audio/audioManager';
 import { useAudioSettings } from '../audio/useAudioSettings';
@@ -812,22 +813,27 @@ export const SessionPage = () => {
               Hide actions
             </button>
           </div>
-          <div className="h-[calc(100dvh-3.5rem)] min-h-0">
-            <ActionDock
-              turn={displayTurn}
-              loading={loading || previewThinking}
-              previewThinking={previewThinking}
-              activeCharacter={activeChar}
-              isDown={isDown}
-              party={session.party}
-              sessionId={session.id}
-              customAction={customAction}
-              setCustomAction={setCustomAction}
-              error={actionError}
-              onSubmit={submitAction}
-              onShowPartyGear={() => setShowFullInventory(true)}
-              onCharacterClick={setSelectedCharacter}
-            />
+          <div className="flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col gap-2">
+            {session.encounterState && (
+              <EncounterPanel encounter={session.encounterState} />
+            )}
+            <div className="min-h-0 flex-1">
+              <ActionDock
+                turn={displayTurn}
+                loading={loading || previewThinking}
+                previewThinking={previewThinking}
+                activeCharacter={activeChar}
+                isDown={isDown}
+                party={session.party}
+                sessionId={session.id}
+                customAction={customAction}
+                setCustomAction={setCustomAction}
+                error={actionError}
+                onSubmit={submitAction}
+                onShowPartyGear={() => setShowFullInventory(true)}
+                onCharacterClick={setSelectedCharacter}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -903,7 +909,10 @@ export const SessionPage = () => {
           {loading ? (
             <DmDecisionRecapPanel lastSubmittedAction={lastSubmittedAction} ttsSettings={ttsSettings} />
           ) : (
-            <div className="flex h-full min-h-0 flex-col">
+            <div className="flex h-full min-h-0 flex-col gap-2">
+              {session.encounterState && (
+                <EncounterPanel encounter={session.encounterState} />
+              )}
               <div className="min-h-0 flex-1">
                 <ActionDock
                   turn={displayTurn}
