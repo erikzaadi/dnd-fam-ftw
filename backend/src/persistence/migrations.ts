@@ -325,4 +325,7 @@ export const migrate = (db: DB): void => {
   if (!sessionColsFinal.includes('dm_prep_encounters')) {
     db.prepare("ALTER TABLE sessions ADD COLUMN dm_prep_encounters TEXT").run();
   }
+  if (!sessionColsFinal.includes('past_encounters')) {
+    db.prepare("ALTER TABLE sessions ADD COLUMN past_encounters TEXT").run();
+  }
 };

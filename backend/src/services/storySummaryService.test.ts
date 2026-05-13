@@ -78,6 +78,28 @@ describe('parseEncounterSeeds', () => {
     expect(brief).toBe('PREMISE: Quest.');
     expect(seeds).toBeNull();
   });
+
+  it('fallback A: handles response that is only a bare JSON array', () => {
+    const { brief, seeds } = parseEncounterSeeds(VALID_SEEDS);
+    expect(brief).toBe('');
+    expect(seeds).toHaveLength(1);
+    expect(seeds![0].name).toBe('Thornwood Guardian');
+  });
+
+  it('fallback A: handles response that is only a fenced JSON array', () => {
+    const raw = `\`\`\`json\n${VALID_SEEDS}\n\`\`\``;
+    const { brief, seeds } = parseEncounterSeeds(raw);
+    expect(brief).toBe('');
+    expect(seeds).toHaveLength(1);
+  });
+
+  it('fallback B: handles prose followed by fenced JSON with no ENCOUNTER_SEEDS marker', () => {
+    const raw = `PREMISE: A dark quest.\nTONE: Adventurous.\n\`\`\`json\n${VALID_SEEDS}\n\`\`\``;
+    const { brief, seeds } = parseEncounterSeeds(raw);
+    expect(brief).toBe('PREMISE: A dark quest.\nTONE: Adventurous.');
+    expect(seeds).toHaveLength(1);
+    expect(seeds![0].name).toBe('Thornwood Guardian');
+  });
 });
 
 describe('buildCampaignStateSummaryPrompt', () => {

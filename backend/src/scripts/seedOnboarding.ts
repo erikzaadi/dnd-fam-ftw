@@ -1,64 +1,89 @@
+// Session 8: A Crumby Situation - the onboarding template cloned for every quick-start session.
+// Showcases: pre-generated avatar images, worldDescription, dm_prep + dm_prep_encounters, lighthearted/easy/fast settings, a complete 5-turn arc with one character per turn.
+// This session is never played directly - sessionRepository.cloneOnboardingSession() copies it into a new namespace-scoped session.
 import type { Database as DB } from 'libsql';
-import type { Choice, Impact } from '../types.js';
+import { deleteSession, seedChar, seedItem, seedTurn } from './seedHelpers.js';
 
-export const ONBOARDING_TEMPLATE_SESSION_ID = 'onboarding-template';
+export const ONBOARDING_TEMPLATE_SESSION_ID = 'seed-onboarding-template';
 
-type SeedChoice = Omit<Choice, 'difficulty' | 'stat'> & { difficulty: string; stat: string };
+const DM_PREP = `CAMPAIGN: A Crumby Situation
 
-function seedChar(db: DB, sessionId: string, id: string, name: string, cls: string, species: string, quirk: string, might: number, magic: number, mischief: number, hp: number, maxHp: number, avatarUrl: string) {
-  db.prepare('DELETE FROM inventory WHERE characterId = ?').run(id);
-  db.prepare('DELETE FROM characters WHERE id = ?').run(id);
-  db.prepare(`INSERT INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, status, avatarUrl)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`)
-    .run(id, sessionId, name, cls, species, quirk, hp, maxHp, might, magic, mischief, avatarUrl);
-}
+PREMISE: Gerta the baker's legendary sourdough starter - forty years old - was stolen by goblin thieves along with her entire cart. The party must recover it before the starter dies. The goblins are mischievous but not cruel, and something is nudging them toward bolder crimes.
 
-function seedItem(db: DB, characterId: string, itemId: string, name: string, description: string, healValue: number | null, statBonuses: string | null, consumable: number, transferable: number) {
-  db.prepare(`INSERT INTO inventory (characterId, itemId, name, description, healValue, statBonuses, consumable, transferable)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(characterId, itemId, name, description, healValue, statBonuses, consumable, transferable);
-}
+TONE: Warm, silly, and safe. Danger feels cartoonish. Goblins trip over themselves. Pastry is a recurring motif. Avoid anything scary or grim.
 
-function seedTurn(
-  db: DB,
-  sessionId: string,
-  characterId: string | null,
-  narration: string,
-  choices: SeedChoice[],
-  actionAttempt: string | null,
-  actionStat: string | null,
-  actionSuccess: number | null,
-  actionRoll: number | null,
-  actionStatBonus: number | null,
-  turnType: string = 'normal',
-  imageUrl: string | null = null,
-  actionDifficultyTarget: number | null = null,
-  rollNarration: string | null = null,
-  currentTensionLevel: string | null = null,
-  actionImpact: Impact | null = null,
-) {
-  const info = db.prepare(`INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel)
-    VALUES (?, ?, ?, ?, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(sessionId, characterId, narration, rollNarration, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel);
-  const turnId = info.lastInsertRowid;
-  for (const c of choices) {
-    db.prepare(`INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue, narration, flavor)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .run(turnId, c.label, c.difficulty, c.stat, c.difficultyValue ?? null, c.narration ?? null, c.flavor ?? null);
-  }
-}
+VILLAIN: Chief Nubbin, a goblin who found a Cursed Recipe Scroll that whispers increasingly ambitious heist ideas. He is not evil - just easily influenced and very proud of his new scroll. The scroll is the real problem.
 
-export function seedOnboarding(db: DB) {
+RECURRING NPCS:
+- Gerta the Baker: warm, dramatic, cries happy tears when bread is returned. Rewards the party with legendary pastries and heartfelt gratitude.
+- Pip the Lookout Goblin: the smallest goblin, easily befriended. Willing to lead the party to Nubbin if treated kindly.
+
+FACTIONS:
+- The Breadcrumbs Inn: the local community hub - friendly ally, grateful when the starter is returned.
+- Nubbin's Goblin Gang: mischievous thieves led by a scroll-obsessed chief - can be reasoned with.
+
+LOCATIONS:
+- Tangle Wood Clearing: goblin camp around Gerta's cart. Obstacle: six goblins arguing over croissants. Clue: the cursed scroll sits in Nubbin's tent.
+- Breadcrumbs Inn: safe starting hub. Gerta waits here. Notable: she knows every goblin in the wood by name.
+- The Old Mill Trail: forest path. Obstacle: a rickety bridge the goblins rigged with a trip-rope. Notable: leads directly to Nubbin's hidden stash.
+
+SETUP/PAYOFF:
+- The sourdough starter (found in the cart) unlocks Gerta's gratitude and a legendary pastry reward.
+- Pip the lookout (found guarding the perimeter) can guide the party past the rigged bridge if befriended.
+
+SECRETS:
+- The Cursed Recipe Scroll was not made by goblins - it was lost by a traveling wizard who wants it back.
+- Chief Nubbin can read (unusual for goblins) and is secretly embarrassed about stealing bread.
+- Gerta has been bribing the goblins with leftover pastry for years - this is actually a breakup.
+
+ENCOUNTERS:
+- Combat: goblin camp defense - six startled goblins throwing bread rolls and tripping over each other.
+- Exploration: rigged bridge over the creek - trip-rope, wobbling planks, one very smug goblin watching from a tree.
+- Social: convincing Chief Nubbin to give back the scroll - he is proud but not unreasonable.
+- Magical/Weird: the scroll whispers a new recipe mid-encounter - "steal the moon."
+
+TREASURE:
+- Gerta's legendary cinnamon rolls (restores 3 HP and grants a warm mood buff).
+- The Cursed Recipe Scroll (dangerous, funny, and highly portable).
+
+STAGES: Early - recover the cart and starter | Mid - find Nubbin and the scroll | Climax - decide what to do with the scroll
+DM NOTE: Always let players succeed in funny ways. If they fail, something sillier happens instead. Every setback should produce a pastry.`;
+
+const DM_PREP_IMAGE_BRIEF = 'mischievous goblins in a forest clearing, stolen bread cart, glowing recipe scroll, sourdough jar, croissant chaos, whimsical Tangle Wood, cozy inn, small goblin chief';
+
+const DM_PREP_ENCOUNTERS = JSON.stringify([
+  {
+    name: 'Goblin Camp Defense',
+    triggerHint: 'when party enters the goblin camp clearing',
+    enemies: [
+      { name: 'Goblin Thief', role: 'minion', weaknesses: [{ label: 'distraction or noise', school: 'mind' }], traits: ['easily startled', 'throws bread rolls'] },
+      { name: 'Chief Nubbin', role: 'boss', weaknesses: [{ label: 'kindness or flattery', school: 'mind' }], traits: ['scroll-obsessed', 'proud but not cruel', 'can be reasoned with'] },
+    ],
+    areas: [
+      { label: 'Tangle Wood Clearing', tags: ['forest', 'open', 'goblin tents'] },
+      { label: "Nubbin's Tent", tags: ['interior', 'cramped', 'scroll on table'] },
+    ],
+    objective: 'Recover the sourdough starter and the cursed scroll without anyone getting badly hurt',
+    lootHint: "Gerta's legendary cinnamon rolls and the Cursed Recipe Scroll",
+  },
+  {
+    name: 'Rigged Bridge Crossing',
+    triggerHint: "when party follows the Old Mill Trail toward Nubbin's stash",
+    enemies: [
+      { name: 'Smug Lookout Goblin', role: 'hazard', weaknesses: [{ label: 'treat or bribe', school: 'mind' }], traits: ['controls the trip-rope', 'laughs at falling'] },
+    ],
+    areas: [{ label: 'Rickety Creek Bridge', tags: ['narrow', 'rigged trap', 'creek below'] }],
+    objective: 'Cross the bridge without triggering the trip-rope',
+  },
+]);
+
+export function seed(db: DB): void {
   const S = ONBOARDING_TEMPLATE_SESSION_ID;
 
-  db.prepare('DELETE FROM turn_choices WHERE turnId IN (SELECT id FROM turn_history WHERE sessionId = ?)').run(S);
-  db.prepare('DELETE FROM turn_history WHERE sessionId = ?').run(S);
-  db.prepare('DELETE FROM inventory WHERE characterId IN (SELECT id FROM characters WHERE sessionId = ?)').run(S);
-  db.prepare('DELETE FROM characters WHERE sessionId = ?').run(S);
-  db.prepare('DELETE FROM sessions WHERE id = ?').run(S);
+  deleteSession(db, S);
 
-  db.prepare(`INSERT INTO sessions (id, scene, sceneId, worldDescription, displayName, turn, activeCharacterId, tone, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, rescues_used, game_over, storySummary, preview_image_url)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, ?, ?)`)
+  db.prepare(`INSERT INTO sessions (id, scene, sceneId, worldDescription, displayName, turn, activeCharacterId, tone, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, rescues_used, game_over, storySummary, preview_image_url, dm_prep, dm_prep_image_brief, dm_prep_encounters)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, ?, ?, ?, ?, ?)`)
     .run(
       S,
       'Tangle Wood - The Goblin Camp',
@@ -66,24 +91,26 @@ export function seedOnboarding(db: DB) {
       "A whimsical forest realm where the local inn serves legendary pastries - until a gang of goblin thieves made off with the baker's cart, sourdough starter and all.",
       'A Crumby Situation',
       5,
-      'onboard-c1',
+      'seed-onboard-c1',
       'lighthearted adventure',
       'easy',
       'fast',
       "Your party answered the Breadcrumbs Inn's call for help when goblins stole the baker's cart - including a 40-year-old sourdough starter. Brom cleared the path ('just cardio'), Finn scouted and somehow returned with croissants, Zara dazzled the camp into disarray, and Mira talked the last goblin into voluntary surrender. The cart is recovered. The starter is safe. Gerta is crying happy tears. What happens next is up to you.",
       '/images/onboarding/preview.png',
+      DM_PREP,
+      DM_PREP_IMAGE_BRIEF,
+      DM_PREP_ENCOUNTERS,
     );
 
-  seedChar(db, S, 'onboard-c1', 'Brom Ironbread', 'Fighter', 'Human', "Bench-presses boulders for fun, insists it's just cardio", 5, 1, 1, 10, 10, '/images/onboarding/avatar_brom.png');
-  seedChar(db, S, 'onboard-c2', 'Finn Quickcrust', 'Rogue', 'Halfling', "Cannot resist stealing a bite of other people's food", 1, 2, 5, 8, 8, '/images/onboarding/avatar_finn.png');
-  seedChar(db, S, 'onboard-c3', 'Zara Spellsworth', 'Mage', 'Elf', "Alphabetizes her spell components and gets upset when goblins don't", 1, 5, 1, 7, 7, '/images/onboarding/avatar_zara.png');
-  seedChar(db, S, 'onboard-c4', 'Mira Warmheal', 'Cleric', 'Human', 'Heals injuries but always adds "told you so" after', 2, 4, 1, 10, 10, '/images/onboarding/avatar_mira.png');
+  seedChar(db, S, 'seed-onboard-c1', 'Brom Ironbread', 'Fighter', 'Human', "Bench-presses boulders for fun, insists it's just cardio", 5, 1, 1, 10, 10, 'active', '/images/onboarding/avatar_brom.png');
+  seedChar(db, S, 'seed-onboard-c2', 'Finn Quickcrust', 'Rogue', 'Halfling', "Cannot resist stealing a bite of other people's food", 1, 2, 5, 8, 8, 'active', '/images/onboarding/avatar_finn.png');
+  seedChar(db, S, 'seed-onboard-c3', 'Zara Spellsworth', 'Mage', 'Elf', "Alphabetizes her spell components and gets upset when goblins don't", 1, 5, 1, 7, 7, 'active', '/images/onboarding/avatar_zara.png');
+  seedChar(db, S, 'seed-onboard-c4', 'Mira Warmheal', 'Cleric', 'Human', 'Heals injuries but always adds "told you so" after', 2, 4, 1, 10, 10, 'active', '/images/onboarding/avatar_mira.png');
 
-  seedItem(db, 'onboard-c4', 'onboard-i1', '🧪 Healing Potion', 'Restores 4 HP. Tastes suspiciously like apple juice.', 4, null, 1, 1);
-  seedItem(db, 'onboard-c3', 'onboard-i2', '📜 Arcane Crouton', 'A stale bread roll infused with magic. Boosts spells and doubles as a projectile.', null, JSON.stringify({ magic: 2 }), 0, 1);
+  seedItem(db, 'seed-onboard-c4', 'seed-onboard-i1', '🧪 Healing Potion', 'Restores 4 HP. Tastes suspiciously like apple juice.', 4, null, 1, 1);
+  seedItem(db, 'seed-onboard-c3', 'seed-onboard-i2', '📜 Arcane Crouton', 'A stale bread roll infused with magic. Boosts spells and doubles as a projectile.', null, JSON.stringify({ magic: 2 }), 0, 1);
 
-  // Turn 0: Opening - no action yet
-  seedTurn(db, S, null, // scene_inn
+  seedTurn(db, S, null,
     "The Breadcrumbs Inn is in crisis. Gerta the baker stands outside wringing a dishcloth, watching a flour trail disappear into Tangle Wood. \"They took EVERYTHING,\" she wails. \"The cart, the croissants, the sourdough starter - forty years of culture!\" A handwritten sign on the inn door reads: Adventurers Wanted. Must not be allergic to goblins. Three silver and a free pastry on completion. You're in.",
     [
       { label: 'Follow the flour trail into the woods', difficulty: 'easy', stat: 'mischief', difficultyValue: 7, narration: 'A fresh trail of flour never lies.' },
@@ -93,8 +120,7 @@ export function seedOnboarding(db: DB) {
     null, null, null, null, null, 'normal', '/images/onboarding/scene_inn.png', null, null, 'low',
   );
 
-  // Turn 1: Brom (Fighter) - might success
-  seedTurn(db, S, 'onboard-c1',
+  seedTurn(db, S, 'seed-onboard-c1',
     "Brom spots the goblin lookout perched in an oak tree and, rather than waste time climbing, simply grabs the trunk and shakes it like a wet dog drying off. The goblin pinwheels into a bramble bush below. \"Cardio,\" Brom explains to nobody in particular. The path into Tangle Wood is now clear and smells strongly of cinnamon.",
     [
       { label: 'Press on toward the goblin camp', difficulty: 'easy', stat: 'mischief', difficultyValue: 7 },
@@ -104,8 +130,7 @@ export function seedOnboarding(db: DB) {
     'Head straight in and hit something', 'might', 1, 15, 5, 'normal', '/images/onboarding/scene_brom.png', 10, '🎲 Technically effective. The goblin did not enjoy it.', 'low',
   );
 
-  // Turn 2: Finn (Rogue) - mischief success
-  seedTurn(db, S, 'onboard-c2',
+  seedTurn(db, S, 'seed-onboard-c2',
     "Finn slips through the undergrowth in near-total silence. He finds the goblin camp: a ring of tents around Gerta's cart, six goblins arguing loudly over a croissant none of them can figure out how to eat correctly. Finn returns with a full tactical report and, somehow, two croissants. He refuses to elaborate.",
     [
       { label: 'Sneak in and sabotage the camp', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
@@ -115,8 +140,7 @@ export function seedOnboarding(db: DB) {
     'Follow the flour trail into the woods', 'mischief', 1, 17, 5, 'normal', '/images/onboarding/scene_finn.png', 7, '🎲 Ghostlike. Not even the croissants saw him coming.', 'low',
   );
 
-  // Turn 3: Zara (Mage) - magic success
-  seedTurn(db, S, 'onboard-c3',
+  seedTurn(db, S, 'seed-onboard-c3',
     "Zara steps into the clearing and fires a Dazzle Burst directly into the camp. The goblins scatter in all directions, briefly convinced the stars have come down specifically to argue with them. \"That,\" Zara announces while organizing the smoke into alphabetical dissipation, \"is an Arcane Dispersal Event. D for Devastating.\" The cart is unguarded. One goblin is still spinning.",
     [
       { label: 'Grab the cart and run', difficulty: 'easy', stat: 'might', difficultyValue: 7 },
@@ -126,8 +150,7 @@ export function seedOnboarding(db: DB) {
     'Signal the others to surround the camp', 'magic', 1, 16, 5, 'normal', '/images/onboarding/scene_zara.png', 11, '🎲 Textbook casting. Goblins are terrible at astronomy anyway.', 'low',
   );
 
-  // Turn 4: Mira (Cleric) - magic/social success
-  seedTurn(db, S, 'onboard-c4',
+  seedTurn(db, S, 'seed-onboard-c4',
     "One goblin remains - the smallest of the lot, wearing a croissant as a hat. Mira kneels to its eye level and explains, at length and with great patience, the concept of consequences. The goblin's lower lip wobbles. It hands over the sourdough starter. It may be crying. \"Told you so,\" says Mira quietly, to no one in particular. The cart is hitched. The starter is safe. Gerta's forty years of culture are going home.",
     [
       { label: "Accept Gerta's reward and celebrate", difficulty: 'easy', stat: 'mischief', difficultyValue: 6, narration: 'A job well done deserves a well-earned pastry.' },
@@ -137,3 +160,6 @@ export function seedOnboarding(db: DB) {
     'Ask Gerta for more information first', 'magic', 1, 13, 4, 'normal', '/images/onboarding/scene_mira.png', 6, '🎲 Diplomatic masterclass. The goblin was not a hardened criminal.', 'low',
   );
 }
+
+// Alias for backward compatibility with any direct callers
+export const seedOnboarding = seed;

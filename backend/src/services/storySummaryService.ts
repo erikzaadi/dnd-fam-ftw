@@ -18,24 +18,47 @@ RECENTLY RESOLVED: one combat, challenge, clue, or scene that should not be repe
 
 const ENCOUNTER_SEEDS_MARKER = 'ENCOUNTER_SEEDS:';
 
+const tryParseJsonArray = (text: string): EncounterSeed[] | null => {
+  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const jsonStr = fenceMatch ? fenceMatch[1].trim() : text.trim();
+  try {
+    const parsed = JSON.parse(jsonStr) as unknown;
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return null;
+    }
+    return parsed as EncounterSeed[];
+  } catch {
+    return null;
+  }
+};
+
 export const parseEncounterSeeds = (raw: string): { brief: string; seeds: EncounterSeed[] | null } => {
   const markerIdx = raw.indexOf(ENCOUNTER_SEEDS_MARKER);
   if (markerIdx === -1) {
-    return { brief: raw.trim(), seeds: null };
+    const candidate = raw.trim();
+    // Fallback A: entire response is a bare or fenced JSON array
+    if (candidate.startsWith('[') || candidate.startsWith('```')) {
+      const seeds = tryParseJsonArray(candidate);
+      if (seeds) {
+        return { brief: '', seeds };
+      }
+    }
+    // Fallback B: prose + trailing fenced JSON block (AI omitted the ENCOUNTER_SEEDS: marker)
+    const lastFenceIdx = candidate.lastIndexOf('```');
+    const firstFenceIdx = candidate.indexOf('```');
+    if (firstFenceIdx !== -1 && lastFenceIdx !== firstFenceIdx) {
+      const fenceBlock = candidate.slice(firstFenceIdx);
+      const seeds = tryParseJsonArray(fenceBlock);
+      if (seeds) {
+        return { brief: candidate.slice(0, firstFenceIdx).trim(), seeds };
+      }
+    }
+    return { brief: candidate, seeds: null };
   }
   const brief = raw.slice(0, markerIdx).trim();
   const jsonRaw = raw.slice(markerIdx + ENCOUNTER_SEEDS_MARKER.length).trim();
-  try {
-    const fenceMatch = jsonRaw.match(/```(?:json)?\s*([\s\S]*?)```/);
-    const jsonStr = fenceMatch ? fenceMatch[1].trim() : jsonRaw;
-    const parsed = JSON.parse(jsonStr) as unknown;
-    if (!Array.isArray(parsed)) {
-      return { brief, seeds: null };
-    }
-    return { brief, seeds: parsed as EncounterSeed[] };
-  } catch {
-    return { brief, seeds: null };
-  }
+  const seeds = tryParseJsonArray(jsonRaw);
+  return { brief, seeds };
 };
 
 export class StorySummaryService {
@@ -142,7 +165,7 @@ A JSON array of the 1-4 combat encounters described in the ENCOUNTERS and STAGES
     {
       "name": "string",
       "role": "minion|standard|elite|boss|hazard",
-      "weaknesses": [{ "label": "string", "school": "fire|frost|light|shadow|nature|storm|mind|force|holy|mechanical|null" }],
+      "weaknesses": [{ "label": "string - e.g. 'fire' or 'holy light'", "school": "the attacker's magic school that exploits this weakness: fire|frost|light|shadow|nature|storm|mind|force|holy|mechanical|null" }],
       "traits": ["string"]
     }
   ],
@@ -150,9 +173,9 @@ A JSON array of the 1-4 combat encounters described in the ENCOUNTERS and STAGES
   "objective": "string - optional combat objective",
   "lootHint": "string - one thematic item tied to this encounter from the TREASURE section, or null"
 }
-Output only a JSON array, no extra text. Omit null values instead of writing null.`;
+The JSON block must be a valid JSON array with no extra text or prose inside it. Omit null values instead of writing null.`;
 
-      const raw = await this.callSummarize(prompt, 1200, 90_000, `campaign brief session=${sessionId}`);
+      const raw = await this.callSummarize(prompt, 2000, 90_000, `campaign brief session=${sessionId}`);
       if (raw) {
         const { brief, seeds } = parseEncounterSeeds(raw);
         const imageBrief = await this.generateDmPrepImageBrief(brief, sessionId);

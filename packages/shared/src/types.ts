@@ -297,6 +297,7 @@ export interface Session {
   gameOver?: boolean;
   previewImageUrl?: string;
   encounterState?: EncounterState;
+  pastEncounters?: EncounterState[];
 }
 
 export interface AppSettings {

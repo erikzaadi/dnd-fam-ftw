@@ -27,8 +27,14 @@ export const createTurnRouter = () => {
   registerSessionIdParam(router);
 
   router.get('/session/:id/summary', asyncHandler(async (req, res) => {
-    const history = await StateService.getTurnHistory(req.params.id as string);
-    const prompt = `Summarize the adventure so far in 3 sentences, focusing on the main plot points: ${history.map(h => h.narration).join(' ')}`;
+    const [history, session] = await Promise.all([
+      StateService.getTurnHistory(req.params.id as string),
+      StateService.getSession(req.params.id as string),
+    ]);
+    const battlesLine = session?.pastEncounters?.length
+      ? `\n\nBattles fought: ${session.pastEncounters.map(e => `${e.name} (${e.status})`).join(', ')}.`
+      : '';
+    const prompt = `Summarize the adventure so far in 3 sentences, focusing on the main plot points: ${history.map(h => h.narration).join(' ')}${battlesLine}`;
     const { client, model } = createChatClient();
     try {
       const response = await client.chat.completions.create({

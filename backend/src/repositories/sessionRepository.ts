@@ -31,6 +31,7 @@ export type SessionPatch = {
   dmPrepImageBrief?: string | null;
   worldDescription?: string | null;
   encounterState?: EncounterState | null;
+  pastEncounters?: EncounterState[] | null;
   dmPrepEncounters?: EncounterSeed[] | null;
 };
 
@@ -87,6 +88,7 @@ export const sessionRepository = {
       dm_prep: string | null;
       dm_prep_image_brief: string | null;
       encounter_state: string | null;
+      past_encounters: string | null;
       dm_prep_encounters: string | null;
       turn: number;
       activeCharacterId: string;
@@ -166,6 +168,7 @@ export const sessionRepository = {
       dmPrep: row.dm_prep || undefined,
       dmPrepImageBrief: row.dm_prep_image_brief || undefined,
       encounterState: row.encounter_state ? (JSON.parse(row.encounter_state) as EncounterState) : undefined,
+      pastEncounters: row.past_encounters ? (JSON.parse(row.past_encounters) as EncounterState[]) : undefined,
       dmPrepEncounters: row.dm_prep_encounters ? (JSON.parse(row.dm_prep_encounters) as EncounterSeed[]) : undefined,
       turn: row.turn,
       party: characters.map(c => ({
@@ -222,8 +225,9 @@ export const sessionRepository = {
     const db = getDb();
     const rescuesUsed = state.interventionState?.rescuesUsed ?? 0;
     const encounterStateJson = state.encounterState != null ? JSON.stringify(state.encounterState) : null;
-    db.prepare('UPDATE sessions SET scene = ?, sceneId = ?, turn = ?, activeCharacterId = ?, tone = ?, interventionUsed = ?, rescues_used = ?, game_over = ?, storySummary = ?, difficulty = ?, gameMode = ?, encounter_state = ? WHERE id = ?')
-      .run(state.scene, state.sceneId, state.turn, state.activeCharacterId, state.tone, rescuesUsed > 0 ? 1 : 0, rescuesUsed, state.gameOver ? 1 : 0, state.storySummary ?? '', state.difficulty, state.gameMode ?? 'balanced', encounterStateJson, id);
+    const pastEncountersJson = state.pastEncounters && state.pastEncounters.length > 0 ? JSON.stringify(state.pastEncounters) : null;
+    db.prepare('UPDATE sessions SET scene = ?, sceneId = ?, turn = ?, activeCharacterId = ?, tone = ?, interventionUsed = ?, rescues_used = ?, game_over = ?, storySummary = ?, difficulty = ?, gameMode = ?, encounter_state = ?, past_encounters = ? WHERE id = ?')
+      .run(state.scene, state.sceneId, state.turn, state.activeCharacterId, state.tone, rescuesUsed > 0 ? 1 : 0, rescuesUsed, state.gameOver ? 1 : 0, state.storySummary ?? '', state.difficulty, state.gameMode ?? 'balanced', encounterStateJson, pastEncountersJson, id);
 
     for (const char of state.party) {
       db.prepare('INSERT OR REPLACE INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt, status, avatar_storage_key, avatar_storage_provider, history, gender, buffs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
@@ -276,6 +280,10 @@ export const sessionRepository = {
     if ('encounterState' in fields) {
       sets.push('encounter_state = ?');
       values.push(fields.encounterState != null ? JSON.stringify(fields.encounterState) : null);
+    }
+    if ('pastEncounters' in fields) {
+      sets.push('past_encounters = ?');
+      values.push(fields.pastEncounters && fields.pastEncounters.length > 0 ? JSON.stringify(fields.pastEncounters) : null);
     }
     if ('dmPrepEncounters' in fields) {
       sets.push('dm_prep_encounters = ?');
@@ -331,10 +339,11 @@ export const sessionRepository = {
 
   cloneOnboardingSession(namespaceId: string): string {
     const db = getDb();
-    const templateId = 'onboarding-template';
+    const templateId = 'seed-onboarding-template';
 
     const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(templateId) as {
       scene: string; sceneId: string; worldDescription: string | null; dm_prep: string | null;
+      dm_prep_image_brief: string | null; dm_prep_encounters: string | null;
       turn: number; activeCharacterId: string; tone: string; displayName: string;
       difficulty: string; gameMode: string; savingsMode: number;
       storySummary: string; preview_image_url: string | null;
@@ -345,9 +354,9 @@ export const sessionRepository = {
 
     const newSessionId = createId();
 
-    db.prepare(`INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, turn, activeCharacterId, tone, displayName, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, rescues_used, game_over, storySummary, preview_image_url, namespace_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?)`)
-      .run(newSessionId, session.scene, session.sceneId, session.worldDescription, session.dm_prep, session.turn, '', session.tone, session.displayName, session.difficulty, session.gameMode, session.savingsMode, 0, session.storySummary, session.preview_image_url, namespaceId);
+    db.prepare(`INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, dm_prep_encounters, turn, activeCharacterId, tone, displayName, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, rescues_used, game_over, storySummary, preview_image_url, namespace_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?)`)
+      .run(newSessionId, session.scene, session.sceneId, session.worldDescription, session.dm_prep, session.dm_prep_image_brief, session.dm_prep_encounters, session.turn, '', session.tone, session.displayName, session.difficulty, session.gameMode, session.savingsMode, 0, session.storySummary, session.preview_image_url, namespaceId);
 
     const chars = db.prepare('SELECT * FROM characters WHERE sessionId = ? ORDER BY rowid ASC').all(templateId) as {
       id: string; name: string; class: string; species: string; quirk: string;

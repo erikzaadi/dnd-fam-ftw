@@ -621,7 +621,11 @@ export class GameEngine {
           }
         }
 
-        newState.encounterState = applyEncounterUpdate(newState.encounterState, baseUpdate);
+        const updated = applyEncounterUpdate(newState.encounterState, baseUpdate);
+        if (updated.status !== 'active' && newState.encounterState.status === 'active') {
+          newState.pastEncounters = [...(newState.pastEncounters ?? []), updated];
+        }
+        newState.encounterState = updated;
       }
 
       const encounterStart = aiSuggestedChanges?.suggestedEncounterStart;

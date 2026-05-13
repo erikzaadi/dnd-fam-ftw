@@ -15,6 +15,7 @@ export interface SessionState extends Session {
   dmPrep?: string;
   dmPrepImageBrief?: string;
   encounterState?: EncounterState;
+  pastEncounters?: EncounterState[];
   dmPrepEncounters?: EncounterSeed[];
   npcs: string[];
   quests: string[];

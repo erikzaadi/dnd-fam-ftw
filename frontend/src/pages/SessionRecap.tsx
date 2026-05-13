@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import type { TurnResult, Session, Character } from '../types';
+import type { TurnResult, Session, Character, EncounterState } from '../types';
 import { apiFetch, imgSrc } from '../lib/api';
 import { FullscreenImage } from '../components/FullscreenImage';
 import { DmFooter } from '../components/DmFooter';
@@ -70,15 +70,58 @@ const TldrView = ({ sessionId, onEnter, hasTts }: { sessionId: string; onEnter: 
 
 // ── MOVIE ───────────────────────────────────────────────────────────────────
 
-const MovieView = ({ history, party, previewImageUrl, onEnter, hasTts }: { history: TurnResult[]; party: Character[]; previewImageUrl: string | null; onEnter: () => void; hasTts: boolean }) => {
+type MovieSlide = { kind: 'turn'; turn: TurnResult } | { kind: 'encounter'; enc: EncounterState };
+
+const ENCOUNTER_OUTCOME: Record<string, { label: string; color: string }> = {
+  defeated:    { label: 'Victory',    color: 'text-amber-400' },
+  fled:        { label: 'Fled',       color: 'text-sky-400'   },
+  surrendered: { label: 'Surrender',  color: 'text-violet-400'},
+  resolved:    { label: 'Resolved',   color: 'text-emerald-400'},
+};
+
+const EncounterSlidePanel = ({ enc }: { enc: EncounterState }) => {
+  const outcome = ENCOUNTER_OUTCOME[enc.status] ?? ENCOUNTER_OUTCOME.resolved;
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="p-4 bg-slate-900/60 rounded-2xl border border-slate-800 flex flex-col gap-3">
+        <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Battle</div>
+        <div className="text-xl font-black text-slate-100">{enc.name}</div>
+        {enc.objective && (
+          <p className="text-sm text-slate-400 italic">{enc.objective}</p>
+        )}
+        <div className={`text-lg font-black uppercase tracking-widest ${outcome.color}`}>{outcome.label}</div>
+      </div>
+      {enc.enemies.length > 0 && (
+        <div className="p-4 bg-slate-900/60 rounded-2xl border border-slate-800 flex flex-col gap-2">
+          <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Enemies</div>
+          {enc.enemies.map(enemy => (
+            <div key={enemy.id} className={`flex items-center gap-2 text-sm font-black ${enemy.status === 'defeated' ? 'text-slate-600 line-through' : 'text-slate-300'}`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-current flex-shrink-0" />
+              {enemy.name}
+              <span className="text-[10px] font-normal normal-case text-slate-600">{enemy.role}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const MovieView = ({ history, encounters, party, previewImageUrl, onEnter, hasTts }: { history: TurnResult[]; encounters: EncounterState[]; party: Character[]; previewImageUrl: string | null; onEnter: () => void; hasTts: boolean }) => {
+  const slides: MovieSlide[] = [
+    ...history.map(turn => ({ kind: 'turn' as const, turn })),
+    ...encounters.map(enc => ({ kind: 'encounter' as const, enc })),
+  ];
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [fullscreenUrl, setFullscreenUrl] = useState<string | null>(null);
   const { settings: ttsSettings } = useTtsSettings();
-  const turn = history[idx];
-  const isLast = idx === history.length - 1;
-  const actor = turn.characterId ? party.find(c => c.id === turn.characterId) : null;
-  const roll = turn.lastAction?.actionResult;
+  const slide = slides[idx];
+  const isLast = idx === slides.length - 1;
+  const turn = slide.kind === 'turn' ? slide.turn : null;
+  const enc = slide.kind === 'encounter' ? slide.enc : null;
+  const actor = turn?.characterId ? party.find(c => c.id === turn.characterId) : null;
+  const roll = turn?.lastAction?.actionResult;
   const hasRoll = roll && roll.statUsed !== 'none';
 
   // Keyboard nav: space = play/pause, arrows = prev/next
@@ -93,16 +136,19 @@ const MovieView = ({ history, party, previewImageUrl, onEnter, hasTts }: { histo
         setPlaying(false);
       } else if (e.key === 'ArrowRight' || e.key === 'l') {
         e.preventDefault();
-        setIdx(i => Math.min(history.length - 1, i + 1));
+        setIdx(i => Math.min(slides.length - 1, i + 1));
         setPlaying(false);
       }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [history.length]);
+  }, [slides.length]);
 
   // Speak narration on slide change, then advance after speech + pause gap
   useEffect(() => {
+    if (!turn) {
+      return;
+    }
     let cancelled = false;
     let advanceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -136,9 +182,9 @@ const MovieView = ({ history, party, previewImageUrl, onEnter, hasTts }: { histo
       }
       narrationTtsService.stopNarration();
     };
-  }, [idx, playing, isLast, ttsSettings, turn.id, turn.narration, hasTts]);
+  }, [idx, playing, isLast, ttsSettings, turn?.id, turn?.narration, hasTts, turn]);
 
-  const imageUrl = turn.imageUrl ? imgSrc(turn.imageUrl) : null;
+  const imageUrl = turn?.imageUrl ? imgSrc(turn.imageUrl) : null;
   const defaultImageUrl = previewImageUrl ?? imgSrc('/images/default_scene.png');
 
   return (
@@ -155,23 +201,44 @@ const MovieView = ({ history, party, previewImageUrl, onEnter, hasTts }: { histo
       >
         <SceneBackground imageUrl={imageUrl} defaultImageUrl={defaultImageUrl} />
 
-        {/* Narration card - centered vertically */}
-        <div
-          className="absolute inset-0 hidden md:flex items-center justify-center p-6 z-10"
-          onClick={e => e.stopPropagation()}
-        >
+        {/* Narration card (turn slides) - centered vertically on desktop */}
+        {turn && (
           <div
-            key={`n-${idx}`}
-            className="backdrop-blur-md bg-slate-950/70 rounded-[24px] p-6 md:p-8 w-full max-w-2xl animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300"
+            className="absolute inset-0 hidden md:flex items-center justify-center p-6 z-10"
+            onClick={e => e.stopPropagation()}
           >
-            <p className="font-narrative text-slate-100 italic leading-relaxed text-xl md:text-2xl lg:text-3xl">
-              {turn.narration}
-            </p>
-            <div className="mt-4">
-              <NarrationTtsButton text={turn.narration} ttsSettings={ttsSettings} hasTts={hasTts} turnId={turn.id} />
+            <div
+              key={`n-${idx}`}
+              className="backdrop-blur-md bg-slate-950/70 rounded-[24px] p-6 md:p-8 w-full max-w-2xl animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300"
+            >
+              <p className="font-narrative text-slate-100 italic leading-relaxed text-xl md:text-2xl lg:text-3xl">
+                {turn.narration}
+              </p>
+              <div className="mt-4">
+                <NarrationTtsButton text={turn.narration} ttsSettings={ttsSettings} hasTts={hasTts} turnId={turn.id} />
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Encounter overlay - centered on desktop */}
+        {enc && (
+          <div
+            className="absolute inset-0 hidden md:flex items-center justify-center p-6 z-10"
+            onClick={e => e.stopPropagation()}
+          >
+            <div
+              key={`enc-${idx}`}
+              className="backdrop-blur-md bg-slate-950/80 rounded-[24px] p-6 md:p-8 w-full max-w-2xl animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300"
+            >
+              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Battle Debrief</div>
+              <p className="font-display font-black text-2xl md:text-3xl text-amber-400 mb-3">{enc.name}</p>
+              <div className={`text-xl font-black uppercase tracking-widest ${(ENCOUNTER_OUTCOME[enc.status] ?? ENCOUNTER_OUTCOME.resolved).color}`}>
+                {(ENCOUNTER_OUTCOME[enc.status] ?? ENCOUNTER_OUTCOME.resolved).label}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Progress bar overlay - centered at bottom of scene */}
         <div
@@ -179,98 +246,101 @@ const MovieView = ({ history, party, previewImageUrl, onEnter, hasTts }: { histo
           onClick={e => e.stopPropagation()}
         >
           <div className="flex gap-1 flex-wrap justify-center px-6 max-w-xl">
-            {history.map((_, i) => (
+            {slides.map((s, i) => (
               <button
                 key={i}
                 onClick={() => {
                   setIdx(i); setPlaying(false);
                 }}
-                className={`h-1.5 rounded-full transition-all ${i === idx ? 'bg-amber-500 w-6' : i < idx ? 'bg-slate-500/70 w-1.5' : 'bg-slate-700/70 w-1.5'}`}
+                className={`h-1.5 rounded-full transition-all ${i === idx ? 'bg-amber-500 w-6' : i < idx ? 'bg-slate-500/70 w-1.5' : 'bg-slate-700/70 w-1.5'} ${s.kind === 'encounter' ? 'bg-rose-900/70' : ''}`}
               />
             ))}
           </div>
         </div>
       </div>
 
-      {/* Details panel: narration is shown here on mobile so it has readable, scrollable space. */}
+      {/* Details panel */}
       <div
         key={`info-${idx}`}
         className="w-full md:w-[28rem] xl:w-[32rem] md:flex-shrink-0 flex flex-col gap-3 p-4 md:p-5 bg-slate-950/90 md:bg-slate-950/80 border-t md:border-t-0 md:border-l border-slate-800 overflow-y-auto max-h-[52dvh] md:max-h-none animate-in fade-in md:slide-in-from-right-4 duration-500"
         onClick={e => e.stopPropagation()}
       >
-        <div className="md:hidden rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-          <p className="font-narrative text-slate-100 italic leading-relaxed text-lg">
-            {turn.narration}
-          </p>
-          <div className="mt-3">
-            <NarrationTtsButton text={turn.narration} ttsSettings={ttsSettings} hasTts={hasTts} turnId={turn.id} />
-          </div>
-        </div>
-
-        {/* Actor */}
-        {actor && (
-          <div className="flex items-center gap-3 p-4 bg-slate-900/60 rounded-2xl border border-slate-800">
-            <img src={imgSrc(actor.avatarUrl)} className="w-16 h-16 rounded-full object-cover border-2 border-slate-600 flex-shrink-0" alt={actor.name} />
-            <div className="min-w-0">
-              <div className="font-black text-base uppercase tracking-wide text-slate-200 truncate">{actor.name}</div>
-              <div className="text-xs text-slate-500 uppercase tracking-wide">{actor.class}</div>
-            </div>
-          </div>
-        )}
-
-        {/* Chosen action */}
-        {turn.lastAction && (() => {
-          const statUsed = turn.lastAction.actionResult.statUsed;
-          const statColors = STAT_COLORS[statUsed] ?? STAT_COLORS.none;
-          return (
-            <div className={`p-4 rounded-2xl border-2 ${statColors}`}>
-              <div className="text-base font-black uppercase tracking-widest text-amber-400 mb-2">Chosen Action</div>
-              {statUsed !== 'none' && (
-                <div className="flex items-center gap-3 mb-3">
-                  <StatImg stat={statUsed} size="16" rounded />
-                  <span className="text-xl font-black uppercase tracking-widest">
-                    {statUsed}
-                  </span>
-                </div>
-              )}
-              <p className="font-narrative italic text-slate-100 text-xl leading-snug">
-                "{turn.lastAction.actionAttempt}"
+        {turn && (
+          <>
+            <div className="md:hidden rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+              <p className="font-narrative text-slate-100 italic leading-relaxed text-lg">
+                {turn.narration}
               </p>
+              <div className="mt-3">
+                <NarrationTtsButton text={turn.narration} ttsSettings={ttsSettings} hasTts={hasTts} turnId={turn.id} />
+              </div>
             </div>
-          );
-        })()}
 
-        {/* Roll result */}
-        {hasRoll && (
-          <div className="p-4 bg-slate-900/60 rounded-2xl border border-slate-800 flex flex-col items-center gap-3">
-            <D20 roll={roll.roll} success={roll.success} size={72} />
-            <span className={`text-sm font-black uppercase tracking-widest ${roll.success ? 'text-amber-500' : 'text-rose-400'}`}>
-              {roll.success ? 'Success' : 'Failed'}
-            </span>
-            <RollBreakdown
-              roll={roll.roll}
-              statBonus={roll.statBonus}
-              itemBonus={roll.itemBonus}
-              helperBonus={roll.helperBonus}
-              helperCharacterName={roll.helperCharacterName}
-              choiceItemBonus={roll.choiceItemBonus}
-              choiceItemName={roll.choiceItemName}
-              characterBonus={roll.characterBonus}
-              characterBonusLabel={roll.characterBonusLabel}
-              buffBonus={roll.buffBonus}
-              buffBonusLabel={roll.buffBonusLabel}
-              success={roll.success}
-              difficultyTarget={roll.difficultyTarget}
-              className="text-xl"
-              iconSize="10"
-            />
-          </div>
+            {actor && (
+              <div className="flex items-center gap-3 p-4 bg-slate-900/60 rounded-2xl border border-slate-800">
+                <img src={imgSrc(actor.avatarUrl)} className="w-16 h-16 rounded-full object-cover border-2 border-slate-600 flex-shrink-0" alt={actor.name} />
+                <div className="min-w-0">
+                  <div className="font-black text-base uppercase tracking-wide text-slate-200 truncate">{actor.name}</div>
+                  <div className="text-xs text-slate-500 uppercase tracking-wide">{actor.class}</div>
+                </div>
+              </div>
+            )}
+
+            {turn.lastAction && (() => {
+              const statUsed = turn.lastAction.actionResult.statUsed;
+              const statColors = STAT_COLORS[statUsed] ?? STAT_COLORS.none;
+              return (
+                <div className={`p-4 rounded-2xl border-2 ${statColors}`}>
+                  <div className="text-base font-black uppercase tracking-widest text-amber-400 mb-2">Chosen Action</div>
+                  {statUsed !== 'none' && (
+                    <div className="flex items-center gap-3 mb-3">
+                      <StatImg stat={statUsed} size="16" rounded />
+                      <span className="text-xl font-black uppercase tracking-widest">
+                        {statUsed}
+                      </span>
+                    </div>
+                  )}
+                  <p className="font-narrative italic text-slate-100 text-xl leading-snug">
+                    "{turn.lastAction.actionAttempt}"
+                  </p>
+                </div>
+              );
+            })()}
+
+            {hasRoll && roll && (
+              <div className="p-4 bg-slate-900/60 rounded-2xl border border-slate-800 flex flex-col items-center gap-3">
+                <D20 roll={roll.roll} success={roll.success} size={72} />
+                <span className={`text-sm font-black uppercase tracking-widest ${roll.success ? 'text-amber-500' : 'text-rose-400'}`}>
+                  {roll.success ? 'Success' : 'Failed'}
+                </span>
+                <RollBreakdown
+                  roll={roll.roll}
+                  statBonus={roll.statBonus}
+                  itemBonus={roll.itemBonus}
+                  helperBonus={roll.helperBonus}
+                  helperCharacterName={roll.helperCharacterName}
+                  choiceItemBonus={roll.choiceItemBonus}
+                  choiceItemName={roll.choiceItemName}
+                  characterBonus={roll.characterBonus}
+                  characterBonusLabel={roll.characterBonusLabel}
+                  buffBonus={roll.buffBonus}
+                  buffBonusLabel={roll.buffBonusLabel}
+                  success={roll.success}
+                  difficultyTarget={roll.difficultyTarget}
+                  className="text-xl"
+                  iconSize="10"
+                />
+              </div>
+            )}
+          </>
         )}
+
+        {enc && <EncounterSlidePanel enc={enc} />}
 
         {/* Nav controls pinned at bottom */}
         <div className="mt-auto flex flex-col gap-3 pt-2">
           <div className="text-center text-[9px] font-black uppercase tracking-widest text-slate-700">
-            Turn {idx + 1} / {history.length}
+            {slide.kind === 'encounter' ? `Battle ${idx - history.length + 1}` : `Turn ${idx + 1} / ${history.length}`}
           </div>
           <div className="flex items-center gap-2 justify-center">
             <button
@@ -293,7 +363,7 @@ const MovieView = ({ history, party, previewImageUrl, onEnter, hasTts }: { histo
             </button>
             <button
               onClick={() => {
-                setIdx(i => Math.min(history.length - 1, i + 1));
+                setIdx(i => Math.min(slides.length - 1, i + 1));
                 setPlaying(false);
               }}
               disabled={isLast}
@@ -470,7 +540,7 @@ export const SessionRecap = () => {
         )}
 
         {mode === 'tldr' && <TldrView sessionId={id!} onEnter={enter} hasTts={capabilities.hasTts} />}
-        {mode === 'movie' && history.length > 0 && <MovieView history={history} party={session.party} previewImageUrl={previewImageUrl} onEnter={enter} hasTts={capabilities.hasTts} />}
+        {mode === 'movie' && history.length > 0 && <MovieView history={history} encounters={session.pastEncounters ?? []} party={session.party} previewImageUrl={previewImageUrl} onEnter={enter} hasTts={capabilities.hasTts} />}
       </div>
 
       <DmFooter />

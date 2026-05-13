@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { TurnResult, Character, HpChange, InventoryChange, BuffChange } from '../../types';
+import type { TurnResult, Character, HpChange, InventoryChange, BuffChange, EncounterState } from '../../types';
 import { imgSrc } from '../../lib/api';
 import { StatImg } from './StatIcon';
 import { beatTarget } from '../../lib/game';
@@ -14,12 +14,67 @@ import { getRollImpactOutcome } from '../../lib/rollOutcome';
 interface ChronicleDrawerProps {
   history: TurnResult[];
   party: Character[];
+  pastEncounters?: EncounterState[];
   onClose: () => void;
   onSelectTurn: (idx: number) => void;
   viewedTurnIdx: number;
   ttsSettings: TtsSettings;
   hasTts: boolean;
 }
+
+const OUTCOME_STYLES: Record<string, { label: string; badge: string }> = {
+  defeated: { label: 'Defeated', badge: 'border-emerald-700/60 bg-emerald-900/40 text-emerald-400' },
+  fled:     { label: 'Fled',     badge: 'border-amber-700/60 bg-amber-900/40 text-amber-400' },
+  surrendered: { label: 'Surrendered', badge: 'border-sky-700/60 bg-sky-900/40 text-sky-400' },
+};
+
+const CombatLog = ({ encounters }: { encounters: EncounterState[] }) => {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="border-b border-slate-800">
+      <button
+        onClick={() => setOpen(p => !p)}
+        className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-slate-800/40 transition-colors"
+      >
+        <span className="text-xs font-black uppercase tracking-widest text-slate-400">Combat Log</span>
+        <span className="text-slate-600 text-xs">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="flex flex-col gap-2 px-4 pb-3">
+          {encounters.map((enc, i) => {
+            const outcome = OUTCOME_STYLES[enc.status] ?? OUTCOME_STYLES.defeated;
+            return (
+              <div key={i} className="flex flex-col gap-1.5 rounded-2xl border border-slate-700/50 bg-slate-800/30 px-3 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-black uppercase tracking-wide text-slate-200 truncate">{enc.name}</span>
+                  <span className={`shrink-0 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${outcome.badge}`}>
+                    {outcome.label}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {enc.enemies.map(enemy => (
+                    <span
+                      key={enemy.id}
+                      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${
+                        enemy.status === 'defeated'
+                          ? 'border-rose-900/50 bg-rose-950/30 text-rose-500 line-through opacity-60'
+                          : enemy.status === 'fled'
+                            ? 'border-amber-900/50 bg-amber-950/30 text-amber-500'
+                            : 'border-slate-700/50 bg-slate-800/50 text-slate-400'
+                      }`}
+                    >
+                      {enemy.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const HpChangeBadges = ({ hpChanges }: { hpChanges: HpChange[] }) => (
   <div className="flex flex-wrap gap-1.5">
@@ -235,6 +290,7 @@ const TurnDetail = ({
 export const ChronicleDrawer = ({
   history,
   party,
+  pastEncounters,
   onClose,
   onSelectTurn,
   viewedTurnIdx,
@@ -283,6 +339,11 @@ export const ChronicleDrawer = ({
           <h2 className="font-display font-black uppercase tracking-widest text-amber-500 text-base">Chronicle</h2>
         </div>
       </div>
+
+      {/* Combat log */}
+      {pastEncounters && pastEncounters.length > 0 && (
+        <CombatLog encounters={pastEncounters} />
+      )}
 
       {/* Turn list */}
       <div className="flex-1 overflow-y-auto scrollbar-hide">

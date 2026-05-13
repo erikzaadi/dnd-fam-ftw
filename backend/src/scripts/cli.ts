@@ -9,7 +9,7 @@
  *   namespaces      list | create <name> | rename <id> <name> | delete <id>
  *                   sessions <id> | assign-session <sessionId> <nsId>
  *                   add-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
- *   sessions        list [--json] | nuke | seed | export | import
+ *   sessions        list [--json] | nuke | seed | export | import | regenerate-dm-prep <id>
  *   metrics         [--json] | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>]
  *   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
  */
@@ -24,6 +24,7 @@ dotenv.config({ path: path.join(__dirname, '../../../.env'), quiet: true });
 
 import Database from 'libsql';
 import { StateService } from '../services/stateService.js';
+import { StorySummaryService } from '../services/storySummaryService.js';
 import { getConfig } from '../config/env.js';
 
 const [, , resource, subcommand, ...rest] = process.argv;
@@ -609,6 +610,32 @@ case 'sessions': {
     console.log(`\nImported ${importedCount} session(s).`);
     break;
   }
+  case 'regenerate-dm-prep': {
+    const [sessionId] = positional;
+    if (!sessionId) {
+      fail('Usage: cli sessions regenerate-dm-prep <sessionId>');
+    }
+    const session = await StateService.getSession(sessionId);
+    if (!session) {
+      fail(`Session not found: ${sessionId}`);
+    }
+    console.log(`Regenerating DM prep for "${session.displayName}" (${sessionId})...`);
+    const brief = await StorySummaryService.generateCampaignBrief(
+      sessionId,
+      session.worldDescription,
+      session.displayName,
+      session.difficulty,
+      session.gameMode,
+    );
+    if (brief) {
+      console.log('\nDone. New DM prep:\n');
+      console.log(brief);
+    } else {
+      console.error('Failed to generate DM prep.');
+      process.exit(1);
+    }
+    break;
+  }
   default:
     console.log(`
 sessions <sub-command>
@@ -617,6 +644,7 @@ sessions <sub-command>
   seed                                                  Seed example sessions (dev only, idempotent)
   export [--session <id>] [--namespace <id>] [--output <file>]   Export sessions to JSON (stdout if no --output)
   import <file.json> [--namespace-id <id>]              Import sessions from a JSON export file
+  regenerate-dm-prep <sessionId>                        Regenerate the DM campaign brief and encounter seeds using AI
 `);
   }
   break;

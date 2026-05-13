@@ -790,6 +790,7 @@ export const SessionPage = () => {
           <ChronicleDrawer
             history={history}
             party={session.party}
+            pastEncounters={session.pastEncounters}
             onClose={() => {
               setShowChronicle(false);
               setViewedTurnIdx(history.length - 1);
