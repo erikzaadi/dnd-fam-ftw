@@ -290,3 +290,108 @@ describe('sessionRepository.cloneOnboardingSession', () => {
     }
   });
 });
+
+describe('sessionRepository encounter state persistence', () => {
+  it('saves and loads encounter state via updateSession', async () => {
+    insertSession('repo-encounter-update');
+    const state: SessionState = {
+      id: 'repo-encounter-update',
+      scene: 'Forest Glade',
+      sceneId: 'forest-1',
+      turn: 2,
+      party: [],
+      activeCharacterId: '',
+      npcs: [],
+      quests: [],
+      lastChoices: [],
+      tone: 'tense',
+      recentHistory: [],
+      displayName: 'Encounter Test',
+      difficulty: 'normal',
+      gameMode: 'balanced',
+      savingsMode: false,
+      interventionState: { rescuesUsed: 0 },
+      storySummary: '',
+      gameOver: false,
+      encounterState: {
+        id: 'enc-001',
+        name: 'Thornwood Guardian',
+        status: 'active',
+        round: 1,
+        enemies: [{
+          id: 'enemy-001',
+          name: 'Vine Beast',
+          role: 'standard',
+          hp: 6,
+          maxHp: 8,
+          status: 'active',
+          weaknesses: [{ id: 'wk-001', label: 'fire', school: 'fire', revealed: true }],
+        }],
+        areas: [{ id: 'area-001', label: 'Writhing Roots', description: 'Tangled roots cover the ground', tags: ['hazard'] }],
+        objective: 'Defeat the guardian',
+      },
+    };
+
+    await sessionRepository.updateSession('repo-encounter-update', state);
+    const loaded = await sessionRepository.getSession('repo-encounter-update');
+
+    expect(loaded?.encounterState).toMatchObject({
+      id: 'enc-001',
+      name: 'Thornwood Guardian',
+      status: 'active',
+      round: 1,
+    });
+    expect(loaded?.encounterState?.enemies[0]).toMatchObject({ id: 'enemy-001', hp: 6, maxHp: 8 });
+    expect(loaded?.encounterState?.areas[0].label).toBe('Writhing Roots');
+  });
+
+  it('saves and loads dm_prep_encounters via patchSession', async () => {
+    insertSession('repo-encounter-patch');
+    const seeds = [
+      {
+        name: 'Shadow Ambush',
+        triggerHint: 'when party enters the dark alley',
+        enemies: [{ name: 'Shadow Wraith', role: 'elite' as const, weaknesses: [{ label: 'holy', school: 'holy' as const }] }],
+        areas: [{ label: 'Dark Alley', tags: ['hazard', 'shadow'] }],
+        objective: 'Survive the ambush',
+        lootHint: 'a shadow-touched amulet',
+      },
+    ];
+
+    await sessionRepository.patchSession('repo-encounter-patch', { dmPrepEncounters: seeds });
+    const loaded = await sessionRepository.getSession('repo-encounter-patch');
+
+    expect(loaded?.dmPrepEncounters).toHaveLength(1);
+    expect(loaded?.dmPrepEncounters?.[0]).toMatchObject({ name: 'Shadow Ambush', lootHint: 'a shadow-touched amulet' });
+  });
+
+  it('clears encounter state when set to null', async () => {
+    insertSession('repo-encounter-clear');
+    const state: SessionState = {
+      id: 'repo-encounter-clear',
+      scene: 'Test',
+      sceneId: 'test-1',
+      turn: 1,
+      party: [],
+      activeCharacterId: '',
+      npcs: [],
+      quests: [],
+      lastChoices: [],
+      tone: 'calm',
+      recentHistory: [],
+      displayName: 'Clear Test',
+      difficulty: 'easy',
+      gameMode: 'balanced',
+      savingsMode: false,
+      interventionState: { rescuesUsed: 0 },
+      storySummary: '',
+      gameOver: false,
+      encounterState: { id: 'enc-tmp', name: 'Temp', status: 'active', enemies: [], areas: [], round: 1 },
+    };
+    await sessionRepository.updateSession('repo-encounter-clear', state);
+
+    await sessionRepository.patchSession('repo-encounter-clear', { encounterState: null });
+    const loaded = await sessionRepository.getSession('repo-encounter-clear');
+    expect(loaded?.encounterState).toBeUndefined();
+  });
+});

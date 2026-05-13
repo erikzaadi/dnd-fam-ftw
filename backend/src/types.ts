@@ -1,4 +1,4 @@
-import type { Choice, ActionAttempt, SceneMomentum, ScenePressure, Session } from '@dnd-fam-ftw/shared';
+import type { Choice, ActionAttempt, SceneMomentum, ScenePressure, Session, EncounterState, EncounterSeed } from '@dnd-fam-ftw/shared';
 
 export type * from '@dnd-fam-ftw/shared';
 
@@ -14,6 +14,8 @@ export interface SessionState extends Session {
   worldDescription?: string;
   dmPrep?: string;
   dmPrepImageBrief?: string;
+  encounterState?: EncounterState;
+  dmPrepEncounters?: EncounterSeed[];
   npcs: string[];
   quests: string[];
   lastChoices: Choice[];

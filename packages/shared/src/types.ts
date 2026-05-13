@@ -49,15 +49,90 @@ export interface InventoryItem {
   boundToCharacterId?: string;
 }
 
-export interface CharacterBuff {
+export interface BaseEffect {
   id: string;
   name: string;
   description: string;
-  kind?: 'buff' | 'curse';
   statBonuses?: { might?: number; magic?: number; mischief?: number };
+  damagePerTurn?: number;
   remainingTurns?: number;
   remainingUses?: number;
   sourceCharacterName?: string;
+}
+
+export interface CharacterBuff extends BaseEffect {
+  kind?: 'buff' | 'curse';
+}
+
+export interface EncounterEffect extends BaseEffect {
+  kind: 'buff' | 'curse' | 'damage_over_time' | 'control' | 'marked';
+}
+
+export interface EncounterWeakness {
+  id: string;
+  label: string;
+  school?: 'fire' | 'frost' | 'light' | 'shadow' | 'nature' | 'storm' | 'mind' | 'force' | 'holy' | 'mechanical';
+  stat?: 'might' | 'magic' | 'mischief';
+  damageMultiplier?: number;
+  bonusDamage?: number;
+  revealed: boolean;
+}
+
+export interface EncounterResistance {
+  id: string;
+  label: string;
+  school?: EncounterWeakness['school'];
+  stat?: EncounterWeakness['stat'];
+  damageMultiplier: number;
+}
+
+export interface EncounterArea {
+  id: string;
+  label: string;
+  description: string;
+  tags: string[];
+  effect?: string;
+}
+
+export interface EncounterEnemy {
+  id: string;
+  name: string;
+  aliases?: string[];
+  role: 'minion' | 'standard' | 'elite' | 'boss' | 'hazard';
+  hp: number;
+  maxHp: number;
+  armor?: number;
+  traits?: string[];
+  weaknesses?: EncounterWeakness[];
+  resistances?: EncounterResistance[];
+  effects?: EncounterEffect[];
+  intent?: string;
+  status: 'active' | 'defeated' | 'fled' | 'surrendered';
+}
+
+export interface EncounterState {
+  id: string;
+  name: string;
+  status: 'active' | 'defeated' | 'fled' | 'surrendered' | 'resolved';
+  enemies: EncounterEnemy[];
+  areas: EncounterArea[];
+  round: number;
+  objective?: string;
+  lastResolvedEnemyName?: string;
+}
+
+export interface EncounterSeed {
+  name: string;
+  triggerHint: string;
+  enemies: Array<{
+    name: string;
+    role: EncounterEnemy['role'];
+    weaknesses: Array<{ label: string; school?: EncounterWeakness['school'] }>;
+    traits?: string[];
+  }>;
+  areas: Array<{ label: string; tags: string[] }>;
+  objective?: string;
+  lootHint?: string;
 }
 
 export interface Character {

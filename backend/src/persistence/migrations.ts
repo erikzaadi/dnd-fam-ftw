@@ -317,4 +317,12 @@ export const migrate = (db: DB): void => {
   if (!sessionColsFull.includes('preview_image_url')) {
     db.prepare("ALTER TABLE sessions ADD COLUMN preview_image_url TEXT").run();
   }
+
+  const sessionColsFinal = (db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[]).map(r => r.name);
+  if (!sessionColsFinal.includes('encounter_state')) {
+    db.prepare("ALTER TABLE sessions ADD COLUMN encounter_state TEXT").run();
+  }
+  if (!sessionColsFinal.includes('dm_prep_encounters')) {
+    db.prepare("ALTER TABLE sessions ADD COLUMN dm_prep_encounters TEXT").run();
+  }
 };
