@@ -183,6 +183,9 @@ function normalizeNarrationMetadata(input: NarrationInput, output: ValidNarratio
         choice.flavor = 'standard';
         delete choice.helperCharacterName;
       }
+    } else if (choice.helperCharacterName) {
+      // helperCharacterName is only meaningful on combo choices
+      delete choice.helperCharacterName;
     }
   }
 }
@@ -358,6 +361,17 @@ function normalizeEncounterOutput(input: NarrationInput, output: ValidNarrationO
   }
 }
 
+function validateChoiceActors(input: NarrationInput, output: ValidNarrationOutput): string | null {
+  if (!input.nextCharacterName) {
+    return null;
+  }
+  const selfHelper = output.choices.find(c => c.helperCharacterName === input.nextCharacterName);
+  if (selfHelper) {
+    return `Choice "${selfHelper.label}" names "${input.nextCharacterName}" as a helper but that character IS the next actor. Write all 3 choices as actions FOR ${input.nextCharacterName}, not involving them as a helper.`;
+  }
+  return null;
+}
+
 export function parseNarrationOutput(
   input: NarrationInput,
   raw: unknown,
@@ -371,6 +385,12 @@ export function parseNarrationOutput(
 
   stripNarrationEmDashes(parsed.data);
   canonicalizeItemChoices(input, parsed.data);
+  if (enforceGameplayGuards) {
+    const choiceActorError = validateChoiceActors(input, parsed.data);
+    if (choiceActorError) {
+      return { success: false, error: choiceActorError };
+    }
+  }
   normalizeNarrationMetadata(input, parsed.data);
   normalizeEncounterOutput(input, parsed.data);
   if (enforceGameplayGuards) {

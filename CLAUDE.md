@@ -86,6 +86,7 @@ terraform/                         # AWS infrastructure
 - **`README.md`** - update if adding a major feature or changing dev/deploy steps
 - **`MANAGE.md`** - update if adding/changing CLI commands, deploy scripts, or env vars
 - **`GAME_ENGINE_RULES.md`** - update if changing `gameEngine.ts` logic, difficulty, or turn types
+- **`DM_PREP.md`** - update if changing DM Prep processing, encounter seed schema, or how seeds trigger
 - **`frontend/src/pages/HowToPlay.tsx`** - update when gameplay rules or player-visible flow changes
 
 ## Coding conventions
