@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { GameEngine } from './gameEngine.js';
-import type { Character, EncounterState, SessionState } from '../types.js';
+import type { Character, EncounterSeed, EncounterState, SessionState } from '../types.js';
 
 const makeChar = (overrides: Partial<Character> = {}): Character => ({
   id: 'hero-1',
@@ -695,5 +695,38 @@ describe('GameEngine.updateState - encounter auto-damage', () => {
     const attempt = { actionAttempt: 'Wait', actionResult: { success: false, roll: 3, statUsed: 'might' as const } };
     const result = GameEngine.updateState(session, attempt, {});
     expect(result.encounterState!.enemies[0].hp).toBeLessThan(6);
+  });
+
+  it('starts a prepared encounter when high-tension narration names a seed enemy but omits suggestedEncounterStart', () => {
+    const dmPrepEncounters: EncounterSeed[] = [{
+      name: 'Memory Crabs Skirmish',
+      triggerHint: 'when party enters the Graying Shore',
+      enemies: [{
+        name: 'Memory Crab',
+        role: 'minion',
+        weaknesses: [{ label: 'bright light', school: 'light' }],
+        traits: ['swarming', 'quick'],
+      }],
+      areas: [{ label: 'sandy shore littered with memories', tags: ['beach', 'danger'] }],
+      objective: 'defeat the crabs to retrieve lost memories',
+      lootHint: 'Compass Medallion',
+    }];
+    const session = makeSession({ dmPrepEncounters });
+    const attempt = {
+      actionAttempt: 'Gather your strength for a fight',
+      actionResult: { success: false, roll: 6, statUsed: 'might' as const },
+    };
+
+    const result = GameEngine.updateState(session, attempt, {
+      narration: 'A sudden rustle in the sand reveals a swarm of Memory Crabs.',
+      imagePrompt: 'A hero surrounded by swarming Memory Crabs on the Graying Shore.',
+      currentTensionLevel: 'high',
+      suggestedDamage: 2,
+      suggestedEncounterStart: null,
+    });
+
+    expect(result.encounterState?.name).toBe('Memory Crabs Skirmish');
+    expect(result.encounterState?.enemies[0].name).toBe('Memory Crab');
+    expect(result.encounterState?.enemies[0].weaknesses?.[0].label).toBe('bright light');
   });
 });

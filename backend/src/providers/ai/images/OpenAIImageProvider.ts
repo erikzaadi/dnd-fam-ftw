@@ -5,12 +5,19 @@ export class OpenAIImageProvider implements ImageProvider {
   async generateImage(input: ImageGenerationInput): Promise<ImageGenerationOutput> {
     const prompt = input.prompt;
 
+    const model = getOpenAIImageModel();
+    const isDallE3 = model === 'dall-e-3';
     const response = await createOpenAIClient().images.generate({
-      model: getOpenAIImageModel(),
+      model,
       prompt,
       n: 1,
       size: '1024x1024',
-      response_format: 'b64_json',
+      // dall-e-3: force b64 (defaults to url) and use its quality vocabulary.
+      // gpt-image-* models: don't accept response_format; use 'low' quality for
+      // speed and cost - sufficient for DnD scene illustration.
+      ...(isDallE3
+        ? { response_format: 'b64_json', quality: 'standard' }
+        : { quality: 'low' }),
     });
 
     const item = response.data?.[0];

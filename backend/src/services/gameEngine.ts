@@ -1,6 +1,6 @@
-import { Character, SessionState, ActionAttempt, InventoryItem, Choice, type CharacterBuff, type Stat, type Difficulty } from '../types.js';
+import { Character, SessionState, ActionAttempt, InventoryItem, Choice, type CharacterBuff, type Stat, type Difficulty, type TensionLevel } from '../types.js';
 import { createId } from '../lib/ids.js';
-import { handleEncounterStart, applyEncounterUpdate, computeImpactDamage, computeEnemyDamage } from './encounterService.js';
+import { handleEncounterStart, applyEncounterUpdate, computeImpactDamage, computeEnemyDamage, inferSeededEncounterStart } from './encounterService.js';
 import type { EncounterStartProposal, EncounterUpdateProposal } from '../providers/ai/narration/narrationSchemas.js';
 
 export class GameEngine {
@@ -539,17 +539,23 @@ export class GameEngine {
         const recipient = targetCharacterName
           ? (GameEngine.findCharacter(newState.party, targetCharacterName) ?? actingChar)
           : actingChar;
-        const boundToCharacter = typeof boundToCharacterName === 'string'
-          ? GameEngine.findCharacter(newState.party, boundToCharacterName)
-          : undefined;
-        recipient.inventory.push({
-          ...itemData,
-          statBonuses: this.capItemStatBonuses(itemData.statBonuses),
-          tags: this.cleanItemTags(itemData.tags),
-          charges: typeof itemData.charges === 'number' ? Math.min(9, Math.max(0, Math.round(itemData.charges))) : undefined,
-          boundToCharacterId: boundToCharacter?.id ?? itemData.boundToCharacterId,
-          id: createId(),
-        });
+        const normalizedNewName = this.normalize(itemData.name ?? '');
+        const alreadyHas = normalizedNewName && recipient.inventory.some(
+          i => this.normalize(i.name) === normalizedNewName
+        );
+        if (!alreadyHas) {
+          const boundToCharacter = typeof boundToCharacterName === 'string'
+            ? GameEngine.findCharacter(newState.party, boundToCharacterName)
+            : undefined;
+          recipient.inventory.push({
+            ...itemData,
+            statBonuses: this.capItemStatBonuses(itemData.statBonuses),
+            tags: this.cleanItemTags(itemData.tags),
+            charges: typeof itemData.charges === 'number' ? Math.min(9, Math.max(0, Math.round(itemData.charges))) : undefined,
+            boundToCharacterId: boundToCharacter?.id ?? itemData.boundToCharacterId,
+            id: createId(),
+          });
+        }
       }
 
       // Inventory update from AI suggestion (bless/enchant/reveal/damage an existing item)
@@ -634,9 +640,37 @@ export class GameEngine {
           encounterStart as EncounterStartProposal,
           newState.dmPrepEncounters,
           newState.encounterState,
+          newState.pastEncounters,
         );
         if (started) {
           newState.encounterState = started;
+        }
+      }
+      // Only attempt inferred encounter start when no encounter is running AND
+      // the encounter didn't just resolve this turn (victory narration would
+      // otherwise immediately re-trigger the same seed).
+      const encounterJustResolved =
+        state.encounterState?.status === 'active' &&
+        newState.encounterState?.status !== 'active';
+      if (!encounterJustResolved && newState.encounterState?.status !== 'active') {
+        const inferredEncounterStart = inferSeededEncounterStart({
+          narration: typeof aiSuggestedChanges?.narration === 'string' ? aiSuggestedChanges.narration : null,
+          imagePrompt: typeof aiSuggestedChanges?.imagePrompt === 'string' ? aiSuggestedChanges.imagePrompt : null,
+          choices: Array.isArray(aiSuggestedChanges?.choices) ? aiSuggestedChanges.choices as Choice[] : null,
+          actionAttempt: actionAttempt.actionAttempt,
+          currentTensionLevel: typeof aiSuggestedChanges?.currentTensionLevel === 'string' ? aiSuggestedChanges.currentTensionLevel as TensionLevel : null,
+          suggestedDamage: typeof aiSuggestedChanges?.suggestedDamage === 'number' ? aiSuggestedChanges.suggestedDamage : null,
+        }, newState.dmPrepEncounters, newState.encounterState);
+        if (inferredEncounterStart) {
+          const started = handleEncounterStart(
+            inferredEncounterStart,
+            newState.dmPrepEncounters,
+            newState.encounterState,
+            newState.pastEncounters,
+          );
+          if (started) {
+            newState.encounterState = started;
+          }
         }
       }
 

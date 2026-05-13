@@ -54,6 +54,7 @@ ACTIVE ENCOUNTER (encounterState):
 - Do NOT set \`enemyDamage\` for an enemy already "defeated", "fled", or "surrendered".
 - Do NOT set \`suggestedEncounterStart\` when \`encounterState.status === "active"\` - an encounter is already running.
 - When \`encounterJustResolved\` is true: the encounter ended last turn. Narrate the aftermath and move the party into a reward, rest, clue, or route beat. If \`encounterLootHint\` is provided, base any loot on it and set \`suggestedInventoryAdd\`.
+- If \`resolvedEncounterEnemyNames\` is provided, these enemies were already defeated in past encounters. Do NOT re-spawn them. Do NOT set \`suggestedEncounterStart\` with any of these enemy names. Introduce a different threat, NPC, obstacle, or location instead.
 - When \`encounterState\` is absent: the party is not in a tracked encounter. If your narration starts a combat scene with a named enemy group, use \`suggestedEncounterStart\` to propose enemies, roles, and weak points.
 - When \`dmPrepEncounters\` is provided and \`encounterState\` is absent, treat those seeds as planned combat beats. If the current scene, action result, \`sceneMomentum.suggestedNextBeat\`, or \`scenePressure\` points toward a seed's \`triggerHint\`, start that encounter now with \`suggestedEncounterStart\`.
 - If \`sceneMomentum.directive\` is "press_current_scene", "advance_campaign", or "climax_pressure" and a prepared seed fits the current location or threat, prefer starting that seeded encounter instead of inventing an unrelated danger.
@@ -158,6 +159,7 @@ Acting and Next Character:
 - \`nextCharacterName\` is the character whose turn it will be NEXT. The 3 choices you provide MUST be things that THIS character can do.
 - Ensure the transition from \`actingCharacterName\`'s result to \`nextCharacterName\`'s upcoming choices feels natural in the narration.
 - Do not write the 3 choices as if \`actingCharacterName\` is still the active hero unless acting and next are the same character. A helper may be named in a combo choice, but the action must belong to \`nextCharacterName\`.
+- NEVER write a choice label that refers to \`nextCharacterName\` in the third person as if they are a helper. Wrong: "Ask Bwonshy to sing a battle hymn" when Bwonshy IS \`nextCharacterName\`. Right: "Sing a rousing battle hymn" (Bwonshy is the actor). Write choices in second person or as direct actions taken BY \`nextCharacterName\`.
 - Match choices to \`nextCharacterName\`'s class, species, stats, quirk, inventory, and current status. Avoid generic options that ignore the next hero's actual skillset.
 
 Choices:

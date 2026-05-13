@@ -1,5 +1,5 @@
 import { createId } from '../lib/ids.js';
-import type { EncounterArea, EncounterEnemy, EncounterSeed, EncounterState, Impact, Stat } from '../types.js';
+import type { Choice, EncounterArea, EncounterEnemy, EncounterSeed, EncounterState, Impact, Stat, TensionLevel } from '../types.js';
 import type { EncounterStartProposal, EncounterUpdateProposal } from '../providers/ai/narration/narrationSchemas.js';
 
 // HP bands by role (midpoint of range)
@@ -27,6 +27,15 @@ export const normalizeEnemyName = (name: string): string =>
 
 const normalizeEncounterName = (name: string): string =>
   name.trim().toLowerCase().replace(LEADING_ARTICLES, '').replace(STRIP_PUNCT, '').replace(/\s+/g, ' ').trim();
+
+const containsNormalizedTerm = (text: string, term: string): boolean => {
+  const normalizedText = normalizeEncounterName(text);
+  const normalizedTerm = normalizeEncounterName(term);
+  if (!normalizedTerm) {
+    return false;
+  }
+  return normalizedText.includes(normalizedTerm);
+};
 
 // Generate aliases from a name: words of 4+ chars as additional short forms
 const buildAliases = (name: string): string[] => {
@@ -165,15 +174,95 @@ const createFromProposal = (proposal: EncounterStartProposal): EncounterState =>
   objective: proposal.objective ?? undefined,
 });
 
+const proposalFromSeed = (seed: EncounterSeed): EncounterStartProposal => ({
+  name: seed.name,
+  enemies: seed.enemies.map(enemy => ({
+    name: enemy.name,
+    role: enemy.role,
+    traits: enemy.traits ?? null,
+    weaknesses: enemy.weaknesses ?? null,
+  })),
+  areas: seed.areas.map(area => ({
+    label: area.label,
+    tags: area.tags,
+  })),
+  objective: seed.objective ?? null,
+});
+
+export const inferSeededEncounterStart = (
+  input: {
+    narration?: string | null;
+    imagePrompt?: string | null;
+    choices?: Choice[] | null;
+    actionAttempt?: string | null;
+    currentTensionLevel?: TensionLevel | null;
+    suggestedDamage?: number | null;
+  },
+  seeds: EncounterSeed[] | undefined,
+  currentEncounter: EncounterState | undefined,
+): EncounterStartProposal | null => {
+  if (currentEncounter?.status === 'active' || !seeds?.length) {
+    return null;
+  }
+
+  const hasImmediateDanger = input.currentTensionLevel === 'high' || (typeof input.suggestedDamage === 'number' && input.suggestedDamage > 0);
+  if (!hasImmediateDanger) {
+    return null;
+  }
+
+  const choiceText = (input.choices ?? [])
+    .map(choice => `${choice.label} ${choice.narration ?? ''} ${choice.environmentFeature ?? ''}`)
+    .join(' ');
+  const haystack = [
+    input.narration ?? '',
+    input.imagePrompt ?? '',
+    input.actionAttempt ?? '',
+    choiceText,
+  ].join(' ');
+
+  const seed = seeds.find(candidate => {
+    if (candidate.enemies.length === 0) {
+      return false;
+    }
+    // Don't re-start an encounter whose name matches the one just resolved.
+    // The victory narration always mentions the defeated enemies, which would
+    // otherwise immediately re-trigger the same encounter seed.
+    if (
+      currentEncounter &&
+      currentEncounter.status !== 'active' &&
+      normalizeEncounterName(candidate.name) === normalizeEncounterName(currentEncounter.name)
+    ) {
+      return false;
+    }
+    if (containsNormalizedTerm(haystack, candidate.name)) {
+      return true;
+    }
+    return candidate.enemies.some(enemy => containsNormalizedTerm(haystack, enemy.name));
+  });
+
+  return seed ? proposalFromSeed(seed) : null;
+};
+
 // Main entry point for handling suggestedEncounterStart
 export const handleEncounterStart = (
   proposal: EncounterStartProposal,
   seeds: EncounterSeed[] | undefined,
   currentEncounter: EncounterState | undefined,
+  pastEncounters?: EncounterState[],
 ): EncounterState | null => {
   // Don't start a new encounter if one is already active
   if (currentEncounter?.status === 'active') {
     return null;
+  }
+
+  // Block re-spawning an encounter whose enemies were all already defeated recently
+  if (pastEncounters && pastEncounters.length > 0) {
+    const recentDefeatedNames = new Set(
+      pastEncounters.slice(-5).flatMap(enc => enc.enemies.map(e => normalizeEnemyName(e.name)))
+    );
+    if (proposal.enemies.every(e => recentDefeatedNames.has(normalizeEnemyName(e.name)))) {
+      return null;
+    }
   }
 
   const seed = seeds ? resolveEncounterSeed(proposal.name, seeds) : null;

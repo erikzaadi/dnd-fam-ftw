@@ -93,6 +93,12 @@ function resolvedThreatPhrases(input: NarrationInput): Set<string> {
     }
   }
 
+  // Include actual enemy names from recently-resolved encounters so named enemy
+  // types (e.g. "Memory Wraith") are caught even when the generic regex misses them.
+  for (const name of input.resolvedEncounterEnemyNames ?? []) {
+    phrases.add(normalizedText(name));
+  }
+
   return phrases;
 }
 
@@ -222,11 +228,16 @@ function validateMomentumOutput(input: NarrationInput, output: ValidNarrationOut
     }
 
     if (momentum.directive === 'victory_exit') {
-      const choicesInNewBeat = output.choices.filter(choice => CONCRETE_TRANSITION_RE.test(`${choice.label} ${choice.narration ?? ''}`)).length;
-      const allChoicesStillCombat = output.choices.every(choice => COMBAT_LABEL_RE.test(`${choice.label} ${choice.narration ?? ''}`));
-      const combatChoiceCount = output.choices.filter(choice => COMBAT_LABEL_RE.test(`${choice.label} ${choice.narration ?? ''}`)).length;
-      if (!CONCRETE_TRANSITION_RE.test(fullText) || choicesInNewBeat < 2 || allChoicesStillCombat || combatChoiceCount > 1) {
-        return 'Victory exit must move the party into a new beat, and at least two choices must act inside that new beat. No more than one choice may read as another attack.';
+      // Skip the victory-exit guard when an encounter is still actively running.
+      // The momentum service can fire victory_exit based on turn count before all
+      // enemies are actually defeated, so we should not penalize valid combat narration.
+      if (input.encounterState?.status !== 'active') {
+        const choicesInNewBeat = output.choices.filter(choice => CONCRETE_TRANSITION_RE.test(`${choice.label} ${choice.narration ?? ''}`)).length;
+        const allChoicesStillCombat = output.choices.every(choice => COMBAT_LABEL_RE.test(`${choice.label} ${choice.narration ?? ''}`));
+        const combatChoiceCount = output.choices.filter(choice => COMBAT_LABEL_RE.test(`${choice.label} ${choice.narration ?? ''}`)).length;
+        if (!CONCRETE_TRANSITION_RE.test(fullText) || choicesInNewBeat < 2 || allChoicesStillCombat || combatChoiceCount > 1) {
+          return 'Victory exit must move the party into a new beat, and at least two choices must act inside that new beat. No more than one choice may read as another attack.';
+        }
       }
     }
 
@@ -296,6 +307,15 @@ function normalizeEncounterOutput(input: NarrationInput, output: ValidNarrationO
   // Block encounter start when one is already active
   if (output.suggestedEncounterStart != null && input.encounterState?.status === 'active') {
     output.suggestedEncounterStart = null;
+  }
+
+  // Block re-spawning enemies that were all defeated in recent encounters
+  if (output.suggestedEncounterStart != null && (input.resolvedEncounterEnemyNames?.length ?? 0) > 0) {
+    const resolvedNames = new Set((input.resolvedEncounterEnemyNames ?? []).map(n => normalizedText(n)));
+    const allDefeated = output.suggestedEncounterStart.enemies.every(e => resolvedNames.has(normalizedText(e.name)));
+    if (allDefeated) {
+      output.suggestedEncounterStart = null;
+    }
   }
 
   const update = output.suggestedEncounterUpdate;

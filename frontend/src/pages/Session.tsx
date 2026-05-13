@@ -834,7 +834,7 @@ export const SessionPage = () => {
             </button>
           </div>
           <div className="flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col gap-2">
-            {session.encounterState && (
+            {session.encounterState?.status === 'active' && (
               <EncounterPanel
                 encounter={session.encounterState}
                 highlighted={lastRoll?.encounterId === session.encounterState.id}
@@ -935,7 +935,7 @@ export const SessionPage = () => {
             <DmDecisionRecapPanel lastSubmittedAction={lastSubmittedAction} ttsSettings={ttsSettings} />
           ) : (
             <div className="flex h-full min-h-0 flex-col gap-2">
-              {session.encounterState && (
+              {session.encounterState?.status === 'active' && (
                 <EncounterPanel
                   encounter={session.encounterState}
                   highlighted={lastRoll?.encounterId === session.encounterState.id}

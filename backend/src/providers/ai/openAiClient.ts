@@ -22,5 +22,5 @@ export function getOpenAIModel(): string {
 }
 
 export function getOpenAIImageModel(): string {
-  return process.env.OPENAI_IMAGE_MODEL ?? 'dall-e-3';
+  return process.env.OPENAI_IMAGE_MODEL ?? 'gpt-image-2';
 }

@@ -117,7 +117,7 @@ Create a `.env` file.
 ```
 OPENAI_API_KEY=sk-proj-...
 OPENAI_MODEL=gpt-4o-mini
-OPENAI_IMAGE_MODEL=dall-e-3
+OPENAI_IMAGE_MODEL=gpt-image-2
 ```
 
 **OpenRouter (free models available : no credit card required):**

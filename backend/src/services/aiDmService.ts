@@ -103,6 +103,11 @@ export function toNarrationInput(input: AIInput): NarrationInput {
     ...(input.actionIntent && { actionIntent: input.actionIntent }),
     ...(input.encounterState && { encounterState: input.encounterState }),
     encounterJustResolved: input.encounterState != null && input.encounterState.status !== 'active',
+    ...(input.pastEncounters && input.pastEncounters.length > 0 && {
+      resolvedEncounterEnemyNames: [...new Set(
+        input.pastEncounters.slice(-5).flatMap(enc => enc.enemies.map(e => e.name))
+      )],
+    }),
     ...(input.encounterState != null && input.encounterState.status !== 'active' && input.dmPrepEncounters
       ? (() => {
         const seed = resolveEncounterSeed(input.encounterState!.name, input.dmPrepEncounters!);

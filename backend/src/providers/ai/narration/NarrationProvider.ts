@@ -90,6 +90,7 @@ export type NarrationInput = {
   encounterState?: EncounterState;
   encounterJustResolved?: boolean;
   encounterLootHint?: string;
+  resolvedEncounterEnemyNames?: string[];
 };
 
 export type NarrationOutput = {
