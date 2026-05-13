@@ -19,6 +19,8 @@ export const FIXED_NARRATION_OUTPUT: NarrationOutput = {
   suggestedBuffAdd: null,
   suggestedBuffRemove: null,
   suggestedDamage: null,
+  suggestedEncounterStart: null,
+  suggestedEncounterUpdate: null,
 };
 
 export const mockGenerateTurn = vi.fn<(input: NarrationInput) => Promise<NarrationOutput>>();

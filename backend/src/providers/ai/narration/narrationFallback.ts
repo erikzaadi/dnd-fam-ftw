@@ -73,5 +73,7 @@ export function buildNarrationFallback(input: NarrationInput): NarrationOutput {
     suggestedBuffAdd: null,
     suggestedBuffRemove: null,
     suggestedDamage: null,
+    suggestedEncounterStart: null,
+    suggestedEncounterUpdate: null,
   };
 }

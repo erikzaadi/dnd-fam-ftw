@@ -1,5 +1,7 @@
 import { Character, SessionState, ActionAttempt, InventoryItem, Choice, type CharacterBuff, type Stat, type Difficulty } from '../types.js';
 import { createId } from '../lib/ids.js';
+import { handleEncounterStart, applyEncounterUpdate } from './encounterService.js';
+import type { EncounterStartProposal, EncounterUpdateProposal } from '../providers/ai/narration/narrationSchemas.js';
 
 export class GameEngine {
   private static DIFFICULTIES = {
@@ -598,6 +600,24 @@ export class GameEngine {
               targetItem.boundToCharacterId = GameEngine.findCharacter(newState.party, update.boundToCharacterName)?.id;
             }
           }
+        }
+      }
+
+      // Encounter: apply update first (damage/effects/status), then start if proposed
+      const encounterUpdate = aiSuggestedChanges?.suggestedEncounterUpdate;
+      if (encounterUpdate && typeof encounterUpdate === 'object' && newState.encounterState?.status === 'active') {
+        newState.encounterState = applyEncounterUpdate(newState.encounterState, encounterUpdate as EncounterUpdateProposal);
+      }
+
+      const encounterStart = aiSuggestedChanges?.suggestedEncounterStart;
+      if (encounterStart && typeof encounterStart === 'object' && !Array.isArray(encounterStart)) {
+        const started = handleEncounterStart(
+          encounterStart as EncounterStartProposal,
+          newState.dmPrepEncounters,
+          newState.encounterState,
+        );
+        if (started) {
+          newState.encounterState = started;
         }
       }
 

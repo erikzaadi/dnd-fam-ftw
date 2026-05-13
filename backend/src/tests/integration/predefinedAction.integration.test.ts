@@ -186,6 +186,8 @@ describe('executeTurnAction predefined action integration', () => {
       suggestedBuffAdd: null,
       suggestedBuffRemove: null,
       suggestedDamage: null,
+      suggestedEncounterStart: null,
+      suggestedEncounterUpdate: null,
       narrationRetried: true,
       narrationFailed: true,
       narrationValidationError: 'Rejected raw story about a portal.',

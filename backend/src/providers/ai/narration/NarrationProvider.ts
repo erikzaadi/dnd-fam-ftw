@@ -1,4 +1,5 @@
-import type { CharacterBuff, ChoiceFlavor, Difficulty, GameMode, Impact, SceneMomentum, ScenePressure, Stat, TensionLevel } from '../../../types.js';
+import type { CharacterBuff, ChoiceFlavor, Difficulty, EncounterState, GameMode, Impact, SceneMomentum, ScenePressure, Stat, TensionLevel } from '../../../types.js';
+import type { EncounterStartProposal, EncounterUpdateProposal } from './narrationSchemas.js';
 
 export type NarrationChoice = {
   label: string;
@@ -85,6 +86,9 @@ export type NarrationInput = {
   interventionRescue?: boolean;
   sanctuaryRecovery?: boolean;
   actionIntent?: string;
+  encounterState?: EncounterState;
+  encounterJustResolved?: boolean;
+  encounterLootHint?: string;
 };
 
 export type NarrationOutput = {
@@ -129,6 +133,8 @@ export type NarrationOutput = {
   suggestedBuffAdd: Array<{ characterName: string } & Omit<CharacterBuff, 'id'>> | null;
   suggestedBuffRemove: { characterName: string; buffName: string } | null;
   suggestedDamage: number | null;
+  suggestedEncounterStart: EncounterStartProposal | null;
+  suggestedEncounterUpdate: EncounterUpdateProposal | null | undefined;
   narrationRetried?: boolean;
   narrationFailed?: boolean;
   narrationValidationError?: string;

@@ -76,6 +76,7 @@ export interface EncounterWeakness {
   damageMultiplier?: number;
   bonusDamage?: number;
   revealed: boolean;
+  broken?: boolean;
 }
 
 export interface EncounterResistance {
@@ -266,6 +267,8 @@ export interface TurnResult {
   narrationFailed?: boolean;
   narrationValidationError?: string;
   narrationRetryValidationError?: string;
+  suggestedEncounterStart?: unknown | null;
+  suggestedEncounterUpdate?: unknown | null;
 }
 
 export interface SessionPreview {

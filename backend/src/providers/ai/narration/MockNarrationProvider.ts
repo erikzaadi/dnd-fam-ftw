@@ -35,6 +35,8 @@ export class MockNarrationProvider implements NarrationProvider {
       suggestedBuffAdd: null,
       suggestedBuffRemove: null,
       suggestedDamage: null,
+      suggestedEncounterStart: null,
+      suggestedEncounterUpdate: null,
     };
   }
 }

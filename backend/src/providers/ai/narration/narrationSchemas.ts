@@ -1,6 +1,83 @@
 import { z } from 'zod';
 import { CHOICE_FLAVOR_VALUES, DIFFICULTY_VALUES, STAT_VALUES, TENSION_LEVEL_VALUES } from '../../../types.js';
 
+const ENCOUNTER_SCHOOLS = ['fire', 'frost', 'light', 'shadow', 'nature', 'storm', 'mind', 'force', 'holy', 'mechanical'] as const;
+const ENCOUNTER_ROLES = ['minion', 'standard', 'elite', 'boss', 'hazard'] as const;
+const ENCOUNTER_ENEMY_STATUSES = ['defeated', 'fled', 'surrendered'] as const;
+const ENCOUNTER_EFFECT_KINDS = ['buff', 'curse', 'damage_over_time', 'control', 'marked'] as const;
+
+const encounterWeaknessProposalSchema = z.object({
+  label: z.string().min(1),
+  school: z.enum(ENCOUNTER_SCHOOLS).optional().nullable(),
+});
+
+const encounterEnemyProposalSchema = z.object({
+  name: z.string().min(1),
+  role: z.enum(ENCOUNTER_ROLES),
+  traits: z.array(z.string().min(1)).max(6).optional().nullable(),
+  weaknesses: z.array(encounterWeaknessProposalSchema).max(4).optional().nullable(),
+});
+
+const encounterAreaProposalSchema = z.object({
+  label: z.string().min(1),
+  description: z.string().optional().nullable(),
+  tags: z.array(z.string().min(1)).max(5).optional().nullable(),
+});
+
+export const suggestedEncounterStartSchema = z.object({
+  name: z.string().min(1),
+  enemies: z.array(encounterEnemyProposalSchema).min(1).max(3),
+  areas: z.array(encounterAreaProposalSchema).max(4).optional().nullable(),
+  objective: z.string().optional().nullable(),
+});
+
+const enemyTargetSchema = z.object({
+  enemyId: z.string().optional().nullable(),
+  enemyName: z.string().optional().nullable(),
+});
+
+const encounterEffectProposalSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().min(1),
+  kind: z.enum(ENCOUNTER_EFFECT_KINDS),
+  damagePerTurn: z.number().int().min(0).max(4).optional().nullable(),
+  remainingTurns: z.number().int().min(1).max(6).optional().nullable(),
+  statBonuses: z.object({
+    might: z.number().optional().nullable(),
+    magic: z.number().optional().nullable(),
+    mischief: z.number().optional().nullable(),
+  }).optional().nullable(),
+});
+
+export const suggestedEncounterUpdateSchema = z.object({
+  enemyDamage: z.array(enemyTargetSchema.extend({
+    amount: z.number().int().min(0).max(20),
+    reason: z.string().min(1),
+  })).max(5).optional().nullable(),
+  enemyStatus: z.array(enemyTargetSchema.extend({
+    status: z.enum(ENCOUNTER_ENEMY_STATUSES),
+    reason: z.string().min(1),
+  })).max(5).optional().nullable(),
+  revealWeakness: z.array(enemyTargetSchema.extend({
+    label: z.string().min(1),
+  })).max(5).optional().nullable(),
+  breakWeakness: z.array(enemyTargetSchema.extend({
+    label: z.string().min(1),
+  })).max(5).optional().nullable(),
+  addEffect: z.array(enemyTargetSchema.extend({
+    effect: encounterEffectProposalSchema,
+  })).max(5).optional().nullable(),
+  removeEffect: z.array(enemyTargetSchema.extend({
+    effectName: z.string().min(1),
+  })).max(5).optional().nullable(),
+  areaUpdate: z.array(z.object({
+    areaId: z.string().optional().nullable(),
+    label: z.string().min(1),
+    description: z.string().optional().nullable(),
+    tags: z.array(z.string().min(1)).max(5).optional().nullable(),
+  })).max(4).optional().nullable(),
+}).optional().nullable();
+
 const choiceSchema = z.object({
   label: z.string().min(1),
   difficulty: z.enum(DIFFICULTY_VALUES),
@@ -102,9 +179,13 @@ export const narrationOutputSchema = z.object({
   suggestedBuffAdd: z.preprocess(val => (val !== null && val !== undefined && !Array.isArray(val) ? [val] : val), z.array(buffAddSchema).nullable()).default(null),
   suggestedBuffRemove: buffRemoveSchema.nullable().default(null),
   suggestedDamage: z.number().int().min(0).max(20).nullable().default(null),
+  suggestedEncounterStart: suggestedEncounterStartSchema.optional().nullable(),
+  suggestedEncounterUpdate: suggestedEncounterUpdateSchema,
 });
 
 export type ValidNarrationOutput = z.infer<typeof narrationOutputSchema>;
+export type EncounterStartProposal = z.infer<typeof suggestedEncounterStartSchema>;
+export type EncounterUpdateProposal = NonNullable<z.infer<typeof suggestedEncounterUpdateSchema>>;
 
 export const NARRATION_FALLBACK: ValidNarrationOutput = {
   narration: 'The situation grows more mysterious, but the adventure continues.',
@@ -124,4 +205,6 @@ export const NARRATION_FALLBACK: ValidNarrationOutput = {
   suggestedBuffAdd: null,
   suggestedBuffRemove: null,
   suggestedDamage: null,
+  suggestedEncounterStart: null,
+  suggestedEncounterUpdate: null,
 };

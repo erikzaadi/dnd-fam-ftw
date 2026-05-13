@@ -1,5 +1,6 @@
 import { createChatClient } from '../providers/ai/AiProviderFactory.js';
 import { StateService } from './stateService.js';
+import type { EncounterSeed } from '../types.js';
 
 const SUMMARY_INTERVAL = 5;
 
@@ -13,6 +14,28 @@ CURRENT ARC: Early discovery | Mid escalation | Climax - choose one and add a sh
 OPEN THREAD: one unresolved clue, threat, NPC, location, item, or promise the party can act on next.
 NEXT PROMISED BEAT: one concrete next beat the DM should pay off soon.
 RECENTLY RESOLVED: one combat, challenge, clue, or scene that should not be repeated.`;
+};
+
+const ENCOUNTER_SEEDS_MARKER = 'ENCOUNTER_SEEDS:';
+
+export const parseEncounterSeeds = (raw: string): { brief: string; seeds: EncounterSeed[] | null } => {
+  const markerIdx = raw.indexOf(ENCOUNTER_SEEDS_MARKER);
+  if (markerIdx === -1) {
+    return { brief: raw.trim(), seeds: null };
+  }
+  const brief = raw.slice(0, markerIdx).trim();
+  const jsonRaw = raw.slice(markerIdx + ENCOUNTER_SEEDS_MARKER.length).trim();
+  try {
+    const fenceMatch = jsonRaw.match(/```(?:json)?\s*([\s\S]*?)```/);
+    const jsonStr = fenceMatch ? fenceMatch[1].trim() : jsonRaw;
+    const parsed = JSON.parse(jsonStr) as unknown;
+    if (!Array.isArray(parsed)) {
+      return { brief, seeds: null };
+    }
+    return { brief, seeds: parsed as EncounterSeed[] };
+  } catch {
+    return { brief, seeds: null };
+  }
 };
 
 export class StorySummaryService {
@@ -107,13 +130,38 @@ TREASURE: (2-3 thematic rewards or items that feel tied to the world)
 STAGES: Early - | Mid - | Climax -
 DM NOTE: (one pacing rule and one fail-forward rule for this campaign)
 
-Be specific: invent names, places, visual details, clues, and recurring motifs. This guides the AI Dungeon Master turn by turn. Keep it playful, adventurous, and safe for a family table.`;
+Be specific: invent names, places, visual details, clues, and recurring motifs. This guides the AI Dungeon Master turn by turn. Keep it playful, adventurous, and safe for a family table.
 
-      const brief = await this.callSummarize(prompt, 900, 90_000, `campaign brief session=${sessionId}`);
-      if (brief) {
+After the prose sections above, append one machine-readable block:
+ENCOUNTER_SEEDS:
+A JSON array of the 1-4 combat encounters described in the ENCOUNTERS and STAGES sections. Each entry must follow this schema exactly:
+{
+  "name": "string - short encounter name like Thornwood Guardian",
+  "triggerHint": "string - when this encounter fires, e.g. when party enters the Thornwood",
+  "enemies": [
+    {
+      "name": "string",
+      "role": "minion|standard|elite|boss|hazard",
+      "weaknesses": [{ "label": "string", "school": "fire|frost|light|shadow|nature|storm|mind|force|holy|mechanical|null" }],
+      "traits": ["string"]
+    }
+  ],
+  "areas": [{ "label": "string", "tags": ["string"] }],
+  "objective": "string - optional combat objective",
+  "lootHint": "string - one thematic item tied to this encounter from the TREASURE section, or null"
+}
+Output only a JSON array, no extra text. Omit null values instead of writing null.`;
+
+      const raw = await this.callSummarize(prompt, 1200, 90_000, `campaign brief session=${sessionId}`);
+      if (raw) {
+        const { brief, seeds } = parseEncounterSeeds(raw);
         const imageBrief = await this.generateDmPrepImageBrief(brief, sessionId);
-        await StateService.patchSession(sessionId, { dmPrep: brief, dmPrepImageBrief: imageBrief });
-        console.log(`[Campaign] Brief generated for session ${sessionId}`);
+        await StateService.patchSession(sessionId, { dmPrep: brief, dmPrepImageBrief: imageBrief, dmPrepEncounters: seeds });
+        if (seeds) {
+          console.log(`[Campaign] Brief + ${seeds.length} encounter seed(s) generated for session ${sessionId}`);
+        } else {
+          console.log(`[Campaign] Brief generated (no encounter seeds parsed) for session ${sessionId}`);
+        }
         return brief;
       }
       return null;

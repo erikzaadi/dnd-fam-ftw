@@ -53,6 +53,8 @@ const output = (overrides: Partial<NarrationOutput> = {}): NarrationOutput => ({
   suggestedBuffAdd: null,
   suggestedBuffRemove: null,
   suggestedDamage: null,
+  suggestedEncounterStart: null,
+  suggestedEncounterUpdate: null,
   ...overrides,
 });
 

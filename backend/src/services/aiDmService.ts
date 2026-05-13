@@ -2,6 +2,7 @@ import { AIInput, TurnResult } from '../types.js';
 import { createNarrationProvider } from '../providers/ai/AiProviderFactory.js';
 import type { NarrationInput } from '../providers/ai/narration/NarrationProvider.js';
 import { buildNarrationFallback } from '../providers/ai/narration/narrationFallback.js';
+import { resolveEncounterSeed } from './encounterService.js';
 
 export function toNarrationInput(input: AIInput): NarrationInput {
   const actingChar = input.party.find(c => c.id === input.characterId);
@@ -99,6 +100,14 @@ export function toNarrationInput(input: AIInput): NarrationInput {
     interventionRescue: input.interventionRescue,
     sanctuaryRecovery: input.sanctuaryRecovery,
     ...(input.actionIntent && { actionIntent: input.actionIntent }),
+    ...(input.encounterState && { encounterState: input.encounterState }),
+    encounterJustResolved: input.encounterState != null && input.encounterState.status !== 'active',
+    ...(input.encounterState != null && input.encounterState.status !== 'active' && input.dmPrepEncounters
+      ? (() => {
+        const seed = resolveEncounterSeed(input.encounterState!.name, input.dmPrepEncounters!);
+        return seed?.lootHint ? { encounterLootHint: seed.lootHint } : {};
+      })()
+      : {}),
   };
 }
 
@@ -124,6 +133,8 @@ export class AiDmService {
         suggestedBuffAdd: output.suggestedBuffAdd ?? null,
         suggestedBuffRemove: output.suggestedBuffRemove ?? null,
         suggestedDamage: output.suggestedDamage ?? null,
+        suggestedEncounterStart: output.suggestedEncounterStart ?? null,
+        suggestedEncounterUpdate: output.suggestedEncounterUpdate ?? null,
         narrationRetried: output.narrationRetried ?? false,
         narrationFailed: output.narrationFailed ?? false,
         narrationValidationError: output.narrationValidationError,

@@ -211,7 +211,8 @@ export const createSessionRouter = () => {
       res.status(500).json({ error: 'Failed to generate campaign brief' });
       return;
     }
-    res.json({ dmPrep: brief });
+    const updated = await StateService.getSession(session.id);
+    res.json({ dmPrep: brief, dmPrepEncounters: updated?.dmPrepEncounters ?? null });
   }));
 
   router.post('/session/:id/start', asyncHandler(async (req, res) => {
