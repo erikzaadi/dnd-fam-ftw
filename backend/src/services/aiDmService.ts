@@ -108,7 +108,7 @@ export function toNarrationInput(input: AIInput): NarrationInput {
         input.pastEncounters.slice(-5).flatMap(enc => enc.enemies.map(e => e.name))
       )],
     }),
-    ...(input.encounterState != null && input.encounterState.status !== 'active' && input.dmPrepEncounters
+    ...(input.encounterState != null && input.dmPrepEncounters
       ? (() => {
         const seed = resolveEncounterSeed(input.encounterState!.name, input.dmPrepEncounters!);
         return seed?.lootHint ? { encounterLootHint: seed.lootHint } : {};

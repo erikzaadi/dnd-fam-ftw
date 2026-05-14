@@ -107,6 +107,75 @@ export class ImageService {
     }
   }
 
+  public static async generateAreaImage(
+    area: { label: string; description?: string; tags?: string[] },
+    sessionId: string,
+    overrideImageProvider?: ImageProvider,
+    overrideStorageProvider?: ImageStorageProvider,
+  ): Promise<{ url: string; storageKey: string; storageProvider: string }> {
+    const tagDesc = area.tags?.length ? `, ${area.tags.slice(0, 4).join(', ')}` : '';
+    const descDetail = area.description?.trim() ? `. ${area.description}` : '';
+    const prompt = buildImagePrompt(
+      `Fantasy encounter battleground: ${area.label}${tagDesc}${descDetail}. Wide establishing shot, no characters, dramatic atmospheric lighting.`,
+      IMAGE_PROMPT_STYLE.preview,
+    );
+    const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
+    const safeLabel = area.label.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const fileName = `encounter_area_${sessionId}_${safeLabel}_${promptHash}.png`;
+    const storage = overrideStorageProvider ?? getImageStorageProvider();
+    const config = getConfig();
+
+    if (await storage.exists(fileName)) {
+      return { url: storage.getPublicUrl(fileName), storageKey: fileName, storageProvider: config.IMAGE_STORAGE_PROVIDER };
+    }
+
+    try {
+      console.log(`[ImageService] Generating area image for ${area.label}`);
+      const imageProvider = overrideImageProvider ?? createImageProvider();
+      const result = await imageProvider.generateImage({ prompt });
+      const buffer = await this.fetchImageBuffer(result.url);
+      const stored = await storage.putImage({ key: fileName, contentType: 'image/png', body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
+      return { url: stored.publicUrl, storageKey: stored.key, storageProvider: config.IMAGE_STORAGE_PROVIDER };
+    } catch (error) {
+      console.error(`[ImageService] Area image generation failed for ${area.label}:`, error);
+      return { url: '', storageKey: '', storageProvider: 'local' };
+    }
+  }
+
+  public static async generateEnemyAvatar(
+    enemy: { name: string; role: string; traits?: string[] },
+    sessionId: string,
+    overrideImageProvider?: ImageProvider,
+    overrideStorageProvider?: ImageStorageProvider,
+  ): Promise<{ url: string; storageKey: string; storageProvider: string }> {
+    const traitDesc = enemy.traits?.length ? ` with traits: ${enemy.traits.slice(0, 3).join(', ')}` : '';
+    const prompt = buildImagePrompt(
+      `Extreme close-up avatar of a ${enemy.role} fantasy creature: ${enemy.name}${traitDesc}. Dark atmospheric background, dramatic rim lighting. Only the creature's head and upper body visible. Menacing and intimidating.`,
+      IMAGE_PROMPT_STYLE.avatar,
+    );
+    const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
+    const safeName = enemy.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const fileName = `enemy_avatar_${sessionId}_${safeName}_${promptHash}.png`;
+    const storage = overrideStorageProvider ?? getImageStorageProvider();
+    const config = getConfig();
+
+    if (await storage.exists(fileName)) {
+      return { url: storage.getPublicUrl(fileName), storageKey: fileName, storageProvider: config.IMAGE_STORAGE_PROVIDER };
+    }
+
+    try {
+      console.log(`[ImageService] Generating enemy avatar for ${enemy.name}`);
+      const imageProvider = overrideImageProvider ?? createImageProvider();
+      const result = await imageProvider.generateImage({ prompt });
+      const buffer = await this.fetchImageBuffer(result.url);
+      const stored = await storage.putImage({ key: fileName, contentType: 'image/png', body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
+      return { url: stored.publicUrl, storageKey: stored.key, storageProvider: config.IMAGE_STORAGE_PROVIDER };
+    } catch (error) {
+      console.error(`[ImageService] Enemy avatar generation failed for ${enemy.name}:`, error);
+      return { url: '', storageKey: '', storageProvider: 'local' };
+    }
+  }
+
   public static async generateImage(
     prompt: string,
     sessionId: string,

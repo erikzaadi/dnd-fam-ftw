@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { CSSProperties } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import type { Session, Character, TurnResult, HpChange, InventoryChange, FreeActionPreview } from '../types';
+import type { Session, Character, TurnResult, HpChange, InventoryChange, EncounterEnemyChange, FreeActionPreview } from '../types';
 import { apiFetch, imgSrc } from '../lib/api';
 import { useSessionEvents } from '../hooks/useSessionEvents';
 import { PageLoader } from '../components/PageLoader';
@@ -78,7 +78,7 @@ export const SessionPage = () => {
   const [confirmDialog, setConfirmDialog] = useState<{message: string; confirmLabel?: string; onConfirm: () => void} | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
-  const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; helperBonus?: number; helperCharacterName?: string; choiceItemBonus?: number; choiceItemName?: string; choiceItemOwnerName?: string; characterBonus?: number; characterBonusLabel?: string; buffBonus?: number; buffBonusLabel?: string; impact?: 'normal' | 'strong' | 'extreme'; isCritical?: boolean; difficultyTarget?: number; rollNarration?: string; hpChanges?: HpChange[]; inventoryChanges?: InventoryChange[]; encounterId?: string; encounterName?: string; encounterStatus?: string } | null>(null);
+  const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; helperBonus?: number; helperCharacterName?: string; choiceItemBonus?: number; choiceItemName?: string; choiceItemOwnerName?: string; characterBonus?: number; characterBonusLabel?: string; buffBonus?: number; buffBonusLabel?: string; impact?: 'normal' | 'strong' | 'extreme'; isCritical?: boolean; difficultyTarget?: number; rollNarration?: string; hpChanges?: HpChange[]; inventoryChanges?: InventoryChange[]; encounterEnemyChanges?: EncounterEnemyChange[]; encounterId?: string; encounterName?: string; encounterStatus?: string } | null>(null);
   const [dieExiting, setDieExiting] = useState(false);
   const [interventionBanner, setInterventionBanner] = useState<string | null>(null);
   const [sanctuaryBanner, setSanctuaryBanner] = useState<string | null>(null);
@@ -309,6 +309,7 @@ export const SessionPage = () => {
           rollNarration: turnResult?.rollNarration,
           hpChanges: turnResult?.hpChanges,
           inventoryChanges: turnResult?.inventoryChanges,
+          encounterEnemyChanges: turnResult?.encounterEnemyChanges,
           encounterId: turnResult?.encounterId,
           encounterName: turnEncounter?.name,
           encounterStatus: turnEncounter?.status,
@@ -1039,6 +1040,20 @@ export const SessionPage = () => {
                     <span>{ic.type === 'added' ? '＋' : ic.type === 'updated' ? '✦' : '－'}</span>
                     <span className="normal-case tracking-normal font-semibold">{ic.itemName}</span>
                     <span className="opacity-60">→ {ic.characterName.split(' ')[0]}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {lastRoll.encounterEnemyChanges && lastRoll.encounterEnemyChanges.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 justify-center mt-2">
+                {lastRoll.encounterEnemyChanges.map((ec, i) => (
+                  <div
+                    key={i}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black border ${ec.newStatus && ec.newStatus !== 'active' ? 'bg-rose-950/60 border-rose-700/70 text-rose-300' : 'bg-orange-900/40 border-orange-700/50 text-orange-300'}`}
+                  >
+                    {ec.hpChange !== 0 && <span>{ec.hpChange < 0 ? '-' : '+'}{Math.abs(ec.hpChange)}</span>}
+                    <span className="normal-case tracking-normal font-semibold">{ec.enemyName.split(' ')[0]}</span>
+                    {ec.newStatus && ec.newStatus !== 'active' && <span className="opacity-70 uppercase">{ec.newStatus}</span>}
                   </div>
                 ))}
               </div>

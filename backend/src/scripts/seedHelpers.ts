@@ -85,11 +85,13 @@ export function seedTurn(
     characterBonus?: number;
     characterBonusLabel?: string;
   } = {},
+  encounterId: string | null = null,
+  encounterEnemyChanges: string | null = null,
 ): void {
-  const info = db.prepare(`INSERT INTO turn_history (sessionId, characterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionChoiceItemBonus, actionChoiceItemName, actionChoiceItemOwnerName, actionCharacterBonus, actionCharacterBonusLabel, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges)
-    VALUES (?, ?, ?, ?, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+  const info = db.prepare(`INSERT INTO turn_history (sessionId, characterId, encounterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionChoiceItemBonus, actionChoiceItemName, actionChoiceItemOwnerName, actionCharacterBonus, actionCharacterBonusLabel, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges, encounterEnemyChanges)
+    VALUES (?, ?, ?, ?, ?, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(
-      sessionId, characterId, narration, rollNarration, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus,
+      sessionId, characterId, encounterId, narration, rollNarration, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus,
       actionDetails.itemBonus ?? null,
       actionDetails.helperBonus ?? null,
       actionDetails.helperCharacterName ?? null,
@@ -98,7 +100,7 @@ export function seedTurn(
       actionDetails.choiceItemOwnerName ?? null,
       actionDetails.characterBonus ?? null,
       actionDetails.characterBonusLabel ?? null,
-      actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges,
+      actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges, encounterEnemyChanges,
     );
   const turnId = info.lastInsertRowid;
   for (const c of choices) {

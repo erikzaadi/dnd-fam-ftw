@@ -1,4 +1,4 @@
-import type { BuffChange, Character, HpChange, InventoryChange } from '../types.js';
+import type { BuffChange, Character, EncounterEnemyChange, EncounterState, HpChange, InventoryChange } from '../types.js';
 
 export const computeHpChanges = (before: Character[], after: Character[]): HpChange[] => {
   const changes: HpChange[] = [];
@@ -41,6 +41,33 @@ export const computeInventoryChanges = (before: Character[], after: Character[])
       if (!afterIds.has(item.id)) {
         changes.push({ characterName: beforeChar.name, itemName: item.name, type: 'removed' });
       }
+    }
+  }
+  return changes;
+};
+
+export const computeEncounterEnemyChanges = (
+  before: EncounterState | null | undefined,
+  after: EncounterState | null | undefined,
+): EncounterEnemyChange[] => {
+  if (!before || !after || before.id !== after.id) {
+    return [];
+  }
+  const changes: EncounterEnemyChange[] = [];
+  for (const beforeEnemy of before.enemies) {
+    const afterEnemy = after.enemies.find(e => e.id === beforeEnemy.id);
+    if (!afterEnemy) {
+      continue;
+    }
+    const hpChange = afterEnemy.hp - beforeEnemy.hp;
+    const statusChanged = afterEnemy.status !== beforeEnemy.status;
+    if (hpChange !== 0 || statusChanged) {
+      changes.push({
+        enemyId: beforeEnemy.id,
+        enemyName: beforeEnemy.name,
+        hpChange,
+        ...(statusChanged && { newStatus: afterEnemy.status }),
+      });
     }
   }
   return changes;

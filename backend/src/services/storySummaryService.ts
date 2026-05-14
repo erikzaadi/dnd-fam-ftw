@@ -1,5 +1,6 @@
 import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
 import { StateService } from './stateService.js';
+import { ImageService } from './imageService.js';
 import type { EncounterSeed } from '../types.js';
 
 const SUMMARY_INTERVAL = 5;
@@ -169,7 +170,7 @@ A JSON array of the 1-4 combat encounters described in the ENCOUNTERS and STAGES
       "traits": ["string"]
     }
   ],
-  "areas": [{ "label": "string", "tags": ["string"] }],
+  "areas": [{ "label": "string", "tags": ["string"], "effect": "optional 1-sentence quirky or dangerous area effect, e.g. 'slippery ice floor', 'arcane surge zone', 'crumbling ledge'. Omit if none." }],
   "objective": "string - optional combat objective",
   "lootHint": "string - one thematic item tied to this encounter from the TREASURE section, or null"
 }
@@ -178,10 +179,13 @@ The JSON block must be a valid JSON array with no extra text or prose inside it.
       const raw = await this.callSummarize(prompt, 2000, 90_000, `campaign brief session=${sessionId}`);
       if (raw) {
         const { brief, seeds } = parseEncounterSeeds(raw);
-        const imageBrief = await this.generateDmPrepImageBrief(brief, sessionId);
-        await StateService.patchSession(sessionId, { dmPrep: brief, dmPrepImageBrief: imageBrief, dmPrepEncounters: seeds });
-        if (seeds) {
-          console.log(`[Campaign] Brief + ${seeds.length} encounter seed(s) generated for session ${sessionId}`);
+        const [imageBrief, seededWithMedia] = await Promise.all([
+          this.generateDmPrepImageBrief(brief, sessionId),
+          this.generateSeedMedia(seeds, sessionId),
+        ]);
+        await StateService.patchSession(sessionId, { dmPrep: brief, dmPrepImageBrief: imageBrief, dmPrepEncounters: seededWithMedia });
+        if (seededWithMedia) {
+          console.log(`[Campaign] Brief + ${seededWithMedia.length} encounter seed(s) generated for session ${sessionId}`);
         } else {
           console.log(`[Campaign] Brief generated (no encounter seeds parsed) for session ${sessionId}`);
         }
@@ -223,6 +227,38 @@ ${dmPrep}`;
       console.warn('[Campaign] DM prep image brief generation failed:', err);
       return null;
     }
+  }
+
+  static async generateSeedMedia(seeds: EncounterSeed[] | null, sessionId: string): Promise<EncounterSeed[] | null> {
+    if (!seeds?.length) {
+      return seeds;
+    }
+    const session = await StateService.getSession(sessionId);
+    if (session?.savingsMode) {
+      return seeds;
+    }
+    const updated = await Promise.all(seeds.map(async seed => {
+      const [enemies, areas] = await Promise.all([
+        Promise.all(seed.enemies.map(async enemy => {
+          try {
+            const result = await ImageService.generateEnemyAvatar(enemy, sessionId);
+            return result.url ? { ...enemy, avatarUrl: result.url } : enemy;
+          } catch {
+            return enemy;
+          }
+        })),
+        Promise.all(seed.areas.map(async area => {
+          try {
+            const result = await ImageService.generateAreaImage(area, sessionId);
+            return result.url ? { ...area, imageUrl: result.url } : area;
+          } catch {
+            return area;
+          }
+        })),
+      ]);
+      return { ...seed, enemies, areas };
+    }));
+    return updated;
   }
 
   private static async callSummarize(prompt: string, maxTokens = 900, timeoutMs = 20_000, label = 'summary'): Promise<string> {

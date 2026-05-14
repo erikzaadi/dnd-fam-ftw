@@ -134,15 +134,21 @@ const hydrateFromSeed = (
         return {};
       })(),
       status: 'active',
+      ...(se.avatarUrl && { avatarUrl: se.avatarUrl }),
     };
   });
 
-  const areas: EncounterArea[] = (seed.areas ?? []).map(a => ({
-    id: createId(),
-    label: a.label,
-    description: '',
-    tags: a.tags?.filter(Boolean) ?? [],
-  }));
+  const areas: EncounterArea[] = (seed.areas ?? []).map(a => {
+    const proposalArea = proposal.areas?.find(pa => pa.label.toLowerCase() === a.label.toLowerCase());
+    return {
+      id: createId(),
+      label: a.label,
+      description: proposalArea?.description ?? '',
+      tags: a.tags?.filter(Boolean) ?? [],
+      ...(a.effect && { effect: a.effect }),
+      ...(a.imageUrl && { imageUrl: a.imageUrl }),
+    };
+  });
 
   // Merge any extra areas from proposal not in seed
   const seedAreaLabels = new Set(areas.map(a => a.label.toLowerCase()));

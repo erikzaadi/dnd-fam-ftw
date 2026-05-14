@@ -4,7 +4,7 @@ import { AiDmService } from './aiDmService.js';
 import { GameEngine } from './gameEngine.js';
 import { StateService } from './stateService.js';
 import { queueCompletedTurnSideEffects } from './turnSideEffectService.js';
-import { computeBuffChanges, computeHpChanges, computeInventoryChanges } from './turnChangeService.js';
+import { computeBuffChanges, computeEncounterEnemyChanges, computeHpChanges, computeInventoryChanges } from './turnChangeService.js';
 import { resolveRiddleAnswer } from './riddleService.js';
 import {
   CHARACTER_EDGE_BONUS,
@@ -123,6 +123,7 @@ export const executeTurnAction = async (
     turnResult.hpChanges = computeHpChanges(session.party, newState.party);
     turnResult.inventoryChanges = computeInventoryChanges(session.party, newState.party);
     turnResult.buffChanges = computeBuffChanges(session.party, newState.party);
+    turnResult.encounterEnemyChanges = computeEncounterEnemyChanges(itemState.encounterState, newState.encounterState);
     turnResult.id = await StateService.addTurnResult(sessionId, turnResult, actingCharId);
     broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
     broadcastSessionChanged(namespaceId, sessionId, 'updated');
@@ -216,6 +217,7 @@ export const executeTurnAction = async (
   turnResult.hpChanges = computeHpChanges(session.party, newState.party);
   turnResult.inventoryChanges = computeInventoryChanges(session.party, newState.party);
   turnResult.buffChanges = computeBuffChanges(session.party, newState.party);
+  turnResult.encounterEnemyChanges = computeEncounterEnemyChanges(session.encounterState, newState.encounterState);
 
   turnResult.id = await StateService.addTurnResult(sessionId, turnResult, actingCharId);
   broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });

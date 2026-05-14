@@ -94,6 +94,7 @@ export interface EncounterArea {
   description: string;
   tags: string[];
   effect?: string;
+  imageUrl?: string;
 }
 
 export interface EncounterEnemy {
@@ -110,6 +111,14 @@ export interface EncounterEnemy {
   effects?: EncounterEffect[];
   intent?: string;
   status: 'active' | 'defeated' | 'fled' | 'surrendered';
+  avatarUrl?: string;
+}
+
+export interface EncounterEnemyChange {
+  enemyId: string;
+  enemyName: string;
+  hpChange: number;
+  newStatus?: EncounterEnemy['status'];
 }
 
 export interface EncounterState {
@@ -131,8 +140,9 @@ export interface EncounterSeed {
     role: EncounterEnemy['role'];
     weaknesses: Array<{ label: string; school?: EncounterWeakness['school'] }>;
     traits?: string[];
+    avatarUrl?: string;
   }>;
-  areas: Array<{ label: string; tags: string[] }>;
+  areas: Array<{ label: string; tags: string[]; effect?: string; imageUrl?: string }>;
   objective?: string;
   lootHint?: string;
 }
@@ -265,6 +275,7 @@ export interface TurnResult {
   hpChanges?: HpChange[];
   inventoryChanges?: InventoryChange[];
   buffChanges?: BuffChange[];
+  encounterEnemyChanges?: EncounterEnemyChange[];
   narrationRetried?: boolean;
   narrationFailed?: boolean;
   narrationValidationError?: string;

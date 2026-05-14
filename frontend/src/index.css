@@ -53,6 +53,11 @@
   100% { transform: scale(1.09) translate(-1%, 1.5%); }
 }
 
+@keyframes kenburns {
+  from { transform: scale(1.05) translate(0%, 0%); }
+  to   { transform: scale(1.15) translate(-2%, -2%); }
+}
+
 @keyframes dice-spin {
   0%   { transform: rotate(0deg) scale(1); }
   20%  { transform: rotate(72deg) scale(1.1) translateY(-3px); }

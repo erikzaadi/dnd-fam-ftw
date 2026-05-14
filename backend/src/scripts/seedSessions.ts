@@ -31,7 +31,7 @@ for (const seedFn of seeds) {
 }
 
 console.log('Seed complete:');
-console.log(`  Session 1 (${S1}): The Goblin King's Lair - 4 chars, 7 turns`);
+console.log(`  Session 1 (${S1}): The Goblin King's Lair - 4 chars, 7 turns (active encounter + encounterEnemyChanges on final 2 turns)`);
 console.log(`  Session 2 (${S2}): Dragon's Peak - 4 chars, 10 turns (intervention + sanctuary)`);
 console.log(`  Session 3 (${S3}): The Merchant's Mystery - 4 chars, 6 turns`);
 console.log(`  Session 4 (${S4}): ZUG-MA-GEDDON - The Endless Arena - 3 chars, 5 turns`);

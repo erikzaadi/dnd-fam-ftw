@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import type { TurnResult, Character, HpChange, InventoryChange, BuffChange, EncounterState } from '../../types';
+import type { TurnResult, Character, HpChange, InventoryChange, BuffChange, EncounterState, EncounterEnemyChange } from '../../types';
 import { imgSrc } from '../../lib/api';
 import { StatImg } from './StatIcon';
 import { beatTarget } from '../../lib/game';
 import { D20 } from './D20';
 import { RollBreakdown } from './RollBreakdown';
+import { EncounterAreaCard } from './EncounterPanel';
 import type { TtsSettings } from '../../tts/ttsTypes';
 import { NarrationTtsButton } from '../NarrationTtsButton';
 import { STAT_COLORS } from '../../lib/statColors';
@@ -70,6 +71,13 @@ const CombatLog = ({ encounters }: { encounters: EncounterState[] }) => {
                     </span>
                   ))}
                 </div>
+                {enc.areas.length > 0 && (
+                  <div className="space-y-1.5">
+                    {enc.areas.map(area => (
+                      <EncounterAreaCard key={area.id} area={area} />
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -132,7 +140,30 @@ const BuffChangeBadges = ({ buffChanges }: { buffChanges: BuffChange[] }) => (
   </div>
 );
 
-const EncounterTurnBadge = ({ encounter }: { encounter: EncounterState }) => {
+const EncounterEnemyChangeBadges = ({ changes }: { changes: EncounterEnemyChange[] }) => (
+  <div className="flex flex-wrap gap-1.5">
+    {changes.map((ec, i) => (
+      <div
+        key={i}
+        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-black border ${ec.newStatus && ec.newStatus !== 'active' ? 'bg-rose-950/60 border-rose-700/70 text-rose-300' : 'bg-orange-900/40 border-orange-700/50 text-orange-300'}`}
+      >
+        {ec.hpChange !== 0 && <span>{ec.hpChange < 0 ? '-' : '+'}{Math.abs(ec.hpChange)}</span>}
+        <span className="normal-case tracking-normal font-semibold truncate max-w-[100px]">{ec.enemyName.split(' ')[0]}</span>
+        {ec.newStatus && ec.newStatus !== 'active' && <span className="opacity-70 uppercase">{ec.newStatus}</span>}
+      </div>
+    ))}
+  </div>
+);
+
+const EncounterTurnBadge = ({ encounter, inProgress }: { encounter: EncounterState; inProgress?: boolean }) => {
+  if (inProgress) {
+    return (
+      <span className="inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-widest border-rose-700/60 bg-rose-900/40 text-rose-300">
+        <span className="truncate">{encounter.name}</span>
+        <span className="opacity-70">In Combat</span>
+      </span>
+    );
+  }
   const outcome = OUTCOME_STYLES[encounter.status] ?? OUTCOME_STYLES.defeated;
   return (
     <span className={`inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-widest ${outcome.badge}`}>
@@ -152,6 +183,7 @@ const TurnDetail = ({
   nextTurnInventoryChanges,
   nextTurnBuffChanges,
   encounter,
+  encounterInProgress,
   ttsSettings,
   hasTts,
 }: {
@@ -163,9 +195,11 @@ const TurnDetail = ({
   nextTurnInventoryChanges?: InventoryChange[];
   nextTurnBuffChanges?: BuffChange[];
   encounter?: EncounterState | null;
+  encounterInProgress?: boolean;
   ttsSettings: TtsSettings;
   hasTts: boolean;
 }) => {
+  const encounterEnemyChanges = turn.encounterEnemyChanges;
   const special = turn.turnType && turn.turnType !== 'normal' ? SPECIAL_TURNS[turn.turnType] : null;
   const roll = takenAction?.actionResult;
   const hasRoll = roll && roll.statUsed !== 'none';
@@ -184,9 +218,18 @@ const TurnDetail = ({
       )}
 
       {encounter && (
-        <div className="flex flex-wrap items-center gap-2">
-          <EncounterTurnBadge encounter={encounter} />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Round {encounter.round}</span>
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <EncounterTurnBadge encounter={encounter} inProgress={encounterInProgress} />
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Round {encounter.round}</span>
+          </div>
+          {encounter.areas.length > 0 && (
+            <div className="space-y-1.5">
+              {encounter.areas.map(area => (
+                <EncounterAreaCard key={area.id} area={area} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -258,6 +301,9 @@ const TurnDetail = ({
       {nextTurnBuffChanges && nextTurnBuffChanges.length > 0 && (
         <BuffChangeBadges buffChanges={nextTurnBuffChanges} />
       )}
+      {encounterEnemyChanges && encounterEnemyChanges.length > 0 && (
+        <EncounterEnemyChangeBadges changes={encounterEnemyChanges} />
+      )}
 
       {/* Custom action */}
       {isCustom && (
@@ -322,6 +368,12 @@ export const ChronicleDrawer = ({
 }: ChronicleDrawerProps) => {
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const encounterLookup = buildEncounterLookup(activeEncounter, pastEncounters);
+  const lastEncounterTurnIdx = new Map<string, number>();
+  history.forEach((t, i) => {
+    if (t.encounterId) {
+      lastEncounterTurnIdx.set(t.encounterId, i);
+    }
+  });
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -388,6 +440,9 @@ export const ChronicleDrawer = ({
             const hasRoll = roll && roll.statUsed !== 'none';
             const rollOutcome = getRollImpactOutcome(roll?.roll, roll?.success, roll?.impact);
             const turnEncounter = turn.encounterId ? encounterLookup.get(turn.encounterId) ?? null : null;
+            const encounterInProgress = turnEncounter != null && turn.encounterId != null
+              && lastEncounterTurnIdx.get(turn.encounterId) !== i
+              && turnEncounter.status !== 'active';
 
             return (
               <div key={i} className={`border-b border-slate-800/60 last:border-0 ${isSelected ? 'bg-amber-500/5' : ''}`}>
@@ -410,7 +465,7 @@ export const ChronicleDrawer = ({
                     </p>
                     {turnEncounter && (
                       <div className="mt-1">
-                        <EncounterTurnBadge encounter={turnEncounter} />
+                        <EncounterTurnBadge encounter={turnEncounter} inProgress={encounterInProgress} />
                       </div>
                     )}
                   </div>
@@ -442,6 +497,7 @@ export const ChronicleDrawer = ({
                       nextTurnInventoryChanges={nextTurn?.inventoryChanges}
                       nextTurnBuffChanges={nextTurn?.buffChanges}
                       encounter={turnEncounter}
+                      encounterInProgress={encounterInProgress}
                       ttsSettings={ttsSettings}
                       hasTts={hasTts}
                     />

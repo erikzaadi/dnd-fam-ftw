@@ -21,6 +21,7 @@ export type {
   EncounterResistance,
   EncounterArea,
   EncounterEnemy,
+  EncounterEnemyChange,
   EncounterState,
   EncounterSeed,
   Character,

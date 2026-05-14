@@ -210,29 +210,31 @@ function normalizeNarrationMetadata(input: NarrationInput, output: ValidNarratio
   }
 }
 
-function replaceEmDashes(value: string): string {
-  return value.replace(/[—]/g, '-');
+const ANSI_RE = new RegExp(String.fromCharCode(0x1b) + String.raw`\[[0-9;]*[a-zA-Z]`, "g");
+
+function cleanText(value: string): string {
+  return value.replace(ANSI_RE, '').replace(/[—]/g, '-');
 }
 
 function stripNarrationEmDashes(output: ValidNarrationOutput): void {
-  output.narration = replaceEmDashes(output.narration);
+  output.narration = cleanText(output.narration);
   if (output.rollNarration) {
-    output.rollNarration = replaceEmDashes(output.rollNarration);
+    output.rollNarration = cleanText(output.rollNarration);
   }
   if (output.imagePrompt) {
-    output.imagePrompt = replaceEmDashes(output.imagePrompt);
+    output.imagePrompt = cleanText(output.imagePrompt);
   }
 
   for (const choice of output.choices) {
-    choice.label = replaceEmDashes(choice.label);
+    choice.label = cleanText(choice.label);
     if (choice.narration) {
-      choice.narration = replaceEmDashes(choice.narration);
+      choice.narration = cleanText(choice.narration);
     }
     if (choice.riddleAnswer) {
-      choice.riddleAnswer = replaceEmDashes(choice.riddleAnswer);
+      choice.riddleAnswer = cleanText(choice.riddleAnswer);
     }
     if (choice.environmentFeature) {
-      choice.environmentFeature = replaceEmDashes(choice.environmentFeature);
+      choice.environmentFeature = cleanText(choice.environmentFeature);
     }
   }
 }
