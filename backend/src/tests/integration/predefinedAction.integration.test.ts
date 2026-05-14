@@ -10,7 +10,7 @@ vi.mock('../../providers/ai/AiProviderFactory.js', async () => {
   const { createMockNarrationProvider } = await import('./mockNarrationProvider.js');
   return {
     createNarrationProvider: vi.fn(() => createMockNarrationProvider()),
-    createChatClient: vi.fn(),
+    createChatClientForTier: vi.fn(),
   };
 });
 

@@ -3,7 +3,7 @@ import type { ImageProvider } from './images/ImageProvider.js';
 import { OpenAINarrationProvider } from './narration/OpenAINarrationProvider.js';
 import { MockNarrationProvider } from './narration/MockNarrationProvider.js';
 import { OpenAIImageProvider } from './images/OpenAIImageProvider.js';
-import { createOpenAIClient, getOpenAIModel } from './openAiClient.js';
+import { createOpenAIClient, getModelForTier } from './openAiClient.js';
 import type OpenAI from 'openai';
 
 export function createNarrationProvider(): NarrationProvider {
@@ -14,10 +14,10 @@ export function createNarrationProvider(): NarrationProvider {
   return new OpenAINarrationProvider();
 }
 
-export function createChatClient(): { client: OpenAI; model: string } {
+export function createChatClientForTier(tier: Parameters<typeof getModelForTier>[0]): { client: OpenAI; model: string } {
   return {
     client: createOpenAIClient(),
-    model: getOpenAIModel(),
+    model: getModelForTier(tier),
   };
 }
 

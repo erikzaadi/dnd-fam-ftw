@@ -1,6 +1,6 @@
 import { createOpenAIClient } from '../providers/ai/openAiClient.js';
 
-const TTS_MODEL = 'gpt-4o-mini-tts';
+const TTS_MODEL = process.env.OPENAI_MODEL_TTS ?? 'gpt-4o-mini-tts';
 const TTS_VOICE_MALE = 'fable';
 const TTS_VOICE_FEMALE = 'sage';
 const TTS_INSTRUCTIONS = 'Speak as a refined British fantasy audiobook narrator. Calm, immersive, measured, and elegant. Use clear pronunciation, restrained drama, and natural pauses. Do not sound like an assistant or announcer.';

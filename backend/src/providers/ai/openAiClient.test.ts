@@ -16,8 +16,10 @@ afterEach(() => {
   vi.clearAllMocks();
   delete process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_BASE_URL;
-  delete process.env.OPENAI_MODEL;
   delete process.env.OPENAI_IMAGE_MODEL;
+  delete process.env.OPENAI_MODEL_NARRATION;
+  delete process.env.OPENAI_MODEL_PREVIEW;
+  delete process.env.OPENAI_MODEL_ASYNC;
 });
 
 describe('openAiClient', () => {
@@ -34,13 +36,31 @@ describe('openAiClient', () => {
     });
   });
 
-  it('uses separate chat and image model env vars', async () => {
-    process.env.OPENAI_MODEL = 'chat-model';
-    process.env.OPENAI_IMAGE_MODEL = 'image-model';
+  it('getModelForTier returns hardcoded defaults when env vars are unset', async () => {
+    const { getModelForTier } = await import('./openAiClient.js');
 
-    const { getOpenAIImageModel, getOpenAIModel } = await import('./openAiClient.js');
+    expect(getModelForTier('narration')).toBe('gpt-4.1-mini');
+    expect(getModelForTier('preview')).toBe('gpt-4.1-nano');
+    expect(getModelForTier('async')).toBe('gpt-4.1');
+  });
 
-    expect(getOpenAIModel()).toBe('chat-model');
-    expect(getOpenAIImageModel()).toBe('image-model');
+  it('getModelForTier respects per-tier env var overrides', async () => {
+    process.env.OPENAI_MODEL_NARRATION = 'custom-narration';
+    process.env.OPENAI_MODEL_PREVIEW = 'custom-preview';
+    process.env.OPENAI_MODEL_ASYNC = 'custom-async';
+
+    const { getModelForTier } = await import('./openAiClient.js');
+
+    expect(getModelForTier('narration')).toBe('custom-narration');
+    expect(getModelForTier('preview')).toBe('custom-preview');
+    expect(getModelForTier('async')).toBe('custom-async');
+  });
+
+  it('getOpenAIImageModel respects env var override', async () => {
+    process.env.OPENAI_IMAGE_MODEL = 'custom-image-model';
+
+    const { getOpenAIImageModel } = await import('./openAiClient.js');
+
+    expect(getOpenAIImageModel()).toBe('custom-image-model');
   });
 });

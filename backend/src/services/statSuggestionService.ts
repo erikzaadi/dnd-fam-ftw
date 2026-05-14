@@ -1,4 +1,4 @@
-import { createChatClient } from '../providers/ai/AiProviderFactory.js';
+import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
 import type { FreeActionBonusPreview } from './freeActionInferenceService.js';
 import { inferFreeActionBonuses, toFreeActionBonusPreview } from './freeActionInferenceService.js';
 import { StateService } from './stateService.js';
@@ -117,7 +117,7 @@ export async function previewFreeAction(
   const encounterSection = ctx ? buildEncounterPromptSection(ctx) : '';
   const hasEncounter = !!encounterSection;
 
-  const { client, model } = createChatClient();
+  const { client, model } = createChatClientForTier('preview');
   try {
     const response = await client.chat.completions.create({
       model,
@@ -223,7 +223,7 @@ export async function suggestPreviewActionText(
     ? `Target gear: ${itemOwner.name}'s ${item.name}. Description: ${item.description}. Effect: ${item.effect ?? 'none'}. Tags: ${(item.tags ?? []).join(', ') || 'none'}.`
     : '';
 
-  const { client, model } = createChatClient();
+  const { client, model } = createChatClientForTier('preview');
   try {
     const response = await client.chat.completions.create({
       model,
@@ -277,7 +277,7 @@ export async function suggestStatForSessionAction(
     : {};
   const storyContext = await buildFreeActionStoryContext(sessionId);
 
-  const { client, model } = createChatClient();
+  const { client, model } = createChatClientForTier('preview');
   try {
     const response = await client.chat.completions.create({
       model,

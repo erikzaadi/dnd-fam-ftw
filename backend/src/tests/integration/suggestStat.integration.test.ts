@@ -8,7 +8,7 @@ const { mockCreateCompletion } = vi.hoisted(() => ({
 }));
 
 vi.mock('../../providers/ai/AiProviderFactory.js', () => ({
-  createChatClient: vi.fn(() => ({
+  createChatClientForTier: vi.fn(() => ({
     client: {
       chat: {
         completions: {

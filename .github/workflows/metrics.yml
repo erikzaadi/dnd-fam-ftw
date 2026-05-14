@@ -186,7 +186,7 @@ jobs:
           PAYLOAD=$(jq -n \
             --arg message "$MESSAGE" \
             '{
-              model: "gpt-4o-mini",
+              model: "gpt-4.1",
               max_tokens: 160,
               messages: [{
                 role: "user",

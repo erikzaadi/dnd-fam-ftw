@@ -1,4 +1,4 @@
-import { createChatClient } from '../providers/ai/AiProviderFactory.js';
+import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
 import { StateService } from './stateService.js';
 import type { EncounterSeed } from '../types.js';
 
@@ -226,7 +226,7 @@ ${dmPrep}`;
   }
 
   private static async callSummarize(prompt: string, maxTokens = 900, timeoutMs = 20_000, label = 'summary'): Promise<string> {
-    const { client, model } = createChatClient();
+    const { client, model } = createChatClientForTier('async');
     const start = Date.now();
     console.log(`[Summary] Starting ${label} model=${model} maxTokens=${maxTokens} timeoutMs=${timeoutMs}`);
     try {

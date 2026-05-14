@@ -1,7 +1,7 @@
-import { createChatClient } from '../providers/ai/AiProviderFactory.js';
+import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
 
 export const generateSessionDisplayName = async (worldDescription: string | undefined): Promise<string> => {
-  const { client, model } = createChatClient();
+  const { client, model } = createChatClientForTier('preview');
   console.log(`[Session] Generating display name via OpenAI-compatible model=${model}`);
   const nameStart = Date.now();
 

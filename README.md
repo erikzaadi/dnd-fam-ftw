@@ -116,8 +116,15 @@ Create a `.env` file.
 **OpenAI-compatible API:**
 ```
 OPENAI_API_KEY=sk-proj-...
-OPENAI_MODEL=gpt-4o-mini
 OPENAI_IMAGE_MODEL=gpt-image-2
+```
+
+Per-tier text model overrides (all have built-in defaults, only set to override):
+```
+OPENAI_MODEL_NARRATION=gpt-4.1-mini   # turn narration, summaries
+OPENAI_MODEL_PREVIEW=gpt-4.1-nano     # action previews, stat suggestions (latency-critical)
+OPENAI_MODEL_ASYNC=gpt-4.1            # campaign brief, story summaries (background)
+OPENAI_MODEL_TTS=gpt-4o-mini-tts      # text-to-speech narration
 ```
 
 **OpenRouter (free models available : no credit card required):**
@@ -125,7 +132,9 @@ Get a key at [openrouter.ai/keys](https://openrouter.ai/keys), then:
 ```
 OPENAI_API_KEY=sk-or-...
 OPENAI_BASE_URL=https://openrouter.ai/api/v1
-OPENAI_MODEL=meta-llama/llama-3.3-8b-instruct:free
+OPENAI_MODEL_NARRATION=meta-llama/llama-3.3-8b-instruct:free
+OPENAI_MODEL_PREVIEW=meta-llama/llama-3.3-8b-instruct:free
+OPENAI_MODEL_ASYNC=meta-llama/llama-3.3-8b-instruct:free
 # Images may not be supported by the selected endpoint : disable image generation if needed
 ```
 Browse free models at [openrouter.ai/models?order=top-weekly&supported_parameters=free](https://openrouter.ai/models?order=top-weekly&supported_parameters=free).
@@ -134,7 +143,9 @@ Browse free models at [openrouter.ai/models?order=top-weekly&supported_parameter
 ```
 OPENAI_API_KEY=localai
 OPENAI_BASE_URL=http://127.0.0.1:8080/v1
-OPENAI_MODEL=qwen3-1.7b
+OPENAI_MODEL_NARRATION=qwen3-1.7b
+OPENAI_MODEL_PREVIEW=qwen3-1.7b
+OPENAI_MODEL_ASYNC=qwen3-1.7b
 # OPENAI_IMAGE_MODEL=<image model exposed by your compatible server>
 ```
 
@@ -265,15 +276,21 @@ See **[MANAGE.md](MANAGE.md)** for the full command reference.
 
 There are seven distinct AI calls in the app, each with a different purpose and cost profile:
 
-| Call | Where | Model env var | When |
-|---|---|---|---|
-| **Turn narration** | `aiDmService.ts` | `OPENAI_MODEL` | Every action : the core DM loop |
-| **Scene image** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | Every turn, async via SSE, cached by prompt hash |
-| **Realm preview image** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | On realm creation and when realm details or party composition change, cached by prompt hash |
-| **Avatar generation** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | Once per character creation, cached permanently |
-| **TLDR summary** | `index.ts` (route) | `OPENAI_MODEL` | On demand in recap screen |
-| **Session naming** | `stateService.ts` | `OPENAI_MODEL` | Once at realm creation |
-| **Character history** | `index.ts` (route) | `OPENAI_MODEL` | When importing a character from a previous session |
+| Call | Where | Model env var | Default | When |
+|---|---|---|---|---|
+| **Turn narration** | `OpenAINarrationProvider.ts` | `OPENAI_MODEL_NARRATION` | `gpt-4.1-mini` | Every action : the core DM loop |
+| **Action preview** | `statSuggestionService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-4.1-nano` | While player types an action |
+| **Stat suggestion** | `statSuggestionService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-4.1-nano` | Character creation and action routing |
+| **Session naming** | `sessionNameService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-4.1-nano` | Once at realm creation |
+| **TLDR summary** | `turnRoutes.ts` | `OPENAI_MODEL_NARRATION` | `gpt-4.1-mini` | On demand in recap screen |
+| **Character history** | `characterRoutes.ts` | `OPENAI_MODEL_NARRATION` | `gpt-4.1-mini` | When importing a character from a previous session |
+| **Campaign brief / DM prep** | `storySummaryService.ts` | `OPENAI_MODEL_ASYNC` | `gpt-4.1` | At realm creation (blocks first turn) |
+| **Story summary** | `storySummaryService.ts` | `OPENAI_MODEL_ASYNC` | `gpt-4.1` | Every 5 turns, background |
+| **Metrics summary** | `.github/workflows/metrics.yml` | hardcoded | `gpt-4.1` | Weekly CI job |
+| **TTS narration** | `ttsService.ts` | `OPENAI_MODEL_TTS` | `gpt-4o-mini-tts` | Every turn, async queued |
+| **Scene image** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | Every turn, async via SSE, cached by prompt hash |
+| **Realm preview image** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | On realm creation, cached |
+| **Avatar generation** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | Once per character creation, cached permanently |
 
 Use `npm run cli -- metrics` (or `./dnd-fam-ftw-prod-cli metrics` on production) to see per-namespace counts for sessions, turns, images, and avatars generated.
 

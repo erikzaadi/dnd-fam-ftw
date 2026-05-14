@@ -4,7 +4,7 @@ import { buildNarrationFallback } from './narrationFallback.js';
 import { NARRATION_SYSTEM_PROMPT, buildNarrationUserContent } from './narrationPrompt.js';
 import { parseNarrationOutput } from './narrationOutputGuards.js';
 import { narrationOutputSchema } from './narrationSchemas.js';
-import { createOpenAIClient, getOpenAIModel } from '../openAiClient.js';
+import { createOpenAIClient, getModelForTier } from '../openAiClient.js';
 
 export class OpenAINarrationProvider implements NarrationProvider {
   async generateTurn(input: NarrationInput): Promise<NarrationOutput> {
@@ -37,7 +37,7 @@ export class OpenAINarrationProvider implements NarrationProvider {
 
   private async callModel(input: NarrationInput, validationError?: string): Promise<unknown> {
     const response = await createOpenAIClient().chat.completions.parse({
-      model: getOpenAIModel(),
+      model: getModelForTier('narration'),
       messages: [
         { role: 'system', content: NARRATION_SYSTEM_PROMPT },
         { role: 'user', content: buildNarrationUserContent(input, validationError) },

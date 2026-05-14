@@ -2,7 +2,7 @@ import { Router } from 'express';
 import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { createId } from '../lib/ids.js';
-import { createChatClient } from '../providers/ai/AiProviderFactory.js';
+import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
 import { broadcastSessionChanged, broadcastUpdate } from '../realtime/sessionEvents.js';
 import { ImageService } from '../services/imageService.js';
 import { StateService } from '../services/stateService.js';
@@ -148,7 +148,7 @@ export const createCharacterRouter = () => {
     const session = await StateService.listSessions(req.namespaceId);
     const sessionWithChar = session.find(s => s.party.some(p => p.id === charId));
     const narrationContext = turns.slice(-10).map(t => t.narration).join(' ');
-    const { client, model } = createChatClient();
+    const { client, model } = createChatClientForTier('narration');
     try {
       const response = await client.chat.completions.create({
         model,

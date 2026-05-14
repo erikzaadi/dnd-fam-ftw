@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
-import { createChatClient } from '../providers/ai/AiProviderFactory.js';
+import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
 import { StateService } from '../services/stateService.js';
 import { executeTurnAction } from '../services/turnService.js';
 import { sendRateLimitResponse } from './routeErrors.js';
@@ -35,7 +35,7 @@ export const createTurnRouter = () => {
       ? `\n\nBattles fought: ${session.pastEncounters.map(e => `${e.name} (${e.status})`).join(', ')}.`
       : '';
     const prompt = `Summarize the adventure so far in 3 sentences, focusing on the main plot points: ${history.map(h => h.narration).join(' ')}${battlesLine}`;
-    const { client, model } = createChatClient();
+    const { client, model } = createChatClientForTier('narration');
     try {
       const response = await client.chat.completions.create({
         model,

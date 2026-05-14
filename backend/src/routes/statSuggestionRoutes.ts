@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
-import { createChatClient } from '../providers/ai/AiProviderFactory.js';
+import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
 import { buildEncounterContextFromEnemies, parseSuggestedStats, previewFreeAction, STAT_FALLBACK, suggestPreviewActionText, suggestStatForSessionAction } from '../services/statSuggestionService.js';
 import { parseBody } from './routeValidation.js';
 import type { FreeActionPreview } from '@dnd-fam-ftw/shared';
@@ -89,7 +89,7 @@ export const createStatSuggestionRouter = () => {
       return;
     }
     const { name, class: charClass, species, quirk } = body;
-    const { client, model } = createChatClient();
+    const { client, model } = createChatClientForTier('preview');
     try {
       const response = await client.chat.completions.create({
         model,

@@ -17,8 +17,15 @@ export function createOpenAIClient(): OpenAI {
   return _client;
 }
 
-export function getOpenAIModel(): string {
-  return process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
+export function getModelForTier(tier: 'narration' | 'preview' | 'async'): string {
+  switch (tier) {
+  case 'narration':
+    return process.env.OPENAI_MODEL_NARRATION ?? 'gpt-4.1-mini';
+  case 'preview':
+    return process.env.OPENAI_MODEL_PREVIEW ?? 'gpt-4.1-nano';
+  case 'async':
+    return process.env.OPENAI_MODEL_ASYNC ?? 'gpt-4.1';
+  }
 }
 
 export function getOpenAIImageModel(): string {
