@@ -702,3 +702,191 @@ test('session encounter panel - all HP label states', async ({ page }) => {
   await expect(page.getByTestId('encounter-panel')).toBeVisible({ timeout: 10_000 });
   await screenshotViewports(page, 'session-encounter-panel');
 });
+
+test('session encounter panel - area card with image, effect, avatar, and lightbox', async ({ page }) => {
+  const sessionId = 'visual-encounter-area-media';
+  await suppressFirstRunOverlays(page);
+
+  const fakeSession = {
+    id: sessionId,
+    scene: 'The Goblin King Caverns',
+    sceneId: 'cave-1',
+    turn: 8,
+    displayName: 'Goblin King Encounter',
+    savingsMode: true,
+    gameMode: 'fast',
+    difficulty: 'normal',
+    tone: 'thrilling adventure',
+    storySummary: 'The party stands before the Goblin King.',
+    npcs: [],
+    quests: [],
+    recentHistory: ['The battle rages on inside the throne room.'],
+    lastChoices: [
+      { label: 'Strike with your weapon', difficulty: 'normal', stat: 'might', flavor: 'standard' },
+      { label: 'Dodge and find an opening', difficulty: 'normal', stat: 'mischief', flavor: 'standard' },
+    ],
+    activeCharacterId: 'char-1',
+    party: [{
+      id: 'char-1',
+      name: 'Barnabas Strongarm',
+      class: 'Fighter',
+      species: 'Dwarf',
+      quirk: 'Talks to his axe like it is a person',
+      hp: 7,
+      max_hp: 10,
+      status: 'active',
+      stats: { might: 5, magic: 1, mischief: 1 },
+      inventory: [],
+    }],
+    interventionState: { rescuesUsed: 0 },
+    encounterState: {
+      id: 'enc-goblin-king',
+      name: "The Goblin King's Throne",
+      status: 'active',
+      round: 2,
+      objective: 'Defeat the Goblin King and claim the stolen artifact',
+      enemies: [
+        {
+          id: 'e1',
+          name: 'Goblin King',
+          role: 'boss',
+          hp: 14,
+          maxHp: 20,
+          status: 'active',
+          traits: ['crown thrower', 'commanding'],
+          avatarUrl: '/images/default_scene.png',
+          armor: 2,
+          weaknesses: [{ id: 'w1', label: 'silver', school: 'silver', revealed: true }],
+          effects: [{ id: 'ef1', name: 'Enraged', description: 'Attacks twice', kind: 'other', remainingTurns: 2 }],
+        },
+        {
+          id: 'e2',
+          name: 'Goblin Sentry',
+          role: 'minion',
+          hp: 2,
+          maxHp: 5,
+          status: 'active',
+          traits: ['sneaky'],
+        },
+        {
+          id: 'e3',
+          name: 'Cave Bat',
+          role: 'minion',
+          hp: 0,
+          maxHp: 3,
+          status: 'defeated',
+        },
+      ],
+      areas: [
+        {
+          id: 'a1',
+          label: 'Throne Room',
+          description: 'A cavernous chamber piled high with stolen loot and glittering junk. Rickety walkways circle a central pit.',
+          tags: ['throne room', 'loot piles', 'open'],
+          effect: 'Loose coins underfoot - anyone who sprints must roll or slip.',
+          imageUrl: '/images/default_scene.png',
+        },
+        {
+          id: 'a2',
+          label: 'Pit Trap',
+          description: 'A covered pit in the center of the throne room.',
+          tags: ['hazard'],
+        },
+      ],
+    },
+  };
+
+  const fakeTurnResult = {
+    narration: 'The battle rages on inside the throne room.',
+    choices: fakeSession.lastChoices,
+    imagePrompt: null,
+    imageSuggested: false,
+    imageUrl: null,
+  };
+
+  await page.route(`**/api/session/${sessionId}`, route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify(fakeSession),
+  }));
+  await page.route(`**/api/session/${sessionId}/history`, route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([fakeTurnResult]),
+  }));
+  await page.route('**/api/sessions/events', route => route.abort());
+  await page.route('**/api/capabilities', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ hasCloudAI: false, hasTts: false }),
+  }));
+
+  await page.goto(`/session/${sessionId}`);
+  await dismissAudioOverlay(page);
+  await expect(page.getByTestId('encounter-panel')).toBeVisible({ timeout: 10_000 });
+  await screenshotViewports(page, 'session-encounter-panel-area-media');
+
+  // Open the area lightbox - use desktop viewport where the encounter panel is visible
+  // (on mobile the panel is hidden behind mobileActionsOpen overlay)
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.getByRole('button', { name: 'View Throne Room image' }).scrollIntoViewIfNeeded();
+  await page.getByRole('button', { name: 'View Throne Room image' }).click();
+  await expect(page.getByAltText('Throne Room').last()).toBeVisible();
+  await screenshotViewports(page, 'session-encounter-area-lightbox');
+
+  // Close lightbox
+  await page.getByRole('button', { name: 'Close area lightbox' }).click();
+  await expect(page.getByRole('button', { name: 'View Throne Room image' }).first()).toBeVisible();
+});
+
+test('session chronicle - encounter areas in combat log', async ({ page, request }) => {
+  test.setTimeout(60_000);
+  await suppressFirstRunOverlays(page);
+  const session = await getSessionOrFail(request, SESSIONS.standard);
+  await enableSavingsMode(request, session.id);
+
+  await page.goto(`/session/${session.id}`);
+  await dismissAudioOverlay(page);
+  await waitForSessionReady(page);
+
+  await page.keyboard.press('c');
+  await expect(page.getByRole('heading', { name: 'Chronicle' })).toBeVisible();
+
+  // Combat Log section is open by default and shows the seeded encounter with its area
+  await expect(page.getByText("The Goblin King's Throne").first()).toBeVisible();
+  await expect(page.getByText('Throne Room').first()).toBeVisible();
+
+  await screenshotViewports(page, 'session-chronicle-encounter-areas');
+});
+
+test('session chronicle - encounter enemy changes in turn detail', async ({ page, request }) => {
+  test.setTimeout(60_000);
+  await suppressFirstRunOverlays(page);
+  const session = await getSessionOrFail(request, SESSIONS.standard);
+  await enableSavingsMode(request, session.id);
+
+  const historyRes = await request.get(`/api/session/${session.id}/history`);
+  const history = await historyRes.json() as { narration: string; encounterEnemyChanges?: unknown[] }[];
+
+  const changeIdx = history.findIndex(t => Array.isArray(t.encounterEnemyChanges) && t.encounterEnemyChanges.length > 0);
+  if (changeIdx === -1) {
+    test.skip(true, 'No turns with encounter enemy changes in seed session');
+    return;
+  }
+
+  await page.goto(`/session/${session.id}`);
+  await dismissAudioOverlay(page);
+  await waitForSessionReady(page);
+
+  await page.keyboard.press('c');
+  await expect(page.getByRole('heading', { name: 'Chronicle' })).toBeVisible();
+
+  const turnButtons = page.locator('button').filter({ has: page.locator('p.italic') });
+  await turnButtons.nth(changeIdx).scrollIntoViewIfNeeded();
+  await turnButtons.nth(changeIdx).click();
+
+  // Encounter badge and enemy change badges should be visible in the expanded turn
+  await expect(page.getByText("The Goblin King's Throne").first()).toBeVisible();
+
+  await screenshotViewports(page, 'session-chronicle-encounter-enemy-changes');
+});

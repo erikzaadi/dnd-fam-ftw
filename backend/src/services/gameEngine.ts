@@ -1,6 +1,6 @@
 import { Character, SessionState, ActionAttempt, InventoryItem, Choice, type CharacterBuff, type Stat, type Difficulty, type TensionLevel } from '../types.js';
 import { createId } from '../lib/ids.js';
-import { handleEncounterStart, applyEncounterUpdate, computeImpactDamage, computeEnemyDamage, inferSeededEncounterStart } from './encounterService.js';
+import { handleEncounterStart, applyEncounterUpdate, computeImpactDamage, computeEnemyDamage, inferSeededEncounterStart, resolveEncounterSeed } from './encounterService.js';
 import type { EncounterStartProposal, EncounterUpdateProposal } from '../providers/ai/narration/narrationSchemas.js';
 
 export class GameEngine {
@@ -536,6 +536,9 @@ export class GameEngine {
       if (item && typeof item === 'object' && !Array.isArray(item)) {
         const newItem = item as Omit<InventoryItem, 'id'> & { targetCharacterName?: string; boundToCharacterName?: string };
         const { targetCharacterName, boundToCharacterName, ...itemData } = newItem;
+        if (typeof itemData.name === 'string') {
+          itemData.name = itemData.name.split('').filter(c => c.charCodeAt(0) > 31 && c.charCodeAt(0) !== 127).join('').trim();
+        }
         const recipient = targetCharacterName
           ? (GameEngine.findCharacter(newState.party, targetCharacterName) ?? actingChar)
           : actingChar;
@@ -630,6 +633,16 @@ export class GameEngine {
         const updated = applyEncounterUpdate(newState.encounterState, baseUpdate);
         if (updated.status !== 'active' && newState.encounterState.status === 'active') {
           newState.pastEncounters = [...(newState.pastEncounters ?? []), updated];
+          // Grant loot immediately on encounter resolution - do not wait for the next turn's AI
+          const encSeed = resolveEncounterSeed(updated.name, newState.dmPrepEncounters ?? []);
+          if (encSeed?.lootHint) {
+            const lootName = encSeed.lootHint.split('').filter(c => c.charCodeAt(0) > 31 && c.charCodeAt(0) !== 127).join('').trim();
+            const normalizedLoot = this.normalize(lootName);
+            const alreadyHas = normalizedLoot && actingChar.inventory.some(i => this.normalize(i.name) === normalizedLoot);
+            if (!alreadyHas && lootName) {
+              actingChar.inventory.push({ id: createId(), name: lootName, description: '', tags: [] });
+            }
+          }
         }
         newState.encounterState = updated;
       }

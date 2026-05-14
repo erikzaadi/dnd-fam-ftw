@@ -110,6 +110,7 @@ const EditSessionModal = ({
   initialGameMode,
   initialDmPrep,
   initialWorldDescription,
+  readOnly,
   onSave,
   onCancel,
 }: {
@@ -119,6 +120,7 @@ const EditSessionModal = ({
   initialGameMode: string;
   initialDmPrep?: string;
   initialWorldDescription?: string;
+  readOnly?: boolean;
   onSave: (difficulty: string, gameMode: string, dmPrep: string, worldDescription: string) => void;
   onCancel: () => void;
 }) => {
@@ -164,7 +166,16 @@ const EditSessionModal = ({
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in p-4">
       <div className="bg-slate-900 border border-slate-700 rounded-[32px] p-6 max-w-md w-full shadow-2xl space-y-5">
-        <h3 className="text-lg font-black uppercase tracking-tighter text-amber-400 italic">Edit Realm - {sessionName}</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-black uppercase tracking-tighter text-amber-400 italic flex-1">
+            {readOnly ? 'Realm Info' : 'Edit Realm'} - {sessionName}
+          </h3>
+          {readOnly && (
+            <span className="text-[10px] font-black uppercase tracking-widest text-rose-500 border border-rose-700/50 bg-rose-900/20 px-1.5 py-0.5 rounded-full flex-shrink-0">
+              FALLEN
+            </span>
+          )}
+        </div>
 
         <div className="flex flex-col gap-2">
           <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Difficulty</span>
@@ -172,8 +183,9 @@ const EditSessionModal = ({
             {(['easy', 'normal', 'hard'] as const).map(d => (
               <button
                 key={d}
-                onClick={() => setDifficulty(d)}
-                className={`flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${difficulty === d ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-500'}`}
+                onClick={readOnly ? undefined : () => setDifficulty(d)}
+                disabled={readOnly}
+                className={`flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${difficulty === d ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-500'} ${readOnly ? 'cursor-default' : ''}`}
               >
                 {d}
               </button>
@@ -190,8 +202,9 @@ const EditSessionModal = ({
             {Object.entries(PACING_LABELS).map(([id, { icon, label }]) => (
               <button
                 key={id}
-                onClick={() => setGameMode(id)}
-                className={`flex flex-col items-center px-3 py-2 rounded-xl text-xs font-semibold uppercase tracking-widest transition-all border ${gameMode === id ? (id === 'zug-ma-geddon' ? 'bg-rose-900/20 border-rose-500 text-rose-400' : 'bg-amber-600/10 border-amber-600 text-amber-500') : 'bg-slate-800/50 border-slate-700 text-slate-500'}`}
+                onClick={readOnly ? undefined : () => setGameMode(id)}
+                disabled={readOnly}
+                className={`flex flex-col items-center px-3 py-2 rounded-xl text-xs font-semibold uppercase tracking-widest transition-all border ${gameMode === id ? (id === 'zug-ma-geddon' ? 'bg-rose-900/20 border-rose-500 text-rose-400' : 'bg-amber-600/10 border-amber-600 text-amber-500') : 'bg-slate-800/50 border-slate-700 text-slate-500'} ${readOnly ? 'cursor-default' : ''}`}
               >
                 <span className="text-sm mb-0.5">{icon}</span>
                 <span className="text-[10px]">{label}</span>
@@ -200,51 +213,80 @@ const EditSessionModal = ({
           </div>
         </div>
 
-        <div className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Realm Description</span>
-          <textarea
-            value={worldDescription}
-            onChange={e => setWorldDescription(e.target.value)}
-            rows={2}
-            placeholder="Describe the world, setting, or tone..."
-            className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-slate-200 placeholder-slate-600 resize-none focus:outline-none focus:border-amber-600/60 transition-colors"
-          />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">DM Prep Notes</span>
-            <button
-              onClick={regenerateDmPrep}
-              disabled={regenerating}
-              className="text-xs font-semibold text-amber-500 hover:text-amber-400 disabled:opacity-40 transition-colors"
-            >
-              {regenerating ? 'Generating...' : 'AI Generate'}
-            </button>
+        {(worldDescription || !readOnly) && (
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Realm Description</span>
+            {readOnly ? (
+              <p className="text-sm text-slate-300 leading-relaxed px-1">
+                {worldDescription || <span className="text-slate-600 italic">No description set.</span>}
+              </p>
+            ) : (
+              <textarea
+                value={worldDescription}
+                onChange={e => setWorldDescription(e.target.value)}
+                rows={2}
+                placeholder="Describe the world, setting, or tone..."
+                className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-slate-200 placeholder-slate-600 resize-none focus:outline-none focus:border-amber-600/60 transition-colors"
+              />
+            )}
           </div>
-          <textarea
-            value={dmPrep}
-            onChange={e => setDmPrep(e.target.value)}
-            rows={4}
-            placeholder="Lore, villains, locations, plot hooks..."
-            className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-slate-200 placeholder-slate-600 resize-none focus:outline-none focus:border-amber-600/60 transition-colors"
-          />
-        </div>
+        )}
+
+        {(dmPrep || !readOnly) && (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">DM Prep Notes</span>
+              {!readOnly && (
+                <button
+                  onClick={regenerateDmPrep}
+                  disabled={regenerating}
+                  className="text-xs font-semibold text-amber-500 hover:text-amber-400 disabled:opacity-40 transition-colors"
+                >
+                  {regenerating ? 'Generating...' : 'AI Generate'}
+                </button>
+              )}
+            </div>
+            {readOnly ? (
+              <p className="text-sm text-slate-300 leading-relaxed px-1 whitespace-pre-wrap">
+                {dmPrep || <span className="text-slate-600 italic">No DM prep notes.</span>}
+              </p>
+            ) : (
+              <textarea
+                value={dmPrep}
+                onChange={e => setDmPrep(e.target.value)}
+                rows={4}
+                placeholder="Lore, villains, locations, plot hooks..."
+                className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-slate-200 placeholder-slate-600 resize-none focus:outline-none focus:border-amber-600/60 transition-colors"
+              />
+            )}
+          </div>
+        )}
 
         <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-400 transition-all"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={save}
-            disabled={saving}
-            className="flex-1 py-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 rounded-2xl text-xs font-black uppercase tracking-widest text-white transition-all"
-          >
-            {saving ? 'Saving...' : 'Save'}
-          </button>
+          {readOnly ? (
+            <button
+              onClick={onCancel}
+              className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-400 transition-all"
+            >
+              Close
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={onCancel}
+                className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-400 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={save}
+                disabled={saving}
+                className="flex-1 py-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 rounded-2xl text-xs font-black uppercase tracking-widest text-white transition-all"
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -340,29 +382,31 @@ const WorldCard = ({
             </button>
           </Tooltip>
         )}
-        {/* Assemble Heroes */}
-        <Tooltip content="Manage heroes" as="div" wrapperClassName="flex-shrink-0">
-          <button
-            onClick={e => {
-              e.stopPropagation(); onAssemble();
-            }}
-            className="flex items-center gap-1 px-2 py-1.5 lg:w-8 lg:h-8 lg:p-0 lg:justify-center rounded-lg text-slate-500 hover:text-indigo-400 hover:bg-indigo-500/10 text-sm transition-colors"
-            aria-label="Manage Heroes"
-          >
-            <span>⚔</span>
-            <span className="text-xs font-semibold uppercase tracking-widest lg:hidden">Heroes</span>
-          </button>
-        </Tooltip>
-        <Tooltip content="Edit realm" as="div" wrapperClassName="flex-shrink-0">
+        {/* Assemble Heroes - hidden for fallen realms */}
+        {!session.gameOver && (
+          <Tooltip content="Manage heroes" as="div" wrapperClassName="flex-shrink-0">
+            <button
+              onClick={e => {
+                e.stopPropagation(); onAssemble();
+              }}
+              className="flex items-center gap-1 px-2 py-1.5 lg:w-8 lg:h-8 lg:p-0 lg:justify-center rounded-lg text-slate-500 hover:text-indigo-400 hover:bg-indigo-500/10 text-sm transition-colors"
+              aria-label="Manage Heroes"
+            >
+              <span>⚔</span>
+              <span className="text-xs font-semibold uppercase tracking-widest lg:hidden">Heroes</span>
+            </button>
+          </Tooltip>
+        )}
+        <Tooltip content={session.gameOver ? 'View realm info' : 'Edit realm'} as="div" wrapperClassName="flex-shrink-0">
           <button
             onClick={e => {
               e.stopPropagation(); onEdit();
             }}
             className="flex items-center gap-1 px-2 py-1.5 lg:w-8 lg:h-8 lg:p-0 lg:justify-center rounded-lg text-slate-600 hover:text-amber-400 hover:bg-amber-500/10 text-sm transition-colors"
-            aria-label="Edit realm"
+            aria-label={session.gameOver ? 'View realm info' : 'Edit realm'}
           >
-            <span>✎</span>
-            <span className="text-xs font-semibold uppercase tracking-widest lg:hidden">Edit</span>
+            <span>{session.gameOver ? 'ℹ' : '✎'}</span>
+            <span className="text-xs font-semibold uppercase tracking-widest lg:hidden">{session.gameOver ? 'Info' : 'Edit'}</span>
           </button>
         </Tooltip>
         <Tooltip content="Delete realm" align="right" as="div" wrapperClassName="flex-shrink-0">
@@ -444,7 +488,7 @@ export const Home = () => {
   const [activeSessions, setActiveSessions] = useState<SessionPreview[]>([]);
   const [sessionLimit, setSessionLimit] = useState<{ max: number; current: number } | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
-  const [editSession, setEditSession] = useState<{ id: string; displayName: string; difficulty: string; gameMode: string; dmPrep?: string; worldDescription?: string } | null>(null);
+  const [editSession, setEditSession] = useState<{ id: string; displayName: string; difficulty: string; gameMode: string; dmPrep?: string; worldDescription?: string; readOnly?: boolean } | null>(null);
   const [viewingChar, setViewingChar] = useState<PartyMember | null>(null);
   const [fullscreenCharAvatar, setFullscreenCharAvatar] = useState<string | null>(null);
   const [instantStartLoading, setInstantStartLoading] = useState(false);
@@ -706,6 +750,7 @@ export const Home = () => {
           initialGameMode={editSession.gameMode}
           initialDmPrep={editSession.dmPrep}
           initialWorldDescription={editSession.worldDescription}
+          readOnly={editSession.readOnly}
           onSave={(difficulty, gameMode, dmPrep, worldDescription) => {
             setActiveSessions(prev => prev.map(s =>
               s.id === editSession.id ? { ...s, difficulty, gameMode, dmPrep: dmPrep || undefined, worldDescription: worldDescription || undefined } : s
@@ -814,7 +859,7 @@ export const Home = () => {
                   session={sess}
                   onEnter={() => navigate(getSessionEntryPath(sess))}
                   onDelete={() => deleteSession(sess.id, sess.displayName)}
-                  onEdit={() => setEditSession({ id: sess.id, displayName: sess.displayName, difficulty: sess.difficulty, gameMode: sess.gameMode, dmPrep: sess.dmPrep, worldDescription: sess.worldDescription })}
+                  onEdit={() => setEditSession({ id: sess.id, displayName: sess.displayName, difficulty: sess.difficulty, gameMode: sess.gameMode, dmPrep: sess.dmPrep, worldDescription: sess.worldDescription, readOnly: sess.gameOver })}
                   onAssemble={() => navigate(`/session/${sess.id}/assembly`)}
                   onCharacterClick={setViewingChar}
                 />

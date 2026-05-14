@@ -6,7 +6,7 @@ import { StatImg } from './StatIcon';
 import { TtsButton } from '../TtsButton';
 import type { TtsSettings } from '../../tts/ttsTypes';
 import { STAT_COLORS } from '../../lib/statColors';
-import { formatCharacterBonusLabel, formatChoiceItemBonusLabel, formatHelperBonusLabel } from './rollBonusLabels';
+import { formatBuffBonusLabel, formatCharacterBonusLabel, formatChoiceItemBonusLabel, formatHelperBonusLabel } from './rollBonusLabels';
 
 interface LastSubmittedAction {
   label: string;
@@ -54,7 +54,16 @@ export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings }: DmDec
   const helperBonus = lastSubmittedAction?.helperBonus ?? 0;
   const choiceItemBonus = lastSubmittedAction?.choiceItemBonus ?? 0;
   const characterBonus = lastSubmittedAction?.characterBonus ?? 0;
-  const statTotal = statBase + statBonus + helperBonus + choiceItemBonus + characterBonus;
+  const buffBonus = char && stat !== 'none'
+    ? (char.buffs ?? []).reduce((sum, buff) => sum + (buff.statBonuses?.[stat as keyof typeof buff.statBonuses] ?? 0), 0)
+    : 0;
+  const buffBonusLabel = char && buffBonus !== 0
+    ? (char.buffs ?? [])
+      .filter(b => (b.statBonuses?.[stat as keyof typeof b.statBonuses] ?? 0) !== 0)
+      .map(b => b.name)
+      .join(', ')
+    : undefined;
+  const statTotal = statBase + statBonus + helperBonus + choiceItemBonus + characterBonus + buffBonus;
 
   const minNeeded = lastSubmittedAction
     ? beatTarget(lastSubmittedAction.difficultyValue, lastSubmittedAction.difficulty)
@@ -123,12 +132,14 @@ export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings }: DmDec
 		    {helperBonus > 0 && <span className="text-cyan-300">+{helperBonus}</span>}
 		    {choiceItemBonus > 0 && <span className="text-amber-300">+{choiceItemBonus}</span>}
 		    {characterBonus > 0 && <span className="text-fuchsia-300">+{characterBonus}</span>}
+		    {buffBonus > 0 && <span className="text-violet-300">+{buffBonus}</span>}
+		    {buffBonus < 0 && <span className="text-rose-300">{buffBonus}</span>}
                     {' '}= {statTotal}
                   </span>
                   <span className="text-slate-600">·</span>
                   <span className="text-slate-400">Need ≥ {minNeeded}</span>
                 </div>
-                {(helperBonus > 0 || choiceItemBonus > 0 || characterBonus > 0) && (
+                {(helperBonus > 0 || choiceItemBonus > 0 || characterBonus > 0 || buffBonus !== 0) && (
 		  <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-black">
 			    {helperBonus > 0 && (
 			      <span className="text-cyan-300">+{formatHelperBonusLabel(helperBonus, lastSubmittedAction.helperCharacterName)}</span>
@@ -138,6 +149,9 @@ export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings }: DmDec
 			    )}
 			    {characterBonus > 0 && (
 			      <span className="text-fuchsia-300">+{formatCharacterBonusLabel(characterBonus, lastSubmittedAction.characterBonusLabel)}</span>
+			    )}
+			    {buffBonus !== 0 && (
+			      <span className={buffBonus > 0 ? 'text-violet-300' : 'text-rose-300'}>{buffBonus > 0 ? '+' : ''}{formatBuffBonusLabel(buffBonus, buffBonusLabel)}</span>
 			    )}
 		  </div>
                 )}

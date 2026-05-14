@@ -5,7 +5,7 @@ import { StatImg } from './StatIcon';
 import { beatTarget } from '../../lib/game';
 import { D20 } from './D20';
 import { RollBreakdown } from './RollBreakdown';
-import { EncounterAreaCard } from './EncounterPanel';
+import { EncounterAreaCard, EnemyRow } from './EncounterPanel';
 import type { TtsSettings } from '../../tts/ttsTypes';
 import { NarrationTtsButton } from '../NarrationTtsButton';
 import { STAT_COLORS } from '../../lib/statColors';
@@ -55,26 +55,15 @@ const CombatLog = ({ encounters }: { encounters: EncounterState[] }) => {
                     {outcome.label}
                   </span>
                 </div>
-                <div className="flex flex-wrap gap-1">
+                <div className="divide-y divide-slate-800/60">
                   {enc.enemies.map(enemy => (
-                    <span
-                      key={enemy.id}
-                      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${
-                        enemy.status === 'defeated'
-                          ? 'border-rose-900/50 bg-rose-950/30 text-rose-500 line-through opacity-60'
-                          : enemy.status === 'fled'
-                            ? 'border-amber-900/50 bg-amber-950/30 text-amber-500'
-                            : 'border-slate-700/50 bg-slate-800/50 text-slate-400'
-                      }`}
-                    >
-                      {enemy.name}
-                    </span>
+                    <EnemyRow key={enemy.id} enemy={enemy} />
                   ))}
                 </div>
                 {enc.areas.length > 0 && (
                   <div className="space-y-1.5">
                     {enc.areas.map(area => (
-                      <EncounterAreaCard key={area.id} area={area} />
+                      <EncounterAreaCard key={area.id} area={area} compact />
                     ))}
                   </div>
                 )}
@@ -226,7 +215,7 @@ const TurnDetail = ({
           {encounter.areas.length > 0 && (
             <div className="space-y-1.5">
               {encounter.areas.map(area => (
-                <EncounterAreaCard key={area.id} area={area} />
+                <EncounterAreaCard key={area.id} area={area} compact />
               ))}
             </div>
           )}
@@ -417,9 +406,16 @@ export const ChronicleDrawer = ({
       </div>
 
       {/* Combat log */}
-      {((activeEncounter ? 1 : 0) + (pastEncounters?.length ?? 0)) > 0 && (
-        <CombatLog encounters={[...(activeEncounter ? [activeEncounter] : []), ...(pastEncounters ?? [])]} />
-      )}
+      {((activeEncounter ? 1 : 0) + (pastEncounters?.length ?? 0)) > 0 && (() => {
+        const all = [...(activeEncounter ? [activeEncounter] : []), ...(pastEncounters ?? [])];
+        const seen = new Set<string>();
+        const unique = all.filter(e => {
+          if (seen.has(e.id)) {
+            return false; 
+          } seen.add(e.id); return true; 
+        });
+        return <CombatLog encounters={unique} />;
+      })()}
 
       {/* Turn list */}
       <div className="flex-1 overflow-y-auto scrollbar-hide">
