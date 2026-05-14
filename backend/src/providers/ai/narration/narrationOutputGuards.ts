@@ -58,6 +58,26 @@ const normalizedItemName = (name: string | null | undefined): string => {
 
 const normalizedText = (text: string): string => text.toLowerCase().replace(/[^\p{Letter}\p{Number}]+/gu, ' ').replace(/\s+/g, ' ').trim();
 
+// Distinctive substrings that should never appear in player-facing narration.
+// These are fragments from suggestedNextBeat instructions and system field names
+// that the AI occasionally copies verbatim into story prose.
+const INSTRUCTION_LEAK_FRAGMENTS = [
+  'connect this turn to the main threat',
+  'push toward a climactic confrontation',
+  'introduce a concrete new beat',
+  'carry the party away from the defeated encounter',
+  'carry the party past the completed challenge',
+  'end the current fight decisively with surrender, retreat',
+  'keep the current challenge active, but change the object',
+  'start a concrete scene beat with a clear object',
+  'use suggestedencounterstart',
+  'suggestedencounterstart',
+  'dmprepencounters',
+  'scenemomentum',
+  'suggestednextbeat',
+  'has the next move',
+] as const;
+
 const significantTokens = (text: string): Set<string> => new Set(
   normalizedText(text)
     .split(' ')
@@ -361,6 +381,21 @@ function normalizeEncounterOutput(input: NarrationInput, output: ValidNarrationO
   }
 }
 
+function validateNarrationLeakage(output: ValidNarrationOutput): string | null {
+  const allText = [
+    output.narration,
+    output.rollNarration,
+    ...(output.choices ?? []).map(c => `${c.label} ${c.narration ?? ''}`),
+  ].filter(Boolean).join(' ').toLowerCase();
+
+  for (const fragment of INSTRUCTION_LEAK_FRAGMENTS) {
+    if (allText.includes(fragment)) {
+      return `The narration contains a system instruction fragment: "${fragment}". Do not copy sceneMomentum guidance or any backend directive into story prose. Write in-game narrative only.`;
+    }
+  }
+  return null;
+}
+
 function validateChoiceActors(input: NarrationInput, output: ValidNarrationOutput): string | null {
   if (!input.nextCharacterName) {
     return null;
@@ -383,6 +418,12 @@ export function parseNarrationOutput(
     return { success: false, error: parsed.error.message };
   }
 
+  if (enforceGameplayGuards) {
+    const leakageError = validateNarrationLeakage(parsed.data);
+    if (leakageError) {
+      return { success: false, error: leakageError };
+    }
+  }
   stripNarrationEmDashes(parsed.data);
   canonicalizeItemChoices(input, parsed.data);
   if (enforceGameplayGuards) {

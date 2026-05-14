@@ -107,6 +107,7 @@ function suggestedNextBeatFor(input: {
   directive: SceneMomentum['directive'];
   pressure: ScenePressure;
   justCompletedDifficultChallenge: boolean;
+  pendingSeedName?: string;
 }): string {
   if (input.directive === 'victory_exit') {
     if (input.justCompletedDifficultChallenge) {
@@ -116,6 +117,9 @@ function suggestedNextBeatFor(input: {
   }
   if (input.directive === 'close_combat') {
     return 'End the current fight decisively with surrender, retreat, defeat, or a finishing beat that opens the next route.';
+  }
+  if (input.pendingSeedName) {
+    return `The prepared encounter "${input.pendingSeedName}" is ready and the approach has gone on long enough. Use suggestedEncounterStart now: set name to exactly "${input.pendingSeedName}", use the seed enemy names and roles from dmPrepEncounters, and commit to the confrontation this turn. Do not narrate another approach beat.`;
   }
   if (input.directive === 'advance_campaign') {
     return 'Introduce a concrete new beat: a location, clue, NPC move, visible threat, trap, chase, or strange discovery.';
@@ -127,6 +131,17 @@ function suggestedNextBeatFor(input: {
     return 'Keep the current challenge active, but change the object, hazard, route, or tactical shape of the action.';
   }
   return 'Start a concrete scene beat with a clear object, route, NPC, clue, or threat to act on.';
+}
+
+function findPendingSeedName(session: SessionState): string | undefined {
+  const seeds = session.dmPrepEncounters;
+  if (!seeds?.length || session.encounterState?.status === 'active') {
+    return undefined;
+  }
+  const resolvedNames = new Set(
+    (session.pastEncounters ?? []).map(e => e.name.trim().toLowerCase())
+  );
+  return seeds.find(s => !resolvedNames.has(s.name.trim().toLowerCase()))?.name;
 }
 
 export function buildSceneMomentum(
@@ -161,6 +176,12 @@ export function buildSceneMomentum(
             ? 'press_current_scene'
             : 'start_scene';
 
+  // When the scene has been in pressure past the stale threshold and an unresolved
+  // seed exists, override suggestedNextBeat to force the AI to commit to the encounter.
+  const pendingSeedName = (shouldAdvance && (scenePressure.kind === 'combat' || scenePressure.kind === 'challenge'))
+    ? findPendingSeedName(session)
+    : undefined;
+
   return {
     directive,
     staleChoiceCount,
@@ -168,7 +189,7 @@ export function buildSceneMomentum(
     turnsSinceCombat,
     justCompletedCombat,
     justCompletedDifficultChallenge,
-    suggestedNextBeat: suggestedNextBeatFor({ directive, pressure: scenePressure, justCompletedDifficultChallenge }),
+    suggestedNextBeat: suggestedNextBeatFor({ directive, pressure: scenePressure, justCompletedDifficultChallenge, pendingSeedName }),
     reason: `Deterministic momentum: pressure=${scenePressure.kind}, staleChoices=${staleChoiceCount}, turnsSinceSceneChange=${turnsSinceSceneChange}, successfulPressureTurns=${scenePressure.successfulPressureTurns}.`,
   };
 }

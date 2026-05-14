@@ -205,8 +205,9 @@ export const inferSeededEncounterStart = (
     return null;
   }
 
-  const hasImmediateDanger = input.currentTensionLevel === 'high' || (typeof input.suggestedDamage === 'number' && input.suggestedDamage > 0);
-  if (!hasImmediateDanger) {
+  const hasHighDanger = input.currentTensionLevel === 'high' || (typeof input.suggestedDamage === 'number' && input.suggestedDamage > 0);
+  const hasMediumDanger = input.currentTensionLevel === 'medium';
+  if (!hasHighDanger && !hasMediumDanger) {
     return null;
   }
 
@@ -234,10 +235,14 @@ export const inferSeededEncounterStart = (
     ) {
       return false;
     }
-    if (containsNormalizedTerm(haystack, candidate.name)) {
-      return true;
+    const seedNameMatch = containsNormalizedTerm(haystack, candidate.name);
+    const enemyNameMatch = candidate.enemies.some(enemy => containsNormalizedTerm(haystack, enemy.name));
+    if (hasHighDanger) {
+      return seedNameMatch || enemyNameMatch;
     }
-    return candidate.enemies.some(enemy => containsNormalizedTerm(haystack, enemy.name));
+    // At medium danger, only trigger on a direct seed-name match to avoid
+    // false positives from ambient enemy mentions in non-combat narration.
+    return seedNameMatch;
   });
 
   return seed ? proposalFromSeed(seed) : null;

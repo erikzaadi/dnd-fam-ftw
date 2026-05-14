@@ -11,32 +11,39 @@ const sceneNoun = (scene: string): string => {
 };
 
 const nextBeat = (input: NarrationInput, scene: string): string => {
-  const suggested = cleanLabel(input.sceneMomentum?.suggestedNextBeat ?? '');
+  if (input.sceneMomentum?.suggestedNextBeat) {
+    return input.sceneMomentum.suggestedNextBeat;
+  }
   if (input.sceneMomentum?.directive === 'victory_exit') {
-    return suggested || `The resolved danger stays behind them as the party reaches a fresh route beyond ${scene}.`;
+    return `A way forward opens beyond ${scene}.`;
   }
   if (input.sceneMomentum?.directive === 'advance_campaign') {
-    return suggested || `A fresh clue, route, or witness changes what the party can do in ${scene}.`;
+    return `Something stirs in ${scene} and demands the party's attention.`;
   }
   if (input.sceneMomentum?.directive === 'climax_pressure') {
-    return suggested || `The main threat leaves a clear mark on ${scene}, pointing the party toward the next confrontation.`;
+    return `A shadow of worse things falls across ${scene}.`;
   }
-  return suggested || `The situation shifts in ${scene}.`;
+  return `${scene} is not the same as it was a moment ago.`;
 };
 
 export function buildNarrationFallback(input: NarrationInput): NarrationOutput {
   const actor = input.actingCharacterName ?? input.party.find(character => character.status === 'active')?.name ?? 'The party';
-  const nextActor = input.nextCharacterName ?? actor;
   const scene = sceneNoun(input.scene);
   const action = cleanLabel(input.actionAttempt);
   const succeeded = input.actionResult.success;
   const beat = nextBeat(input, scene);
+  // Avoid "Actor's Actor does something" when the action already starts with the actor's name.
+  const actionText = !action
+    ? `${actor}'s move`
+    : action.toLowerCase().startsWith(actor.toLowerCase())
+      ? action
+      : `${actor}'s ${action}`;
   const result = succeeded
-    ? `${actor}'s ${action || 'move'} works. ${beat}`
-    : `${actor}'s ${action || 'move'} does not land cleanly, but it still exposes what must happen next. ${beat}`;
+    ? `${actionText} works. ${beat}`
+    : `${actionText} falls short. ${beat}`;
 
   return {
-    narration: `${result} ${nextActor} has the next move from this new position.`,
+    narration: result,
     choices: [
       {
         label: `Press deeper into ${scene}`,

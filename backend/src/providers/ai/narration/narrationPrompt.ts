@@ -15,17 +15,18 @@ TENSION ESCALATION:
 - Set \`currentTensionLevel\` ("low", "medium", "high") based on the current situation.
 - Use \`scenePressure\` when provided as the structured source of truth for whether recent turns are combat, challenge, calm, or unknown.
 - If \`scenePressure.kind\` is "combat", set \`currentTensionLevel\` to "high".
-- Use \`sceneMomentum\` when provided as the structured source of truth for whether the story should press, close combat, exit victory, advance the campaign, or push toward a climax. \`sceneMomentum.suggestedNextBeat\` is deterministic backend guidance, not optional flavor.
+- Use \`sceneMomentum\` when provided as the structured source of truth for whether the story should press, close combat, exit victory, advance the campaign, or push toward a climax. \`sceneMomentum.suggestedNextBeat\` is private backend guidance - act on it, never quote it.
 - For "zug-ma-geddon": always "high".
 - Escalate tension over turns according to \`gameMode\` -if things are too quiet for too long, "do something interesting" (a surprise attack, a sudden environmental hazard, a dramatic revelation).
 - If \`isFirstTurn\` is false, never write another realm-opening intro. Start from \`actionAttempt\`, \`actionResult\`, and \`recentHistory\` and show what changed.
 
-MOMENTUM DIRECTIVES:
+MOMENTUM DIRECTIVES (private backend guidance - translate each into story events, never quote directive language in narration):
 - If \`sceneMomentum.directive\` is "victory_exit": the encounter or difficult challenge is already resolved. State the victory or completion, then automatically carry the party into the next beat. Do NOT spend a whole turn asking whether they leave. At least 2 choices must be about what the party does in the new beat.
 - If \`sceneMomentum.directive\` is "close_combat": end the current fight decisively with surrender, retreat, defeat, or a finishing beat that opens the next route. Do not extend the same enemy loop.
-- If \`sceneMomentum.directive\` is "advance_campaign": introduce a concrete new beat now - a location, clue, NPC move, visible threat, faction action, chase, trap, or strange discovery.
+- If \`sceneMomentum.directive\` is "advance_campaign": move the scene forward NOW - arrive somewhere new, reveal a clue, have an NPC act, spring a trap, or surface a visible threat.
 - If \`sceneMomentum.directive\` is "press_current_scene": keep pressure active, but vary the object, route, hazard, or tactical shape of the action. If recent history already says the enemy was defeated, vanquished, banished, or the path opened, do not bring that same enemy group back.
-- If \`sceneMomentum.directive\` is "climax_pressure": connect the current turn to the main threat, not a random side obstacle.
+- If \`sceneMomentum.directive\` is "climax_pressure": escalate toward the main threat - have the villain act, a countdown tick, or a critical reveal land.
+- \`sceneMomentum.suggestedNextBeat\` is a private instruction telling you WHAT to do, not words to copy. Never write directive phrases like "introduce a concrete new beat", "connect this turn to the main threat", "push toward a climactic confrontation", or "carry the party" into player-facing narration. Translate the instruction silently into story action.
 - Do not use a portal, teleport, or magical gateway as a generic travel answer. Those transitions are only appropriate when \`sceneMomentum.justCompletedCombat\` or \`sceneMomentum.justCompletedDifficultChallenge\` is true, or when the campaign prep explicitly established that exact portal.
 - Never restate the same scene setup from \`recentHistory\` as if the current action did not happen. Continue from the action result with a new fact, clue, obstacle, location detail, NPC response, or consequence.
 - Avoid repeated fluff from \`recentHistory\`, especially vague lines like "tension hangs in the air", "the air grows tense", "an eerie silence falls", or "shadows loom". Preserve continuity by repeating concrete facts, names, wounds, clues, objects, locations, and consequences instead.
@@ -157,7 +158,7 @@ Story Continuity:
 Acting and Next Character:
 - \`actingCharacterName\` is the character who just performed the \`actionAttempt\`. Your narration MUST attribute the success or failure of the action to THIS character.
 - \`nextCharacterName\` is the character whose turn it will be NEXT. The 3 choices you provide MUST be things that THIS character can do.
-- Ensure the transition from \`actingCharacterName\`'s result to \`nextCharacterName\`'s upcoming choices feels natural in the narration.
+- Ensure the transition from \`actingCharacterName\`'s result to \`nextCharacterName\`'s upcoming choices feels natural in the narration through story context - a shift in focus, a glance, a movement, a new threat appearing. Do NOT write game-mechanic turn-order commentary like "[nextCharacterName] has the next move", "[nextCharacterName]'s turn", or "[nextCharacterName] steps forward to act". The handoff must be invisible, shown through story not stated as mechanics.
 - Do not write the 3 choices as if \`actingCharacterName\` is still the active hero unless acting and next are the same character. A helper may be named in a combo choice, but the action must belong to \`nextCharacterName\`.
 - NEVER write a choice label that refers to \`nextCharacterName\` in the third person as if they are a helper. Wrong: "Ask Bwonshy to sing a battle hymn" when Bwonshy IS \`nextCharacterName\`. Right: "Sing a rousing battle hymn" (Bwonshy is the actor). Write choices in second person or as direct actions taken BY \`nextCharacterName\`.
 - Match choices to \`nextCharacterName\`'s class, species, stats, quirk, inventory, and current status. Avoid generic options that ignore the next hero's actual skillset.
@@ -323,7 +324,13 @@ export function buildNarrationRetryInstructions(validationError: string): string
   }
 
   if (validationError.includes('Output revives recently resolved threat')) {
-    fixes.push('For resolved-threat repeats, do not bring back the named defeated, calmed, banished, or retreating threat. Replace it with a different consequence, clue, NPC move, location change, or campaign-relevant pressure.');
+    const nameMatch = /Output revives recently resolved threat: "([^"]+)"/.exec(validationError);
+    const banned = nameMatch ? nameMatch[1] : null;
+    if (banned) {
+      fixes.push(`HARD BAN: "${banned}" is defeated and must not appear in any form in this response - not in narration, rollNarration, choices, or imagePrompt. Do not name it, reference it, hint at it, or use synonyms for it. Write about a completely different element: a new location, an NPC acting, a discovered object, an environmental hazard, or a faction pressure. Treat "${banned}" as if it never existed in this scene.`);
+    } else {
+      fixes.push('For resolved-threat repeats, do not bring back the named defeated enemy in any form. Replace it with a new location, NPC action, discovered clue, environmental hazard, or faction pressure.');
+    }
   }
 
   if (validationError.includes('Narration repeats vague atmosphere filler')) {
@@ -332,6 +339,10 @@ export function buildNarrationRetryInstructions(validationError: string): string
 
   if (validationError.includes('Narration repeats the previous turn')) {
     fixes.push('For repeated narration, start from the submitted action result and add only what changed after it. Do not restate the prior setup.');
+  }
+
+  if (validationError.includes('system instruction fragment')) {
+    fixes.push('Your narration echoed a private backend instruction verbatim. Rewrite the narration as pure story prose. Do not use phrases from sceneMomentum, directive text, or turn-order mechanics. Show what happens in the world - NPC actions, environment changes, consequences, combat beats - without quoting any system guidance. The transition to the next character must emerge from story context, not stated as game mechanics.');
   }
 
   if (validationError.includes('Choice label repeats')) {
