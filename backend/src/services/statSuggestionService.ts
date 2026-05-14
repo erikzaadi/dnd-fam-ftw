@@ -126,7 +126,9 @@ export async function previewFreeAction(
         content: `${describeActiveCharacter(character)} wants to: "${action}".
 ${storyContext ? `\nUse this story context so the preview fits the current scene without spoiling the result:\n${storyContext}\n` : ''}
 ${encounterSection}
-Reply with ONLY valid JSON (no markdown):
+Stat guide: might = physical/combat/force, magic = spells/arcane/healing/divine, mischief = stealth/trickery/charm/persuasion.${hasEncounter ? '\nWeakness labels are flavorful display text. Keep the exact label from the encounter data; do not rewrite it to a generic school. Only set weakPointMatch when a revealed, non-broken weakness on the likely target clearly matches this action\'s school or tags. Use "may exploit" wording when confidence is low.' : ''}
+
+Reply with JSON:
 {
   "action": "<polished first-person or third-person action sentence, preserving the player's intent>",
   "stat": "might" | "magic" | "mischief",
@@ -136,10 +138,9 @@ Reply with ONLY valid JSON (no markdown):
   "likelyEnemyId": "<id of the enemy most likely targeted, or null>",
   "likelyEnemyName": "<name of likely target enemy, or null>",
   "weakPointMatch": {"label": "<exact free-form weakness label from encounter data>", "description": "<'exploits X weakness' or 'may exploit X weakness' if uncertain>"} | null` : ''}
-}
-
-Stat guide: might = physical/combat/force, magic = spells/arcane/healing/divine, mischief = stealth/trickery/charm/persuasion.${hasEncounter ? '\nWeakness labels are flavorful display text. Keep the exact label from the encounter data; do not rewrite it to a generic school. Only set weakPointMatch when a revealed, non-broken weakness on the likely target clearly matches this action\'s school or tags. Use "may exploit" wording when confidence is low.' : ''}`,
+}`,
       }],
+      response_format: { type: 'json_object' },
       max_tokens: hasEncounter ? 160 : 80,
     }, { signal: AbortSignal.timeout(8_000) });
     const raw = (response.choices[0].message.content ?? '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
@@ -243,8 +244,9 @@ Write the exact player action to preview for this intent. It must:
 - for party_boost intent: address the whole group (everyone, the party, all allies) - never name a single character
 - avoid promising success or final results
 
-Reply with ONLY valid JSON: {"action":"..."}`,
+Reply with JSON: {"action":"..."}`,
       }],
+      response_format: { type: 'json_object' },
       max_tokens: 90,
     }, { signal: AbortSignal.timeout(8_000) });
     const raw = (response.choices[0].message.content ?? '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();

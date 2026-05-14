@@ -8,20 +8,14 @@ export const generateSessionDisplayName = async (worldDescription: string | unde
   try {
     const nameResponse = await client.chat.completions.create({
       model,
-      messages: [{ role: 'user', content: `Give me a short, evocative name (max 3 words) for a story setting based on: ${worldDescription || 'a random realm'}. Reply with the name only, no explanation.` }],
-      max_tokens: 100,
+      messages: [{ role: 'user', content: `Give me a short, evocative name (max 3 words) for a story setting based on: ${worldDescription || 'a random realm'}. Reply with the name only - no explanation, no punctuation, no markdown, no quotes.` }],
+      max_tokens: 20,
     }, { signal: AbortSignal.timeout(20_000) });
-    console.log(`[Session] Display name received in ${Date.now() - nameStart}ms`);
     const msg = nameResponse.choices[0].message;
+    console.log(`[Session] Display name received in ${Date.now() - nameStart}ms`);
     const rawName = msg.content || (msg as unknown as Record<string, string>)['reasoning_content'] || '';
-    console.log(`[Session] Raw display name response: ${JSON.stringify(rawName)}`);
     return rawName
       .replace(/<think>[\s\S]*?<\/think>/g, '')
-      .replace(/\*\*/g, '')
-      .replace(/\*/g, '')
-      .replace(/\(.*?\)/g, '')
-      .replace(/"/g, '')
-      .replace(/\s*[-–—].*/g, '')
       .split('\n')
       .map((l: string) => l.trim())
       .find((l: string) => l.length > 0) ?? 'A New Realm';

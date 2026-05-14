@@ -105,6 +105,7 @@ Character:
 
 Reply with ONLY valid JSON: {"might": N, "magic": N, "mischief": N}`
         }],
+        response_format: { type: 'json_object' },
         max_tokens: 60,
       }, { signal: AbortSignal.timeout(10_000) });
 
