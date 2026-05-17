@@ -34,6 +34,7 @@ export const queueCompletedTurnSideEffects = ({
   setImmediate(() => void StorySummaryService.maybeUpdate(sessionId, newState.turn));
   queuePartyWipeFollowUp(sessionId, namespaceId, previousSession, newState);
   queueTurnImageGeneration(sessionId, previousSession, newState, turnResult);
+  queueEncounterImageGeneration(sessionId, previousSession, newState);
 };
 
 const queuePartyWipeFollowUp = (
@@ -176,7 +177,57 @@ const queueTurnImageGeneration = (
   ).then(async result => {
     if (result) {
       await StateService.updateLatestTurnImage(sessionId, result.url, result.storageKey, result.storageProvider);
-      broadcastUpdate(sessionId, 'image_ready', { imageUrl: result.url });
+      broadcastUpdate(sessionId, 'image_ready', { target: 'scene', imageUrl: result.url });
     }
   }).catch(err => console.error('[Action] Background image generation failed:', err));
+};
+
+const queueEncounterImageGeneration = (
+  sessionId: string,
+  previousSession: SessionState,
+  newState: SessionState,
+) => {
+  const isNewEncounter =
+    newState.encounterState?.status === 'active' &&
+    newState.encounterState.id !== previousSession.encounterState?.id;
+
+  if (!isNewEncounter || previousSession.savingsMode) {
+    return;
+  }
+
+  const encounter = newState.encounterState!;
+
+  for (const enemy of encounter.enemies) {
+    if (enemy.avatarUrl) {
+      continue;
+    }
+    void ImageService.generateEnemyAvatar(
+      { name: enemy.name, role: enemy.role, traits: enemy.traits },
+      sessionId,
+    ).then(async result => {
+      if (!result.url) {
+        console.warn(`[EncounterImages] Avatar generation returned empty URL for enemy "${enemy.name}"`);
+        return;
+      }
+      await StateService.patchEncounterEnemyAvatar(sessionId, encounter.id, enemy.id, result.url);
+      broadcastUpdate(sessionId, 'image_ready', { target: 'encounter_enemy', encounterId: encounter.id, enemyId: enemy.id, imageUrl: result.url });
+    }).catch(err => console.error(`[EncounterImages] Avatar generation failed for enemy "${enemy.name}":`, err));
+  }
+
+  for (const area of encounter.areas) {
+    if (area.imageUrl) {
+      continue;
+    }
+    void ImageService.generateAreaImage(
+      { label: area.label, description: area.description, tags: area.tags },
+      sessionId,
+    ).then(async result => {
+      if (!result.url) {
+        console.warn(`[EncounterImages] Area image generation returned empty URL for area "${area.label}"`);
+        return;
+      }
+      await StateService.patchEncounterAreaImage(sessionId, encounter.id, area.id, result.url);
+      broadcastUpdate(sessionId, 'image_ready', { target: 'encounter_area', encounterId: encounter.id, areaId: area.id, imageUrl: result.url });
+    }).catch(err => console.error(`[EncounterImages] Area image generation failed for area "${area.label}":`, err));
+  }
 };

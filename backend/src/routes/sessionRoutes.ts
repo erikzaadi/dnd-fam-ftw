@@ -191,7 +191,7 @@ export const createSessionRouter = () => {
     const result = await ImageService.generateSessionPreview(session);
     if (result) {
       StateService.updateSessionPreviewImage(session.id, result.url);
-      broadcastUpdate(session.id, 'preview_image_available', { previewImageUrl: result.url });
+      broadcastUpdate(session.id, 'image_ready', { target: 'session_preview', imageUrl: result.url });
       broadcastSessionListUpdate(req.namespaceId, 'preview_image_available', { sessionId: session.id, previewImageUrl: result.url });
     }
     res.json({ previewImageUrl: result?.url ?? null });
@@ -244,7 +244,7 @@ export const createSessionRouter = () => {
     if (!session.savingsMode) {
       if (session.previewImageUrl) {
         await StateService.updateLatestTurnImage(sessionId, session.previewImageUrl, '', '');
-        broadcastUpdate(sessionId, 'image_ready', { imageUrl: session.previewImageUrl });
+        broadcastUpdate(sessionId, 'image_ready', { target: 'scene', imageUrl: session.previewImageUrl });
       } else {
         void ImageService.generateImage(
           initialTurn.imagePrompt || 'A fantasy realm establishing scene',
@@ -262,7 +262,7 @@ export const createSessionRouter = () => {
         ).then(async result => {
           if (result) {
             await StateService.updateLatestTurnImage(sessionId, result.url, result.storageKey, result.storageProvider);
-            broadcastUpdate(sessionId, 'image_ready', { imageUrl: result.url });
+            broadcastUpdate(sessionId, 'image_ready', { target: 'scene', imageUrl: result.url });
           }
         }).catch(err => console.error('[Start] Background image generation failed:', err));
       }

@@ -156,6 +156,30 @@ describe('handleEncounterStart', () => {
     const enc = handleEncounterStart(PROPOSAL, SEEDS, undefined);
     expect(enc!.enemies[0].traits).toContain('regenerates');
   });
+
+  it('preserves boss role for seeded encounters', () => {
+    const bossSeed: EncounterSeed = {
+      name: 'Dragon Lord',
+      triggerHint: 'entering the throne room',
+      enemies: [{ name: 'Dragon Lord', role: 'boss', weaknesses: [] }],
+      areas: [{ label: 'Throne Room', tags: [] }],
+    };
+    const enc = handleEncounterStart(
+      { name: 'Dragon Lord', enemies: [{ name: 'Dragon Lord', role: 'boss' }] },
+      [bossSeed],
+      undefined,
+    );
+    expect(enc!.enemies[0].role).toBe('boss');
+  });
+
+  it('downgrades boss to elite for organic (seedless) encounters', () => {
+    const enc = handleEncounterStart(
+      { name: 'Mystery Threat', enemies: [{ name: 'Dark Lord', role: 'boss' }] },
+      SEEDS,
+      undefined,
+    );
+    expect(enc!.enemies[0].role).toBe('elite');
+  });
 });
 
 describe('resolveEnemy', () => {

@@ -76,6 +76,9 @@ export const EncounterAreaCard = ({ area, compact = false }: { area: EncounterAr
         role={hasImage ? 'button' : undefined}
         aria-label={hasImage ? `View ${area.label} image` : undefined}
       >
+        {!hasImage && !compact && (
+          <div className="absolute inset-0 aspect-[16/7] bg-slate-800/60 rounded-lg animate-pulse" />
+        )}
         {hasImage && (
           <>
             <img
@@ -175,7 +178,7 @@ export const EnemyRow = ({ enemy }: EnemyRowProps) => {
       )}
       <div className={`py-1.5 ${isActive ? '' : 'opacity-50'}`} data-testid={`enemy-row-${enemy.id}`}>
         <div className="flex w-full items-center gap-2">
-          {enemy.avatarUrl && (
+          {enemy.avatarUrl ? (
             <button
               type="button"
               onClick={() => setAvatarLightbox(true)}
@@ -188,6 +191,8 @@ export const EnemyRow = ({ enemy }: EnemyRowProps) => {
                 className="w-7 h-7 rounded-full object-cover border border-slate-700 hover:border-slate-400 transition-colors"
               />
             </button>
+          ) : (
+            <div className="shrink-0 w-7 h-7 rounded-full bg-slate-700/80 animate-pulse" />
           )}
           <button
             type="button"

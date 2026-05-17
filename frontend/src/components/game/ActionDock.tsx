@@ -314,13 +314,20 @@ export const ActionDock = ({
         {/* Active hero panel */}
         {activeCharacter && (
           <div className="flex items-start gap-3 p-3 bg-slate-800/50 rounded-2xl border border-slate-700/50">
-            <img
-              src={imgSrc(activeCharacter.avatarUrl)}
-              className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-500 animate-border-pulse shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
-              style={{ animationDelay: pulseSyncDelay() }}
-              alt={activeCharacter.name}
-              onClick={() => onCharacterClick?.(activeCharacter)}
-            />
+            {activeCharacter.avatarUrl ? (
+              <img
+                src={imgSrc(activeCharacter.avatarUrl)}
+                className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-500 animate-border-pulse shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                style={{ animationDelay: pulseSyncDelay() }}
+                alt={activeCharacter.name}
+                onClick={() => onCharacterClick?.(activeCharacter)}
+              />
+            ) : (
+              <div
+                className="w-20 h-20 rounded-2xl border-2 border-amber-500 animate-pulse bg-slate-700 shrink-0 cursor-pointer"
+                onClick={() => onCharacterClick?.(activeCharacter)}
+              />
+            )}
             <div className="flex flex-col gap-1 min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-black text-base truncate">{activeCharacter.name}</span>

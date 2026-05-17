@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { EncounterStartProposal } from '../../../types.js';
 import { CHOICE_FLAVOR_VALUES, DIFFICULTY_VALUES, STAT_VALUES, TENSION_LEVEL_VALUES } from '../../../types.js';
 
 const ENCOUNTER_SCHOOLS = ['fire', 'frost', 'light', 'shadow', 'nature', 'storm', 'mind', 'force', 'holy', 'mechanical'] as const;
@@ -24,11 +25,12 @@ const encounterAreaProposalSchema = z.object({
   tags: z.array(z.string().min(1)).max(5).optional().nullable(),
 });
 
-export const suggestedEncounterStartSchema = z.object({
+export const suggestedEncounterStartSchema: z.ZodType<EncounterStartProposal> = z.object({
   name: z.string().min(1),
   enemies: z.array(encounterEnemyProposalSchema).min(1).max(3),
   areas: z.array(encounterAreaProposalSchema).max(4).optional().nullable(),
   objective: z.string().optional().nullable(),
+  lootHint: z.string().optional().nullable(),
 });
 
 const enemyTargetSchema = z.object({
@@ -184,7 +186,7 @@ export const narrationOutputSchema = z.object({
 });
 
 export type ValidNarrationOutput = z.infer<typeof narrationOutputSchema>;
-export type EncounterStartProposal = z.infer<typeof suggestedEncounterStartSchema>;
+export type { EncounterStartProposal };
 export type EncounterUpdateProposal = NonNullable<z.infer<typeof suggestedEncounterUpdateSchema>>;
 
 export const NARRATION_FALLBACK: ValidNarrationOutput = {

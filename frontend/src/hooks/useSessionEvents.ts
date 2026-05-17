@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Session, TurnResult, Character } from '../types';
+import type { Session, TurnResult, Character, ImageReadyEvent } from '../types';
 import { apiUrl } from '../lib/api';
 import { audioManager } from '../audio/audioManager';
 
@@ -27,7 +27,7 @@ interface SessionEventHandlers {
   sessionId: string;
   onNarrating: (payload: NarratingPayload) => void;
   onTurnComplete: (session: Session, turnResult: TurnResult | null) => void;
-  onImageReady: (imageUrl: string) => void;
+  onImageReady: (event: ImageReadyEvent) => void;
   onIntervention: (narration: string, session: Session | null, turnResult: TurnResult | null) => void;
   onSanctuaryRecovery: (narration: string, session: Session | null, turnResult: TurnResult | null) => void;
   onPartyUpdate: (session: Session | null) => void;
@@ -109,7 +109,7 @@ export const useSessionEvents = ({
           }
           onTurnComplete(data.session, data.turnResult ?? null);
         } else if (data.type === 'image_ready') {
-          onImageReady(data.imageUrl);
+          onImageReady(data as ImageReadyEvent);
         } else if (data.type === 'intervention') {
           onIntervention(
             data.turnResult?.narration ?? 'A mysterious force saved the party!',

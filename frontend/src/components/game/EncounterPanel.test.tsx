@@ -166,4 +166,22 @@ describe('EncounterPanel', () => {
     expect(screen.getByText('Fresh')).toBeTruthy();
     expect(screen.getByText('Defeated')).toBeTruthy();
   });
+
+  it('renders avatar image when avatarUrl is present', () => {
+    const enc = makeEncounter({
+      enemies: [{ id: 'e1', name: 'Goblin Chief', role: 'boss', hp: 12, maxHp: 20, status: 'active', avatarUrl: '/images/goblin.png' }],
+    });
+    const { container } = render(<EncounterPanel encounter={enc} />);
+    const img = container.querySelector('img[alt="Goblin Chief"]');
+    expect(img).toBeTruthy();
+  });
+
+  it('renders avatar skeleton when avatarUrl is absent', () => {
+    const enc = makeEncounter({
+      enemies: [{ id: 'e1', name: 'Goblin Chief', role: 'boss', hp: 12, maxHp: 20, status: 'active' }],
+    });
+    const { container } = render(<EncounterPanel encounter={enc} />);
+    const skeleton = container.querySelector('.animate-pulse.rounded-full');
+    expect(skeleton).toBeTruthy();
+  });
 });

@@ -57,10 +57,11 @@ ACTIVE ENCOUNTER (encounterState):
 - If \`encounterLootHint\` is provided: when your narration ends the encounter (all enemies defeated, fled, or surrendered), weave the loot into the victory narration - describe the party finding, receiving, or claiming it as part of the story - and set \`suggestedInventoryAdd\` in the SAME response. Do not wait for a later turn. The item name must be taken verbatim from \`encounterLootHint\`.
 - When \`encounterJustResolved\` is true and no loot was granted yet: narrate the aftermath and move into a reward, rest, clue, or route beat.
 - If \`resolvedEncounterEnemyNames\` is provided, these enemies were already defeated in past encounters. Do NOT re-spawn them. Do NOT set \`suggestedEncounterStart\` with any of these enemy names. Introduce a different threat, NPC, obstacle, or location instead.
-- When \`encounterState\` is absent: the party is not in a tracked encounter. If your narration starts a combat scene with a named enemy group, use \`suggestedEncounterStart\` to propose enemies, roles, and weak points.
+- When \`encounterState\` is absent: the party is not in a tracked encounter. Any time your narration begins a combat scene - enemies appear and a fight starts - you MUST set \`suggestedEncounterStart\` with the full enemy list, roles, and weak points. Do not narrate combat starting without providing this structured proposal.
 - When \`dmPrepEncounters\` is provided and \`encounterState\` is absent, treat those seeds as planned combat beats. If the current scene, action result, \`sceneMomentum.suggestedNextBeat\`, or \`scenePressure\` points toward a seed's \`triggerHint\`, start that encounter now with \`suggestedEncounterStart\`.
 - If \`sceneMomentum.directive\` is "press_current_scene", "advance_campaign", or "climax_pressure" and a prepared seed fits the current location or threat, prefer starting that seeded encounter instead of inventing an unrelated danger.
 - When starting a prepared encounter, set \`suggestedEncounterStart.name\` to the seed's exact \`name\`, use the seed enemy names/roles/weakness labels, and weave the \`triggerHint\` into narration. The backend will hydrate IDs and HP from the stored seed.
+- For organic (non-seeded) encounters - when the name does not match any \`dmPrepEncounters\` entry - do not use \`boss\` role. Use \`elite\` at most. Boss-level threats are reserved for prepared seeds only.
 
 FAIL FORWARD:
 - A failed roll should still move the story somewhere interesting. Do not narrate "nothing happens" unless the failure is intentionally comic and brief.

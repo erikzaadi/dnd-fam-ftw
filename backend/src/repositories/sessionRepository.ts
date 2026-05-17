@@ -295,6 +295,64 @@ export const sessionRepository = {
     db.prepare(`UPDATE sessions SET ${sets.join(', ')} WHERE id = ?`).run(...values, id);
   },
 
+  async patchEncounterEnemyAvatar(
+    sessionId: string,
+    encounterId: string,
+    enemyId: string,
+    imageUrl: string,
+  ): Promise<void> {
+    const db = getDb();
+    const row = db.prepare('SELECT encounter_state, past_encounters FROM sessions WHERE id = ?').get(sessionId) as { encounter_state: string | null; past_encounters: string | null } | undefined;
+    if (!row) {
+      return;
+    }
+    const encounterState: EncounterState | undefined = row.encounter_state ? JSON.parse(row.encounter_state) : undefined;
+    const pastEncounters: EncounterState[] = row.past_encounters ? JSON.parse(row.past_encounters) : [];
+
+    const patchEnemies = (enc: EncounterState): EncounterState => ({
+      ...enc,
+      enemies: enc.enemies.map(e => e.id === enemyId ? { ...e, avatarUrl: imageUrl } : e),
+    });
+
+    const newEncounterState = encounterState?.id === encounterId ? patchEnemies(encounterState) : encounterState;
+    const newPastEncounters = pastEncounters.map(enc => enc.id === encounterId ? patchEnemies(enc) : enc);
+
+    db.prepare('UPDATE sessions SET encounter_state = ?, past_encounters = ? WHERE id = ?').run(
+      newEncounterState ? JSON.stringify(newEncounterState) : null,
+      newPastEncounters.length > 0 ? JSON.stringify(newPastEncounters) : null,
+      sessionId,
+    );
+  },
+
+  async patchEncounterAreaImage(
+    sessionId: string,
+    encounterId: string,
+    areaId: string,
+    imageUrl: string,
+  ): Promise<void> {
+    const db = getDb();
+    const row = db.prepare('SELECT encounter_state, past_encounters FROM sessions WHERE id = ?').get(sessionId) as { encounter_state: string | null; past_encounters: string | null } | undefined;
+    if (!row) {
+      return;
+    }
+    const encounterState: EncounterState | undefined = row.encounter_state ? JSON.parse(row.encounter_state) : undefined;
+    const pastEncounters: EncounterState[] = row.past_encounters ? JSON.parse(row.past_encounters) : [];
+
+    const patchAreas = (enc: EncounterState): EncounterState => ({
+      ...enc,
+      areas: enc.areas.map(a => a.id === areaId ? { ...a, imageUrl } : a),
+    });
+
+    const newEncounterState = encounterState?.id === encounterId ? patchAreas(encounterState) : encounterState;
+    const newPastEncounters = pastEncounters.map(enc => enc.id === encounterId ? patchAreas(enc) : enc);
+
+    db.prepare('UPDATE sessions SET encounter_state = ?, past_encounters = ? WHERE id = ?').run(
+      newEncounterState ? JSON.stringify(newEncounterState) : null,
+      newPastEncounters.length > 0 ? JSON.stringify(newPastEncounters) : null,
+      sessionId,
+    );
+  },
+
   async listSessions(namespaceId: string = 'local'): Promise<SessionListItem[]> {
     const db = getDb();
     const rows = db.prepare('SELECT id, displayName, worldDescription, storySummary, dm_prep, difficulty, gameMode, game_over, preview_image_url FROM sessions WHERE namespace_id = ? ORDER BY createdAt DESC, id ASC').all(namespaceId) as { id: string; displayName: string; worldDescription: string | null; storySummary: string | null; dm_prep: string | null; difficulty: string; gameMode: string; game_over: number; preview_image_url: string | null }[];

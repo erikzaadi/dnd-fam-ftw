@@ -45,6 +45,12 @@ export const characterRepository = {
     }));
   },
 
+  updateAvatar(characterId: string, avatarUrl: string, avatarPrompt: string, avatarStorageKey: string, avatarStorageProvider: string): void {
+    const db = getDb();
+    db.prepare('UPDATE characters SET avatarUrl = ?, avatarPrompt = ?, avatar_storage_key = ?, avatar_storage_provider = ? WHERE id = ?')
+      .run(avatarUrl, avatarPrompt, avatarStorageKey, avatarStorageProvider, characterId);
+  },
+
   deleteCharacter(characterId: string): void {
     const db = getDb();
     db.prepare('DELETE FROM inventory WHERE characterId = ?').run(characterId);

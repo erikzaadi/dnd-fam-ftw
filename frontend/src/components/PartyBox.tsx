@@ -47,13 +47,20 @@ export const PartyBox = ({ party, activeCharacterId, onCharacterClick, onPartyBo
             wrapperClassName="flex flex-col items-center gap-1"
           >
             <div className="relative flex items-center justify-center">
-              <img
-                src={imgSrc(c.avatarUrl)}
-                onClick={() => onCharacterClick(c)}
-                className={`rounded-full object-cover cursor-pointer border-2 transition-all hover:scale-110 ${c.status === 'downed' ? 'grayscale opacity-40' : ''} ${hpBorderClass(c)} ${isActive ? 'w-12 h-12 xl:w-14 xl:h-14 animate-border-pulse' : 'w-9 h-9 xl:w-11 xl:h-11'}`}
-                style={isActive ? { animationDelay: pulseSyncDelay() } : undefined}
-                alt={c.name}
-              />
+              {c.avatarUrl ? (
+                <img
+                  src={imgSrc(c.avatarUrl)}
+                  onClick={() => onCharacterClick(c)}
+                  className={`rounded-full object-cover cursor-pointer border-2 transition-all hover:scale-110 ${c.status === 'downed' ? 'grayscale opacity-40' : ''} ${hpBorderClass(c)} ${isActive ? 'w-12 h-12 xl:w-14 xl:h-14 animate-border-pulse' : 'w-9 h-9 xl:w-11 xl:h-11'}`}
+                  style={isActive ? { animationDelay: pulseSyncDelay() } : undefined}
+                  alt={c.name}
+                />
+              ) : (
+                <div
+                  onClick={() => onCharacterClick(c)}
+                  className={`rounded-full cursor-pointer border-2 animate-pulse bg-slate-700 ${hpBorderClass(c)} ${isActive ? 'w-12 h-12 xl:w-14 xl:h-14' : 'w-9 h-9 xl:w-11 xl:h-11'}`}
+                />
+              )}
               {c.status === 'downed' && (
                 <div className="absolute inset-0 flex items-center justify-center rounded-full pointer-events-none">
                   <span className="text-lg">💀</span>

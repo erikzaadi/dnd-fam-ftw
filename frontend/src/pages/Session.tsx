@@ -29,7 +29,7 @@ import { KeybindingsHelp } from '../components/KeybindingsHelp';
 import { OnboardingOverlay } from '../components/OnboardingOverlay';
 import { useOnboardingTutorial } from '../hooks/useOnboardingTutorial';
 import { getRollImpactOutcome } from '../lib/rollOutcome';
-import { buildEncounterLookup, countEncounterTurns, getTurnEncounter } from '../lib/encounters';
+import { buildEncounterLookup, countEncounterTurns, getTurnEncounter, patchEncounterEnemyAvatar, patchEncounterAreaImage } from '../lib/encounters';
 
 interface LastSubmittedAction {
   label: string;
@@ -339,20 +339,38 @@ export const SessionPage = () => {
         });
       }
     },
-    onImageReady: (imageUrl) => {
-      setImageLoading(false);
-      setHistory(prev => {
-        if (prev.length === 0) {
-          return prev;
-        }
-        const last = prev[prev.length - 1];
-        if (last.turnType === 'intervention' || last.turnType === 'sanctuary') {
-          return prev;
-        }
-        const updated = [...prev];
-        updated[updated.length - 1] = { ...last, imageUrl };
-        return updated;
-      });
+    onImageReady: (event) => {
+      if (event.target === 'scene') {
+        const { imageUrl } = event;
+        setImageLoading(false);
+        setHistory(prev => {
+          if (prev.length === 0) {
+            return prev;
+          }
+          const last = prev[prev.length - 1];
+          if (last.turnType === 'intervention' || last.turnType === 'sanctuary') {
+            return prev;
+          }
+          const updated = [...prev];
+          updated[updated.length - 1] = { ...last, imageUrl };
+          return updated;
+        });
+      } else if (event.target === 'encounter_enemy') {
+        setSession(prev => prev
+          ? patchEncounterEnemyAvatar(prev, event.encounterId, event.enemyId, event.imageUrl)
+          : prev,
+        );
+      } else if (event.target === 'encounter_area') {
+        setSession(prev => prev
+          ? patchEncounterAreaImage(prev, event.encounterId, event.areaId, event.imageUrl)
+          : prev,
+        );
+      } else if (event.target === 'character_avatar') {
+        setSession(prev => prev ? {
+          ...prev,
+          party: prev.party.map(c => c.id === event.characterId ? { ...c, avatarUrl: event.imageUrl } : c),
+        } : prev);
+      }
     },
     onIntervention: (narration, updatedSession, turnResult) => {
       setInterventionBanner(narration);

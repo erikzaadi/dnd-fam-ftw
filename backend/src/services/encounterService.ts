@@ -277,6 +277,18 @@ export const handleEncounterStart = (
   }
 
   const seed = seeds ? resolveEncounterSeed(proposal.name, seeds) : null;
+
+  if (!seed) {
+    const bossCount = proposal.enemies.filter(e => e.role === 'boss').length;
+    if (bossCount > 0) {
+      console.warn(`[EncounterService] Organic encounter "${proposal.name}" proposed ${bossCount} boss enemy/enemies - downgrading to elite`);
+      proposal = {
+        ...proposal,
+        enemies: proposal.enemies.map(e => e.role === 'boss' ? { ...e, role: 'elite' } : e),
+      };
+    }
+  }
+
   const encounter = seed ? hydrateFromSeed(seed, proposal) : createFromProposal(proposal);
 
   // Guard: max 3 enemies on creation

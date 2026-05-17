@@ -49,6 +49,14 @@ export class StateService {
     return sessionRepository.patchSession(id, fields);
   }
 
+  public static async patchEncounterEnemyAvatar(sessionId: string, encounterId: string, enemyId: string, imageUrl: string): Promise<void> {
+    return sessionRepository.patchEncounterEnemyAvatar(sessionId, encounterId, enemyId, imageUrl);
+  }
+
+  public static async patchEncounterAreaImage(sessionId: string, encounterId: string, areaId: string, imageUrl: string): Promise<void> {
+    return sessionRepository.patchEncounterAreaImage(sessionId, encounterId, areaId, imageUrl);
+  }
+
   public static async listSessions(namespaceId: string = 'local'): Promise<SessionListItem[]> {
     return sessionRepository.listSessions(namespaceId);
   }
@@ -75,6 +83,10 @@ export class StateService {
 
   public static async addTurnResult(id: string, turn: TurnResult, characterId: string | null): Promise<number> {
     return turnHistoryRepository.addTurnResult(id, turn, characterId);
+  }
+
+  public static updateCharacterAvatar(characterId: string, avatarUrl: string, avatarPrompt: string, avatarStorageKey: string, avatarStorageProvider: string): void {
+    characterRepository.updateAvatar(characterId, avatarUrl, avatarPrompt, avatarStorageKey, avatarStorageProvider);
   }
 
   public static deleteCharacter(charId: string): void {

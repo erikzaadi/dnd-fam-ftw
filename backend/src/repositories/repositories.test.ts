@@ -397,3 +397,47 @@ describe('sessionRepository encounter state persistence', () => {
     expect(loaded?.encounterState).toBeUndefined();
   });
 });
+
+describe('sessionRepository.patchEncounterEnemyAvatar', () => {
+  const ENEMY = { id: 'enemy-img', name: 'Cave Troll', role: 'elite' as const, hp: 10, maxHp: 10, status: 'active' as const };
+  const AREA = { id: 'area-img', label: 'Dark Cave', description: 'Cold and damp', tags: [] };
+  const ACTIVE_ENC = { id: 'enc-active', name: 'Cave Fight', status: 'active' as const, round: 1, enemies: [ENEMY], areas: [AREA] };
+  const PAST_ENC = { id: 'enc-past', name: 'Old Fight', status: 'defeated' as const, round: 3, enemies: [ENEMY], areas: [AREA] };
+
+  const seedSession = async (sessionId: string, activeEnc: typeof ACTIVE_ENC | null, pastEncs: typeof PAST_ENC[]) => {
+    insertSession(sessionId);
+    const state: SessionState = {
+      id: sessionId, scene: 'Cave', sceneId: 'cave-1', turn: 2, party: [], activeCharacterId: '',
+      npcs: [], quests: [], lastChoices: [], tone: 'tense', recentHistory: [], displayName: 'Test',
+      difficulty: 'normal', gameMode: 'balanced', savingsMode: false,
+      interventionState: { rescuesUsed: 0 }, storySummary: '', gameOver: false,
+      encounterState: activeEnc ?? undefined, pastEncounters: pastEncs.length > 0 ? pastEncs : undefined,
+    };
+    await sessionRepository.updateSession(sessionId, state);
+  };
+
+  it('patches avatarUrl on an enemy in the active encounter', async () => {
+    await seedSession('patch-avatar-active', ACTIVE_ENC, []);
+    await sessionRepository.patchEncounterEnemyAvatar('patch-avatar-active', 'enc-active', 'enemy-img', '/img/troll.png');
+    const loaded = await sessionRepository.getSession('patch-avatar-active');
+    expect(loaded?.encounterState?.enemies[0].avatarUrl).toBe('/img/troll.png');
+  });
+
+  it('patches avatarUrl on an enemy in a past encounter', async () => {
+    await seedSession('patch-avatar-past', null, [PAST_ENC]);
+    await sessionRepository.patchEncounterEnemyAvatar('patch-avatar-past', 'enc-past', 'enemy-img', '/img/past-troll.png');
+    const loaded = await sessionRepository.getSession('patch-avatar-past');
+    expect(loaded?.pastEncounters?.[0].enemies[0].avatarUrl).toBe('/img/past-troll.png');
+  });
+
+  it('patches imageUrl on an area in the active encounter', async () => {
+    await seedSession('patch-area-active', ACTIVE_ENC, []);
+    await sessionRepository.patchEncounterAreaImage('patch-area-active', 'enc-active', 'area-img', '/img/cave.png');
+    const loaded = await sessionRepository.getSession('patch-area-active');
+    expect(loaded?.encounterState?.areas[0].imageUrl).toBe('/img/cave.png');
+  });
+
+  it('is a no-op for an unknown session id', async () => {
+    await expect(sessionRepository.patchEncounterEnemyAvatar('no-such-session', 'enc-active', 'enemy-img', '/x.png')).resolves.toBeUndefined();
+  });
+});

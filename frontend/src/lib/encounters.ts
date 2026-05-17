@@ -1,4 +1,40 @@
-import type { EncounterState, TurnResult } from '../types';
+import type { EncounterState, Session, TurnResult } from '../types';
+
+const patchEncounterInLists = (
+  session: Session,
+  encounterId: string,
+  patchFn: (enc: EncounterState) => EncounterState,
+): Session => {
+  const patchActive = session.encounterState?.id === encounterId
+    ? patchFn(session.encounterState)
+    : session.encounterState;
+  const patchPast = (session.pastEncounters ?? []).map(enc =>
+    enc.id === encounterId ? patchFn(enc) : enc,
+  );
+  return { ...session, encounterState: patchActive, pastEncounters: patchPast };
+};
+
+export const patchEncounterEnemyAvatar = (
+  session: Session,
+  encounterId: string,
+  enemyId: string,
+  imageUrl: string,
+): Session =>
+  patchEncounterInLists(session, encounterId, enc => ({
+    ...enc,
+    enemies: enc.enemies.map(e => e.id === enemyId ? { ...e, avatarUrl: imageUrl } : e),
+  }));
+
+export const patchEncounterAreaImage = (
+  session: Session,
+  encounterId: string,
+  areaId: string,
+  imageUrl: string,
+): Session =>
+  patchEncounterInLists(session, encounterId, enc => ({
+    ...enc,
+    areas: enc.areas.map(a => a.id === areaId ? { ...a, imageUrl } : a),
+  }));
 
 export const buildEncounterLookup = (
   activeEncounter?: EncounterState | null,

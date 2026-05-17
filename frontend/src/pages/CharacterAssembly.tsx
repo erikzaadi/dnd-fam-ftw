@@ -93,7 +93,14 @@ export const CharacterAssembly = () => {
     },
     onNarrating: () => {},
     onTurnComplete: () => {},
-    onImageReady: () => {},
+    onImageReady: (event) => {
+      if (event.target === 'character_avatar') {
+        setSession(prev => prev ? {
+          ...prev,
+          party: prev.party.map(c => c.id === event.characterId ? { ...c, avatarUrl: event.imageUrl } : c),
+        } : prev);
+      }
+    },
     onIntervention: () => {},
     onSanctuaryRecovery: () => {},
     onGameOver: () => {},
@@ -371,12 +378,16 @@ export const CharacterAssembly = () => {
               <div className="flex flex-wrap gap-4">
                 {session.party.map(c => (
                   <div key={c.id} className="flex items-center gap-4 p-4 bg-slate-800/60 rounded-2xl border border-slate-700/50">
-                    <img
-                      src={imgSrc(c.avatarUrl)}
-                      className="w-12 h-12 rounded-xl object-cover border border-slate-600 cursor-pointer"
-                      onClick={() => setViewingChar(c)}
-                      alt={c.name}
-                    />
+                    {c.avatarUrl ? (
+                      <img
+                        src={imgSrc(c.avatarUrl)}
+                        className="w-12 h-12 rounded-xl object-cover border border-slate-600 cursor-pointer"
+                        onClick={() => setViewingChar(c)}
+                        alt={c.name}
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-xl border border-slate-600 bg-slate-700 animate-pulse" />
+                    )}
                     <div className="min-w-0">
                       <div className="font-black text-sm text-slate-100 cursor-pointer hover:text-amber-400 transition-colors" onClick={() => setViewingChar(c)}>{c.name}</div>
                       <div className="text-xs text-slate-500">{c.class} · {c.species}</div>

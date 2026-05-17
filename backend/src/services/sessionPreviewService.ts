@@ -18,7 +18,7 @@ export const triggerPreviewRegen = (sessionId: string, namespaceId?: string) => 
       if (result) {
         StateService.updateSessionPreviewImage(sessionId, result.url);
         const eventNamespaceId = namespaceId ?? StateService.getSessionNamespaceId(sessionId);
-        broadcastUpdate(sessionId, 'preview_image_available', { previewImageUrl: result.url });
+        broadcastUpdate(sessionId, 'image_ready', { target: 'session_preview', imageUrl: result.url });
         broadcastSessionListUpdate(eventNamespaceId, 'preview_image_available', { sessionId, previewImageUrl: result.url });
         console.log(`[Preview] Updated preview for ${sessionId}: ${result.url}`);
       }

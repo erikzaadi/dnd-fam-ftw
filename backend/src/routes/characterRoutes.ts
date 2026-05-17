@@ -64,22 +64,21 @@ export const createCharacterRouter = () => {
       return;
     }
 
-    const avatarResult = !session.savingsMode
-      ? await ImageService.generateAvatar(characterData, sessionId)
-      : { url: ImageService.generateInitialsSvg(characterData.name, sessionId), prompt: '', storageKey: '', storageProvider: 'local' };
-
     const startingMaxHp = getStartingMaxHp(characterData.class);
+    const charId = createId();
+
+    const initialsUrl = session.savingsMode
+      ? ImageService.generateInitialsSvg(characterData.name, sessionId)
+      : undefined;
+
     const character: Character = {
-      id: createId(),
+      id: charId,
       hp: startingMaxHp,
       max_hp: startingMaxHp,
       status: 'active',
       inventory: [],
-      avatarUrl: avatarResult.url,
-      avatarPrompt: avatarResult.prompt,
-      avatarStorageKey: avatarResult.storageKey,
-      avatarStorageProvider: avatarResult.storageProvider,
-      ...characterData
+      avatarUrl: initialsUrl,
+      ...characterData,
     };
 
     session.party.push(character);
@@ -89,8 +88,17 @@ export const createCharacterRouter = () => {
     await StateService.updateSession(sessionId, session);
     broadcastUpdate(sessionId, 'party_update', { session });
     broadcastSessionChanged(req.namespaceId, sessionId, 'updated');
-    triggerPreviewRegen(sessionId, req.namespaceId);
     res.json(character);
+
+    if (!session.savingsMode) {
+      const capturedNamespaceId = req.namespaceId;
+      setImmediate(() => void ImageService.generateAvatar(characterData, sessionId).then(result => {
+        StateService.updateCharacterAvatar(charId, result.url, result.prompt, result.storageKey, result.storageProvider);
+        broadcastUpdate(sessionId, 'image_ready', { target: 'character_avatar', characterId: charId, imageUrl: result.url });
+        triggerPreviewRegen(sessionId, capturedNamespaceId);
+        broadcastSessionChanged(capturedNamespaceId, sessionId, 'updated');
+      }).catch(err => console.error('[Character] Background avatar generation failed:', err)));
+    }
   }));
 
   router.put('/character/:charId', asyncHandler(async (req, res) => {
@@ -99,7 +107,7 @@ export const createCharacterRouter = () => {
       return;
     }
     const { sessionId, characterData } = body;
-    const charId = req.params.charId;
+    const charId = req.params.charId as string;
     const sessionNamespace = StateService.getSessionNamespaceId(sessionId);
     if (!sessionNamespace || sessionNamespace !== req.namespaceId) {
       res.status(404).json({ error: 'Session not found' });
@@ -117,25 +125,32 @@ export const createCharacterRouter = () => {
       return;
     }
 
-    const avatarResult = !session.savingsMode
-      ? await ImageService.generateAvatar(characterData, sessionId)
-      : { url: ImageService.generateInitialsSvg(characterData.name, sessionId), prompt: '', storageKey: '', storageProvider: 'local' };
-
-    const updatedChar = {
+    const updatedChar: Character = {
       ...session.party[charIndex],
       ...characterData,
-      avatarUrl: avatarResult.url,
-      avatarPrompt: avatarResult.prompt,
-      avatarStorageKey: avatarResult.storageKey,
-      avatarStorageProvider: avatarResult.storageProvider,
+      // keep existing avatar during transition; new one arrives via image_ready SSE
     };
+
+    if (session.savingsMode) {
+      updatedChar.avatarUrl = ImageService.generateInitialsSvg(characterData.name, sessionId);
+    }
 
     session.party[charIndex] = updatedChar;
     await StateService.updateSession(sessionId, session);
     broadcastUpdate(sessionId, 'party_update', { session });
     broadcastSessionChanged(req.namespaceId, sessionId, 'updated');
-    triggerPreviewRegen(sessionId, req.namespaceId);
     res.json(updatedChar);
+
+    if (!session.savingsMode) {
+      const capturedCharId = charId;
+      const capturedNamespaceId = req.namespaceId;
+      setImmediate(() => void ImageService.generateAvatar(characterData, sessionId).then(result => {
+        StateService.updateCharacterAvatar(capturedCharId, result.url, result.prompt, result.storageKey, result.storageProvider);
+        broadcastUpdate(sessionId, 'image_ready', { target: 'character_avatar', characterId: capturedCharId, imageUrl: result.url });
+        triggerPreviewRegen(sessionId, capturedNamespaceId);
+        broadcastSessionChanged(capturedNamespaceId, sessionId, 'updated');
+      }).catch(err => console.error('[Character] Background avatar update failed:', err)));
+    }
   }));
 
   router.get('/character/:charId/history-summary', asyncHandler(async (req, res) => {
