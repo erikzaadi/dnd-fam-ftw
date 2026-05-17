@@ -147,6 +147,32 @@ export interface EncounterSeed {
   lootHint?: string;
 }
 
+export interface EncounterStartProposal {
+  name: string;
+  enemies: Array<{
+    name: string;
+    role: EncounterEnemy['role'];
+    traits?: string[] | null;
+    weaknesses?: Array<{ label: string; school?: EncounterWeakness['school'] | null }> | null;
+  }>;
+  areas?: Array<{
+    label: string;
+    description?: string | null;
+    tags?: string[] | null;
+  }> | null;
+  objective?: string | null;
+  lootHint?: string | null;
+}
+
+export type ImageReadyPayload =
+  | { target: 'scene'; imageUrl: string }
+  | { target: 'encounter_enemy'; encounterId: string; enemyId: string; imageUrl: string }
+  | { target: 'encounter_area'; encounterId: string; areaId: string; imageUrl: string }
+  | { target: 'character_avatar'; characterId: string; imageUrl: string }
+  | { target: 'session_preview'; imageUrl: string };
+
+export type ImageReadyEvent = { type: 'image_ready' } & ImageReadyPayload;
+
 export interface Character {
   id: string;
   name: string;
@@ -280,7 +306,7 @@ export interface TurnResult {
   narrationFailed?: boolean;
   narrationValidationError?: string;
   narrationRetryValidationError?: string;
-  suggestedEncounterStart?: unknown | null;
+  suggestedEncounterStart?: EncounterStartProposal | null;
   suggestedEncounterUpdate?: unknown | null;
 }
 
