@@ -25,6 +25,16 @@ app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
 app.use(cookieParser());
 
+if (process.env.NODE_ENV !== 'production') {
+  app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+      console.log(`[${req.method}] ${req.path} ${res.statusCode} — ${Date.now() - start}ms`);
+    });
+    next();
+  });
+}
+
 const config = getConfig();
 const isProduction = process.env.NODE_ENV === 'production';
 app.use((_req, res, next) => {

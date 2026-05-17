@@ -11,6 +11,7 @@ import { triggerPreviewRegen } from '../services/sessionPreviewService.js';
 import type { Character } from '../types.js';
 import { parseBody } from './routeValidation.js';
 import { registerSessionIdParam } from '../middleware/sessionParam.js';
+import { runBackground } from '../middleware/runBackground.js';
 
 const characterDataSchema = z.object({
   name: z.string().min(1),
@@ -92,12 +93,13 @@ export const createCharacterRouter = () => {
 
     if (!session.savingsMode) {
       const capturedNamespaceId = req.namespaceId;
-      setImmediate(() => void ImageService.generateAvatar(characterData, sessionId).then(result => {
+      runBackground(`avatar-create char=${charId} session=${sessionId}`, async () => {
+        const result = await ImageService.generateAvatar(characterData, sessionId);
         StateService.updateCharacterAvatar(charId, result.url, result.prompt, result.storageKey, result.storageProvider);
         broadcastUpdate(sessionId, 'image_ready', { target: 'character_avatar', characterId: charId, imageUrl: result.url });
         triggerPreviewRegen(sessionId, capturedNamespaceId);
         broadcastSessionChanged(capturedNamespaceId, sessionId, 'updated');
-      }).catch(err => console.error('[Character] Background avatar generation failed:', err)));
+      });
     }
   }));
 
@@ -144,12 +146,13 @@ export const createCharacterRouter = () => {
     if (!session.savingsMode) {
       const capturedCharId = charId;
       const capturedNamespaceId = req.namespaceId;
-      setImmediate(() => void ImageService.generateAvatar(characterData, sessionId).then(result => {
+      runBackground(`avatar-update char=${capturedCharId} session=${sessionId}`, async () => {
+        const result = await ImageService.generateAvatar(characterData, sessionId);
         StateService.updateCharacterAvatar(capturedCharId, result.url, result.prompt, result.storageKey, result.storageProvider);
         broadcastUpdate(sessionId, 'image_ready', { target: 'character_avatar', characterId: capturedCharId, imageUrl: result.url });
         triggerPreviewRegen(sessionId, capturedNamespaceId);
         broadcastSessionChanged(capturedNamespaceId, sessionId, 'updated');
-      }).catch(err => console.error('[Character] Background avatar update failed:', err)));
+      });
     }
   }));
 

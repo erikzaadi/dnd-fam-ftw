@@ -36,15 +36,25 @@ export class OpenAINarrationProvider implements NarrationProvider {
   }
 
   private async callModel(input: NarrationInput, validationError?: string): Promise<unknown> {
+    const isDev = process.env.NODE_ENV !== 'production';
+    const model = getModelForTier('narration');
+    const attempt = validationError ? 'retry' : 'attempt-1';
+    const start = Date.now();
+    if (isDev) {
+      console.log(`[Narration] ${attempt} start model=${model}`);
+    }
     const response = await createOpenAIClient().chat.completions.parse({
-      model: getModelForTier('narration'),
+      model,
       messages: [
         { role: 'system', content: NARRATION_SYSTEM_PROMPT },
         { role: 'user', content: buildNarrationUserContent(input, validationError) },
       ],
       response_format: zodResponseFormat(narrationOutputSchema, 'narration_output'),
       temperature: 0.7,
-    });
+    }, { signal: AbortSignal.timeout(40_000) });
+    if (isDev) {
+      console.log(`[Narration] ${attempt} done — ${Date.now() - start}ms`);
+    }
 
     const message = response.choices[0].message;
     if (message.refusal) {

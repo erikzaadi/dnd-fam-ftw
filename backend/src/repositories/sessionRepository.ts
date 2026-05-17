@@ -33,6 +33,11 @@ export type SessionPatch = {
   encounterState?: EncounterState | null;
   pastEncounters?: EncounterState[] | null;
   dmPrepEncounters?: EncounterSeed[] | null;
+  originStory?: string | null;
+  originStoryImageUrl?: string | null;
+  originStoryImageStorageKey?: string | null;
+  originStoryImageStorageProvider?: string | null;
+  originStoryGeneratedAt?: string | null;
 };
 
 export const sessionRepository = {
@@ -102,6 +107,11 @@ export const sessionRepository = {
       game_over: number;
       storySummary: string;
       preview_image_url: string | null;
+      origin_story: string | null;
+      origin_story_image_url: string | null;
+      origin_story_image_storage_key: string | null;
+      origin_story_image_storage_provider: string | null;
+      origin_story_generated_at: string | null;
     } | undefined;
     if (!row) {
       return undefined;
@@ -207,6 +217,8 @@ export const sessionRepository = {
       storySummary: row.storySummary ?? '',
       gameOver: !!row.game_over,
       previewImageUrl: row.preview_image_url || undefined,
+      originStory: row.origin_story || undefined,
+      originStoryImageUrl: row.origin_story_image_url || undefined,
     };
   },
 
@@ -268,6 +280,11 @@ export const sessionRepository = {
       dmPrep: 'dm_prep',
       dmPrepImageBrief: 'dm_prep_image_brief',
       worldDescription: 'worldDescription',
+      originStory: 'origin_story',
+      originStoryImageUrl: 'origin_story_image_url',
+      originStoryImageStorageKey: 'origin_story_image_storage_key',
+      originStoryImageStorageProvider: 'origin_story_image_storage_provider',
+      originStoryGeneratedAt: 'origin_story_generated_at',
     };
     const sets: string[] = [];
     const values: unknown[] = [];

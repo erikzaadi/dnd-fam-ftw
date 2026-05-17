@@ -780,6 +780,8 @@ case 'metrics': {
     savings_mode_sessions: number;
     max_sessions: number | null;
     max_turns: number | null;
+    encounters_seeded: number;
+    encounters_dynamic: number;
   }
   const dbPath = path.resolve(getConfig().SQLITE_DB_PATH);
   const db = new Database(dbPath, { readonly: true });
@@ -814,20 +816,49 @@ case 'metrics': {
     LEFT JOIN sessions s ON s.namespace_id = n.id
     GROUP BY n.id
     ORDER BY n.created_at
-  `).all() as NamespaceMetrics[];
+  `).all() as Omit<NamespaceMetrics, 'encounters_seeded' | 'encounters_dynamic'>[];
+
+  // Count seeded vs. dynamic encounters by parsing JSON per session in Node.js
+  const encounterRows = db.prepare(`
+    SELECT s.namespace_id, s.past_encounters, s.dm_prep_encounters
+    FROM sessions s
+    WHERE s.past_encounters IS NOT NULL AND s.past_encounters != '[]'
+  `).all() as { namespace_id: string; past_encounters: string; dm_prep_encounters: string | null }[];
   db.close();
+
+  const encounterCountsByNamespace = new Map<string, { seeded: number; dynamic: number }>();
+  for (const s of encounterRows) {
+    const past = JSON.parse(s.past_encounters) as Array<{ name: string }>;
+    const seeds: Array<{ name: string }> = s.dm_prep_encounters ? JSON.parse(s.dm_prep_encounters) : [];
+    const seedNames = new Set(seeds.map(sd => sd.name.trim().toLowerCase()));
+    const counts = encounterCountsByNamespace.get(s.namespace_id) ?? { seeded: 0, dynamic: 0 };
+    for (const enc of past) {
+      if (seedNames.has(enc.name.trim().toLowerCase())) {
+        counts.seeded++;
+      } else {
+        counts.dynamic++;
+      }
+    }
+    encounterCountsByNamespace.set(s.namespace_id, counts);
+  }
+
+  const metricsRows: NamespaceMetrics[] = rows.map(r => {
+    const enc = encounterCountsByNamespace.get(r.namespace_id) ?? { seeded: 0, dynamic: 0 };
+    return { ...r, encounters_seeded: enc.seeded, encounters_dynamic: enc.dynamic };
+  });
+
   if (jsonMode) {
-    process.stdout.write(JSON.stringify(rows, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(metricsRows, null, 2) + '\n');
   } else {
     console.log('\nOpenAI usage metrics by namespace\n');
     const col = (s: string | number, w: number) => String(s).padEnd(w);
     console.log(
       col('Namespace', 20) + col('Sessions', 10) + col('Turns', 8) +
       col('Images', 8) + col('Avatars', 9) + col('TTS', 7) + col('TTS Chars', 11) +
-      col('SavingsMode', 13) + 'Limits'
+      col('SavingsMode', 13) + col('Enc(prep)', 11) + col('Enc(dyn)', 10) + 'Limits'
     );
-    console.log('-'.repeat(90));
-    for (const r of rows) {
+    console.log('-'.repeat(112));
+    for (const r of metricsRows) {
       const limits = [
         r.max_sessions != null ? `sessions<=${r.max_sessions}` : null,
         r.max_turns != null ? `turns<=${r.max_turns}` : null,
@@ -835,7 +866,7 @@ case 'metrics': {
       console.log(
         col(r.namespace_name, 20) + col(r.session_count, 10) + col(r.total_turns, 8) +
         col(r.images_generated, 8) + col(r.avatars_generated, 9) + col(r.tts_requests, 7) + col(r.tts_characters, 11) +
-        col(r.savings_mode_sessions, 13) + limits
+        col(r.savings_mode_sessions, 13) + col(r.encounters_seeded, 11) + col(r.encounters_dynamic, 10) + limits
       );
     }
     console.log();

@@ -1,4 +1,5 @@
 import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
+import { runBackground } from '../middleware/runBackground.js';
 import { StateService } from './stateService.js';
 import { ImageService } from './imageService.js';
 import type { EncounterSeed } from '../types.js';
@@ -18,6 +19,11 @@ RECENTLY RESOLVED: one combat, challenge, clue, or scene that should not be repe
 };
 
 const ENCOUNTER_SEEDS_MARKER = 'ENCOUNTER_SEEDS:';
+
+type GenerateCampaignBriefOptions = {
+  mediaMode?: 'background' | 'inline';
+  onMediaReady?: () => void | Promise<void>;
+};
 
 const tryParseJsonArray = (text: string): EncounterSeed[] | null => {
   const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -119,7 +125,14 @@ Focus only on the current situation and the essential journey, ignoring defeated
     }
   }
 
-  static async generateCampaignBrief(sessionId: string, worldDescription: string | undefined, displayName?: string, difficulty?: string, gameMode?: string): Promise<string | null> {
+  static async generateCampaignBrief(
+    sessionId: string,
+    worldDescription: string | undefined,
+    displayName?: string,
+    difficulty?: string,
+    gameMode?: string,
+    options: GenerateCampaignBriefOptions = {},
+  ): Promise<string | null> {
     try {
       const nameContext = displayName?.trim() ? `\nRealm name: "${displayName.trim()}"` : '';
       const descContext = worldDescription?.trim() ? `\nRealm description: "${worldDescription.trim()}"` : '';
@@ -158,10 +171,10 @@ Be specific: invent names, places, visual details, clues, and recurring motifs. 
 
 After the prose sections above, append one machine-readable block:
 ENCOUNTER_SEEDS:
-A JSON array of the 1-4 combat encounters described in the ENCOUNTERS and STAGES sections. Each entry must follow this schema exactly:
+A JSON array covering ALL encounters across EVERY stage of the campaign (Early, Mid, and Climax). Include at least one seed per stage. Seeds represent any situation where the party faces something they must fight, disable, bypass, outwit, or negotiate with - including combat enemies, exploration hazards with entity-like threats (creatures, constructs, phantoms, traps with guardians), and climax confrontations. Pure puzzle or social scenes with no opposing entity may be omitted. The climax confrontation MUST always be included. Aim for 3-5 seeds total. Each entry must follow this schema exactly:
 {
   "name": "string - short encounter name like Thornwood Guardian",
-  "triggerHint": "string - when this encounter fires, e.g. when party enters the Thornwood",
+  "triggerHint": "string - when this encounter fires, e.g. when party enters the Thornwood or approaches the vault",
   "enemies": [
     {
       "name": "string",
@@ -171,23 +184,31 @@ A JSON array of the 1-4 combat encounters described in the ENCOUNTERS and STAGES
     }
   ],
   "areas": [{ "label": "string", "tags": ["string"], "effect": "optional 1-sentence quirky or dangerous area effect, e.g. 'slippery ice floor', 'arcane surge zone', 'crumbling ledge'. Omit if none." }],
-  "objective": "string - optional combat objective",
-  "lootHint": "string - one thematic item tied to this encounter from the TREASURE section, or null"
+  "objective": "string - optional combat objective beyond simple defeat",
+  "lootHint": "string - one thematic item tied to this encounter from the TREASURE section, or omit if none fits"
 }
-The JSON block must be a valid JSON array with no extra text or prose inside it. Omit null values instead of writing null.`;
+The JSON block must be a valid JSON array with no extra text or prose inside it. Omit keys with null or empty values.`;
 
-      const raw = await this.callSummarize(prompt, 2000, 90_000, `campaign brief session=${sessionId}`);
+      const raw = await this.callSummarize(prompt, 2000, 50_000, `campaign brief session=${sessionId}`);
       if (raw) {
         const { brief, seeds } = parseEncounterSeeds(raw);
-        const [imageBrief, seededWithMedia] = await Promise.all([
-          this.generateDmPrepImageBrief(brief, sessionId),
-          this.generateSeedMedia(seeds, sessionId),
-        ]);
-        await StateService.patchSession(sessionId, { dmPrep: brief, dmPrepImageBrief: imageBrief, dmPrepEncounters: seededWithMedia });
-        if (seededWithMedia) {
-          console.log(`[Campaign] Brief + ${seededWithMedia.length} encounter seed(s) generated for session ${sessionId}`);
+        await StateService.patchSession(sessionId, { dmPrep: brief });
+        const generateMedia = async () => {
+          const [imageBrief, seededWithMedia] = await Promise.all([
+            this.generateDmPrepImageBrief(brief, sessionId),
+            this.generateSeedMedia(seeds, sessionId),
+          ]);
+          await StateService.patchSession(sessionId, { dmPrepImageBrief: imageBrief, dmPrepEncounters: seededWithMedia });
+          if (seededWithMedia) {
+            console.log(`[Campaign] ${seededWithMedia.length} encounter seed(s) stored for session ${sessionId}`);
+          }
+          await options.onMediaReady?.();
+        };
+        if (options.mediaMode === 'inline') {
+          await generateMedia();
         } else {
-          console.log(`[Campaign] Brief generated (no encounter seeds parsed) for session ${sessionId}`);
+          console.log(`[Campaign] Brief ready for session ${sessionId} — media generating in background`);
+          runBackground(`campaign-media session=${sessionId}`, generateMedia);
         }
         return brief;
       }

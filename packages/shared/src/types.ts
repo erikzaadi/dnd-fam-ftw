@@ -337,6 +337,8 @@ export interface Session {
   previewImageUrl?: string;
   encounterState?: EncounterState;
   pastEncounters?: EncounterState[];
+  originStory?: string;
+  originStoryImageUrl?: string;
 }
 
 export interface AppSettings {

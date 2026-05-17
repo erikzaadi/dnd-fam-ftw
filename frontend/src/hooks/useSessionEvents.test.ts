@@ -32,6 +32,7 @@ const makeHandlers = () => ({
   sessionId: 'test-session',
   onNarrating: vi.fn(),
   onTurnComplete: vi.fn(),
+  onTurnError: vi.fn(),
   onImageReady: vi.fn(),
   onIntervention: vi.fn(),
   onSanctuaryRecovery: vi.fn(),

@@ -93,6 +93,7 @@ export const CharacterAssembly = () => {
     },
     onNarrating: () => {},
     onTurnComplete: () => {},
+    onTurnError: () => {},
     onImageReady: (event) => {
       if (event.target === 'character_avatar') {
         setSession(prev => prev ? {

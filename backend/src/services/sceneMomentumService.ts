@@ -108,8 +108,15 @@ function suggestedNextBeatFor(input: {
   pressure: ScenePressure;
   justCompletedDifficultChallenge: boolean;
   pendingSeedName?: string;
+  gameMode?: string;
 }): string {
   if (input.directive === 'victory_exit') {
+    if (input.gameMode === 'zug-ma-geddon') {
+      return 'New enemies arrive immediately - set suggestedEncounterStart now with fresh combatants. There is no pause between battles in zug-ma-geddon.';
+    }
+    if (input.gameMode === 'fast') {
+      return 'Carry the party out of the defeated encounter - new danger should arrive within 1-2 turns. Set suggestedEncounterStart with fresh enemies if the situation calls for it.';
+    }
     if (input.justCompletedDifficultChallenge) {
       return 'Carry the party past the completed challenge into the reward, clue, route, or visible consequence it unlocked.';
     }
@@ -160,7 +167,7 @@ export function buildSceneMomentum(
   const turnsSinceSceneChange = countSameSceneTurns(history, scenePressure.kind);
   const turnsSinceCombat = turnsSinceKind(history, 'combat');
   const mode = session.gameMode ?? 'balanced';
-  const staleThreshold = mode === 'fast' ? 2 : mode === 'balanced' ? 4 : 5;
+  const staleThreshold = mode === 'zug-ma-geddon' ? 1 : mode === 'fast' ? 2 : mode === 'balanced' ? 4 : 5;
   const shouldAdvance = staleChoiceCount >= 2 || turnsSinceSceneChange >= staleThreshold;
   const shouldClimax = scenePressure.previousTensionLevels.filter(level => level === 'high').length >= 3 &&
     !!(session.storySummary || session.dmPrep);
@@ -189,7 +196,7 @@ export function buildSceneMomentum(
     turnsSinceCombat,
     justCompletedCombat,
     justCompletedDifficultChallenge,
-    suggestedNextBeat: suggestedNextBeatFor({ directive, pressure: scenePressure, justCompletedDifficultChallenge, pendingSeedName }),
+    suggestedNextBeat: suggestedNextBeatFor({ directive, pressure: scenePressure, justCompletedDifficultChallenge, pendingSeedName, gameMode: mode }),
     reason: `Deterministic momentum: pressure=${scenePressure.kind}, staleChoices=${staleChoiceCount}, turnsSinceSceneChange=${turnsSinceSceneChange}, successfulPressureTurns=${scenePressure.successfulPressureTurns}.`,
   };
 }

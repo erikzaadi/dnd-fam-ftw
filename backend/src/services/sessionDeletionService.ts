@@ -47,6 +47,15 @@ export const deleteSessionWithAssets = async (id: string): Promise<void> => {
     await deleteImage(character.avatarUrl, character.avatar_storage_key, character.avatar_storage_provider);
   }
 
+  const sessionRow = db.prepare('SELECT origin_story_image_url, origin_story_image_storage_key, origin_story_image_storage_provider FROM sessions WHERE id = ?').get(id) as {
+    origin_story_image_url: string | null;
+    origin_story_image_storage_key: string | null;
+    origin_story_image_storage_provider: string | null;
+  } | undefined;
+  if (sessionRow) {
+    await deleteImage(sessionRow.origin_story_image_url, sessionRow.origin_story_image_storage_key, sessionRow.origin_story_image_storage_provider);
+  }
+
   db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
   db.prepare('DELETE FROM turn_history WHERE sessionId = ?').run(id);
 };

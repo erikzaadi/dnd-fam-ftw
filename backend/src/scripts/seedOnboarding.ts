@@ -49,6 +49,18 @@ TREASURE:
 STAGES: Early - recover the cart and starter | Mid - find Nubbin and the scroll | Climax - decide what to do with the scroll
 DM NOTE: Always let players succeed in funny ways. If they fail, something sillier happens instead. Every setback should produce a pastry.`;
 
+const ORIGIN_STORY = `Before the Breadcrumbs Inn hung its first help-wanted sign, four wanderers happened to share a table on a rainy evening.
+
+Brom Ironbread, a Human Fighter who benchpresses boulders and calls it cardio, had spent the afternoon carrying a stuck merchant wagon uphill because the oxen looked tired. Finn Quickcrust, a Halfling Rogue with a talent for going entirely unnoticed and an equally impressive talent for appearing just as someone else's food arrives, occupied a corner seat - or possibly had always been there. Zara Spellsworth, an Elf Mage who alphabetizes her spell components by syllable count and gets visibly upset when other people do not, arrived at the precise moment she had calculated dinner would be ready. And Mira Warmheal, a Human Cleric who can close any wound in under a minute but will always say told you so before picking up the bandage, had just finished treating a cart horse with a sore hoof.
+
+That evening Gerta the baker placed a plate of legendary cinnamon rolls on their table without being asked. By the time the plate was empty, none of them could quite explain why they had agreed to help each other out if things ever got interesting.
+
+Things got interesting the next morning. Gerta burst in at dawn, dishcloth clenched in both hands. Her cart was gone. Her croissants were gone. And her sourdough starter - forty years of living culture passed down from her grandmother - was gone with them. A trail of flour led from the inn door straight into the depths of Tangle Wood, and a hand-painted sign had appeared on the doorpost: Adventurers Wanted. Must not be allergic to goblins. Three silver and a free pastry on completion.
+
+Brom cracked his knuckles. Finn sipped the last of his tea and said nothing, which meant yes. Zara opened a small notebook and confirmed that goblin recovery operations fell under the heading of Field Research. Mira tied back her sleeves.
+
+Whatever was waiting at the end of that flour trail did not know it was about to have a very bad morning.`;
+
 const DM_PREP_IMAGE_BRIEF = 'mischievous goblins in a forest clearing, stolen bread cart, glowing recipe scroll, sourdough jar, croissant chaos, whimsical Tangle Wood, cozy inn, small goblin chief';
 
 const DM_PREP_ENCOUNTERS = JSON.stringify([
@@ -82,8 +94,8 @@ export function seed(db: DB): void {
 
   deleteSession(db, S);
 
-  db.prepare(`INSERT INTO sessions (id, scene, sceneId, worldDescription, displayName, turn, activeCharacterId, tone, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, rescues_used, game_over, storySummary, preview_image_url, dm_prep, dm_prep_image_brief, dm_prep_encounters)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, ?, ?, ?, ?, ?)`)
+  db.prepare(`INSERT INTO sessions (id, scene, sceneId, worldDescription, displayName, turn, activeCharacterId, tone, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, rescues_used, game_over, storySummary, preview_image_url, dm_prep, dm_prep_image_brief, dm_prep_encounters, origin_story)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, ?, ?, ?, ?, ?, ?)`)
     .run(
       S,
       'Tangle Wood - The Goblin Camp',
@@ -100,6 +112,7 @@ export function seed(db: DB): void {
       DM_PREP,
       DM_PREP_IMAGE_BRIEF,
       DM_PREP_ENCOUNTERS,
+      ORIGIN_STORY,
     );
 
   seedChar(db, S, 'seed-onboard-c1', 'Brom Ironbread', 'Fighter', 'Human', "Bench-presses boulders for fun, insists it's just cardio", 5, 1, 1, 10, 10, 'active', '/images/onboarding/avatar_brom.png');

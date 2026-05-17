@@ -72,6 +72,55 @@ describe('executeTurnAction free action integration', () => {
     expect(stored?.activeCharacterId).toBe('char-pip');
   });
 
+  it('replaces stale combat narration and choices when auto-damage resolves an encounter', async () => {
+    resetMockNarrationProvider({
+      ...FIXED_NARRATION_OUTPUT,
+      narration: 'The Ambusher snarls, wounded but fierce, lunging at Zara.',
+      choices: [
+        { label: 'Cast a precise missile at the Ambusher', difficulty: 'normal', stat: 'magic', difficultyValue: 13 },
+        { label: 'Dive away from the Ambusher', difficulty: 'easy', stat: 'mischief', difficultyValue: 8 },
+        { label: 'Distract the Ambusher', difficulty: 'hard', stat: 'mischief', difficultyValue: 15 },
+      ],
+      currentTensionLevel: 'high',
+    });
+    const session = makeTestSession({
+      id: 'free-action-resolved-encounter-session',
+      party: [makeTestSession().party[0], makeTestSession().party[1]],
+      activeCharacterId: 'char-pip',
+      encounterState: {
+        id: 'enc-ambusher',
+        name: 'Ambusher Skirmish',
+        status: 'active',
+        round: 1,
+        enemies: [{ id: 'enemy-ambusher', name: 'Ambusher', role: 'minion', hp: 1, maxHp: 1, status: 'active' }],
+        areas: [],
+      },
+    });
+    await insertSessionState(session);
+
+    const result = await executeTurnAction('free-action-resolved-encounter-session', 'local', {
+      action: 'Pip strikes the Ambusher with a precise blade thrust',
+      statUsed: 'magic',
+      difficulty: 'easy',
+      difficultyValue: 1,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.body.turnResult.narration).toContain('Ambusher collapses, defeated');
+    expect(result.body.turnResult.narration).not.toContain('wounded but fierce');
+    expect(result.body.turnResult.choices.map(choice => choice.label).join(' ')).not.toContain('Ambusher');
+    expect(result.body.turnResult.encounterEnemyChanges?.[0]).toMatchObject({
+      enemyName: 'Ambusher',
+      newStatus: 'defeated',
+    });
+    const stored = await StateService.getSession('free-action-resolved-encounter-session');
+    expect(stored?.lastChoices.map(choice => choice.label).join(' ')).not.toContain('Ambusher');
+  });
+
   it('resolves typed correct riddle answers without rolling', async () => {
     const session = makeTestSession({
       id: 'free-action-riddle-session',

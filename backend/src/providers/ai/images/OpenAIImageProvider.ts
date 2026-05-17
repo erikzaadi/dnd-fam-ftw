@@ -18,7 +18,7 @@ export class OpenAIImageProvider implements ImageProvider {
       ...(isDallE3
         ? { response_format: 'b64_json', quality: 'standard' }
         : { quality: 'low' }),
-    });
+    }, { signal: AbortSignal.timeout(120_000) });
 
     const item = response.data?.[0];
     if (item?.b64_json) {

@@ -334,4 +334,13 @@ export const migrate = (db: DB): void => {
   if (!sessionColsFinal.includes('past_encounters')) {
     db.prepare("ALTER TABLE sessions ADD COLUMN past_encounters TEXT").run();
   }
+
+  const sessionColsOrigin = (db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[]).map(r => r.name);
+  if (!sessionColsOrigin.includes('origin_story')) {
+    db.prepare("ALTER TABLE sessions ADD COLUMN origin_story TEXT").run();
+    db.prepare("ALTER TABLE sessions ADD COLUMN origin_story_image_url TEXT").run();
+    db.prepare("ALTER TABLE sessions ADD COLUMN origin_story_image_storage_key TEXT").run();
+    db.prepare("ALTER TABLE sessions ADD COLUMN origin_story_image_storage_provider TEXT").run();
+    db.prepare("ALTER TABLE sessions ADD COLUMN origin_story_generated_at TEXT").run();
+  }
 };

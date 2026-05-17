@@ -3,6 +3,7 @@ import {
   normalizeEnemyName,
   resolveEncounterSeed,
   handleEncounterStart,
+  inferOrganicEncounterStart,
   resolveEnemy,
   applyEncounterUpdate,
   getEnemyHpLabel,
@@ -179,6 +180,47 @@ describe('handleEncounterStart', () => {
       undefined,
     );
     expect(enc!.enemies[0].role).toBe('elite');
+  });
+});
+
+describe('inferOrganicEncounterStart', () => {
+  it('creates a small organic encounter from high-danger combat narration', () => {
+    const proposal = inferOrganicEncounterStart({
+      narration: 'A bandit springs from behind the cracked pillar and attacks.',
+      currentTensionLevel: 'high',
+      suggestedDamage: 1,
+    }, undefined);
+
+    expect(proposal?.name).toBe('Bandit Skirmish');
+    expect(proposal?.enemies[0].name).toBe('Bandit');
+    expect(proposal?.enemies[0].role).toBe('standard');
+  });
+
+  it('does not infer from atmospheric tension alone', () => {
+    const proposal = inferOrganicEncounterStart({
+      narration: 'The hallway grows colder as distant bells echo.',
+      currentTensionLevel: 'high',
+    }, undefined);
+
+    expect(proposal).toBeNull();
+  });
+
+  it('does not infer while an encounter is active', () => {
+    const activeEnc: EncounterState = {
+      id: 'enc-existing',
+      name: 'Existing',
+      status: 'active',
+      enemies: [],
+      areas: [],
+      round: 2,
+    };
+    const proposal = inferOrganicEncounterStart({
+      narration: 'A bandit springs from behind the cracked pillar and attacks.',
+      currentTensionLevel: 'high',
+      suggestedDamage: 1,
+    }, activeEnc);
+
+    expect(proposal).toBeNull();
   });
 });
 

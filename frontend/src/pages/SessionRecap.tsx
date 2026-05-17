@@ -18,8 +18,9 @@ import { PageLoader } from '../components/PageLoader';
 import { KeybindingsHelp } from '../components/KeybindingsHelp';
 import { useCapabilities } from '../hooks/useCapabilities';
 import { buildEncounterLookup } from '../lib/encounters';
+import { OriginView } from '../components/OriginView';
 
-type Mode = 'choose' | 'tldr' | 'movie';
+type Mode = 'choose' | 'tldr' | 'movie' | 'origin';
 
 const MOVIE_INTERVAL_MS = 5000;
 
@@ -465,6 +466,8 @@ export const SessionRecap = () => {
         setMode('movie');
       } else if (e.key === '3' && !session?.gameOver) {
         enter();
+      } else if (e.key === '3' && session?.gameOver && session.originStory) {
+        setMode('origin');
       }
     };
     window.addEventListener('keydown', handler);
@@ -495,7 +498,7 @@ export const SessionRecap = () => {
       setSession(s);
       setHistory(h);
       if (!h.length) {
-        enter();
+        setMode('origin');
       }
     });
   }, [id, enter]);
@@ -561,7 +564,7 @@ export const SessionRecap = () => {
               />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/65 to-slate-950/20" />
               <p className="relative text-lg md:text-2xl font-black uppercase tracking-widest text-amber-400 text-center">How would you like to catch up?</p>
-              <div className="relative flex gap-4 md:gap-6">
+              <div className="relative flex gap-4 md:gap-6 flex-wrap justify-center">
                 <button onClick={e => {
                   e.stopPropagation(); setMode('tldr');
                 }} className="relative flex flex-col items-center gap-3 p-6 md:p-8 bg-slate-900/90 hover:bg-slate-800 rounded-[32px] border border-slate-700 hover:border-amber-500/50 transition-all w-36 md:w-44">
@@ -578,6 +581,16 @@ export const SessionRecap = () => {
                   <span className="font-black uppercase tracking-widest text-sm">Movie</span>
                   <span className="text-xs text-slate-500 text-center">Relive each turn with scenes</span>
                 </button>
+                {session.gameOver && session.originStory && (
+                  <button onClick={e => {
+                    e.stopPropagation(); setMode('origin');
+                  }} className="relative flex flex-col items-center gap-3 p-6 md:p-8 bg-slate-900/90 hover:bg-slate-800 rounded-[32px] border border-slate-700 hover:border-amber-500/50 transition-all w-36 md:w-44">
+                    <span className="absolute top-2 right-3 text-[9px] font-black text-slate-600 tracking-widest">[3]</span>
+                    <span className="text-4xl">📖</span>
+                    <span className="font-black uppercase tracking-widest text-sm">Origin</span>
+                    <span className="text-xs text-slate-500 text-center">How the legend began</span>
+                  </button>
+                )}
               </div>
               {!session.gameOver && (
                 <button onClick={e => {
@@ -591,6 +604,7 @@ export const SessionRecap = () => {
           </div>
         )}
 
+        {mode === 'origin' && <OriginView sessionId={id!} session={session} onEnter={enter} hasTts={capabilities.hasTts} />}
         {mode === 'tldr' && <TldrView sessionId={id!} onEnter={enter} hasTts={capabilities.hasTts} />}
         {mode === 'movie' && history.length > 0 && <MovieView history={history} encounters={[...(session.pastEncounters ?? []), ...(session.encounterState ? [session.encounterState] : [])]} party={session.party} previewImageUrl={previewImageUrl} onEnter={enter} hasTts={capabilities.hasTts} />}
       </div>

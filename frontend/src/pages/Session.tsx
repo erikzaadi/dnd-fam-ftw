@@ -28,6 +28,7 @@ import { NarrationTtsButton } from '../components/NarrationTtsButton';
 import { KeybindingsHelp } from '../components/KeybindingsHelp';
 import { OnboardingOverlay } from '../components/OnboardingOverlay';
 import { useOnboardingTutorial } from '../hooks/useOnboardingTutorial';
+import { OriginView } from '../components/OriginView';
 import { getRollImpactOutcome } from '../lib/rollOutcome';
 import { buildEncounterLookup, countEncounterTurns, getTurnEncounter, patchEncounterEnemyAvatar, patchEncounterAreaImage } from '../lib/encounters';
 
@@ -92,6 +93,7 @@ export const SessionPage = () => {
   const [showBanner, setShowBanner] = useState(true);
   const [gearOpen, setGearOpen] = useState(false);
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const [showOrigin, setShowOrigin] = useState(false);
   const showBannerRef = useRef(showBanner);
   showBannerRef.current = showBanner;
   const [storyFocusRequest, setStoryFocusRequest] = useState(0);
@@ -101,6 +103,7 @@ export const SessionPage = () => {
   });
   const displayTurnRef = useRef<TurnResult | null>(null);
   const pendingStoryFocusRef = useRef(false);
+  const previewPartyBoostActionRef = useRef<() => void>(() => undefined);
 
   const requestStoryFocus = useCallback(() => {
     setStoryFocusRequest(version => version + 1);
@@ -126,6 +129,9 @@ export const SessionPage = () => {
     const hData = await hRes.json();
     setHistory(hData);
     setViewedTurnIdx(hData.length - 1);
+    if (hData.length === 1) {
+      setShowOrigin(true);
+    }
     apiFetch('/namespace/limits')
       .then(r => r.json())
       .catch(() => { /* limits unavailable */ });
@@ -248,6 +254,8 @@ export const SessionPage = () => {
         });
       } else if (e.key === 'b') {
         setShowBanner(prev => !prev);
+      } else if (e.key === 'p') {
+        previewPartyBoostActionRef.current();
       } else if (e.key === 's') {
         if (!showBannerRef.current) {
           setShowBanner(true);
@@ -271,6 +279,11 @@ export const SessionPage = () => {
 	  ? { ...prev, ...preview }
 	  : { label: action, stat: statUsed, difficulty, difficultyValue, char: character, ...preview });
       }
+    },
+    onTurnError: (_error, message) => {
+      setLoading(false);
+      setLastSubmittedAction(null);
+      setActionError(message);
     },
     onTurnComplete: (updatedSession, turnResult) => {
       setLoading(false);
@@ -464,16 +477,7 @@ export const SessionPage = () => {
       if (!res.ok) {
         throw new Error(data.message || 'Action failed');
       }
-      setSession(data.session);
-      setHistory(prev => {
-        if (data.turnResult.id && prev.some(t => t.id === data.turnResult.id)) {
-          return prev;
-        }
-        const next = [...prev, data.turnResult];
-        setViewedTurnIdx(next.length - 1);
-        requestStoryFocus();
-        return next;
-      });
+      // Turn is queued - result arrives via turn_complete SSE (or turn_error on failure)
     } catch (err: unknown) {
       if (err instanceof Error) {
         setActionError(err.message);
@@ -639,6 +643,9 @@ export const SessionPage = () => {
     }, `${actor.name} rallies the whole party with a short-lived boost`);
     setPreviewThinking(false);
   };
+  previewPartyBoostActionRef.current = () => {
+    void previewPartyBoostAction();
+  };
 
   const confirmGearAction = async () => {
     if (!gearActionPreview) {
@@ -705,6 +712,14 @@ export const SessionPage = () => {
             Return Home
           </button>
         </div>
+      </div>
+    );
+  }
+
+  if (showOrigin) {
+    return (
+      <div className="h-screen overflow-hidden flex flex-col bg-slate-950 text-white">
+        <OriginView sessionId={id!} session={session} onEnter={() => setShowOrigin(false)} hasTts={capabilities.hasTts} />
       </div>
     );
   }
@@ -1229,6 +1244,7 @@ export const SessionPage = () => {
             { key: 'Enter', action: 'Expand turn detail (Chronicle open)' },
             { key: 's', action: 'Open / close settings' },
             { key: 'q', action: 'Exit realm (with confirm)' },
+            { key: 'p', action: 'Preview party boost' },
             { key: 'b', action: 'Toggle banner' },
             { key: 'Esc', action: 'Close overlays / blur input' },
             { key: '?', action: 'Toggle this help' },

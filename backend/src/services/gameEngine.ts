@@ -1,6 +1,6 @@
 import { Character, SessionState, ActionAttempt, InventoryItem, Choice, type CharacterBuff, type Stat, type Difficulty, type TensionLevel } from '../types.js';
 import { createId } from '../lib/ids.js';
-import { handleEncounterStart, applyEncounterUpdate, computeImpactDamage, computeEnemyDamage, inferSeededEncounterStart, resolveEncounterSeed } from './encounterService.js';
+import { handleEncounterStart, applyEncounterUpdate, computeImpactDamage, computeEnemyDamage, inferOrganicEncounterStart, inferSeededEncounterStart, resolveEncounterSeed } from './encounterService.js';
 import type { EncounterStartProposal, EncounterUpdateProposal } from '../providers/ai/narration/narrationSchemas.js';
 
 export class GameEngine {
@@ -19,6 +19,18 @@ export class GameEngine {
 
   private static normalize(s: string): string {
     return s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  private static isNonOffensiveEncounterAction(actionAttempt: ActionAttempt, aiSuggestedChanges?: Record<string, unknown>): boolean {
+    const text = actionAttempt.actionAttempt.toLowerCase();
+    if (/\b(heal|healing|mend|restore|revive|prayer|bless|aid|help|support|bolster|rally|inspire|encourage|protect|shield|recover|rest|stabilize)\b/.test(text)) {
+      return true;
+    }
+    const hasHealing = Array.isArray(aiSuggestedChanges?.suggestedHeal) && aiSuggestedChanges.suggestedHeal.length > 0;
+    const hasRevive = !!aiSuggestedChanges?.suggestedRevive;
+    const hasBuff = Array.isArray(aiSuggestedChanges?.suggestedBuffAdd) && aiSuggestedChanges.suggestedBuffAdd.length > 0;
+    const hasItemUpdate = !!aiSuggestedChanges?.suggestedInventoryUpdate;
+    return hasHealing || hasRevive || hasBuff || hasItemUpdate;
   }
 
   private static editDistance(a: string, b: string): number {
@@ -619,9 +631,14 @@ export class GameEngine {
           ? aiEncounterUpdate as EncounterUpdateProposal
           : {};
 
+        const isNonOffensiveEncounterAction = this.isNonOffensiveEncounterAction(actionAttempt, aiSuggestedChanges);
+        if (isNonOffensiveEncounterAction) {
+          baseUpdate.enemyDamage = [];
+          baseUpdate.enemyStatus = [];
+        }
         const aiDealtDamage = (baseUpdate.enemyDamage?.length ?? 0) > 0;
         const { success, statUsed, impact } = actionAttempt.actionResult;
-        if (success && statUsed !== 'none' && !aiDealtDamage) {
+        if (success && statUsed !== 'none' && !aiDealtDamage && !isNonOffensiveEncounterAction) {
           const activeEnemy = newState.encounterState.enemies.find(e => e.status === 'active');
           if (activeEnemy) {
             const baseDamage = computeImpactDamage(impact);
@@ -666,14 +683,19 @@ export class GameEngine {
         state.encounterState?.status === 'active' &&
         newState.encounterState?.status !== 'active';
       if (!encounterJustResolved && newState.encounterState?.status !== 'active') {
-        const inferredEncounterStart = inferSeededEncounterStart({
+        const inferenceInput = {
           narration: typeof aiSuggestedChanges?.narration === 'string' ? aiSuggestedChanges.narration : null,
           imagePrompt: typeof aiSuggestedChanges?.imagePrompt === 'string' ? aiSuggestedChanges.imagePrompt : null,
           choices: Array.isArray(aiSuggestedChanges?.choices) ? aiSuggestedChanges.choices as Choice[] : null,
           actionAttempt: actionAttempt.actionAttempt,
           currentTensionLevel: typeof aiSuggestedChanges?.currentTensionLevel === 'string' ? aiSuggestedChanges.currentTensionLevel as TensionLevel : null,
           suggestedDamage: typeof aiSuggestedChanges?.suggestedDamage === 'number' ? aiSuggestedChanges.suggestedDamage : null,
-        }, newState.dmPrepEncounters, newState.encounterState);
+        };
+        const inferredEncounterStart = inferSeededEncounterStart(
+          inferenceInput,
+          newState.dmPrepEncounters,
+          newState.encounterState,
+        ) ?? inferOrganicEncounterStart(inferenceInput, newState.encounterState);
         if (inferredEncounterStart) {
           const started = handleEncounterStart(
             inferredEncounterStart,

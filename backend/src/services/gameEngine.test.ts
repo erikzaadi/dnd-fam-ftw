@@ -650,6 +650,22 @@ describe('GameEngine.updateState - encounter auto-damage', () => {
     expect(result.encounterState!.enemies[0].hp).toBe(6);
   });
 
+  it('does not auto-damage for successful healing or support actions', () => {
+    const session = makeSession({ encounterState: makeEncounter() });
+    const attempt = {
+      actionAttempt: 'Invoke a sacred healing prayer toward the party',
+      actionResult: { success: true, roll: 15, statUsed: 'magic' as const, impact: 'strong' as const },
+    };
+    const result = GameEngine.updateState(session, attempt, {
+      suggestedHeal: [{ characterName: 'Hero', hp: 4 }],
+      suggestedEncounterUpdate: {
+        enemyDamage: [{ enemyName: 'Goblin', amount: 3, reason: 'misread healing as harm' }],
+      },
+    });
+    expect(result.encounterState!.enemies[0].hp).toBe(6);
+    expect(result.encounterState!.enemies[0].status).toBe('active');
+  });
+
   it('does not auto-damage when encounter is not active', () => {
     const session = makeSession({
       encounterState: { ...makeEncounter(), status: 'defeated' },
@@ -728,5 +744,25 @@ describe('GameEngine.updateState - encounter auto-damage', () => {
     expect(result.encounterState?.name).toBe('Memory Crabs Skirmish');
     expect(result.encounterState?.enemies[0].name).toBe('Memory Crab');
     expect(result.encounterState?.enemies[0].weaknesses?.[0].label).toBe('bright light');
+  });
+
+  it('starts an organic encounter from high-danger combat narration when AI omits suggestedEncounterStart', () => {
+    const session = makeSession();
+    const attempt = {
+      actionAttempt: 'Push through the broken archway',
+      actionResult: { success: false, roll: 5, statUsed: 'might' as const },
+    };
+
+    const result = GameEngine.updateState(session, attempt, {
+      narration: 'A bandit springs from behind the cracked pillar and attacks.',
+      imagePrompt: 'A hero facing a sudden bandit ambush in a ruined archway.',
+      currentTensionLevel: 'high',
+      suggestedDamage: 2,
+      suggestedEncounterStart: null,
+    });
+
+    expect(result.encounterState?.name).toBe('Bandit Skirmish');
+    expect(result.encounterState?.enemies[0].name).toBe('Bandit');
+    expect(result.encounterState?.status).toBe('active');
   });
 });

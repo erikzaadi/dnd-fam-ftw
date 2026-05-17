@@ -27,6 +27,78 @@ const getTurnEncounterId = (previousSession: SessionState, newState: SessionStat
   return undefined;
 };
 
+const encounterResolutionVerb = (status: string | undefined): string => {
+  if (status === 'fled') {
+    return 'breaks and flees';
+  }
+  if (status === 'surrendered') {
+    return 'drops its guard and surrenders';
+  }
+  return 'collapses, defeated';
+};
+
+const buildPostEncounterChoices = (session: SessionState, newState: SessionState): SessionState['lastChoices'] => {
+  const nextActor = newState.party.find(c => c.id === newState.activeCharacterId);
+  const actorPrefix = nextActor ? `${nextActor.name}: ` : '';
+  return [
+    {
+      label: `${actorPrefix}Push beyond the battlefield`,
+      difficulty: 'normal',
+      stat: 'might',
+      difficultyValue: 11,
+      narration: 'Move the party into whatever waits beyond the broken fight.',
+      flavor: 'standard',
+    },
+    {
+      label: `${actorPrefix}Search what the foe guarded`,
+      difficulty: 'normal',
+      stat: 'mischief',
+      difficultyValue: 11,
+      narration: 'Look for clues, loot, or a safer route forward.',
+      flavor: 'standard',
+    },
+    {
+      label: `${actorPrefix}Stabilize the scene with magic`,
+      difficulty: 'normal',
+      stat: 'magic',
+      difficultyValue: 12,
+      narration: 'Calm the dangerous magic before it sparks again.',
+      flavor: 'environment',
+      environmentFeature: session.scene,
+    },
+  ];
+};
+
+const alignTurnWithResolvedEncounter = (
+  previousSession: SessionState,
+  newState: SessionState,
+  turnResult: Awaited<ReturnType<typeof AiDmService.generateTurnResult>>,
+): void => {
+  if (previousSession.encounterState?.status !== 'active' || newState.encounterState?.status === 'active') {
+    return;
+  }
+  if (!newState.encounterState || previousSession.encounterState.id !== newState.encounterState.id) {
+    return;
+  }
+
+  const resolvedEnemies = previousSession.encounterState.enemies.filter(beforeEnemy => {
+    const afterEnemy = newState.encounterState?.enemies.find(e => e.id === beforeEnemy.id);
+    return beforeEnemy.status === 'active' && afterEnemy && afterEnemy.status !== 'active';
+  });
+  if (resolvedEnemies.length === 0) {
+    return;
+  }
+
+  const enemyNames = resolvedEnemies.map(e => e.name).join(', ');
+  const status = newState.encounterState.status;
+  const resolution = encounterResolutionVerb(status);
+  turnResult.narration = `${enemyNames} ${resolution}. The immediate fight is over, and the party has a chance to press into the next beat.`;
+  turnResult.currentTensionLevel = status === 'defeated' ? 'medium' : turnResult.currentTensionLevel;
+  const choices = buildPostEncounterChoices(previousSession, newState);
+  turnResult.choices = choices;
+  newState.lastChoices = choices;
+};
+
 export interface TurnActionRequest {
   action: string;
   statUsed: string;
@@ -116,6 +188,7 @@ export const executeTurnAction = async (
     const turnResult = await AiDmService.generateTurnResult(aiInput);
 
     const newState = GameEngine.updateState(itemState, itemAttempt, turnResult as unknown as Record<string, unknown>);
+    alignTurnWithResolvedEncounter(itemState, newState, turnResult);
     await StateService.updateSession(sessionId, newState);
     turnResult.lastAction = itemAttempt;
     turnResult.characterId = actingCharId;
@@ -204,11 +277,19 @@ export const executeTurnAction = async (
   const aiInput: AIInput = { ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId, scenePressure, sceneMomentum, ...(actionIntent && { actionIntent }) };
   const targetCharName = targetCharacterId ? session.party.find(c => c.id === targetCharacterId)?.name : undefined;
 
+  const isDev = process.env.NODE_ENV !== 'production';
+  if (isDev) {
+    console.log(`[Turn] llm-start session=${sessionId} turn=${session.turn}`);
+  }
   let turnResult = await AiDmService.generateTurnResult(aiInput);
+  if (isDev) {
+    console.log(`[Turn] llm-done session=${sessionId} retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
+  }
   turnResult = ensureSuccessfulHealingSuggestion(session, actionAttempt, turnResult);
   turnResult = ensureSuccessfulEnchantmentSuggestion(session, actionAttempt, turnResult);
   turnResult = ensureSuccessfulSupportSuggestion(session, actionAttempt, turnResult, actionIntent, targetCharName);
   const newState = GameEngine.updateState(session, actionAttempt, turnResult as unknown as Record<string, unknown>);
+  alignTurnWithResolvedEncounter(session, newState, turnResult);
   await StateService.updateSession(sessionId, newState);
 
   turnResult.lastAction = actionAttempt;
@@ -220,6 +301,9 @@ export const executeTurnAction = async (
   turnResult.encounterEnemyChanges = computeEncounterEnemyChanges(session.encounterState, newState.encounterState);
 
   turnResult.id = await StateService.addTurnResult(sessionId, turnResult, actingCharId);
+  if (isDev) {
+    console.log(`[Turn] broadcast session=${sessionId} turnId=${turnResult.id}`);
+  }
   broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
   broadcastSessionChanged(namespaceId, sessionId, 'updated');
 

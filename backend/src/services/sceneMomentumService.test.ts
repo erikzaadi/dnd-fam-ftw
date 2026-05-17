@@ -58,7 +58,7 @@ describe('scene momentum', () => {
     expect(pressure.successfulPressureTurns).toBeGreaterThanOrEqual(2);
     expect(momentum.directive).toBe('victory_exit');
     expect(momentum.justCompletedCombat).toBe(true);
-    expect(momentum.suggestedNextBeat).toContain('next');
+    expect(momentum.suggestedNextBeat).toContain('defeated encounter');
   });
 
   it('closes combat after the first successful combat pressure turn', () => {

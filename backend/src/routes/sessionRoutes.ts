@@ -11,10 +11,12 @@ import { SettingsService } from '../services/settingsService.js';
 import { StateService } from '../services/stateService.js';
 import { refreshDmPrepImageBriefAndPreview, triggerPreviewRegen } from '../services/sessionPreviewService.js';
 import { StorySummaryService } from '../services/storySummaryService.js';
+import { RealmOriginStoryService } from '../services/realmOriginStoryService.js';
 import { GAME_MODE_VALUES, type GameMode } from '../types.js';
 import { sendRateLimitResponse } from './routeErrors.js';
 import { booleanBodySchema, parseBody } from './routeValidation.js';
 import { registerSessionIdParam } from '../middleware/sessionParam.js';
+import { runBackground } from '../middleware/runBackground.js';
 
 const createSessionBodySchema = z.object({
   worldDescription: z.string().optional(),
@@ -124,12 +126,15 @@ export const createSessionRouter = () => {
       if (dmPrep) {
         refreshDmPrepImageBriefAndPreview(session.id, dmPrep, req.namespaceId);
       } else {
-        StorySummaryService.generateCampaignBrief(session.id, worldDescription, session.displayName, difficulty, gameMode).then(brief => {
-          if (brief) {
-            triggerPreviewRegen(session.id, req.namespaceId);
-          }
-        }).catch(err => {
-          console.warn('[Campaign] Brief generation failed silently:', err);
+        runBackground(`campaign-brief session=${session.id}`, async () => {
+          await StorySummaryService.generateCampaignBrief(
+            session.id,
+            worldDescription,
+            session.displayName,
+            difficulty,
+            gameMode,
+            { onMediaReady: () => triggerPreviewRegen(session.id, req.namespaceId) },
+          );
         });
         triggerPreviewRegen(session.id, req.namespaceId);
       }
@@ -206,7 +211,14 @@ export const createSessionRouter = () => {
     const worldDescription = body?.worldDescription !== undefined ? (body.worldDescription || undefined) : session.worldDescription;
     const difficulty = body?.difficulty ?? session.difficulty;
     const gameMode = body?.gameMode ?? session.gameMode;
-    const brief = await StorySummaryService.generateCampaignBrief(session.id, worldDescription, session.displayName, difficulty, gameMode);
+    const brief = await StorySummaryService.generateCampaignBrief(
+      session.id,
+      worldDescription,
+      session.displayName,
+      difficulty,
+      gameMode,
+      { mediaMode: 'inline' },
+    );
     if (!brief) {
       res.status(500).json({ error: 'Failed to generate campaign brief' });
       return;
@@ -246,27 +258,50 @@ export const createSessionRouter = () => {
         await StateService.updateLatestTurnImage(sessionId, session.previewImageUrl, '', '');
         broadcastUpdate(sessionId, 'image_ready', { target: 'scene', imageUrl: session.previewImageUrl });
       } else {
-        void ImageService.generateImage(
-          initialTurn.imagePrompt || 'A fantasy realm establishing scene',
-          sessionId,
-          session.turn,
-          undefined,
-          undefined,
-          {
-            worldDescription: session.worldDescription,
-            dmPrepImageBrief: session.dmPrepImageBrief,
-            party: session.party,
-            activeCharacterId: session.activeCharacterId,
-            currentTensionLevel: initialTurn.currentTensionLevel,
-          },
-        ).then(async result => {
+        runBackground(`start-image session=${sessionId}`, async () => {
+          const result = await ImageService.generateImage(
+            initialTurn.imagePrompt || 'A fantasy realm establishing scene',
+            sessionId,
+            session.turn,
+            undefined,
+            undefined,
+            {
+              worldDescription: session.worldDescription,
+              dmPrepImageBrief: session.dmPrepImageBrief,
+              party: session.party,
+              activeCharacterId: session.activeCharacterId,
+              currentTensionLevel: initialTurn.currentTensionLevel,
+            },
+          );
           if (result) {
             await StateService.updateLatestTurnImage(sessionId, result.url, result.storageKey, result.storageProvider);
             broadcastUpdate(sessionId, 'image_ready', { target: 'scene', imageUrl: result.url });
           }
-        }).catch(err => console.error('[Start] Background image generation failed:', err));
+        });
       }
     }
+  }));
+
+  router.get('/session/:id/origin-story', asyncHandler(async (req, res) => {
+    const session = req.session!;
+    res.json({
+      originStory: session.originStory ?? null,
+      originStoryImageUrl: session.originStoryImageUrl ?? null,
+    });
+  }));
+
+  router.post('/session/:id/origin-story', asyncHandler(async (req, res) => {
+    const session = req.session!;
+    if (!session.party.length) {
+      res.status(400).json({ error: 'No party members' });
+      return;
+    }
+    if (session.originStory) {
+      res.json({ originStory: session.originStory });
+      return;
+    }
+    const originStory = await RealmOriginStoryService.generate(session.id);
+    res.json({ originStory });
   }));
 
   router.post('/session/:id/savings-mode', asyncHandler(async (req, res) => {

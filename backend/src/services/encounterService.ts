@@ -21,6 +21,9 @@ const HP_MAX_BY_ROLE: Record<EncounterEnemy['role'], [number, number]> = {
 
 const LEADING_ARTICLES = /^(a |an |the )/i;
 const STRIP_PUNCT = /[^a-z0-9\s]/g;
+const ORGANIC_COMBAT_RE = /\b(ambush|attack|attacks|battle|combat|fight|foe|foes|enemy|enemies|monster|monsters|creature|creatures|beast|beasts|guardian|guardians|raider|raiders|bandit|bandits|cultist|cultists|construct|constructs|shadow|shadows|wraith|wraiths|wolf|wolves|goblin|goblins|sentinel|sentinels|enforcer|enforcers|assassin|assassins|brigand|brigands)\b/i;
+const ORGANIC_ARRIVAL_RE = /\b(?:a|an|the|some|several|two|three|swarm of|pack of|group of)\s+([a-z][a-z -]{2,40}?)\s+(?:appear|appears|emerge|emerges|arrive|arrives|attack|attacks|lunge|lunges|charge|charges|spring|springs|burst|bursts|descend|descends|surround|surrounds|block|blocks)\b/i;
+const GENERIC_ENEMY_NAME_RE = /\b(?:enemy|enemies|foe|foes|monster|monsters|creature|creatures|danger|threat|attack|ambush|combat|battle|fight)\b/i;
 
 export const normalizeEnemyName = (name: string): string =>
   name.trim().toLowerCase().replace(LEADING_ARTICLES, '').replace(STRIP_PUNCT, '').replace(/\s+/g, ' ').trim();
@@ -194,6 +197,90 @@ const proposalFromSeed = (seed: EncounterSeed): EncounterStartProposal => ({
   })),
   objective: seed.objective ?? null,
 });
+
+const titleCaseEnemyName = (raw: string): string => {
+  const cleaned = raw
+    .replace(/\b(?:suddenly|from|nearby|toward|with|and|but|while)\b.*$/i, '')
+    .replace(/[^a-zA-Z\s-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned || GENERIC_ENEMY_NAME_RE.test(cleaned)) {
+    return 'Ambusher';
+  }
+  return cleaned
+    .split(/\s+/)
+    .slice(0, 3)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+};
+
+const extractOrganicEnemyName = (text: string): string => {
+  const arrivalMatch = ORGANIC_ARRIVAL_RE.exec(text);
+  if (arrivalMatch?.[1]) {
+    return titleCaseEnemyName(arrivalMatch[1]);
+  }
+  if (/\b(shadow|shadows)\b/i.test(text)) {
+    return 'Shadow Ambusher';
+  }
+  if (/\b(construct|constructs|sentinel|sentinels|enforcer|enforcers|guardian|guardians)\b/i.test(text)) {
+    return 'Arcane Sentinel';
+  }
+  if (/\b(wolf|wolves|beast|beasts)\b/i.test(text)) {
+    return 'Wild Beast';
+  }
+  if (/\b(raider|raiders|bandit|bandits|brigand|brigands)\b/i.test(text)) {
+    return 'Raiders';
+  }
+  return 'Ambusher';
+};
+
+export const inferOrganicEncounterStart = (
+  input: {
+    narration?: string | null;
+    imagePrompt?: string | null;
+    choices?: Choice[] | null;
+    actionAttempt?: string | null;
+    currentTensionLevel?: TensionLevel | null;
+    suggestedDamage?: number | null;
+  },
+  currentEncounter: EncounterState | undefined,
+): EncounterStartProposal | null => {
+  if (currentEncounter?.status === 'active') {
+    return null;
+  }
+
+  const hasHighDanger = input.currentTensionLevel === 'high' || (typeof input.suggestedDamage === 'number' && input.suggestedDamage > 0);
+  if (!hasHighDanger) {
+    return null;
+  }
+
+  const choiceText = (input.choices ?? [])
+    .map(choice => `${choice.label} ${choice.narration ?? ''} ${choice.environmentFeature ?? ''}`)
+    .join(' ');
+  const haystack = [
+    input.narration ?? '',
+    input.imagePrompt ?? '',
+    input.actionAttempt ?? '',
+    choiceText,
+  ].join(' ');
+
+  if (!ORGANIC_COMBAT_RE.test(haystack)) {
+    return null;
+  }
+
+  const enemyName = extractOrganicEnemyName(haystack);
+  return {
+    name: `${enemyName} Skirmish`,
+    enemies: [{
+      name: enemyName,
+      role: enemyName.endsWith('s') ? 'minion' : 'standard',
+      traits: ['sudden threat'],
+      weaknesses: [{ label: 'bold teamwork', school: 'force' }],
+    }],
+    areas: [],
+    objective: 'Stop the sudden threat',
+  };
+};
 
 export const inferSeededEncounterStart = (
   input: {

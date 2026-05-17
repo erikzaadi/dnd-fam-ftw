@@ -27,6 +27,7 @@ interface SessionEventHandlers {
   sessionId: string;
   onNarrating: (payload: NarratingPayload) => void;
   onTurnComplete: (session: Session, turnResult: TurnResult | null) => void;
+  onTurnError: (error: string, message: string) => void;
   onImageReady: (event: ImageReadyEvent) => void;
   onIntervention: (narration: string, session: Session | null, turnResult: TurnResult | null) => void;
   onSanctuaryRecovery: (narration: string, session: Session | null, turnResult: TurnResult | null) => void;
@@ -40,6 +41,7 @@ export const useSessionEvents = ({
   sessionId,
   onNarrating,
   onTurnComplete,
+  onTurnError,
   onImageReady,
   onIntervention,
   onSanctuaryRecovery,
@@ -108,6 +110,8 @@ export const useSessionEvents = ({
             }, 600);
           }
           onTurnComplete(data.session, data.turnResult ?? null);
+        } else if (data.type === 'turn_error') {
+          onTurnError(data.error ?? 'turn_failed', data.message ?? 'Something went wrong. Please try again.');
         } else if (data.type === 'image_ready') {
           onImageReady(data as ImageReadyEvent);
         } else if (data.type === 'intervention') {

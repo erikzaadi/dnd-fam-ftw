@@ -18,6 +18,12 @@ const VAGUE_ATMOSPHERE_PHRASES = [
   'an eerie silence falls',
   'shadows loom',
   'the corridor waits',
+  'the climax near',
+  'climax draws ever near',
+  'approach is imminent',
+  'presence grows near',
+  'presence looms closer',
+  'closing in',
 ];
 const SIMILARITY_STOPWORDS = new Set([
   'about',
@@ -211,9 +217,11 @@ function normalizeNarrationMetadata(input: NarrationInput, output: ValidNarratio
 }
 
 const ANSI_RE = new RegExp(String.fromCharCode(0x1b) + String.raw`\[[0-9;]*[a-zA-Z]`, "g");
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARS_RE = /[\x00-\x1f\x7f]/g;
 
 function cleanText(value: string): string {
-  return value.replace(ANSI_RE, '').replace(/[—]/g, '-');
+  return value.replace(ANSI_RE, '').replace(CONTROL_CHARS_RE, '').replace(/[—]/g, '-');
 }
 
 function stripNarrationEmDashes(output: ValidNarrationOutput): void {
