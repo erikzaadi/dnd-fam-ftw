@@ -128,7 +128,7 @@ export const PartyBox = ({
                     src={imgSrc(c.avatarUrl)}
                     className={`w-full h-full rounded-full object-cover border-2 ${c.status === 'downed' ? 'grayscale opacity-40' : ''} ${hpBorderClass(c)} ${isActive ? 'animate-border-pulse' : ''}`}
                     style={isActive ? { animationDelay: pulseSyncDelay() } : undefined}
-                    alt=""
+                    alt={c.name}
                   />
                 ) : (
                   <div
