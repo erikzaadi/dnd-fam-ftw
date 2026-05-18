@@ -1,7 +1,7 @@
 import { zodResponseFormat } from 'openai/helpers/zod';
 import type { NarrationInput, NarrationOutput, NarrationProvider } from './NarrationProvider.js';
 import { buildNarrationFallback } from './narrationFallback.js';
-import { NARRATION_SYSTEM_PROMPT, buildNarrationUserContent } from './narrationPrompt.js';
+import { buildNarrationSystemPrompt, buildNarrationUserContent } from './narrationPrompt.js';
 import { parseNarrationOutput } from './narrationOutputGuards.js';
 import { narrationOutputSchema } from './narrationSchemas.js';
 import { createOpenAIClient, getModelForTier } from '../openAiClient.js';
@@ -41,19 +41,39 @@ export class OpenAINarrationProvider implements NarrationProvider {
     const model = getModelForTier('narration');
     const attempt = validationError ? 'retry' : 'attempt-1';
     const start = Date.now();
+    const systemPrompt = buildNarrationSystemPrompt(input);
     const userContent = buildNarrationUserContent(input, validationError);
     const timeoutMs = 40_000;
+    const systemChars = systemPrompt.length;
+    const userChars = userContent.length;
+    const storySummaryChars = input.storySummary ? JSON.stringify(input.storySummary).length : 0;
+    const dmPrepChars = input.dmPrep?.length ?? 0;
+    const encounterStateChars = input.encounterState ? JSON.stringify(input.encounterState).length : 0;
+    const partyChars = JSON.stringify(input.party).length;
+    const inventoryChars = JSON.stringify(input.inventory).length;
+    const recentHistoryChars = JSON.stringify(input.recentHistory).length;
+    const systemApproxTokens = Math.ceil(systemChars / 4);
+    const userApproxTokens = Math.ceil(userChars / 4);
+    const totalApproxTokens = systemApproxTokens + userApproxTokens;
     devLog.log([
       `[Narration] ${attempt} start`,
       `model=${model}`,
       `timeoutMs=${timeoutMs}`,
-      `systemChars=${NARRATION_SYSTEM_PROMPT.length}`,
-      `userChars=${userContent.length}`,
+      `systemChars=${systemChars}`,
+      `userChars=${userChars}`,
+      `systemApproxTokens=${systemApproxTokens}`,
+      `userApproxTokens=${userApproxTokens}`,
+      `totalApproxTokens=${totalApproxTokens}`,
+      `storySummaryChars=${storySummaryChars}`,
+      `dmPrepChars=${dmPrepChars}`,
+      `encounterStateChars=${encounterStateChars}`,
+      `partyChars=${partyChars}`,
+      `inventoryChars=${inventoryChars}`,
+      `recentHistoryChars=${recentHistoryChars}`,
       `party=${input.party.length}`,
       `history=${input.recentHistory.length}`,
       `choices=${input.previousChoiceLabels?.length ?? 0}`,
       `inventory=${input.inventory.length}`,
-      `dmPrepChars=${input.dmPrep?.length ?? 0}`,
       `encounters=${input.dmPrepEncounters?.length ?? 0}`,
       `hasEncounterState=${input.encounterState ? 'true' : 'false'}`,
     ].join(' '));
@@ -62,7 +82,7 @@ export class OpenAINarrationProvider implements NarrationProvider {
       response = await createOpenAIClient().chat.completions.parse({
         model,
         messages: [
-          { role: 'system', content: NARRATION_SYSTEM_PROMPT },
+          { role: 'system', content: systemPrompt },
           { role: 'user', content: userContent },
         ],
         response_format: zodResponseFormat(narrationOutputSchema, 'narration_output'),

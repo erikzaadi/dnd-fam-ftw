@@ -279,6 +279,18 @@ export const SessionPage = () => {
       } else if (e.key === 'b') {
         setShowBanner(prev => !prev);
       } else if (e.key === 'p') {
+        if (!showBannerRef.current) {
+          setShowBanner(true);
+          // Wait for render
+          setTimeout(() => {
+            const firstChar = document.querySelector('[data-tutorial="party-box"] button') as HTMLButtonElement;
+            firstChar?.focus();
+          }, 0);
+        } else {
+          const firstChar = document.querySelector('[data-tutorial="party-box"] button') as HTMLButtonElement;
+          firstChar?.focus();
+        }
+      } else if (e.key === 'r') {
         previewPartyBoostActionRef.current();
       } else if (e.key === 's') {
         if (!showBannerRef.current) {
@@ -803,6 +815,12 @@ export const SessionPage = () => {
         <SessionHud
           session={session}
           onCharacterClick={setSelectedCharacter}
+          onBlessCharacter={targetCharacterId => {
+            void previewCharacterSupportAction(targetCharacterId, 'bless');
+          }}
+          onAidCharacter={targetCharacterId => {
+            void previewCharacterSupportAction(targetCharacterId, 'aid');
+          }}
           previewThinking={previewThinking}
           onPartyBoost={() => {
             void previewPartyBoostAction();
@@ -1273,7 +1291,8 @@ export const SessionPage = () => {
             { key: 'Enter', action: 'Expand turn detail (Chronicle open)' },
             { key: 's', action: 'Open / close settings' },
             { key: 'q', action: 'Exit realm (with confirm)' },
-            { key: 'p', action: 'Preview party boost' },
+            { key: 'p', action: 'Focus party box (shows banner)' },
+            { key: 'r', action: 'Party rally (boon)' },
             { key: 'b', action: 'Toggle banner' },
             { key: 'Esc', action: 'Close overlays / blur input' },
             { key: '?', action: 'Toggle this help' },

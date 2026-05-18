@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import type { Character } from '../types';
 import { imgSrc } from '../lib/api';
 import { StatImg } from './game/StatIcon';
@@ -40,6 +40,14 @@ const formatBuffSummary = (buff: NonNullable<Character['buffs']>[number]): strin
 
 export const CharacterPopup = ({ character, activeCharacter, onClose, onAvatarClick, onBlessCharacter, onAidCharacter, previewThinking }: CharacterPopupProps) => {
   const [expandedStat, setExpandedStat] = useState<'might' | 'magic' | 'mischief' | null>(null);
+  const firstSupportButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    // Auto-focus the first available support button if it exists
+    if (firstSupportButtonRef.current) {
+      firstSupportButtonRef.current.focus();
+    }
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -110,9 +118,10 @@ export const CharacterPopup = ({ character, activeCharacter, onClose, onAvatarCl
             {onBlessCharacter && (
               <button
                 type="button"
+                ref={firstSupportButtonRef}
                 onClick={() => onBlessCharacter(character.id)}
                 disabled={previewThinking}
-                className="px-3 py-2 rounded-xl border border-blue-700/50 bg-blue-950/40 text-blue-200 text-xs font-black uppercase tracking-widest hover:bg-blue-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-2 rounded-xl border border-blue-700/50 bg-blue-950/40 text-blue-200 text-xs font-black uppercase tracking-widest hover:bg-blue-900/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {previewThinking ? 'Thinking...' : 'Bless'}
               </button>
@@ -120,9 +129,10 @@ export const CharacterPopup = ({ character, activeCharacter, onClose, onAvatarCl
             {onAidCharacter && (
               <button
                 type="button"
+                ref={!onBlessCharacter ? firstSupportButtonRef : undefined}
                 onClick={() => onAidCharacter(character.id)}
                 disabled={previewThinking}
-                className="px-3 py-2 rounded-xl border border-emerald-700/50 bg-emerald-950/40 text-emerald-200 text-xs font-black uppercase tracking-widest hover:bg-emerald-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-2 rounded-xl border border-emerald-700/50 bg-emerald-950/40 text-emerald-200 text-xs font-black uppercase tracking-widest hover:bg-emerald-900/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {previewThinking ? 'Thinking...' : 'Aid'}
               </button>

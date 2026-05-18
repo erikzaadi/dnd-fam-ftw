@@ -27,6 +27,22 @@ export function toNarrationInput(input: AIInput): NarrationInput {
     ? total - input.actionResult.difficultyTarget
     : undefined;
 
+  const isActiveEncounter = input.encounterState?.status === 'active';
+
+  // Build compacted dmPrep
+  let compactedDmPrep: string | undefined;
+  if (input.dmPrep) {
+    if (isActiveEncounter) {
+      // Omit dmPrep during active encounters - encounterState is authoritative
+      compactedDmPrep = undefined;
+    } else {
+      // Cap at 3000 chars on non-encounter turns
+      compactedDmPrep = input.dmPrep.length > 3000
+        ? input.dmPrep.slice(0, 3000)
+        : input.dmPrep;
+    }
+  }
+
   return {
     scene: input.scene,
     storySummary: input.storySummary || undefined,
@@ -44,20 +60,20 @@ export function toNarrationInput(input: AIInput): NarrationInput {
       status: c.status ?? 'active',
       quirk: c.quirk,
       ...(c.gender && { gender: c.gender }),
-      ...(c.history && { history: c.history }),
+      ...(c.history && { history: c.history.length > 200 ? c.history.slice(0, 200) : c.history }),
       ...(c.buffs && c.buffs.length > 0 && { buffs: c.buffs }),
     })),
     inventory: input.party.flatMap(c =>
       (c.inventory ?? []).map(item => ({
         ownerName: c.name,
         name: item.name,
-        description: item.description,
+        description: item.description.length > 200 ? item.description.slice(0, 200) : item.description,
         statBonuses: item.statBonuses ?? {},
         healValue: item.healValue,
         consumable: item.consumable,
         transferable: item.transferable,
         tags: item.tags,
-        effect: item.effect,
+        effect: item.effect && item.effect.length <= 150 ? item.effect : undefined,
         charges: item.charges,
         condition: item.condition,
         boundToCharacterName: item.boundToCharacterId ? characterNameById.get(item.boundToCharacterId) : undefined,
@@ -96,8 +112,8 @@ export function toNarrationInput(input: AIInput): NarrationInput {
     ...(selectedChoice?.environmentFeature && { selectedEnvironmentFeature: selectedChoice.environmentFeature }),
     tone: input.tone,
     gameMode: input.gameMode,
-    ...(input.dmPrep && { dmPrep: input.dmPrep }),
-    ...(input.dmPrepEncounters && input.dmPrepEncounters.length > 0 && { dmPrepEncounters: input.dmPrepEncounters }),
+    ...(compactedDmPrep && { dmPrep: compactedDmPrep }),
+    ...(!isActiveEncounter && input.dmPrepEncounters && input.dmPrepEncounters.length > 0 && { dmPrepEncounters: input.dmPrepEncounters }),
     isFirstTurn: input.turn === 1,
     interventionRescue: input.interventionRescue,
     sanctuaryRecovery: input.sanctuaryRecovery,
@@ -170,10 +186,20 @@ export class AiDmService {
         throw error;
       }
       devLog.error('Error calling AI service:', error);
+      const fallbackError = (() => {
+        if (error instanceof Error) {
+          const constructorName = error.constructor?.name ?? '';
+          if (constructorName === 'APIUserAbortError') {
+            return `timeout after 40000ms`;
+          }
+          return error.message;
+        }
+        return String(error);
+      })();
       return {
         ...buildNarrationFallback(narrationInput),
         narrationFailed: true,
-        narrationValidationError: error instanceof Error ? error.message : String(error),
+        narrationValidationError: fallbackError,
         imageUrl: null,
       };
     }

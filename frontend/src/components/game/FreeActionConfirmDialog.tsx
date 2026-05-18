@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { FreeActionPreview } from '../../types';
 import { StatImg } from './StatIcon';
 import { STAT_TEXT_COLORS } from '../../lib/statColors';
@@ -35,6 +35,13 @@ export const FreeActionConfirmDialog = ({
   onCancel,
 }: FreeActionConfirmDialogProps) => {
   const [useOriginalAction, setUseOriginalAction] = useState(false);
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (preview) {
+      confirmButtonRef.current?.focus();
+    }
+  }, [preview]);
 
   if (!preview) {
     return null;
@@ -137,9 +144,10 @@ export const FreeActionConfirmDialog = ({
         <div className="mt-5 flex flex-col sm:flex-row gap-2">
           <button
             type="button"
+            ref={confirmButtonRef}
             onClick={() => onConfirm(showOriginalAction && useOriginalAction)}
             disabled={submitting}
-            className="flex-1 py-3 rounded-2xl bg-amber-600 hover:bg-amber-500 disabled:opacity-40 font-black uppercase tracking-widest text-sm transition-colors"
+            className="flex-1 py-3 rounded-2xl bg-amber-600 hover:bg-amber-500 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 font-black uppercase tracking-widest text-sm transition-colors"
           >
             {submitting ? 'Submitting...' : 'Confirm'}
           </button>

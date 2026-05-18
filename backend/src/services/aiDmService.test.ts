@@ -349,4 +349,81 @@ describe('toNarrationInput', () => {
     const out = toNarrationInput(makeAIInput());
     expect('history' in out.party[0]).toBe(false);
   });
+
+  it('omits dmPrep during active encounter', () => {
+    const out = toNarrationInput(makeAIInput({
+      dmPrep: 'The villain is a dragon named Zyx.',
+      encounterState: { id: 'enc-1', name: 'Goblin Fight', status: 'active', enemies: [], areas: [], round: 1 },
+    }));
+    expect('dmPrep' in out).toBe(false);
+  });
+
+  it('caps dmPrep at 3000 chars on non-encounter turns', () => {
+    const longPrep = 'A'.repeat(5000);
+    const out = toNarrationInput(makeAIInput({ dmPrep: longPrep }));
+    expect(out.dmPrep?.length).toBe(3000);
+  });
+
+  it('keeps dmPrep under 3000 chars unchanged on non-encounter turns', () => {
+    const shortPrep = 'Short campaign prep.';
+    const out = toNarrationInput(makeAIInput({ dmPrep: shortPrep }));
+    expect(out.dmPrep).toBe(shortPrep);
+  });
+
+  it('omits dmPrepEncounters during active encounter', () => {
+    const dmPrepEncounters: EncounterSeed[] = [
+      { name: 'Test Fight', triggerHint: 'When battle begins.', enemies: [{ name: 'Foe', role: 'standard', weaknesses: [] }], areas: [], objective: 'Win.' },
+    ];
+    const out = toNarrationInput(makeAIInput({
+      dmPrepEncounters,
+      encounterState: { id: 'enc-1', name: 'Test Fight', status: 'active', enemies: [], areas: [], round: 1 },
+    }));
+    expect('dmPrepEncounters' in out).toBe(false);
+  });
+
+  it('caps character history at 200 chars', () => {
+    const longHistory = 'B'.repeat(300);
+    const charWithHistory = { ...makeAIInput().party[0], history: longHistory };
+    const out = toNarrationInput(makeAIInput({ party: [charWithHistory] }));
+    expect(out.party[0].history?.length).toBe(200);
+  });
+
+  it('caps item description at 200 chars', () => {
+    const longDesc = 'C'.repeat(300);
+    const item = { id: 'i1', name: 'Big Item', description: longDesc, consumable: false, transferable: true };
+    const out = toNarrationInput(makeAIInput({
+      party: [{ ...makeAIInput().party[0], inventory: [item] }],
+    }));
+    expect(out.inventory[0].description.length).toBe(200);
+  });
+
+  it('omits item effect when over 150 chars', () => {
+    const longEffect = 'D'.repeat(200);
+    const item = { id: 'i1', name: 'Item', description: 'desc', effect: longEffect, consumable: false, transferable: true };
+    const out = toNarrationInput(makeAIInput({
+      party: [{ ...makeAIInput().party[0], inventory: [item] }],
+    }));
+    expect(out.inventory[0].effect).toBeUndefined();
+  });
+
+  it('keeps item effect when 150 chars or under', () => {
+    const shortEffect = 'E'.repeat(150);
+    const item = { id: 'i1', name: 'Item', description: 'desc', effect: shortEffect, consumable: false, transferable: true };
+    const out = toNarrationInput(makeAIInput({
+      party: [{ ...makeAIInput().party[0], inventory: [item] }],
+    }));
+    expect(out.inventory[0].effect).toBe(shortEffect);
+  });
+
+  it('keeps encounterLootHint when active encounter matches a seed', () => {
+    const dmPrepEncounters: EncounterSeed[] = [
+      { name: 'Kitchen Knife Chorus', triggerHint: 'When...', enemies: [{ name: 'Cleaver Goblin', role: 'standard', weaknesses: [] }], areas: [], objective: 'Drive them off.', lootHint: 'a moon-stamped pantry key' },
+    ];
+    const out = toNarrationInput(makeAIInput({
+      dmPrepEncounters,
+      encounterState: { id: 'enc-1', name: 'Kitchen Knife Chorus', status: 'active', enemies: [], areas: [], round: 1 },
+    }));
+    // lootHint should still be available even though dmPrepEncounters are omitted from narration input
+    expect(out.encounterLootHint).toBe('a moon-stamped pantry key');
+  });
 });
