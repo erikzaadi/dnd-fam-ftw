@@ -185,7 +185,7 @@ A JSON array covering ALL encounters across EVERY stage of the campaign (Early, 
   ],
   "areas": [{ "label": "string", "tags": ["string"], "effect": "optional 1-sentence quirky or dangerous area effect, e.g. 'slippery ice floor', 'arcane surge zone', 'crumbling ledge'. Omit if none." }],
   "objective": "string - optional combat objective beyond simple defeat",
-  "lootHint": "string - one thematic item tied to this encounter from the TREASURE section, or omit if none fits"
+  "lootHint": "string - one thematic item the party earns from this encounter. Must be a specific named object (e.g. 'tideborn shard', 'sealed crest letter', 'cursed recipe scroll') - never a generic phrase and never a name that echoes the encounter name or enemy names. Omit if no fitting item exists."
 }
 The JSON block must be a valid JSON array with no extra text or prose inside it. Omit keys with null or empty values.`;
 

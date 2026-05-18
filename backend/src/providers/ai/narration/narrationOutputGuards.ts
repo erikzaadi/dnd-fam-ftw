@@ -167,12 +167,24 @@ function repeatsResolvedThreat(input: NarrationInput, outputText: string): strin
     return null;
   }
 
+  // Phrases that are substrings of inventory item names are safe to mention -
+  // the item was earned from the resolved encounter and is intentionally referenceable.
+  const inventoryItemPhrases = new Set(
+    input.inventory.map(item => normalizedText(item.name))
+  );
+
   const activePhrases = activeEncounterThreatPhrases(input);
   for (const phrase of resolvedThreatPhrases(input)) {
     if (isActiveEncounterThreatPhrase(phrase, activePhrases)) {
       continue;
     }
     if (phrase && outputNormalized.includes(phrase)) {
+      const appearsInInventoryItem = [...inventoryItemPhrases].some(
+        itemPhrase => itemPhrase.includes(phrase)
+      );
+      if (appearsInInventoryItem) {
+        continue;
+      }
       return phrase;
     }
   }

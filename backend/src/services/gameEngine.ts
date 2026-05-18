@@ -75,11 +75,14 @@ export class GameEngine {
   }
 
   private static organicEncounterLootName(encounter: NonNullable<SessionState['encounterState']>): string {
-    const sourceName = encounter.lastResolvedEnemyName ||
-      encounter.enemies.find(enemy => enemy.status !== 'active')?.name ||
-      encounter.name.replace(/\s+Skirmish$/i, '').trim() ||
-      'Victory';
-    return `${sourceName} Token`;
+    const TROPHY_NAMES = [
+      'Battle Relic', 'Victory Shard', "Champion's Charm", 'Triumph Gem',
+      'Valor Crystal', 'Hero\'s Emblem', 'Glory Stone', 'Combat Sigil',
+      'Conquest Trophy', 'Warrior\'s Token', 'Might Remnant', 'Power Fragment',
+    ];
+    const seed = encounter.name + (encounter.lastResolvedEnemyName ?? '');
+    const hash = seed.split('').reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) & 0xffff, 0);
+    return TROPHY_NAMES[hash % TROPHY_NAMES.length];
   }
 
   private static isNonOffensiveEncounterAction(actionAttempt: ActionAttempt, aiSuggestedChanges?: Record<string, unknown>): boolean {
@@ -739,7 +742,7 @@ export class GameEngine {
               actingChar.inventory.push({
                 id: createId(),
                 name: lootName,
-                description: `A small trophy from the defeated ${updated.lastResolvedEnemyName ?? updated.name}.`,
+                description: 'A trophy earned in battle.',
                 tags: ['trophy'],
               });
               if (aiSuggestedChanges) {

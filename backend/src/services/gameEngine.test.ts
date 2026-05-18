@@ -893,8 +893,9 @@ describe('GameEngine.updateState - encounter auto-damage', () => {
     const result = GameEngine.updateState(session, attempt, aiChanges);
 
     expect(result.encounterState?.status).toBe('defeated');
-    expect(result.party[0].inventory.map(i => i.name)).toContain('Shadow Ambusher Token');
-    expect(aiChanges.narration).toContain('Barnaby claims Shadow Ambusher Token from the aftermath.');
+    const lootName = result.party[0].inventory[0]?.name;
+    expect(lootName).toBeTruthy();
+    expect(aiChanges.narration).toContain(`Barnaby claims ${lootName} from the aftermath.`);
   });
 
   it('does not grant fallback trophy loot for trivial organic minions', () => {
