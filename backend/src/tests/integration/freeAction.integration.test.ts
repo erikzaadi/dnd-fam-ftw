@@ -115,7 +115,7 @@ describe('executeTurnAction free action integration', () => {
       (c: { characterName: string; type: string }) => c.characterName === 'Pip' && c.type === 'added'
     );
     expect(lootChange).toBeTruthy();
-    const lootName = lootChange.itemName as string;
+    const lootName = (lootChange!.itemName) as string;
     expect(result.body.turnResult.narration).toContain(`Pip claims ${lootName} from the aftermath`);
     expect(result.body.turnResult.narration).not.toContain('wounded but fierce');
     expect(result.body.turnResult.choices.map(choice => choice.label).join(' ')).not.toContain('Ambusher');
