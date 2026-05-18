@@ -291,7 +291,8 @@ Drop rate by difficulty (use actionResult.difficulty):
 - "easy": Always drop loot. Every defeated enemy yields something useful.
 - "normal": Usually drop loot. Skip only for trivial mobs (rats, minor pests, summoned dust).
 - "hard": Often drop loot for meaningful victories, named foes, bosses, story-weight threats, or enemies guarding important places. Skip only disposable minions and situations where looting would clearly break the fiction.
-- "zug-ma-geddon": Rare drops only. The chaos of constant battle leaves no time to loot. Only set suggestedInventoryAdd for truly significant kills (bosses, unique enemies). Common kills yield nothing.`;
+- "zug-ma-geddon": Rare drops only. The chaos of constant battle leaves no time to loot. Only set suggestedInventoryAdd for truly significant kills (bosses, unique enemies). Common kills yield nothing.
+STAT FIT: statBonuses on combat loot must complement actingCharacterName's primary stat. Find them in the party data and pick the stat with the highest value - might bonus for fighters and brawlers, magic bonus for casters and clerics, mischief bonus for rogues and rangers. Do not assign random or mismatched stat bonuses.`;
 
 export const SECTION_INVENTORY_TRADE = `PARTY AND NPC ITEM TRANSFERS:
 - CRITICAL: If your narration describes a trade, exchange, purchase, barter, or any situation where the party gives an item to an NPC or vendor, you MUST set suggestedInventoryRemove for the item being given away. Never narrate an item being handed over without removing it.

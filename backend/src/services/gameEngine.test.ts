@@ -901,7 +901,7 @@ describe('GameEngine.updateState - encounter auto-damage', () => {
       suggestedEncounterStart: null,
     });
 
-    expect(result.encounterState?.name).toBe('Bandit Skirmish');
+    expect(result.encounterState?.name).toBe('Bandit');
     expect(result.encounterState?.enemies[0].name).toBe('Bandit');
     expect(result.encounterState?.status).toBe('active');
   });

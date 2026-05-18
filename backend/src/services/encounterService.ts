@@ -260,19 +260,53 @@ const extractOrganicEnemyName = (text: string, actionAttempt?: string | null): s
   return 'Ambusher';
 };
 
+const organicFallbackTraits = (enemyName: string): string[] => {
+  const lower = enemyName.toLowerCase();
+  if (/\b(fog|mist|haze|cloud|murk|vapour|vapor)\b/.test(lower)) {
+    return ['obscures vision', 'slips between positions'];
+  }
+  if (/\b(shadow|shade|dark)\b/.test(lower)) {
+    return ['looming shadow-form', 'difficult to pin down'];
+  }
+  if (/\b(giant|golem|construct|guardian|sentinel|colossus)\b/.test(lower)) {
+    return ['absorbs minor blows', 'devastating reach'];
+  }
+  if (/\b(swift|fast|dart|flicker|blur)\b/.test(lower)) {
+    return ['blindingly fast', 'hard to corner'];
+  }
+  if (/\b(spirit|phantom|wraith|specter|ghost)\b/.test(lower)) {
+    return ['phases through defenses', 'drains resolve'];
+  }
+  if (/\b(beast|wolf|creature|predator|hunter)\b/.test(lower)) {
+    return ['pack hunter', 'relentless tracker'];
+  }
+  return ['relentless aggressor', 'difficult to drive back'];
+};
+
 const inferOrganicTraits = (text: string, enemyName: string): string[] => {
   const traits: string[] = [];
-  if (/\b(shadow|shadowy|dark presence|looming)\b/i.test(text) || /\bshadow\b/i.test(enemyName)) {
+  const combined = `${text} ${enemyName}`;
+  if (/\b(shadow|shadowy|dark presence|looming)\b/i.test(combined)) {
     traits.push('looming shadow-form');
+  }
+  if (/\b(fog|mist|haze|murk|shifting)\b/i.test(combined)) {
+    traits.push('obscures vision');
+    traits.push('slips between positions');
   }
   if (/\b(wild magic|fissure|arcane|reality frays|chaotic pulse)\b/i.test(text)) {
     traits.push('feeds on unstable magic');
   }
   if (/\b(ambush|springs?|lunges?|pounces?|sudden)\b/i.test(text)) {
-    traits.push('sudden ambusher');
+    traits.push('strikes from concealment');
   }
   if (/\b(ruined|cracked|broken|basilica|pillar|archway)\b/i.test(text)) {
     traits.push('uses broken terrain');
+  }
+  if (/\b(stone|construct|golem|sentinel|guardian)\b/i.test(combined)) {
+    traits.push('absorbs minor blows');
+  }
+  if (/\b(swarm|cloud|mass|cluster)\b/i.test(combined)) {
+    traits.push('splits when struck');
   }
   return [...new Set(traits)].slice(0, 3);
 };
@@ -332,11 +366,11 @@ export const inferOrganicEncounterStart = (
   const traits = inferOrganicTraits(haystack, enemyName);
   const weakness = inferOrganicWeakness(haystack);
   return {
-    name: `${enemyName} Skirmish`,
+    name: enemyName,
     enemies: [{
       name: enemyName,
       role: enemyName.endsWith('s') ? 'minion' : 'standard',
-      traits: traits.length > 0 ? traits : ['presses the attack'],
+      traits: traits.length > 0 ? traits : organicFallbackTraits(enemyName),
       weaknesses: [weakness],
     }],
     areas: [],

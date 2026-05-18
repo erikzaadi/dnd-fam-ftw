@@ -191,7 +191,7 @@ describe('inferOrganicEncounterStart', () => {
       suggestedDamage: 1,
     }, undefined);
 
-    expect(proposal?.name).toBe('Bandit Skirmish');
+    expect(proposal?.name).toBe('Bandit');
     expect(proposal?.enemies[0].name).toBe('Bandit');
     expect(proposal?.enemies[0].role).toBe('standard');
   });
@@ -205,7 +205,7 @@ describe('inferOrganicEncounterStart', () => {
       suggestedDamage: 2,
     }, undefined);
 
-    expect(proposal?.name).toBe("Vesperine's Shadow Skirmish");
+    expect(proposal?.name).toBe("Vesperine's Shadow");
     expect(proposal?.enemies[0].name).toBe("Vesperine's Shadow");
     expect(proposal?.enemies[0].traits).toEqual(['looming shadow-form', 'feeds on unstable magic', 'uses broken terrain']);
     expect(proposal?.enemies[0].weaknesses?.[0]).toEqual({ label: 'stable ritual focus', school: 'force' });
