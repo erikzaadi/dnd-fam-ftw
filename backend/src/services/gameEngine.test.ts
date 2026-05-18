@@ -765,4 +765,26 @@ describe('GameEngine.updateState - encounter auto-damage', () => {
     expect(result.encounterState?.enemies[0].name).toBe('Bandit');
     expect(result.encounterState?.status).toBe('active');
   });
+
+  it('does not start an organic encounter from escape narration and combat-flavored next choices', () => {
+    const session = makeSession();
+    const attempt = {
+      actionAttempt: 'Rinsworth swiftly chants a teleportation spell, aiming to whisk the team outside the crumbling basilica.',
+      actionResult: { success: true, roll: 18, statUsed: 'magic' as const, impact: 'extreme' as const },
+    };
+
+    const result = GameEngine.updateState(session, attempt, {
+      narration: "Rinsworth's teleportation spell whisks the party away just as the basilica begins to collapse. Outside, Vesperine Quill's shadow looms in the distance, her quill poised for a final stroke.",
+      imagePrompt: 'Dragonborn bard Durogg stands outside a crumbling basilica, wild magic crackling nearby, tension in the air.',
+      choices: [
+        { label: 'Confront Vesperine with a defiant battle song', difficulty: 'normal', stat: 'mischief' },
+        { label: "Examine the unstable rune's lingering energy for a containment clue", difficulty: 'hard', stat: 'magic' },
+      ],
+      currentTensionLevel: 'high',
+      suggestedDamage: null,
+      suggestedEncounterStart: null,
+    });
+
+    expect(result.encounterState).toBeUndefined();
+  });
 });

@@ -205,6 +205,21 @@ describe('inferOrganicEncounterStart', () => {
     expect(proposal).toBeNull();
   });
 
+  it('does not infer from next-turn combat choices or a looming shadow alone', () => {
+    const proposal = inferOrganicEncounterStart({
+      narration: "Outside, Vesperine Quill's shadow looms in the distance, her quill poised for a final stroke.",
+      imagePrompt: 'Dragonborn bard Durogg stands outside a crumbling basilica, wild magic crackling nearby, tension in the air.',
+      actionAttempt: 'Rinsworth swiftly chants a teleportation spell, aiming to whisk the team outside the crumbling basilica.',
+      choices: [
+        { label: 'Confront Vesperine with a defiant battle song', difficulty: 'normal', stat: 'mischief' },
+        { label: "Examine the unstable rune's lingering energy for a containment clue", difficulty: 'hard', stat: 'magic' },
+      ],
+      currentTensionLevel: 'high',
+    }, undefined);
+
+    expect(proposal).toBeNull();
+  });
+
   it('does not infer while an encounter is active', () => {
     const activeEnc: EncounterState = {
       id: 'enc-existing',

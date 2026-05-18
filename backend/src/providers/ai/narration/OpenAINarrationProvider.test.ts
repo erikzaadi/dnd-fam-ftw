@@ -20,6 +20,7 @@ vi.mock('openai', () => ({
 }));
 
 import { OpenAINarrationProvider } from './OpenAINarrationProvider.js';
+import { buildNarrationFallback } from './narrationFallback.js';
 
 const input: NarrationInput = {
   scene: 'A ruined keep',
@@ -241,7 +242,8 @@ describe('OpenAINarrationProvider', () => {
         },
       });
 
-      expect(result.narration).toContain('Move from the resolved fight into the next clue, route, reward, threat, or decision');
+      expect(result.narration).toContain('A way forward opens beyond A ruined keep');
+      expect(result.narration).not.toContain('Move from the resolved fight');
       expect(result.choices.map(choice => choice.label)).toEqual([
         'Press deeper into A ruined keep',
         'Search A ruined keep for a clue',
@@ -261,5 +263,27 @@ describe('OpenAINarrationProvider', () => {
       warn.mockRestore();
       error.mockRestore();
     }
+  });
+
+  it('does not leak scene momentum instructions into fallback narration', async () => {
+    const result = buildNarrationFallback({
+      ...input,
+      actionAttempt: 'Strum a rallying song',
+      sceneMomentum: {
+        directive: 'climax_pressure',
+        staleChoiceCount: 0,
+        turnsSinceSceneChange: 5,
+        turnsSinceCombat: 2,
+        justCompletedCombat: false,
+        justCompletedDifficultChallenge: false,
+        suggestedNextBeat: 'Connect this turn to the main threat and push toward a climactic confrontation.',
+        reason: 'The climax needs pressure.',
+      },
+    });
+
+    expect(result.narration).toContain('Strum a rallying song works');
+    expect(result.narration).toContain('A shadow of worse things falls across A ruined keep');
+    expect(result.narration).not.toContain('Connect this turn to the main threat');
+    expect(result.narration).not.toContain('push toward a climactic confrontation');
   });
 });

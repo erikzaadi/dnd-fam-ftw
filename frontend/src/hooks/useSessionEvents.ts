@@ -6,6 +6,7 @@ import { audioManager } from '../audio/audioManager';
 const SSE_STALE_TIMEOUT_MS = 60000;
 const SSE_STALE_CHECK_MS = 10000;
 const SSE_RECONNECT_DELAY_MS = 3000;
+const isDev = import.meta.env.DEV;
 
 interface NarratingPayload {
   action?: string;
@@ -76,6 +77,9 @@ export const useSessionEvents = ({
         setConnectionStateRef.current('connected');
         lastMessageAt = Date.now();
         const data = JSON.parse(e.data);
+        if (isDev) {
+          console.log(`[SSE] ${data.type ?? 'message'}`, data);
+        }
         if (data.type === 'dm_narrating') {
 	  onNarrating({
 	    action: data.action,

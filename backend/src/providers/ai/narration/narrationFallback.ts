@@ -1,6 +1,28 @@
 import type { NarrationInput, NarrationOutput } from './NarrationProvider.js';
 
 const cleanLabel = (text: string): string => text.trim().replace(/\s+/g, ' ').replace(/[.?!]+$/g, '');
+const normalizedText = (text: string): string => text.toLowerCase().replace(/[^\p{Letter}\p{Number}]+/gu, ' ').replace(/\s+/g, ' ').trim();
+
+const INTERNAL_GUIDANCE_FRAGMENTS = [
+  'connect this turn to the main threat',
+  'push toward a climactic confrontation',
+  'introduce a concrete new beat',
+  'move from the resolved fight',
+  'carry the party',
+  'end the current fight decisively',
+  'keep the current challenge active',
+  'start a concrete scene beat',
+  'use suggestedencounterstart',
+  'suggestedencounterstart',
+  'dmprepencounters',
+  'scenemomentum',
+  'suggestednextbeat',
+] as const;
+
+const isInternalGuidance = (text: string): boolean => {
+  const normalized = normalizedText(text);
+  return INTERNAL_GUIDANCE_FRAGMENTS.some(fragment => normalized.includes(fragment));
+};
 
 const sceneNoun = (scene: string): string => {
   const cleaned = cleanLabel(scene);
@@ -11,7 +33,7 @@ const sceneNoun = (scene: string): string => {
 };
 
 const nextBeat = (input: NarrationInput, scene: string): string => {
-  if (input.sceneMomentum?.suggestedNextBeat) {
+  if (input.sceneMomentum?.suggestedNextBeat && !isInternalGuidance(input.sceneMomentum.suggestedNextBeat)) {
     return input.sceneMomentum.suggestedNextBeat;
   }
   if (input.sceneMomentum?.directive === 'victory_exit') {

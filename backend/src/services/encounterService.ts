@@ -21,8 +21,7 @@ const HP_MAX_BY_ROLE: Record<EncounterEnemy['role'], [number, number]> = {
 
 const LEADING_ARTICLES = /^(a |an |the )/i;
 const STRIP_PUNCT = /[^a-z0-9\s]/g;
-const ORGANIC_COMBAT_RE = /\b(ambush|attack|attacks|battle|combat|fight|foe|foes|enemy|enemies|monster|monsters|creature|creatures|beast|beasts|guardian|guardians|raider|raiders|bandit|bandits|cultist|cultists|construct|constructs|shadow|shadows|wraith|wraiths|wolf|wolves|goblin|goblins|sentinel|sentinels|enforcer|enforcers|assassin|assassins|brigand|brigands)\b/i;
-const ORGANIC_ARRIVAL_RE = /\b(?:a|an|the|some|several|two|three|swarm of|pack of|group of)\s+([a-z][a-z -]{2,40}?)\s+(?:appear|appears|emerge|emerges|arrive|arrives|attack|attacks|lunge|lunges|charge|charges|spring|springs|burst|bursts|descend|descends|surround|surrounds|block|blocks)\b/i;
+const ORGANIC_ARRIVAL_RE = /\b(?:a|an|the|some|several|two|three|swarm of|pack of|group of)\s+([a-z][a-z -]{2,40}?)\s+(?:appear|appears|emerge|emerges|arrive|arrives|attack|attacks|strike|strikes|slash|slashes|claw|claws|pounce|pounces|lunge|lunges|charge|charges|spring|springs|burst|bursts|descend|descends|surround|surrounds|block|blocks)\b/i;
 const GENERIC_ENEMY_NAME_RE = /\b(?:enemy|enemies|foe|foes|monster|monsters|creature|creatures|danger|threat|attack|ambush|combat|battle|fight)\b/i;
 
 export const normalizeEnemyName = (name: string): string =>
@@ -254,17 +253,13 @@ export const inferOrganicEncounterStart = (
     return null;
   }
 
-  const choiceText = (input.choices ?? [])
-    .map(choice => `${choice.label} ${choice.narration ?? ''} ${choice.environmentFeature ?? ''}`)
-    .join(' ');
   const haystack = [
     input.narration ?? '',
     input.imagePrompt ?? '',
     input.actionAttempt ?? '',
-    choiceText,
   ].join(' ');
 
-  if (!ORGANIC_COMBAT_RE.test(haystack)) {
+  if (!ORGANIC_ARRIVAL_RE.test(haystack)) {
     return null;
   }
 
