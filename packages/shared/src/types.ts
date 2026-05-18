@@ -138,7 +138,7 @@ export interface EncounterSeed {
   enemies: Array<{
     name: string;
     role: EncounterEnemy['role'];
-    weaknesses: Array<{ label: string; school?: EncounterWeakness['school'] }>;
+    weaknesses?: Array<{ label: string; school?: EncounterWeakness['school'] }>;
     traits?: string[];
     avatarUrl?: string;
   }>;

@@ -20,9 +20,20 @@ export async function dismissAudioOverlay(page: Page): Promise<void> {
   }
 }
 
+export async function dismissOriginView(page: Page): Promise<void> {
+  const btn = page.getByRole('button', { name: 'Skip' });
+  try {
+    await btn.waitFor({ state: 'visible', timeout: 2000 });
+    await btn.click();
+  } catch {
+    // origin view not present
+  }
+}
+
 export async function openSeedSession(page: Page, sessionId: string): Promise<void> {
   await page.goto(`/session/${sessionId}`);
   await dismissAudioOverlay(page);
+  await dismissOriginView(page);
   await expect(page.getByText('Choose an Action')).toBeVisible({ timeout: 30_000 });
 }
 

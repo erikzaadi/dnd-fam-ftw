@@ -67,6 +67,22 @@ describe('GameEngine', () => {
     expect(newState.party[0].inventory[0].id).toBeTruthy();
   });
 
+  it('updateState does not add a suggested inventory item already carried by another party member', () => {
+    const session = makeSession({
+      party: [
+        makeChar({ id: 'hero-1', name: 'Barnaby', inventory: [] }),
+        makeChar({ id: 'hero-2', name: 'Mira', inventory: [{ id: 'item-1', name: 'Ancient Map', description: 'Shows the route.' }] }),
+      ],
+    });
+    const attempt = { actionAttempt: 'Search the chest', actionResult: { success: true, roll: 15, statUsed: 'mischief' as const } };
+
+    const newState = GameEngine.updateState(session, attempt, {
+      suggestedInventoryAdd: { name: '🗺️ Ancient Map', description: 'Shows the route.' },
+    });
+
+    expect(newState.party.flatMap(c => c.inventory.filter(i => i.name.includes('Ancient Map')))).toHaveLength(1);
+  });
+
   it('updateState with null suggestedInventoryAdd leaves inventory empty', () => {
     const session = makeSession();
     const attempt = { actionAttempt: 'Look around', actionResult: { success: true, roll: 15, statUsed: 'mischief' as const } };
@@ -744,6 +760,80 @@ describe('GameEngine.updateState - encounter auto-damage', () => {
     expect(result.encounterState?.name).toBe('Memory Crabs Skirmish');
     expect(result.encounterState?.enemies[0].name).toBe('Memory Crab');
     expect(result.encounterState?.enemies[0].weaknesses?.[0].label).toBe('bright light');
+  });
+
+  it('grants seeded encounter loot once and appends it to narration when the encounter resolves', () => {
+    const dmPrepEncounters: EncounterSeed[] = [{
+      name: 'Memory Crabs Skirmish',
+      triggerHint: 'when party enters the Graying Shore',
+      enemies: [{ name: 'Memory Crab', role: 'minion' }],
+      areas: [],
+      objective: 'defeat the crabs to retrieve lost memories',
+      lootHint: 'Compass Medallion',
+    }];
+    const encounterState: EncounterState = {
+      id: 'enc-1',
+      name: 'Memory Crabs Skirmish',
+      status: 'active',
+      round: 1,
+      enemies: [{ id: 'enemy-1', name: 'Memory Crab', role: 'minion', hp: 1, maxHp: 2, status: 'active' }],
+      areas: [],
+    };
+    const session = makeSession({ dmPrepEncounters, encounterState });
+    const attempt = {
+      actionAttempt: 'Strike the final crab',
+      actionResult: { success: true, roll: 18, statUsed: 'might' as const, impact: 'normal' as const },
+    };
+    const aiChanges: Record<string, unknown> = {
+      narration: 'The final Memory Crab skitters back and collapses into drifting sparks.',
+      suggestedEncounterUpdate: null,
+    };
+
+    const result = GameEngine.updateState(session, attempt, aiChanges);
+
+    expect(result.encounterState?.status).toBe('defeated');
+    expect(result.party[0].inventory.map(i => i.name)).toContain('Compass Medallion');
+    expect(aiChanges.narration).toContain('Barnaby claims Compass Medallion from the aftermath.');
+  });
+
+  it('does not duplicate seeded encounter loot already carried by another party member', () => {
+    const dmPrepEncounters: EncounterSeed[] = [{
+      name: 'Memory Crabs Skirmish',
+      triggerHint: 'when party enters the Graying Shore',
+      enemies: [{ name: 'Memory Crab', role: 'minion' }],
+      areas: [],
+      objective: 'defeat the crabs to retrieve lost memories',
+      lootHint: 'Compass Medallion',
+    }];
+    const encounterState: EncounterState = {
+      id: 'enc-1',
+      name: 'Memory Crabs Skirmish',
+      status: 'active',
+      round: 1,
+      enemies: [{ id: 'enemy-1', name: 'Memory Crab', role: 'minion', hp: 1, maxHp: 2, status: 'active' }],
+      areas: [],
+    };
+    const session = makeSession({
+      dmPrepEncounters,
+      encounterState,
+      party: [
+        makeChar({ id: 'hero-1', name: 'Barnaby', inventory: [] }),
+        makeChar({ id: 'hero-2', name: 'Mira', inventory: [{ id: 'item-1', name: '🧭 Compass Medallion', description: 'Already found.' }] }),
+      ],
+    });
+    const attempt = {
+      actionAttempt: 'Strike the final crab',
+      actionResult: { success: true, roll: 18, statUsed: 'might' as const, impact: 'normal' as const },
+    };
+    const aiChanges: Record<string, unknown> = {
+      narration: 'The final Memory Crab skitters back and collapses into drifting sparks.',
+      suggestedEncounterUpdate: null,
+    };
+
+    const result = GameEngine.updateState(session, attempt, aiChanges);
+
+    expect(result.party.flatMap(c => c.inventory.filter(i => i.name.includes('Compass Medallion')))).toHaveLength(1);
+    expect(aiChanges.narration).toBe('The final Memory Crab skitters back and collapses into drifting sparks.');
   });
 
   it('starts an organic encounter from high-danger combat narration when AI omits suggestedEncounterStart', () => {

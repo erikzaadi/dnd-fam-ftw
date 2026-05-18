@@ -182,7 +182,7 @@ Flow:
 4. Outcome (success/fail, roll, damage, resolved target) is sent to AI as structured input.
 5. AI narrates what happened and provides three new choices, each with a suggested `difficultyValue`.
 6. If failed, acting character takes damage; if 0 HP, marked as downed.
-7. AI may suggest a new inventory item to grant via `suggestedInventoryAdd`; backend assigns it a random ID and adds it to the acting character's inventory.
+7. AI may suggest a new inventory item to grant via `suggestedInventoryAdd`; backend assigns it a random ID and adds it to the acting character's inventory unless any party member already carries the same item.
 8. AI may suggest evolving an existing item via `suggestedInventoryUpdate`; backend only applies bounded changes to a real carried item.
 9. AI may suggest removing an item via `suggestedInventoryRemove` (used for trades - see Trading below).
 
@@ -348,8 +348,10 @@ AI-suggested inventory items are granted or updated by the backend when the narr
 |------------|-------------------------|
 | easy | Always drop useful loot. |
 | normal | Usually drop loot; trivial mobs can drop nothing. |
-| hard | Only notable enemies, named foes, bosses, or story-weight threats drop loot. |
+| hard | Often drop loot for meaningful victories, named foes, bosses, story-weight threats, or enemies guarding important places; disposable minions can drop nothing. |
 | zug-ma-geddon | Rare drops only; common kills yield nothing. |
+
+Seeded encounters with a `lootHint` grant that item once when the encounter resolves, even if the AI omits `suggestedInventoryAdd`. If the AI narration did not already mention that item, the backend appends a short loot sentence to the same turn narration so the story and inventory stay aligned.
 
 **Morale and surrender**: Enemies can flee, bargain, surrender, reveal clues, or hand over loot instead of fighting to the last breath. Surrender and retreat can still yield rewards. If the party receives an item, key, badge, map, coin purse, clue-object, weapon, or reward through surrender, the AI must return `suggestedInventoryAdd`.
 

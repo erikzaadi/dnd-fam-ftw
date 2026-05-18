@@ -279,7 +279,7 @@ Inventory:
   Drop rate by difficulty (use actionResult.difficulty):
   - "easy": Always drop loot. Every defeated enemy yields something useful.
   - "normal": Usually drop loot. Skip only for trivial mobs (rats, minor pests, summoned dust).
-  - "hard": Only notable enemies (named foes, bosses, threats with story weight) drop loot. Common enemies drop nothing - the fight was too brutal to loot.
+  - "hard": Often drop loot for meaningful victories, named foes, bosses, story-weight threats, or enemies guarding important places. Skip only disposable minions and situations where looting would clearly break the fiction.
   - "zug-ma-geddon": Rare drops only. The chaos of constant battle leaves no time to loot. Only set suggestedInventoryAdd for truly significant kills (bosses, unique enemies). Common kills yield nothing.
 - CRITICAL: If your narration mentions giving, finding, receiving, looting, rewarding, harvesting, gathering, foraging, picking, crafting, buying, or obtaining ANY item, you MUST set suggestedInventoryAdd. Never narrate an item being obtained without setting this field.
 - CRITICAL: Item name MUST be prefixed with a single fitting emoji (e.g. "⚔️ Iron Sword", "🧪 Healing Potion", "🗡️ Dagger", "📜 Ancient Scroll", "🛡️ Shield", "🪄 Magic Wand", "🏹 Shortbow", "🔑 Key", "💎 Gem", "🌿 Healing Herbs"). Pick the emoji that best represents the item's nature or appearance.

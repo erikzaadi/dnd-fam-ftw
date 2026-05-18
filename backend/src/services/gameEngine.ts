@@ -21,6 +21,39 @@ export class GameEngine {
     return s.toLowerCase().replace(/[^a-z0-9]/g, '');
   }
 
+  private static cleanItemName(name: string): string {
+    return name.split('').filter(c => c.charCodeAt(0) > 31 && c.charCodeAt(0) !== 127).join('').trim();
+  }
+
+  private static normalizeItemName(name: string): string {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/^(a|an|the)\s+/, '')
+      .replace(/\s+/g, '');
+  }
+
+  private static partyHasItem(party: Character[], itemName: string): boolean {
+    const normalizedNewName = this.normalizeItemName(itemName);
+    return !!normalizedNewName && party.some(character =>
+      character.inventory.some(item => this.normalizeItemName(item.name) === normalizedNewName)
+    );
+  }
+
+  private static appendLootNarration(aiSuggestedChanges: Record<string, unknown>, characterName: string, itemName: string): void {
+    if (typeof aiSuggestedChanges.narration !== 'string') {
+      return;
+    }
+    const normalizedNarration = this.normalizeItemName(aiSuggestedChanges.narration);
+    const normalizedItem = this.normalizeItemName(itemName);
+    if (normalizedItem && normalizedNarration.includes(normalizedItem)) {
+      return;
+    }
+    aiSuggestedChanges.narration = `${aiSuggestedChanges.narration} ${characterName} claims ${itemName} from the aftermath.`;
+  }
+
   private static isNonOffensiveEncounterAction(actionAttempt: ActionAttempt, aiSuggestedChanges?: Record<string, unknown>): boolean {
     const text = actionAttempt.actionAttempt.toLowerCase();
     if (/\b(heal|healing|mend|restore|revive|prayer|bless|aid|help|support|bolster|rally|inspire|encourage|protect|shield|recover|rest|stabilize)\b/.test(text)) {
@@ -549,16 +582,12 @@ export class GameEngine {
         const newItem = item as Omit<InventoryItem, 'id'> & { targetCharacterName?: string; boundToCharacterName?: string };
         const { targetCharacterName, boundToCharacterName, ...itemData } = newItem;
         if (typeof itemData.name === 'string') {
-          itemData.name = itemData.name.split('').filter(c => c.charCodeAt(0) > 31 && c.charCodeAt(0) !== 127).join('').trim();
+          itemData.name = this.cleanItemName(itemData.name);
         }
         const recipient = targetCharacterName
           ? (GameEngine.findCharacter(newState.party, targetCharacterName) ?? actingChar)
           : actingChar;
-        const normalizedNewName = this.normalize(itemData.name ?? '');
-        const alreadyHas = normalizedNewName && recipient.inventory.some(
-          i => this.normalize(i.name) === normalizedNewName
-        );
-        if (!alreadyHas) {
+        if (itemData.name && !this.partyHasItem(newState.party, itemData.name)) {
           const boundToCharacter = typeof boundToCharacterName === 'string'
             ? GameEngine.findCharacter(newState.party, boundToCharacterName)
             : undefined;
@@ -653,11 +682,12 @@ export class GameEngine {
           // Grant loot immediately on encounter resolution - do not wait for the next turn's AI
           const encSeed = resolveEncounterSeed(updated.name, newState.dmPrepEncounters ?? []);
           if (encSeed?.lootHint) {
-            const lootName = encSeed.lootHint.split('').filter(c => c.charCodeAt(0) > 31 && c.charCodeAt(0) !== 127).join('').trim();
-            const normalizedLoot = this.normalize(lootName);
-            const alreadyHas = normalizedLoot && actingChar.inventory.some(i => this.normalize(i.name) === normalizedLoot);
-            if (!alreadyHas && lootName) {
+            const lootName = this.cleanItemName(encSeed.lootHint);
+            if (lootName && !this.partyHasItem(newState.party, lootName)) {
               actingChar.inventory.push({ id: createId(), name: lootName, description: '', tags: [] });
+              if (aiSuggestedChanges) {
+                this.appendLootNarration(aiSuggestedChanges, actingChar.name, lootName);
+              }
             }
           }
         }

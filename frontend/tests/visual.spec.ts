@@ -673,6 +673,8 @@ test('session encounter panel - all HP label states', async ({ page }) => {
   };
 
   const fakeTurnResult = {
+    id: 2,
+    encounterId: fakeSession.encounterState.id,
     narration: 'The battle rages on inside the goblin caves.',
     choices: fakeSession.lastChoices,
     imagePrompt: null,
@@ -688,7 +690,10 @@ test('session encounter panel - all HP label states', async ({ page }) => {
   await page.route(`**/api/session/${sessionId}/history`, route => route.fulfill({
     status: 200,
     contentType: 'application/json',
-    body: JSON.stringify([fakeTurnResult]),
+    body: JSON.stringify([
+      { ...fakeTurnResult, id: 1, narration: 'The party crashes into the goblin line.' },
+      fakeTurnResult,
+    ]),
   }));
   await page.route('**/api/sessions/events', route => route.abort());
   await page.route('**/api/capabilities', route => route.fulfill({
@@ -797,6 +802,8 @@ test('session encounter panel - area card with image, effect, avatar, and lightb
   };
 
   const fakeTurnResult = {
+    id: 2,
+    encounterId: fakeSession.encounterState.id,
     narration: 'The battle rages on inside the throne room.',
     choices: fakeSession.lastChoices,
     imagePrompt: null,
@@ -812,7 +819,10 @@ test('session encounter panel - area card with image, effect, avatar, and lightb
   await page.route(`**/api/session/${sessionId}/history`, route => route.fulfill({
     status: 200,
     contentType: 'application/json',
-    body: JSON.stringify([fakeTurnResult]),
+    body: JSON.stringify([
+      { ...fakeTurnResult, id: 1, narration: 'The Goblin King springs from the throne.' },
+      fakeTurnResult,
+    ]),
   }));
   await page.route('**/api/sessions/events', route => route.abort());
   await page.route('**/api/capabilities', route => route.fulfill({

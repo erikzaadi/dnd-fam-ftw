@@ -26,6 +26,7 @@ interface NarratingPayload {
 
 interface SessionEventHandlers {
   sessionId: string;
+  onConnected?: () => void;
   onNarrating: (payload: NarratingPayload) => void;
   onTurnComplete: (session: Session, turnResult: TurnResult | null) => void;
   onTurnError: (error: string, message: string) => void;
@@ -40,6 +41,7 @@ export type ConnectionState = 'connected' | 'reconnecting' | 'disconnected';
 
 export const useSessionEvents = ({
   sessionId,
+  onConnected,
   onNarrating,
   onTurnComplete,
   onTurnError,
@@ -80,7 +82,9 @@ export const useSessionEvents = ({
         if (isDev) {
           console.log(`[SSE] ${data.type ?? 'message'}`, data);
         }
-        if (data.type === 'dm_narrating') {
+        if (data.type === 'connected') {
+          onConnected?.();
+        } else if (data.type === 'dm_narrating') {
 	  onNarrating({
 	    action: data.action,
 	    statUsed: data.statUsed,

@@ -101,6 +101,8 @@ export const SessionPage = () => {
     isLoading: loading,
     lastRollVisible: !!lastRoll,
   });
+  const historyRef = useRef<TurnResult[]>(history);
+  historyRef.current = history;
   const displayTurnRef = useRef<TurnResult | null>(null);
   const pendingStoryFocusRef = useRef(false);
   const previewPartyBoostActionRef = useRef<() => void>(() => undefined);
@@ -140,6 +142,22 @@ export const SessionPage = () => {
       setImageLoading(true);
     }
   }, [navigate]);
+
+  const refetchHistory = useCallback(async (sessionId: string) => {
+    const hRes = await apiFetch(`/session/${sessionId}/history`);
+    if (!hRes.ok) {
+      return;
+    }
+    const hData: TurnResult[] = await hRes.json();
+    if (hData.length === 0) {
+      return;
+    }
+    setHistory(hData);
+    setViewedTurnIdx(hData.length - 1);
+    if (hData.length === 1) {
+      setShowOrigin(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (id) {
@@ -269,6 +287,11 @@ export const SessionPage = () => {
 
   const { connectionState } = useSessionEvents({
     sessionId: id!,
+    onConnected: () => {
+      if (historyRef.current.length === 0 && id) {
+        void refetchHistory(id);
+      }
+    },
     onGameOver: (updatedSession) => {
       setSession(updatedSession);
     },
