@@ -3,7 +3,7 @@ import type { ActionAttempt, Character, Difficulty, SessionState, TurnResult } f
 const HEALING_ACTION_RE = /\b(heal|healing|restore|restoring|revive|reviving|mend|mending|soothe|soothing|recover|recovery|rest|resting|sleep|sleeping|eat|eating|meal|care|treat|treating|medicine|potion|bandage|sanctuary)\b/i;
 const ENCHANT_ACTION_RE = /\b(enchant|enchanting|bless|blessing|empower|empowering|infuse|infusing|imbue|imbuing|charge|charging|strengthen|strengthening|upgrade|upgrading)\b/i;
 const PARTY_WIDE_RE = /\b(party|everyone|everybody|all|whole group|the group|the team|teammates|friends|allies|share|shared|together|feast|meal)\b/i;
-const BLESS_AID_ACTION_RE = /\b(bless|blessing|aid|assist|inspire|encourage|embolden|bolster|invigorate|uplift|fortify|courage|rally|hymn|melody|song|tune|chant|shield|ward|channel|weave|strengthen|empower|boost)\b/i;
+const BLESS_AID_ACTION_RE = /\b(bless|blessing|aid|assist|inspire|encourage|embolden|bolster|invigorate|uplift|fortify|courage|rally|hymn|melody|song|tune|chant|shield|ward|channel|weave|strengthen|empower|boost|pray|prayer|invoke|invocation|petition|beseech|consecrate|dedicate|devotion|exalt|sanctify)\b/i;
 const BLESS_RE = /\b(bless|blessing)\b/i;
 const AID_RE = /\b(aid|assist)\b/i;
 const SIMPLE_PATH_ACTION_RE = /\b(follow|take|walk|go|move|head|continue|proceed)\b.*\b(path|paths|trail|route|road|track|tracks|passage|tunnel|corridor|hallway)\b/i;
@@ -30,6 +30,23 @@ function actionReferencesItem(action: string, itemName: string): boolean {
     .split(' ')
     .filter(part => part.length > 2)
     .some(part => action.includes(part));
+}
+
+export function inferActionIntent(action: string, session: SessionState): string | undefined {
+  if (ENCHANT_ACTION_RE.test(action) && findEnchantmentTarget(action, session)) {
+    return 'improve_item';
+  }
+  if (!BLESS_AID_ACTION_RE.test(action)) {
+    return undefined;
+  }
+  if (PARTY_WIDE_RE.test(action)) {
+    return 'party_boost';
+  }
+  const target = findSupportTarget(action, session);
+  if (target) {
+    return AID_RE.test(action) ? 'aid_character' : 'bless_character';
+  }
+  return 'party_boost';
 }
 
 export function isHealingFreeAction(action: string): boolean {

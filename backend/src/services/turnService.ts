@@ -16,7 +16,7 @@ import {
   toFreeActionBonusPreview,
 } from './freeActionInferenceService.js';
 import { buildSceneMomentum, buildScenePressure } from './sceneMomentumService.js';
-import { ensureSuccessfulEnchantmentSuggestion, ensureSuccessfulHealingSuggestion, ensureSuccessfulSupportSuggestion } from './freeActionPolicyService.js';
+import { ensureSuccessfulEnchantmentSuggestion, ensureSuccessfulHealingSuggestion, ensureSuccessfulSupportSuggestion, inferActionIntent } from './freeActionPolicyService.js';
 
 const logTurnStep = (sessionId: string, step: string, start: number, details = ''): number => {
   const now = Date.now();
@@ -310,7 +310,8 @@ export const executeTurnAction = async (
   const nextCharId = GameEngine.getNextActiveCharacter(session.party, actingCharId);
   const scenePressure = buildScenePressure(history, actionAttempt, session.scene);
   const sceneMomentum = buildSceneMomentum(history, actionAttempt, session, scenePressure);
-  const aiInput: AIInput = { ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId, scenePressure, sceneMomentum, ...(actionIntent && { actionIntent }) };
+  const effectiveActionIntent = actionIntent ?? inferActionIntent(action, session);
+  const aiInput: AIInput = { ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId, scenePressure, sceneMomentum, ...(effectiveActionIntent && { actionIntent: effectiveActionIntent }) };
   const targetCharName = targetCharacterId ? session.party.find(c => c.id === targetCharacterId)?.name : undefined;
   stepStart = logTurnStep(
     sessionId,
@@ -325,7 +326,7 @@ export const executeTurnAction = async (
   devLog.log(`[Turn] llm-done session=${sessionId} retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
   turnResult = ensureSuccessfulHealingSuggestion(session, actionAttempt, turnResult);
   turnResult = ensureSuccessfulEnchantmentSuggestion(session, actionAttempt, turnResult);
-  turnResult = ensureSuccessfulSupportSuggestion(session, actionAttempt, turnResult, actionIntent, targetCharName);
+  turnResult = ensureSuccessfulSupportSuggestion(session, actionAttempt, turnResult, effectiveActionIntent, targetCharName);
   stepStart = logTurnStep(sessionId, 'post-llm-guards', stepStart);
   const newState = GameEngine.updateState(session, actionAttempt, turnResult as unknown as Record<string, unknown>);
   alignTurnWithResolvedEncounter(session, newState, turnResult);

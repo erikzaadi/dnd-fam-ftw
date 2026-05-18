@@ -43,7 +43,9 @@ export class OpenAINarrationProvider implements NarrationProvider {
     const start = Date.now();
     const systemPrompt = buildNarrationSystemPrompt(input);
     const userContent = buildNarrationUserContent(input, validationError);
-    const timeoutMs = 40_000;
+    const isHighStakesTurn = input.encounterState?.status === 'active'
+      || input.sceneMomentum?.directive === 'climax_pressure';
+    const timeoutMs = isHighStakesTurn ? 60_000 : 50_000;
     const systemChars = systemPrompt.length;
     const userChars = userContent.length;
     const storySummaryChars = input.storySummary ? JSON.stringify(input.storySummary).length : 0;

@@ -5,6 +5,7 @@ import {
   ensureSuccessfulEnchantmentSuggestion,
   ensureSuccessfulHealingSuggestion,
   getFreeActionDifficulty,
+  inferActionIntent,
 } from './freeActionPolicyService.js';
 
 const makeChar = (overrides: Partial<Character> = {}): Character => ({
@@ -160,5 +161,64 @@ describe('freeActionPolicyService', () => {
       statBonuses: { might: 1, magic: 1 },
       condition: 'Enchanted',
     });
+  });
+});
+
+describe('inferActionIntent', () => {
+  const twoCharSession = () => makeSession({
+    party: [
+      makeChar({ id: 'hero-1', name: 'Barnaby' }),
+      makeChar({ id: 'hero-2', name: 'Zara', status: 'active' }),
+    ],
+    activeCharacterId: 'hero-1',
+  });
+
+  it('returns undefined for a plain combat action', () => {
+    expect(inferActionIntent('Strike the goblin with my sword', makeSession())).toBeUndefined();
+  });
+
+  it('returns undefined for a movement action', () => {
+    expect(inferActionIntent('Sneak past the guard', makeSession())).toBeUndefined();
+  });
+
+  it('returns party_boost for a prayer targeting the whole party', () => {
+    expect(inferActionIntent('Invoke a prayer to steady the party\'s resolve', makeSession())).toBe('party_boost');
+  });
+
+  it('returns party_boost for a rally action', () => {
+    expect(inferActionIntent('Rally everyone with a battle cry', makeSession())).toBe('party_boost');
+  });
+
+  it('returns party_boost for inspire when no named target', () => {
+    expect(inferActionIntent('Inspire the allies with a song', makeSession())).toBe('party_boost');
+  });
+
+  it('returns bless_character when a named party member is mentioned', () => {
+    const session = twoCharSession();
+    expect(inferActionIntent('Bless Zara before she strikes', session)).toBe('bless_character');
+  });
+
+  it('returns aid_character when aid verb and named target', () => {
+    const session = twoCharSession();
+    expect(inferActionIntent('Aid Zara with a distraction', session)).toBe('aid_character');
+  });
+
+  it('returns party_boost for chant targeting the whole group', () => {
+    expect(inferActionIntent('Chant a war song for everyone', makeSession())).toBe('party_boost');
+  });
+
+  it('returns party_boost for devotion with no named target', () => {
+    expect(inferActionIntent('Dedicate this victory to the gods', makeSession())).toBe('party_boost');
+  });
+
+  it('returns improve_item when enchanting a carried item', () => {
+    const sessionWithItem = makeSession({
+      party: [makeChar({ inventory: [{ id: 'i1', name: 'Iron Shield', description: 'A sturdy shield.', consumable: false, transferable: true }] })],
+    });
+    expect(inferActionIntent('Enchant the Iron Shield with protective runes', sessionWithItem)).toBe('improve_item');
+  });
+
+  it('returns undefined for healing actions (handled separately)', () => {
+    expect(inferActionIntent('Heal the wounded warrior', makeSession())).toBeUndefined();
   });
 });
