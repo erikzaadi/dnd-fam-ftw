@@ -589,6 +589,22 @@ export class GameEngine {
         }
       }
 
+      // Fallback: if action succeeded with a resurrect/revive intent and the AI omitted suggestedRevive,
+      // find any downed character whose name appears in the action text and revive them.
+      if (actionAttempt.actionResult.success && !revive && !Array.isArray(heals)) {
+        const actionText = actionAttempt.actionAttempt.toLowerCase();
+        if (/\b(resurrect|revive|bring.*back|bring.*life|return.*life|wake.*up|restore.*life)\b/.test(actionText)) {
+          for (const c of newState.party) {
+            if (c.status === 'downed' && actionText.includes(c.name.toLowerCase())) {
+              c.hp = Math.max(1, Math.round(c.max_hp / 4));
+              c.status = 'active';
+              c.buffs = [];
+              break;
+            }
+          }
+        }
+      }
+
       // Inventory remove from AI suggestion (trade/vendor — item given away)
       const remove = aiSuggestedChanges?.suggestedInventoryRemove as { characterName: string; itemName: string } | null | undefined;
       if (remove && typeof remove === 'object' && remove.characterName && remove.itemName) {

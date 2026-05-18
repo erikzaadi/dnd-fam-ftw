@@ -571,6 +571,41 @@ describe('GameEngine short-lived buffs and curses', () => {
     expect(revived.party[0].buffs).toEqual([]);
   });
 
+  it('revives a downed character by name when AI omits suggestedRevive on a resurrect action', () => {
+    const caster = makeChar({ id: 'caster', name: 'Thrumbar' });
+    const downed = makeChar({ id: 'victim', name: 'Bolgur', hp: 0, status: 'downed', max_hp: 12 });
+    const session = makeSession({ party: [caster, downed], activeCharacterId: 'caster' });
+    const attempt = { actionAttempt: 'resurrect Bolgur', actionResult: { success: true, roll: 16, statUsed: 'magic' as const } };
+
+    const result = GameEngine.updateState(session, attempt, { suggestedRevive: null });
+    const revived = result.party.find(c => c.id === 'victim')!;
+    expect(revived.status).toBe('active');
+    expect(revived.hp).toBeGreaterThan(0);
+  });
+
+  it('revives when action uses "bring back" phrasing and AI omits suggestedRevive', () => {
+    const caster = makeChar({ id: 'caster', name: 'Vymeson' });
+    const downed = makeChar({ id: 'victim', name: 'Bolgur', hp: 0, status: 'downed', max_hp: 12 });
+    const session = makeSession({ party: [caster, downed], activeCharacterId: 'caster' });
+    const attempt = { actionAttempt: 'bring back Bolgur from the brink', actionResult: { success: true, roll: 18, statUsed: 'magic' as const } };
+
+    const result = GameEngine.updateState(session, attempt, { suggestedRevive: null });
+    const revived = result.party.find(c => c.id === 'victim')!;
+    expect(revived.status).toBe('active');
+    expect(revived.hp).toBeGreaterThan(0);
+  });
+
+  it('does not revive a downed character when the resurrect action fails', () => {
+    const caster = makeChar({ id: 'caster', name: 'Thrumbar' });
+    const downed = makeChar({ id: 'victim', name: 'Bolgur', hp: 0, status: 'downed', max_hp: 12 });
+    const session = makeSession({ party: [caster, downed], activeCharacterId: 'caster' });
+    const attempt = { actionAttempt: 'resurrect Bolgur', actionResult: { success: false, roll: 4, statUsed: 'magic' as const } };
+
+    const result = GameEngine.updateState(session, attempt, { suggestedRevive: null });
+    const stillDowned = result.party.find(c => c.id === 'victim')!;
+    expect(stillDowned.status).toBe('downed');
+  });
+
   it('discards invalid buff suggestions', () => {
     const session = makeSession();
     const attempt = { actionAttempt: 'Bless Nobody', actionResult: { success: true, roll: 16, statUsed: 'magic' as const } };
