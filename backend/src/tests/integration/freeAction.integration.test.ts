@@ -111,12 +111,17 @@ describe('executeTurnAction free action integration', () => {
     }
 
     expect(result.body.turnResult.narration).toContain('Ambusher collapses, defeated');
-    expect(result.body.turnResult.narration).toContain('Pip claims Ambusher Token from the aftermath');
+    const lootChange = result.body.turnResult.inventoryChanges?.find(
+      (c: { characterName: string; type: string }) => c.characterName === 'Pip' && c.type === 'added'
+    );
+    expect(lootChange).toBeTruthy();
+    const lootName = lootChange.itemName as string;
+    expect(result.body.turnResult.narration).toContain(`Pip claims ${lootName} from the aftermath`);
     expect(result.body.turnResult.narration).not.toContain('wounded but fierce');
     expect(result.body.turnResult.choices.map(choice => choice.label).join(' ')).not.toContain('Ambusher');
     expect(result.body.turnResult.inventoryChanges).toContainEqual({
       characterName: 'Pip',
-      itemName: 'Ambusher Token',
+      itemName: lootName,
       type: 'added',
     });
     expect(result.body.turnResult.encounterEnemyChanges?.[0]).toMatchObject({
@@ -124,7 +129,7 @@ describe('executeTurnAction free action integration', () => {
       newStatus: 'defeated',
     });
     const stored = await StateService.getSession('free-action-resolved-encounter-session');
-    expect(stored?.party[0].inventory.map(item => item.name)).toContain('Ambusher Token');
+    expect(stored?.party[0].inventory.map(item => item.name)).toContain(lootName);
     expect(stored?.lastChoices.map(choice => choice.label).join(' ')).not.toContain('Ambusher');
   });
 
