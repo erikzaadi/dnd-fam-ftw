@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildNarrationSystemPrompt } from './narrationPrompt.js';
+import { buildNarrationSystemPrompt, isTradeTurn, isRiddleTurn } from './narrationPrompt.js';
 import type { NarrationInput } from './NarrationProvider.js';
 
 const makeInput = (overrides: Partial<NarrationInput> = {}): NarrationInput => ({
@@ -95,9 +95,14 @@ describe('buildNarrationSystemPrompt', () => {
     expect(prompt).toContain('Image Strategy');
   });
 
-  it('always includes drama llama section', () => {
-    const prompt = buildNarrationSystemPrompt(makeInput());
+  it('statUsed present includes drama llama section', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput({ actionResult: { success: true, summary: 'ok', statUsed: 'magic' } }));
     expect(prompt).toContain('DRAMA LLAMA');
+  });
+
+  it('statUsed undefined excludes drama llama section', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput({ actionResult: { success: true, summary: 'ok' } }));
+    expect(prompt).not.toContain('DRAMA LLAMA');
   });
 
   it('always includes inventory section', () => {
@@ -113,5 +118,155 @@ describe('buildNarrationSystemPrompt', () => {
   it('buff turn includes buffs curses format', () => {
     const prompt = buildNarrationSystemPrompt(makeInput({ actionIntent: 'improve_item' }));
     expect(prompt).toContain('Buffs and Curses:');
+  });
+
+  it('sceneMomentum present includes momentum directives section', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput({ sceneMomentum: { directive: 'press_current_scene', suggestedNextBeat: 'Keep going', staleChoiceCount: 0, turnsSinceSceneChange: 1, turnsSinceCombat: 2, justCompletedCombat: false, justCompletedDifficultChallenge: false, reason: 'test' } }));
+    expect(prompt).toContain('MOMENTUM DIRECTIVES');
+  });
+
+  it('no sceneMomentum excludes momentum directives section', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput());
+    expect(prompt).not.toContain('MOMENTUM DIRECTIVES');
+  });
+
+  it('active encounter includes combat loot section', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput({
+      encounterState: { id: 'enc-1', name: 'Goblin Fight', status: 'active', enemies: [], areas: [], round: 1 },
+    }));
+    expect(prompt).toContain('COMBAT LOOT');
+  });
+
+  it('non-encounter turn excludes combat loot section', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput());
+    expect(prompt).not.toContain('COMBAT LOOT');
+  });
+
+  it('encounterJustResolved includes combat loot section', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput({ encounterJustResolved: true }));
+    expect(prompt).toContain('COMBAT LOOT');
+  });
+
+  it('action mentioning trade includes trade section', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput({ actionAttempt: 'Buy a healing potion from the vendor' }));
+    expect(prompt).toContain('PARTY AND NPC ITEM TRANSFERS');
+  });
+
+  it('vendor in recent history includes trade section', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput({ recentHistory: ['The merchant offered silk scarves.'] }));
+    expect(prompt).toContain('PARTY AND NPC ITEM TRANSFERS');
+  });
+
+  it('vendor keyword in scene includes trade section', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput({ scene: 'A busy marketplace with a merchant stall' }));
+    expect(prompt).toContain('PARTY AND NPC ITEM TRANSFERS');
+  });
+
+  it('no trade signal excludes trade section', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput({ actionAttempt: 'Strike the goblin' }));
+    expect(prompt).not.toContain('PARTY AND NPC ITEM TRANSFERS');
+  });
+
+  it('transferable items alone do not include trade section', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput({
+      inventory: [{ name: 'Iron Shield', description: 'A shield', ownerName: 'Pip', statBonuses: {}, transferable: true, consumable: false }],
+    }));
+    expect(prompt).not.toContain('PARTY AND NPC ITEM TRANSFERS');
+  });
+
+  it('dmPrep with riddle keyword includes riddle section', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput({ dmPrep: 'The sphinx poses a riddle to the party.' }));
+    expect(prompt).toContain('RIDDLES AND PUZZLES');
+  });
+
+  it('recent history with riddle mention includes riddle section', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput({ recentHistory: ['The guardian posed a puzzle before the gate.'] }));
+    expect(prompt).toContain('RIDDLES AND PUZZLES');
+  });
+
+  it('action containing riddle keyword includes riddle section', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput({ actionAttempt: 'Answer the riddle of the stone door' }));
+    expect(prompt).toContain('RIDDLES AND PUZZLES');
+  });
+
+  it('no riddle signal excludes riddle section', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput());
+    expect(prompt).not.toContain('RIDDLES AND PUZZLES');
+  });
+});
+
+describe('isTradeTurn', () => {
+  const makeTradeInput = (overrides: Partial<NarrationInput> = {}): NarrationInput => ({
+    scene: 'A dark dungeon',
+    party: [{ name: 'Pip', class: 'Rogue', species: 'Halfling', hp: 8, maxHp: 10, stats: { might: 1, magic: 2, mischief: 4 }, status: 'active' }],
+    inventory: [],
+    actionAttempt: 'Look around',
+    actionResult: { success: true, summary: 'ok' },
+    recentHistory: [],
+    tone: 'comedic',
+    ...overrides,
+  });
+
+  it('returns true when action mentions vendor', () => {
+    expect(isTradeTurn(makeTradeInput({ actionAttempt: 'Talk to the vendor' }))).toBe(true);
+  });
+
+  it('returns true when action mentions trade', () => {
+    expect(isTradeTurn(makeTradeInput({ actionAttempt: 'Trade the sword for coin' }))).toBe(true);
+  });
+
+  it('returns true when recent history mentions merchant', () => {
+    expect(isTradeTurn(makeTradeInput({ recentHistory: ['A merchant called out from a stall.'] }))).toBe(true);
+  });
+
+  it('returns true when scene mentions shop', () => {
+    expect(isTradeTurn(makeTradeInput({ scene: 'A shop filled with exotic goods' }))).toBe(true);
+  });
+
+  it('returns false with no trade signal', () => {
+    expect(isTradeTurn(makeTradeInput())).toBe(false);
+  });
+
+  it('returns false when inventory has transferable items but no trade signal', () => {
+    expect(isTradeTurn(makeTradeInput({
+      inventory: [{ name: 'Iron Shield', description: 'A shield', ownerName: 'Pip', statBonuses: {}, transferable: true, consumable: false }],
+    }))).toBe(false);
+  });
+});
+
+describe('isRiddleTurn', () => {
+  const makeRiddleInput = (overrides: Partial<NarrationInput> = {}): NarrationInput => ({
+    scene: 'A dark dungeon',
+    party: [{ name: 'Pip', class: 'Rogue', species: 'Halfling', hp: 8, maxHp: 10, stats: { might: 1, magic: 2, mischief: 4 }, status: 'active' }],
+    inventory: [],
+    actionAttempt: 'Move forward',
+    actionResult: { success: true, summary: 'ok' },
+    recentHistory: [],
+    tone: 'comedic',
+    ...overrides,
+  });
+
+  it('returns true when dmPrep mentions riddle', () => {
+    expect(isRiddleTurn(makeRiddleInput({ dmPrep: 'The gate guardian poses a riddle.' }))).toBe(true);
+  });
+
+  it('returns true when scene mentions puzzle', () => {
+    expect(isRiddleTurn(makeRiddleInput({ scene: 'A room with a puzzle lock on the door' }))).toBe(true);
+  });
+
+  it('returns true when action mentions password', () => {
+    expect(isRiddleTurn(makeRiddleInput({ actionAttempt: 'Speak the password to pass' }))).toBe(true);
+  });
+
+  it('returns true when recent history mentions cipher', () => {
+    expect(isRiddleTurn(makeRiddleInput({ recentHistory: ['The inscription showed a cipher.'] }))).toBe(true);
+  });
+
+  it('returns false with no riddle signal', () => {
+    expect(isRiddleTurn(makeRiddleInput())).toBe(false);
+  });
+
+  it('returns false when answer appears without riddle context', () => {
+    expect(isRiddleTurn(makeRiddleInput({ actionAttempt: 'Answer the goblin back with a shout' }))).toBe(false);
   });
 });

@@ -128,6 +128,11 @@ CRITICAL -Narration vs Roll Narration separation:
 - \`narration\` is the STORY consequence of the outcome: what happens in the world, not the mechanical result. Never mention dice, rolls, numbers, or success/failure as concepts. Do not start with "🎲".
 - \`rollNarration\` handles the mechanical framing. These are separate fields with separate jobs.`;
 
+export const SECTION_CHOICES_RIDDLE = `RIDDLES AND PUZZLES: If THIS TURN's narration introduces a direct riddle, pun question, password, or answerable puzzle, exactly 2 of the 3 choices MUST be possible answers. One answer choice MUST be correct and one MUST be plausible but wrong. For these two answer choices, set riddleAnswer to the exact answer text and riddleCorrect to true or false. The third choice MUST be a non-answer action tailored to \`nextCharacterName\` such as scouting, asking for a hint, using an item, or investigating the scene, and MUST NOT include riddleAnswer. Correct riddle answers are resolved by the game without a dice roll, so do not describe them as risky guesses.
+- If \`dmPrep\` mentions riddles, puns, puzzle paths, or answer-based obstacles, prefer occasional riddle scenes. Do not overuse them, but when you introduce one, always provide the structured answer choices above.`;
+
+export const SECTION_CHOICES_VENDOR = `If the current scene or recent narration involves a vendor, merchant, trader, shopkeeper, or any NPC willing to deal goods, include at least one choice involving a trade, purchase, barter, or exchange. Reference a specific item from the party's inventory as the thing being offered, or name a plausible item the NPC might have. Use mischief (haggling, deception) or might (intimidation deal) as the stat.`;
+
 export const SECTION_DYNAMIC_DIFFICULTY_CONTINUITY_ACTING_CHOICES = `DYNAMIC DIFFICULTY (difficultyValue):
 - Set difficultyValue for each choice based on the specific action AND the current scene context:
   - Trivial or low-risk (sleeping guard, minor obstacle, cooperative NPC): 5-8
@@ -180,10 +185,7 @@ Choices:
 - In \`fast\` mode, avoid three choices that are all the same kind of verb. Prefer one direct force/combat action, one environment/object/route action, and one clever/team/item action.
 - NEVER offer choices that require a downed party member's assistance, or that reference a downed character as an ally.
 - Do NOT suggest targeting or interacting with downed characters in any choice unless it's to heal/revive them.
-- RIDDLES AND PUZZLES: If THIS TURN's narration introduces a direct riddle, pun question, password, or answerable puzzle, exactly 2 of the 3 choices MUST be possible answers. One answer choice MUST be correct and one MUST be plausible but wrong. For these two answer choices, set riddleAnswer to the exact answer text and riddleCorrect to true or false. The third choice MUST be a non-answer action tailored to \`nextCharacterName\` such as scouting, asking for a hint, using an item, or investigating the scene, and MUST NOT include riddleAnswer. Correct riddle answers are resolved by the game without a dice roll, so do not describe them as risky guesses.
-- If \`dmPrep\` mentions riddles, puns, puzzle paths, or answer-based obstacles, prefer occasional riddle scenes. Do not overuse them, but when you introduce one, always provide the structured answer choices above.
-- SETUP AND PAYOFF CHOICES: If \`dmPrep\`, \`storySummary\`, \`recentHistory\`, or \`inventory\` indicates the party found a key clue, password, token, map, relic, ingredient, badge, shard, or quest object for a later challenge, use that memory. When the matching challenge appears, one suggested action should explicitly use the carried clue/object or remembered answer. Example labels: "Fit the moon key into the silver lock", "Show the badge to the gate warden", "Speak the raven password", "Compare the map to the hallway".
-- If the current scene or recent narration involves a vendor, merchant, trader, shopkeeper, or any NPC willing to deal goods, include at least one choice involving a trade, purchase, barter, or exchange. Reference a specific item from the party's inventory as the thing being offered, or name a plausible item the NPC might have. Use mischief (haggling, deception) or might (intimidation deal) as the stat.`;
+- SETUP AND PAYOFF CHOICES: If \`dmPrep\`, \`storySummary\`, \`recentHistory\`, or \`inventory\` indicates the party found a key clue, password, token, map, relic, ingredient, badge, shard, or quest object for a later challenge, use that memory. When the matching challenge appears, one suggested action should explicitly use the carried clue/object or remembered answer. Example labels: "Fit the moon key into the silver lock", "Show the badge to the gate warden", "Speak the raven password", "Compare the map to the hallway".`;
 
 export const SECTION_PARTY_STATUS = `Party Status:
 - Each party member has a \`status\`: "active" (can act) or "downed" (at 0 HP, cannot act).
@@ -254,7 +256,7 @@ export const SECTION_ACTION_INTENT = `ACTION INTENT (use when actionIntent is pr
 - "improve_item": MUST set suggestedInventoryUpdate for the item referenced in actionAttempt. +1 stat bonus, add "Enchanted" to tags.
 - These are MANDATORY on success. The backend enforces them as a fallback, but the AI narration should still set them for narrative coherence.`;
 
-export const SECTION_INVENTORY = `Inventory:
+export const SECTION_INVENTORY_BASICS = `Inventory:
 - \`ownerName\` tells you which character carries each item.
 - Item metadata may include \`tags\`, \`effect\`, \`charges\`, \`condition\`, and \`boundToCharacterName\`. Use these as story memory and choice inspiration.
 - Items with \`healValue > 0\` can restore HP. Reference these when the party is hurt or someone is downed.
@@ -272,13 +274,6 @@ export const SECTION_INVENTORY = `Inventory:
 - CRITICAL: If you are setting suggestedInventoryAdd in this response, do not offer choices that try to acquire that same item - the party is already receiving it.
 - CRITICAL: If you are setting suggestedInventoryRemove in this response, do not offer choices that reference that item as something the party still has or can trade.
 - CRITICAL: If you set \`suggestedInventoryUpdate\`, the item must already exist in the current \`inventory\`. Never update an invented item.
-
-- COMBAT LOOT: When a combat encounter concludes with a victory, consider setting suggestedInventoryAdd with loot thematically tied to the defeated enemy. Loot must feel earned and fitting - never generic. CRITICAL: Combat loot MUST go to \`actingCharacterName\` - omit \`targetCharacterName\`.
-  Drop rate by difficulty (use actionResult.difficulty):
-  - "easy": Always drop loot. Every defeated enemy yields something useful.
-  - "normal": Usually drop loot. Skip only for trivial mobs (rats, minor pests, summoned dust).
-  - "hard": Often drop loot for meaningful victories, named foes, bosses, story-weight threats, or enemies guarding important places. Skip only disposable minions and situations where looting would clearly break the fiction.
-  - "zug-ma-geddon": Rare drops only. The chaos of constant battle leaves no time to loot. Only set suggestedInventoryAdd for truly significant kills (bosses, unique enemies). Common kills yield nothing.
 - CRITICAL: If your narration mentions giving, finding, receiving, looting, rewarding, harvesting, gathering, foraging, picking, crafting, buying, or obtaining ANY item, you MUST set suggestedInventoryAdd. Never narrate an item being obtained without setting this field.
 - CRITICAL: Item name MUST be prefixed with a single fitting emoji (e.g. "⚔️ Iron Sword", "🧪 Healing Potion", "🗡️ Dagger", "📜 Ancient Scroll", "🛡️ Shield", "🪄 Magic Wand", "🏹 Shortbow", "🔑 Key", "💎 Gem", "🌿 Healing Herbs"). Pick the emoji that best represents the item's nature or appearance.
 - To grant a new item: { "name": "emoji + item name", "description": "string", "targetCharacterName": "optional - name of the character who receives it, omit if acting character", "statBonuses": {...}, "healValue": 0, "consumable": false, "transferable": true }
@@ -289,13 +284,21 @@ export const SECTION_INVENTORY = `Inventory:
 - Set healValue only for healing items (potions, food, etc.). Default 0 means no healing.
 - Only grant items when the narrative earns it (found in chest, rewarded, looted, etc.).
 - Otherwise set suggestedInventoryAdd: null.
+- Otherwise set suggestedInventoryUpdate: null.`;
 
+export const SECTION_INVENTORY_COMBAT_LOOT = `COMBAT LOOT: When a combat encounter concludes with a victory, consider setting suggestedInventoryAdd with loot thematically tied to the defeated enemy. Loot must feel earned and fitting - never generic. CRITICAL: Combat loot MUST go to \`actingCharacterName\` - omit \`targetCharacterName\`.
+Drop rate by difficulty (use actionResult.difficulty):
+- "easy": Always drop loot. Every defeated enemy yields something useful.
+- "normal": Usually drop loot. Skip only for trivial mobs (rats, minor pests, summoned dust).
+- "hard": Often drop loot for meaningful victories, named foes, bosses, story-weight threats, or enemies guarding important places. Skip only disposable minions and situations where looting would clearly break the fiction.
+- "zug-ma-geddon": Rare drops only. The chaos of constant battle leaves no time to loot. Only set suggestedInventoryAdd for truly significant kills (bosses, unique enemies). Common kills yield nothing.`;
+
+export const SECTION_INVENTORY_TRADE = `PARTY AND NPC ITEM TRANSFERS:
 - CRITICAL: If your narration describes a trade, exchange, purchase, barter, or any situation where the party gives an item to an NPC or vendor, you MUST set suggestedInventoryRemove for the item being given away. Never narrate an item being handed over without removing it.
 - CRITICAL: If a party member gives, passes, or transfers an item to ANOTHER PARTY MEMBER, you MUST set BOTH suggestedInventoryRemove (remove from the giver) AND suggestedInventoryAdd (add to the receiver, using targetCharacterName). Copy the exact item data (name, description, statBonuses, healValue, consumable, transferable) from the giver's inventory to the add payload.
 - suggestedInventoryRemove: { "characterName": "exact name of party member giving the item", "itemName": "name of item being given away" }
 - For trades with NPCs: set BOTH suggestedInventoryRemove (item given away) AND suggestedInventoryAdd (item received). Use targetCharacterName on suggestedInventoryAdd if the received item goes to a specific character.
-- Otherwise set suggestedInventoryRemove: null.
-- Otherwise set suggestedInventoryUpdate: null.`;
+- Otherwise set suggestedInventoryRemove: null.`;
 
 export const SECTION_IMAGE_STRATEGY = `Image Strategy:
 - ALWAYS set imageSuggested: true and provide an imagePrompt for every turn.

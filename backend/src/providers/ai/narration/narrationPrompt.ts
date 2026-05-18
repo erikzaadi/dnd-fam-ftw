@@ -8,6 +8,8 @@ import {
   SECTION_REST_RECOVERY,
   SECTION_CUTE_CONDITIONS_BUFFS,
   SECTION_CHOICES_FORMAT,
+  SECTION_CHOICES_RIDDLE,
+  SECTION_CHOICES_VENDOR,
   SECTION_DRAMA_ROLL,
   SECTION_DYNAMIC_DIFFICULTY_CONTINUITY_ACTING_CHOICES,
   SECTION_PARTY_STATUS,
@@ -15,7 +17,9 @@ import {
   SECTION_BUFFS_CURSES_FORMAT,
   SECTION_SUPPORT_ACTION_PAYOFF,
   SECTION_ACTION_INTENT,
-  SECTION_INVENTORY,
+  SECTION_INVENTORY_BASICS,
+  SECTION_INVENTORY_COMBAT_LOOT,
+  SECTION_INVENTORY_TRADE,
   SECTION_IMAGE_STRATEGY,
 } from './narrationPromptSections.js';
 
@@ -32,34 +36,66 @@ function isRestTurn(input: NarrationInput): boolean {
   return !!(input.sanctuaryRecovery || input.interventionRescue);
 }
 
+const TRADE_RE = /\b(vendor|merchant|trade|shop|barter|buy|sell|purchase|dealer|stall|give|pass|hand over|transfer)\b/i;
+
+export function isTradeTurn(input: NarrationInput): boolean {
+  if (TRADE_RE.test(input.actionAttempt)) {
+    return true;
+  }
+  if (input.recentHistory.some(h => TRADE_RE.test(h))) {
+    return true;
+  }
+  if (input.scene && TRADE_RE.test(input.scene)) {
+    return true;
+  }
+  return false;
+}
+
+const RIDDLE_RE = /\b(riddle|puzzle|pun|password|cipher|code|answer-based)\b/i;
+
+export function isRiddleTurn(input: NarrationInput): boolean {
+  if (input.dmPrep && RIDDLE_RE.test(input.dmPrep)) {
+    return true;
+  }
+  if (RIDDLE_RE.test(input.scene)) {
+    return true;
+  }
+  if (RIDDLE_RE.test(input.actionAttempt)) {
+    return true;
+  }
+  return input.recentHistory.some(h => RIDDLE_RE.test(h));
+}
+
 export function buildNarrationSystemPrompt(input: NarrationInput): string {
+  const isActiveCombat = input.encounterState?.status === 'active';
+  const isLootTurn = isActiveCombat || !!input.encounterJustResolved;
+  const tradeEnabled = isTradeTurn(input);
+  const riddleEnabled = isRiddleTurn(input);
+  const hasMomentum = input.sceneMomentum !== undefined;
+  const hasDramaRoll = input.actionResult.statUsed !== undefined;
+  const restTurn = isRestTurn(input);
+  const buffTurn = isBuffTurn(input);
+
   const sections: string[] = [
     SECTION_PREAMBLE_PACING_TENSION,
-    SECTION_MOMENTUM_DIRECTIVES,
+    ...(hasMomentum ? [SECTION_MOMENTUM_DIRECTIVES] : []),
+    ...(isActiveCombat ? [SECTION_COMBAT_PACING, SECTION_ACTIVE_ENCOUNTER] : []),
     SECTION_FAIL_FORWARD,
+    ...(restTurn ? [SECTION_REST_RECOVERY] : []),
+    ...(buffTurn ? [SECTION_CUTE_CONDITIONS_BUFFS] : []),
     SECTION_CHOICES_FORMAT,
-    SECTION_DRAMA_ROLL,
+    ...(hasDramaRoll ? [SECTION_DRAMA_ROLL] : []),
     SECTION_DYNAMIC_DIFFICULTY_CONTINUITY_ACTING_CHOICES,
+    ...(riddleEnabled ? [SECTION_CHOICES_RIDDLE] : []),
+    ...(tradeEnabled ? [SECTION_CHOICES_VENDOR] : []),
     SECTION_PARTY_STATUS,
     SECTION_CRITICAL_DAMAGE_REVIVAL_HEALING,
-    SECTION_INVENTORY,
+    ...(buffTurn ? [SECTION_BUFFS_CURSES_FORMAT, SECTION_SUPPORT_ACTION_PAYOFF, SECTION_ACTION_INTENT] : []),
+    SECTION_INVENTORY_BASICS,
+    ...(isLootTurn ? [SECTION_INVENTORY_COMBAT_LOOT] : []),
+    ...(tradeEnabled ? [SECTION_INVENTORY_TRADE] : []),
     SECTION_IMAGE_STRATEGY,
   ];
-
-  if (input.encounterState?.status === 'active') {
-    sections.splice(2, 0, SECTION_COMBAT_PACING, SECTION_ACTIVE_ENCOUNTER);
-  }
-
-  if (isRestTurn(input)) {
-    sections.splice(sections.indexOf(SECTION_FAIL_FORWARD) + 1, 0, SECTION_REST_RECOVERY);
-  }
-
-  if (isBuffTurn(input)) {
-    sections.splice(sections.indexOf(SECTION_FAIL_FORWARD) + 1, 0, SECTION_CUTE_CONDITIONS_BUFFS);
-    // Insert buff format sections before SECTION_INVENTORY
-    const invIdx = sections.indexOf(SECTION_INVENTORY);
-    sections.splice(invIdx, 0, SECTION_BUFFS_CURSES_FORMAT, SECTION_SUPPORT_ACTION_PAYOFF, SECTION_ACTION_INTENT);
-  }
 
   return sections.join('\n\n');
 }
