@@ -33,7 +33,21 @@ const OUT_DIR = path.join(__dirname, '..', '..', '..', 'frontend', 'public', 'im
 
 const STATIC_ASSET_GUARDRAIL = 'Finished standalone fantasy artwork. No text or pseudo-text anywhere in the image. Single full-bleed edge-to-edge image. Continuous in-world scene only, not a poster, card, framed artwork, page, manuscript, or UI screenshot. All books, scrolls, maps, signs, banners, plaques, cards, dice faces, and carved surfaces are plain blank visual props with no visible marks. No lettering, numbers, logos, watermarks, signatures, captions, borders, frames, panels, menus, toolbars, editor controls, crop handles, rulers, guides, or software interface elements.';
 
-const ASSETS: Array<{ filename: string; prompt: string; size?: '1024x1024' | '1792x1024' | '1024x1792' }> = [
+type StaticAsset = {
+  filename: string;
+  prompt: string;
+  size?: string;
+  outputFormat?: 'png' | 'jpeg' | 'webp';
+  outputCompression?: number;
+};
+
+const FORMAT_DETAILS = {
+  png: { contentType: 'image/png', extension: 'png' },
+  jpeg: { contentType: 'image/jpeg', extension: 'jpg' },
+  webp: { contentType: 'image/webp', extension: 'webp' },
+} as const;
+
+const ASSETS: StaticAsset[] = [
   {
     filename: 'intervention_dragon.png',
     prompt: 'Fantasy style: a massive ancient dragon with glowing amber eyes swooping down from stormy skies, wings spread wide, saving tiny adventurers below, dramatic rescue scene, golden light breaking through dark clouds, fantasy illustration, cinematic lighting, vibrant colors, storybook art',
@@ -149,21 +163,52 @@ const ASSETS: Array<{ filename: string; prompt: string; size?: '1024x1024' | '17
   },
 ];
 
-async function generate(asset: { filename: string; prompt: string; size?: '1024x1024' | '1792x1024' | '1024x1792' }) {
+function getAssetFormat(asset: StaticAsset): 'png' | 'jpeg' | 'webp' {
+  if (asset.outputFormat) {
+    return asset.outputFormat;
+  }
+  if (asset.filename.endsWith('.jpg') || asset.filename.endsWith('.jpeg')) {
+    return 'jpeg';
+  }
+  if (asset.filename.endsWith('.webp')) {
+    return 'webp';
+  }
+  return 'png';
+}
+
+async function generate(asset: StaticAsset) {
   const outPath = path.join(OUT_DIR, asset.filename);
-  if (fs.existsSync(outPath)) {
-    console.log(`[skip] ${asset.filename} already exists`);
+  const model = getOpenAIImageModel();
+  const outputFormat = getAssetFormat(asset);
+  const expectedExtension = FORMAT_DETAILS[outputFormat].extension;
+  const actualExtension = path.extname(asset.filename).slice(1).replace('jpeg', 'jpg');
+  if (actualExtension !== expectedExtension) {
+    throw new Error(`${asset.filename} uses outputFormat=${outputFormat}, but the filename extension should be .${expectedExtension}`);
+  }
+
+  const extensionlessPath = outPath.slice(0, -path.extname(outPath).length);
+  const existingPath = ['jpg', 'jpeg', 'webp', 'png']
+    .map(extension => `${extensionlessPath}.${extension}`)
+    .find(candidate => fs.existsSync(candidate));
+  if (existingPath) {
+    console.log(`[skip] ${path.relative(OUT_DIR, existingPath)} already exists`);
     return;
   }
+
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
 
   console.log(`[gen]  ${asset.filename} ...`);
+
   const response = await createOpenAIClient().images.generate({
-    model: getOpenAIImageModel(),
+    model,
     prompt: `${STATIC_ASSET_GUARDRAIL} ${asset.prompt}`,
     n: 1,
-    size: asset.size ?? '1024x1024',
-    response_format: 'b64_json',
+    size: (asset.size ?? '1024x1024') as '1024x1024',
+    quality: 'low',
+    output_format: outputFormat,
+    ...(outputFormat !== 'png' && typeof asset.outputCompression === 'number'
+      ? { output_compression: asset.outputCompression }
+      : {}),
   });
 
   const b64 = response.data?.[0]?.b64_json;

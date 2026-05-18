@@ -21,6 +21,7 @@ vi.mock('openai', () => ({
 
 import { OpenAINarrationProvider } from './OpenAINarrationProvider.js';
 import { buildNarrationFallback } from './narrationFallback.js';
+import { parseNarrationOutput } from './narrationOutputGuards.js';
 
 const input: NarrationInput = {
   scene: 'A ruined keep',
@@ -98,7 +99,7 @@ describe('OpenAINarrationProvider', () => {
       expect(result.narrationFailed).toBeUndefined();
       expect(mocks.parse).toHaveBeenCalledTimes(2);
       expect(warn).toHaveBeenCalledWith(
-        '[OpenAINarration] First attempt failed validation, retrying...',
+        '[Narration] attempt-1 guard=fail retrying',
         expect.any(String)
       );
       expect(retryRequest?.messages[1].content).toContain('fix this validation error');
@@ -285,5 +286,37 @@ describe('OpenAINarrationProvider', () => {
     expect(result.narration).toContain('A shadow of worse things falls across A ruined keep');
     expect(result.narration).not.toContain('Connect this turn to the main threat');
     expect(result.narration).not.toContain('push toward a climactic confrontation');
+  });
+
+  it('allows a resolved enemy name when it is also the active encounter enemy alias', () => {
+    const parsed = parseNarrationOutput({
+      ...input,
+      resolvedEncounterEnemyNames: ['Ambusher'],
+      encounterState: {
+        id: 'enc-active',
+        name: 'Shadow Ambusher Skirmish',
+        status: 'active',
+        enemies: [{
+          id: 'enemy-active',
+          name: 'Shadow Ambusher',
+          aliases: ['shadow', 'ambusher'],
+          role: 'standard',
+          hp: 1,
+          maxHp: 6,
+          status: 'active',
+        }],
+        areas: [],
+        round: 4,
+      },
+    }, output({
+      narration: 'Sprocket steadies the party while the shadow ambusher circles the glowing fissure, still dangerous but contained.',
+      choices: [
+        { label: 'Ward the fissure', difficulty: 'normal', stat: 'magic', difficultyValue: 12 },
+        { label: 'Press the ambusher back', difficulty: 'normal', stat: 'might', difficultyValue: 11 },
+        { label: 'Find safer footing', difficulty: 'easy', stat: 'mischief', difficultyValue: 8 },
+      ],
+    }));
+
+    expect(parsed.success).toBe(true);
   });
 });

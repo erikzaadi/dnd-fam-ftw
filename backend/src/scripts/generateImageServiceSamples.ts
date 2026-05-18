@@ -95,7 +95,7 @@ function getSampleImagePath(type: string, sourcePath: string | null): string | n
     return null;
   }
 
-  const samplePath = path.resolve(getConfig().LOCAL_IMAGE_STORAGE_PATH, `${sampleName(type)}.png`);
+  const samplePath = path.resolve(getConfig().LOCAL_IMAGE_STORAGE_PATH, `${sampleName(type)}${path.extname(sourcePath) || '.jpg'}`);
   fs.copyFileSync(sourcePath, samplePath);
   return samplePath;
 }

@@ -4,6 +4,8 @@ import { inferFreeActionBonuses, toFreeActionBonusPreview } from './freeActionIn
 import { StateService } from './stateService.js';
 import type { Character, EncounterEnemy, EncounterWeakness, FreeActionPreview } from '../types.js';
 
+import { devLog } from '../lib/devLog.js';
+
 export const STAT_FALLBACK = { might: 2, magic: 2, mischief: 3 };
 export type SuggestedStat = 'might' | 'magic' | 'mischief';
 export type SessionActionStatSuggestion = FreeActionBonusPreview & { stat: SuggestedStat };
@@ -23,6 +25,7 @@ export type PreviewActionContext = {
 };
 
 async function buildFreeActionStoryContext(sessionId: string): Promise<string> {
+  const start = Date.now();
   const [session, history] = await Promise.all([
     StateService.getSession(sessionId),
     StateService.getTurnHistory(sessionId),
@@ -38,11 +41,13 @@ async function buildFreeActionStoryContext(sessionId: string): Promise<string> {
     .join('\n');
   const storySummary = session.storySummary?.trim();
 
-  return [
+  const context = [
     storySummary ? `Story summary:\n${storySummary}` : '',
     previousNarrations ? `Previous turn narrations:\n${previousNarrations}` : '',
     currentNarration ? `Current turn narration:\n${currentNarration}` : '',
   ].filter(Boolean).join('\n\n');
+  devLog.log(`[PreviewAction] story-context session=${sessionId} durationMs=${Date.now() - start} history=${history.length} chars=${context.length}`);
+  return context;
 }
 
 type EncounterPreviewContext = {
@@ -118,12 +123,7 @@ export async function previewFreeAction(
   const hasEncounter = !!encounterSection;
 
   const { client, model } = createChatClientForTier('preview');
-  try {
-    const response = await client.chat.completions.create({
-      model,
-      messages: [{
-        role: 'user',
-        content: `${describeActiveCharacter(character)} wants to: "${action}".
+  const prompt = `${describeActiveCharacter(character)} wants to: "${action}".
 ${storyContext ? `\nUse this story context so the preview fits the current scene without spoiling the result:\n${storyContext}\n` : ''}
 ${encounterSection}
 Stat guide: might = physical/combat/force, magic = spells/arcane/healing/divine, mischief = stealth/trickery/charm/persuasion.${hasEncounter ? '\nWeakness labels are flavorful display text. Keep the exact label from the encounter data; do not rewrite it to a generic school. Only set weakPointMatch when a revealed, non-broken weakness on the likely target clearly matches this action\'s school or tags. Use "may exploit" wording when confidence is low.' : ''}
@@ -138,11 +138,20 @@ Reply with JSON:
   "likelyEnemyId": "<id of the enemy most likely targeted, or null>",
   "likelyEnemyName": "<name of likely target enemy, or null>",
   "weakPointMatch": {"label": "<exact free-form weakness label from encounter data>", "description": "<'exploits X weakness' or 'may exploit X weakness' if uncertain>"} | null` : ''}
-}`,
+}`;
+  const start = Date.now();
+  try {
+    devLog.log(`[PreviewAction] llm-start session=${sessionId} model=${model} promptChars=${prompt.length} hasEncounter=${hasEncounter}`);
+    const response = await client.chat.completions.create({
+      model,
+      messages: [{
+        role: 'user',
+        content: prompt,
       }],
       response_format: { type: 'json_object' },
       max_tokens: hasEncounter ? 160 : 80,
     }, { signal: AbortSignal.timeout(8_000) });
+    devLog.log(`[PreviewAction] llm-done session=${sessionId} model=${model} durationMs=${Date.now() - start}`);
     const raw = (response.choices[0].message.content ?? '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
@@ -155,7 +164,9 @@ Reply with JSON:
     }
     const stat = (['might', 'magic', 'mischief'] as const).find(s => raw.includes(s)) ?? 'mischief';
     return { stat, ...bonusPreview };
-  } catch {
+  } catch (error: unknown) {
+    const err = error as { name?: string; status?: number; code?: string; type?: string };
+    devLog.log(`[PreviewAction] llm-error session=${sessionId} model=${model} durationMs=${Date.now() - start} name=${err.name ?? 'unknown'} status=${err.status ?? 'n/a'} code=${err.code ?? 'n/a'} type=${err.type ?? 'n/a'}`);
     return { stat: 'mischief', ...bonusPreview };
   }
 }
@@ -225,12 +236,7 @@ export async function suggestPreviewActionText(
     : '';
 
   const { client, model } = createChatClientForTier('preview');
-  try {
-    const response = await client.chat.completions.create({
-      model,
-      messages: [{
-        role: 'user',
-        content: `${describeActiveCharacter(actor)}
+  const prompt = `${describeActiveCharacter(actor)}
 Intent: ${context.intent ?? 'custom'}
 Method: ${context.method ?? 'none'}
 ${targetLine}
@@ -244,11 +250,20 @@ Write the exact player action to preview for this intent. It must:
 - for party_boost intent: address the whole group (everyone, the party, all allies) - never name a single character
 - avoid promising success or final results
 
-Reply with JSON: {"action":"..."}`,
+Reply with JSON: {"action":"..."}`;
+  const start = Date.now();
+  try {
+    devLog.log(`[PreviewActionText] llm-start session=${sessionId} model=${model} promptChars=${prompt.length} intent=${context.intent ?? 'custom'}`);
+    const response = await client.chat.completions.create({
+      model,
+      messages: [{
+        role: 'user',
+        content: prompt,
       }],
       response_format: { type: 'json_object' },
       max_tokens: 90,
     }, { signal: AbortSignal.timeout(8_000) });
+    devLog.log(`[PreviewActionText] llm-done session=${sessionId} model=${model} durationMs=${Date.now() - start}`);
     const raw = (response.choices[0].message.content ?? '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
@@ -257,7 +272,9 @@ Reply with JSON: {"action":"..."}`,
         return parsed.action.trim();
       }
     }
-  } catch {
+  } catch (error: unknown) {
+    const err = error as { name?: string; status?: number; code?: string; type?: string };
+    devLog.log(`[PreviewActionText] llm-error session=${sessionId} model=${model} durationMs=${Date.now() - start} name=${err.name ?? 'unknown'} status=${err.status ?? 'n/a'} code=${err.code ?? 'n/a'} type=${err.type ?? 'n/a'}`);
     // Fall through to deterministic fallback.
   }
 

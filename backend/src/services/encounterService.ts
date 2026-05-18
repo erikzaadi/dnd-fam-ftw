@@ -1,5 +1,5 @@
 import { createId } from '../lib/ids.js';
-import type { Choice, EncounterArea, EncounterEnemy, EncounterSeed, EncounterState, Impact, Stat, TensionLevel } from '../types.js';
+import type { Choice, EncounterArea, EncounterEnemy, EncounterSeed, EncounterState, EncounterWeakness, Impact, Stat, TensionLevel } from '../types.js';
 import type { EncounterStartProposal, EncounterUpdateProposal } from '../providers/ai/narration/narrationSchemas.js';
 
 // HP bands by role (midpoint of range)
@@ -22,7 +22,10 @@ const HP_MAX_BY_ROLE: Record<EncounterEnemy['role'], [number, number]> = {
 const LEADING_ARTICLES = /^(a |an |the )/i;
 const STRIP_PUNCT = /[^a-z0-9\s]/g;
 const ORGANIC_ARRIVAL_RE = /\b(?:a|an|the|some|several|two|three|swarm of|pack of|group of)\s+([a-z][a-z -]{2,40}?)\s+(?:appear|appears|emerge|emerges|arrive|arrives|attack|attacks|strike|strikes|slash|slashes|claw|claws|pounce|pounces|lunge|lunges|charge|charges|spring|springs|burst|bursts|descend|descends|surround|surrounds|block|blocks)\b/i;
-const GENERIC_ENEMY_NAME_RE = /\b(?:enemy|enemies|foe|foes|monster|monsters|creature|creatures|danger|threat|attack|ambush|combat|battle|fight)\b/i;
+const GENERIC_ENEMY_NAME_RE = /\b(?:enemy|enemies|foe|foes|monster|monsters|creature|creatures|danger|threat|attack|ambush|combat|battle|fight|roar|prayer|spell|ritual|focus|oils?)\b/i;
+const OFFENSIVE_ACTION_RE = /\b(?:attack|attacks|strike|strikes|slash|slashes|claw|claws|pounce|pounces|lunge|lunges|charge|charges|roar|smash|smashes|hit|hits|shoot|shoots|blast|blasts|stab|stabs)\b/i;
+const ACTION_TARGET_RE = /\b(?:at|toward|towards|against)\s+([A-Z][A-Za-z' -]{2,48}?)(?:'s)?\s+(shadowy\s+figure|shadowy\s+form|shadow\s+form|shadow|dark\s+presence|presence|form|figure)\b/;
+const POSSESSIVE_SHADOW_RE = /\b([A-Z][A-Za-z' -]{2,48}?)(?:'s)\s+(shadowy\s+figure|shadowy\s+form|shadow\s+form|shadow|dark\s+presence)\b/;
 
 export const normalizeEnemyName = (name: string): string =>
   name.trim().toLowerCase().replace(LEADING_ARTICLES, '').replace(STRIP_PUNCT, '').replace(/\s+/g, ' ').trim();
@@ -200,7 +203,7 @@ const proposalFromSeed = (seed: EncounterSeed): EncounterStartProposal => ({
 const titleCaseEnemyName = (raw: string): string => {
   const cleaned = raw
     .replace(/\b(?:suddenly|from|nearby|toward|with|and|but|while)\b.*$/i, '')
-    .replace(/[^a-zA-Z\s-]/g, ' ')
+    .replace(/[^a-zA-Z'\s-]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   if (!cleaned || GENERIC_ENEMY_NAME_RE.test(cleaned)) {
@@ -213,7 +216,31 @@ const titleCaseEnemyName = (raw: string): string => {
     .join(' ');
 };
 
-const extractOrganicEnemyName = (text: string): string => {
+const titleCasePossessiveName = (raw: string): string => titleCaseEnemyName(raw)
+  .replace(/\bS\b/g, 's')
+  .replace(/\s+'/g, "'");
+
+const shadowTargetName = (match: RegExpExecArray): string => {
+  const owner = titleCasePossessiveName(match[1]).replace(/'s$/i, '');
+  if (owner === 'Ambusher') {
+    return 'Shadow Ambusher';
+  }
+  return `${owner}'s Shadow`;
+};
+
+const extractOrganicEnemyName = (text: string, actionAttempt?: string | null): string => {
+  const actionTargetMatch = actionAttempt && OFFENSIVE_ACTION_RE.test(actionAttempt)
+    ? ACTION_TARGET_RE.exec(actionAttempt)
+    : null;
+  if (actionTargetMatch) {
+    return shadowTargetName(actionTargetMatch);
+  }
+
+  const possessiveShadowMatch = POSSESSIVE_SHADOW_RE.exec(text);
+  if (possessiveShadowMatch && OFFENSIVE_ACTION_RE.test(text)) {
+    return shadowTargetName(possessiveShadowMatch);
+  }
+
   const arrivalMatch = ORGANIC_ARRIVAL_RE.exec(text);
   if (arrivalMatch?.[1]) {
     return titleCaseEnemyName(arrivalMatch[1]);
@@ -231,6 +258,43 @@ const extractOrganicEnemyName = (text: string): string => {
     return 'Raiders';
   }
   return 'Ambusher';
+};
+
+const inferOrganicTraits = (text: string, enemyName: string): string[] => {
+  const traits: string[] = [];
+  if (/\b(shadow|shadowy|dark presence|looming)\b/i.test(text) || /\bshadow\b/i.test(enemyName)) {
+    traits.push('looming shadow-form');
+  }
+  if (/\b(wild magic|fissure|arcane|reality frays|chaotic pulse)\b/i.test(text)) {
+    traits.push('feeds on unstable magic');
+  }
+  if (/\b(ambush|springs?|lunges?|pounces?|sudden)\b/i.test(text)) {
+    traits.push('sudden ambusher');
+  }
+  if (/\b(ruined|cracked|broken|basilica|pillar|archway)\b/i.test(text)) {
+    traits.push('uses broken terrain');
+  }
+  return [...new Set(traits)].slice(0, 3);
+};
+
+const inferOrganicWeakness = (text: string): { label: string; school: EncounterWeakness['school'] } => {
+  if (/\b(wild magic|fissure|arcane|reality frays|chaotic pulse)\b/i.test(text)) {
+    return { label: 'stable ritual focus', school: 'force' };
+  }
+  if (/\b(shadow|shadowy|dark presence|looming)\b/i.test(text)) {
+    return { label: 'revealing light', school: 'light' };
+  }
+  if (/\b(ruined|cracked|broken|pillar|archway)\b/i.test(text)) {
+    return { label: 'broken cover', school: 'mechanical' };
+  }
+  return { label: 'bold teamwork', school: 'force' };
+};
+
+const organicObjective = (enemyName: string, text: string): string => {
+  if (/\b(wild magic|fissure|arcane|reality frays|chaotic pulse)\b/i.test(text)) {
+    return `Contain ${enemyName} before the wild magic tears wider`;
+  }
+  return `Stop ${enemyName}`;
 };
 
 export const inferOrganicEncounterStart = (
@@ -259,21 +323,24 @@ export const inferOrganicEncounterStart = (
     input.actionAttempt ?? '',
   ].join(' ');
 
-  if (!ORGANIC_ARRIVAL_RE.test(haystack)) {
+  const actionTargetedEnemy = Boolean(input.actionAttempt && OFFENSIVE_ACTION_RE.test(input.actionAttempt) && ACTION_TARGET_RE.test(input.actionAttempt));
+  if (!ORGANIC_ARRIVAL_RE.test(haystack) && !actionTargetedEnemy) {
     return null;
   }
 
-  const enemyName = extractOrganicEnemyName(haystack);
+  const enemyName = extractOrganicEnemyName(haystack, input.actionAttempt);
+  const traits = inferOrganicTraits(haystack, enemyName);
+  const weakness = inferOrganicWeakness(haystack);
   return {
     name: `${enemyName} Skirmish`,
     enemies: [{
       name: enemyName,
       role: enemyName.endsWith('s') ? 'minion' : 'standard',
-      traits: ['sudden threat'],
-      weaknesses: [{ label: 'bold teamwork', school: 'force' }],
+      traits: traits.length > 0 ? traits : ['presses the attack'],
+      weaknesses: [weakness],
     }],
     areas: [],
-    objective: 'Stop the sudden threat',
+    objective: organicObjective(enemyName, haystack),
   };
 };
 

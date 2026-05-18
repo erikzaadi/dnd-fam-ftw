@@ -1,12 +1,9 @@
 import type { BrowserVoiceInfo, TtsSettings } from './ttsTypes';
 import { genderNameHints, stylePresets } from './ttsVoiceCatalog';
-
-const isDev = import.meta.env.DEV;
+import { devLog } from '../lib/devLog';
 
 function log(...args: unknown[]) {
-  if (isDev) {
-    console.log('[TTS]', ...args);
-  }
+  devLog.log('[TTS]', ...args);
 }
 
 function normalizeNarrationForSpeech(text: string): string {
@@ -142,9 +139,7 @@ class BrowserTtsService {
           resolve();
           return;
         }
-        if (isDev) {
-          console.warn('[TTS] Speech error:', e.error);
-        }
+        devLog.warn('[TTS] Speech error:', e.error);
         resolve();
       };
 
@@ -152,9 +147,7 @@ class BrowserTtsService {
         window.speechSynthesis.speak(utterance);
         log('Speaking narration, voice:', selectedVoice?.name ?? 'browser default');
       } catch (e) {
-        if (isDev) {
-          console.warn('[TTS] speak() failed:', e);
-        }
+        devLog.warn('[TTS] speak() failed:', e);
         resolve();
       }
     });

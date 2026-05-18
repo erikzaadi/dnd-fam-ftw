@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import type { Session, TurnResult, Character, ImageReadyEvent } from '../types';
 import { apiUrl } from '../lib/api';
 import { audioManager } from '../audio/audioManager';
+import { devLog } from '../lib/devLog';
 
 const SSE_STALE_TIMEOUT_MS = 60000;
 const SSE_STALE_CHECK_MS = 10000;
 const SSE_RECONNECT_DELAY_MS = 3000;
-const isDev = import.meta.env.DEV;
 
 interface NarratingPayload {
   action?: string;
@@ -79,9 +79,7 @@ export const useSessionEvents = ({
         setConnectionStateRef.current('connected');
         lastMessageAt = Date.now();
         const data = JSON.parse(e.data);
-        if (isDev) {
-          console.log(`[SSE] ${data.type ?? 'message'}`, data);
-        }
+        devLog.log(`[SSE] ${data.type ?? 'message'}`, data);
         if (data.type === 'connected') {
           onConnected?.();
         } else if (data.type === 'dm_narrating') {
@@ -101,7 +99,9 @@ export const useSessionEvents = ({
 	    flavor: data.flavor,
 	  });
         } else if (data.type === 'turn_complete') {
-          if (data.turnResult?.currentTensionLevel) {
+          if (data.session?.encounterState?.status === 'active') {
+            audioManager.setTension('high');
+          } else if (data.turnResult?.currentTensionLevel) {
             audioManager.setTension(data.turnResult.currentTensionLevel);
           }
           const roll = data.turnResult?.lastAction?.actionResult;
@@ -135,6 +135,9 @@ export const useSessionEvents = ({
             data.turnResult ?? null,
           );
         } else if (data.type === 'party_update') {
+          if (data.session?.encounterState?.status === 'active') {
+            audioManager.setTension('high');
+          }
           onPartyUpdate(data.session ?? null);
         } else if (data.type === 'game_over') {
           onGameOver(data.session);

@@ -3,6 +3,7 @@ import { createNarrationProvider } from '../providers/ai/AiProviderFactory.js';
 import type { NarrationInput } from '../providers/ai/narration/NarrationProvider.js';
 import { buildNarrationFallback } from '../providers/ai/narration/narrationFallback.js';
 import { resolveEncounterSeed } from './encounterService.js';
+import { devLog } from '../lib/devLog.js';
 
 export function toNarrationInput(input: AIInput): NarrationInput {
   const actingChar = input.party.find(c => c.id === input.characterId);
@@ -119,10 +120,25 @@ export function toNarrationInput(input: AIInput): NarrationInput {
 
 export class AiDmService {
   public static async generateTurnResult(input: AIInput): Promise<TurnResult> {
+    const totalStart = Date.now();
     const narrationInput = toNarrationInput(input);
+    devLog.log([
+      '[AiDm] narration-input',
+      `sessionTurn=${input.turn}`,
+      `durationMs=${Date.now() - totalStart}`,
+      `party=${narrationInput.party.length}`,
+      `inventory=${narrationInput.inventory.length}`,
+      `history=${narrationInput.recentHistory.length}`,
+      `choices=${narrationInput.previousChoiceLabels?.length ?? 0}`,
+      `dmPrepChars=${narrationInput.dmPrep?.length ?? 0}`,
+      `encounters=${narrationInput.dmPrepEncounters?.length ?? 0}`,
+      `hasEncounterState=${narrationInput.encounterState ? 'true' : 'false'}`,
+      `momentum=${narrationInput.sceneMomentum?.directive ?? 'none'}`,
+    ].join(' '));
     try {
       const provider = createNarrationProvider();
       const output = await provider.generateTurn(narrationInput);
+      devLog.log(`[AiDm] provider-done sessionTurn=${input.turn} durationMs=${Date.now() - totalStart}`);
 
       return {
         narration: output.narration,
@@ -148,11 +164,12 @@ export class AiDmService {
         imageUrl: null,
       };
     } catch (error: unknown) {
+      devLog.log(`[AiDm] provider-error sessionTurn=${input.turn} durationMs=${Date.now() - totalStart}`);
       const status = (error as { status?: number })?.status;
       if (status === 429) {
         throw error;
       }
-      console.error('Error calling AI service:', error);
+      devLog.error('Error calling AI service:', error);
       return {
         ...buildNarrationFallback(narrationInput),
         narrationFailed: true,

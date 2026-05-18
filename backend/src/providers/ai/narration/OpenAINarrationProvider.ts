@@ -5,16 +5,18 @@ import { NARRATION_SYSTEM_PROMPT, buildNarrationUserContent } from './narrationP
 import { parseNarrationOutput } from './narrationOutputGuards.js';
 import { narrationOutputSchema } from './narrationSchemas.js';
 import { createOpenAIClient, getModelForTier } from '../openAiClient.js';
+import { devLog } from '../../../lib/devLog.js';
 
 export class OpenAINarrationProvider implements NarrationProvider {
   async generateTurn(input: NarrationInput): Promise<NarrationOutput> {
     const raw = await this.callModel(input);
     const parsed = parseNarrationOutput(input, raw);
     if (parsed.success) {
+      devLog.log('[Narration] attempt-1 guard=pass');
       return parsed.data;
     }
 
-    console.warn('[OpenAINarration] First attempt failed validation, retrying...', parsed.error);
+    devLog.warn('[Narration] attempt-1 guard=fail retrying', parsed.error);
     const retryRaw = await this.callModel(input, parsed.error);
     const retryParsed = parseNarrationOutput(input, retryRaw);
     if (retryParsed.success) {
@@ -25,7 +27,7 @@ export class OpenAINarrationProvider implements NarrationProvider {
       };
     }
 
-    console.error('[OpenAINarration] Retry also failed, using fallback.', retryParsed.error, 'Raw:', JSON.stringify(retryRaw));
+    devLog.error('[OpenAINarration] Retry also failed, using fallback.', retryParsed.error, 'Raw:', JSON.stringify(retryRaw));
     return {
       ...buildNarrationFallback(input),
       narrationRetried: true,
@@ -36,25 +38,54 @@ export class OpenAINarrationProvider implements NarrationProvider {
   }
 
   private async callModel(input: NarrationInput, validationError?: string): Promise<unknown> {
-    const isDev = process.env.NODE_ENV !== 'production';
     const model = getModelForTier('narration');
     const attempt = validationError ? 'retry' : 'attempt-1';
     const start = Date.now();
-    if (isDev) {
-      console.log(`[Narration] ${attempt} start model=${model}`);
+    const userContent = buildNarrationUserContent(input, validationError);
+    const timeoutMs = 40_000;
+    devLog.log([
+      `[Narration] ${attempt} start`,
+      `model=${model}`,
+      `timeoutMs=${timeoutMs}`,
+      `systemChars=${NARRATION_SYSTEM_PROMPT.length}`,
+      `userChars=${userContent.length}`,
+      `party=${input.party.length}`,
+      `history=${input.recentHistory.length}`,
+      `choices=${input.previousChoiceLabels?.length ?? 0}`,
+      `inventory=${input.inventory.length}`,
+      `dmPrepChars=${input.dmPrep?.length ?? 0}`,
+      `encounters=${input.dmPrepEncounters?.length ?? 0}`,
+      `hasEncounterState=${input.encounterState ? 'true' : 'false'}`,
+    ].join(' '));
+    let response;
+    try {
+      response = await createOpenAIClient().chat.completions.parse({
+        model,
+        messages: [
+          { role: 'system', content: NARRATION_SYSTEM_PROMPT },
+          { role: 'user', content: userContent },
+        ],
+        response_format: zodResponseFormat(narrationOutputSchema, 'narration_output'),
+        temperature: 0.7,
+      }, { signal: AbortSignal.timeout(timeoutMs) });
+    } catch (error: unknown) {
+      const durationMs = Date.now() - start;
+      const err = error as { name?: string; status?: number; code?: string; type?: string };
+      const constructorName = (error as object)?.constructor?.name ?? '';
+      const isTimeout = constructorName === 'APIUserAbortError' || durationMs >= timeoutMs - 250;
+      devLog.log([
+        `[Narration] ${attempt} error`,
+        `model=${model}`,
+        `durationMs=${durationMs}`,
+        `timeout=${isTimeout}`,
+        `name=${constructorName || err.name || 'unknown'}`,
+        `status=${err.status ?? 'n/a'}`,
+        `code=${err.code ?? 'n/a'}`,
+        `type=${err.type ?? 'n/a'}`,
+      ].join(' '));
+      throw error;
     }
-    const response = await createOpenAIClient().chat.completions.parse({
-      model,
-      messages: [
-        { role: 'system', content: NARRATION_SYSTEM_PROMPT },
-        { role: 'user', content: buildNarrationUserContent(input, validationError) },
-      ],
-      response_format: zodResponseFormat(narrationOutputSchema, 'narration_output'),
-      temperature: 0.7,
-    }, { signal: AbortSignal.timeout(40_000) });
-    if (isDev) {
-      console.log(`[Narration] ${attempt} done — ${Date.now() - start}ms`);
-    }
+    devLog.log(`[Narration] ${attempt} done — ${Date.now() - start}ms`);
 
     const message = response.choices[0].message;
     if (message.refusal) {

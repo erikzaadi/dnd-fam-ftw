@@ -591,6 +591,73 @@ describe('parseNarrationOutput', () => {
     expect(result.success).toBe(true);
   });
 
+  it('allows item choices named after a recently resolved enemy', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      nextCharacterName: 'Pip',
+      recentHistory: ['The Mighty Roar To was defeated and faded into a shower of sparks.'],
+      resolvedEncounterEnemyNames: ['Mighty Roar To'],
+      inventory: [
+        { ownerName: 'Pip', name: '🎵 Enchanted Mighty Roar To Token', description: 'A trophy token that hums with controlled power.', statBonuses: { magic: 1 } },
+      ],
+      sceneMomentum: {
+        directive: 'advance_campaign',
+        staleChoiceCount: 0,
+        turnsSinceSceneChange: 2,
+        turnsSinceCombat: 1,
+        justCompletedCombat: true,
+        justCompletedDifficultChallenge: false,
+        suggestedNextBeat: 'Move into the next challenge.',
+        reason: 'The encounter has ended.',
+      },
+    }, output({
+      narration: 'A wild magic fissure bursts with danger, and Pip has to steady the ground before it cracks wider.',
+      choices: [
+        { label: 'Use the Enchanted Mighty Roar To Token', difficulty: 'normal', stat: 'magic', difficultyValue: 11, flavor: 'item', itemOwnerName: 'Pip', itemName: 'Enchanted Mighty Roar To Token' },
+        { label: 'Read the runes around the fissure', difficulty: 'normal', stat: 'magic', difficultyValue: 12 },
+        { label: 'Brace the cracked stones', difficulty: 'normal', stat: 'might', difficultyValue: 11 },
+      ],
+    }));
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.choices[0]).toMatchObject({
+        flavor: 'item',
+        itemName: '🎵 Enchanted Mighty Roar To Token',
+      });
+    }
+  });
+
+  it('still rejects non-item choices that revive a recently resolved enemy', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      recentHistory: ['The Mighty Roar To was defeated and faded into a shower of sparks.'],
+      resolvedEncounterEnemyNames: ['Mighty Roar To'],
+      sceneMomentum: {
+        directive: 'advance_campaign',
+        staleChoiceCount: 0,
+        turnsSinceSceneChange: 2,
+        turnsSinceCombat: 1,
+        justCompletedCombat: true,
+        justCompletedDifficultChallenge: false,
+        suggestedNextBeat: 'Move into the next challenge.',
+        reason: 'The encounter has ended.',
+      },
+    }, output({
+      narration: 'The fissure bursts with danger as the party tries to move on.',
+      choices: [
+        { label: 'Fight Mighty Roar To again', difficulty: 'normal', stat: 'might', difficultyValue: 12 },
+        { label: 'Read the runes around the fissure', difficulty: 'normal', stat: 'magic', difficultyValue: 12 },
+        { label: 'Brace the cracked stones', difficulty: 'normal', stat: 'might', difficultyValue: 11 },
+      ],
+    }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('Output revives recently resolved threat');
+    }
+  });
+
   it('allows victory exits that move into a cavern beat with clues and paths', () => {
     const result = parseNarrationOutput({
       ...input,

@@ -353,6 +353,8 @@ AI-suggested inventory items are granted or updated by the backend when the narr
 
 Seeded encounters with a `lootHint` grant that item once when the encounter resolves, even if the AI omits `suggestedInventoryAdd`. If the AI narration did not already mention that item, the backend appends a short loot sentence to the same turn narration so the story and inventory stay aligned.
 
+Organic encounters without a seed `lootHint` can still grant deterministic fallback trophy loot when the victory is non-trivial. On easy and normal difficulty, defeating a standard-or-stronger organic enemy grants a simple trophy item to the character who landed the finishing blow if the AI did not already grant loot. Trivial minions can still drop nothing.
+
 **Morale and surrender**: Enemies can flee, bargain, surrender, reveal clues, or hand over loot instead of fighting to the last breath. Surrender and retreat can still yield rewards. If the party receives an item, key, badge, map, coin purse, clue-object, weapon, or reward through surrender, the AI must return `suggestedInventoryAdd`.
 
 **Cute conditions**: The AI may use short-lived narrative conditions such as Brave, Scared, Slowed, Hidden, Sparkling with Magic, Covered in Goo, Dizzy, Inspired, or Jinxed. These are flavor only unless expressed through existing mechanical fields like HP, inventory, choices, `difficultyValue`, `suggestedDamage`, `suggestedHeal`, or `suggestedRevive`.

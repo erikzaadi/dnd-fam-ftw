@@ -53,14 +53,22 @@ export class AudioManager {
     silent.play().then(() => {
       if (this.pendingPlayback && this.settings.musicEnabled) {
         this.pendingPlayback = false;
-        this.startAmbientMusic();
+        if (this.lastTension === 'high') {
+          this.startDangerMusic();
+        } else {
+          this.startAmbientMusic();
+        }
       }
     }).catch(e => {
       console.warn('[AudioManager] Silent play failed (audio may still work)', e);
       // Keep unlocked=true - music will attempt to play on next user action anyway.
       if (this.pendingPlayback && this.settings.musicEnabled) {
         this.pendingPlayback = false;
-        this.startAmbientMusic();
+        if (this.lastTension === 'high') {
+          this.startDangerMusic();
+        } else {
+          this.startAmbientMusic();
+        }
       }
     });
   }
@@ -81,7 +89,11 @@ export class AudioManager {
     if (!settings.musicEnabled) {
       musicPlayer.stop();
     } else if (!settings.masterMuted) {
-      this.startAmbientMusic();
+      if (this.lastTension === 'high') {
+        this.startDangerMusic();
+      } else {
+        this.startAmbientMusic();
+      }
     }
     // masterMuted=true: setMuted(true) already silenced it, leave it running
   }

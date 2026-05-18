@@ -166,10 +166,16 @@ export const SessionPage = () => {
   }, [id, joinSession]);
 
   useEffect(() => {
-    if (session && history.length > 0) {
-      audioManager.startAmbientMusic();
+    if (history.length === 0) {
+      return;
     }
-  }, [session, history.length]);
+
+    if (session?.encounterState?.status === 'active') {
+      audioManager.setTension('high');
+    } else {
+      audioManager.setTension(currentTensionLevel || 'low');
+    }
+  }, [session?.encounterState?.status, currentTensionLevel, history.length]);
 
   useEffect(() => {
     if (loading) {

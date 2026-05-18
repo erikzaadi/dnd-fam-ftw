@@ -9,6 +9,11 @@ import type { ImageStorageProvider } from '../providers/storage/ImageStorageProv
 import { getConfig } from '../config/env.js';
 
 export type ImageResult = { url: string; storageKey: string; storageProvider: string };
+type ImageOutputOptions = {
+  size: string;
+  outputFormat: 'png' | 'jpeg' | 'webp';
+  outputCompression?: number;
+};
 
 type ImageCharacterContext = {
   id?: string;
@@ -48,6 +53,13 @@ export const IMAGE_PROMPT_STYLE = {
   preview: 'Painterly fantasy adventure art, cinematic lighting, vibrant colors, full-bleed landscape composition with no margins.',
 } as const;
 
+const IMAGE_OUTPUT_PRESETS = {
+  avatar: { size: '816x816', outputFormat: 'jpeg', outputCompression: 75 },
+  scene: { size: '1024x1024', outputFormat: 'jpeg', outputCompression: 80 },
+  preview: { size: '1024x1024', outputFormat: 'jpeg', outputCompression: 80 },
+  encounterArea: { size: '1024x1024', outputFormat: 'jpeg', outputCompression: 80 },
+} as const satisfies Record<string, ImageOutputOptions>;
+
 function sanitizeVisualPrompt(prompt: string): string {
   return prompt
     .replace(/\b(readable\s+)?(text|words?|letters?|numbers?|captions?|labels?|headlines?|titles?|typography|font|writing|written\s+text|paragraphs?|calligraphy|script|scripts)\b/gi, 'plain unmarked visual detail')
@@ -67,6 +79,47 @@ export function buildImagePrompt(subject: string, style: string): string {
 
 export class ImageService {
   private static DEFAULT_IMAGE = '/images/default_scene.png';
+  private static IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'webp', 'png'] as const;
+
+  private static imageFileName(baseName: string, options: ImageOutputOptions): string {
+    return `${baseName}.${options.outputFormat === 'jpeg' ? 'jpg' : options.outputFormat}`;
+  }
+
+  private static async findExistingImage(
+    baseName: string,
+    preferredFileName: string,
+    storage: ImageStorageProvider,
+  ): Promise<string | null> {
+    if (await storage.exists(preferredFileName)) {
+      return preferredFileName;
+    }
+
+    for (const extension of this.IMAGE_EXTENSIONS) {
+      const candidate = `${baseName}.${extension}`;
+      if (candidate === preferredFileName) {
+        continue;
+      }
+      if (await storage.exists(candidate)) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+
+  private static providerOutputDetails(
+    result: Awaited<ReturnType<ImageProvider['generateImage']>>,
+    fallback: ImageOutputOptions,
+  ): { contentType: string; extension: string } {
+    return {
+      contentType: result.contentType ?? (fallback.outputFormat === 'jpeg' ? 'image/jpeg' : `image/${fallback.outputFormat}`),
+      extension: result.extension ?? (fallback.outputFormat === 'jpeg' ? 'jpg' : fallback.outputFormat),
+    };
+  }
+
+  private static imageFileNameWithExtension(baseName: string, extension: string): string {
+    return `${baseName}.${extension.replace(/^jpeg$/, 'jpg')}`;
+  }
 
   public static async generateAvatar(
     char: { name: string; class: string; species: string; quirk: string; gender?: string },
@@ -82,23 +135,27 @@ export class ImageService {
       IMAGE_PROMPT_STYLE.avatar,
     );
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
-    const fileName = `avatar_${sessionId}_${char.name}_${promptHash}.png`;
+    const outputOptions = IMAGE_OUTPUT_PRESETS.avatar;
+    const fileBaseName = `avatar_${sessionId}_${char.name}_${promptHash}`;
+    const fileName = this.imageFileName(fileBaseName, outputOptions);
     const storage = overrideStorageProvider ?? getImageStorageProvider();
     const config = getConfig();
 
-    if (await storage.exists(fileName)) {
-      return { url: storage.getPublicUrl(fileName), prompt, storageKey: fileName, storageProvider: config.IMAGE_STORAGE_PROVIDER };
+    const existingKey = await this.findExistingImage(fileBaseName, fileName, storage);
+    if (existingKey) {
+      return { url: storage.getPublicUrl(existingKey), prompt, storageKey: existingKey, storageProvider: config.IMAGE_STORAGE_PROVIDER };
     }
 
     try {
       console.log(`[ImageService] Generating avatar for ${char.name}`);
       const avatarStart = Date.now();
       const imageProvider = overrideImageProvider ?? createImageProvider();
-      const result = await imageProvider.generateImage({ prompt });
+      const result = await imageProvider.generateImage({ prompt, ...outputOptions });
       console.log(`[ImageService] Avatar for ${char.name} received in ${Date.now() - avatarStart}ms`);
 
       const buffer = await this.fetchImageBuffer(result.url);
-      const stored = await storage.putImage({ key: fileName, contentType: 'image/png', body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
+      const outputDetails = this.providerOutputDetails(result, outputOptions);
+      const stored = await storage.putImage({ key: this.imageFileNameWithExtension(fileBaseName, outputDetails.extension), contentType: outputDetails.contentType, body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
       return { url: stored.publicUrl, prompt, storageKey: stored.key, storageProvider: config.IMAGE_STORAGE_PROVIDER };
     } catch (error) {
       console.error('[ImageService] Avatar generation failed, using initials SVG:', error);
@@ -121,20 +178,24 @@ export class ImageService {
     );
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
     const safeLabel = area.label.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    const fileName = `encounter_area_${sessionId}_${safeLabel}_${promptHash}.png`;
+    const outputOptions = IMAGE_OUTPUT_PRESETS.encounterArea;
+    const fileBaseName = `encounter_area_${sessionId}_${safeLabel}_${promptHash}`;
+    const fileName = this.imageFileName(fileBaseName, outputOptions);
     const storage = overrideStorageProvider ?? getImageStorageProvider();
     const config = getConfig();
 
-    if (await storage.exists(fileName)) {
-      return { url: storage.getPublicUrl(fileName), storageKey: fileName, storageProvider: config.IMAGE_STORAGE_PROVIDER };
+    const existingKey = await this.findExistingImage(fileBaseName, fileName, storage);
+    if (existingKey) {
+      return { url: storage.getPublicUrl(existingKey), storageKey: existingKey, storageProvider: config.IMAGE_STORAGE_PROVIDER };
     }
 
     try {
       console.log(`[ImageService] Generating area image for ${area.label}`);
       const imageProvider = overrideImageProvider ?? createImageProvider();
-      const result = await imageProvider.generateImage({ prompt });
+      const result = await imageProvider.generateImage({ prompt, ...outputOptions });
       const buffer = await this.fetchImageBuffer(result.url);
-      const stored = await storage.putImage({ key: fileName, contentType: 'image/png', body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
+      const outputDetails = this.providerOutputDetails(result, outputOptions);
+      const stored = await storage.putImage({ key: this.imageFileNameWithExtension(fileBaseName, outputDetails.extension), contentType: outputDetails.contentType, body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
       return { url: stored.publicUrl, storageKey: stored.key, storageProvider: config.IMAGE_STORAGE_PROVIDER };
     } catch (error) {
       console.error(`[ImageService] Area image generation failed for ${area.label}:`, error);
@@ -155,20 +216,24 @@ export class ImageService {
     );
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
     const safeName = enemy.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    const fileName = `enemy_avatar_${sessionId}_${safeName}_${promptHash}.png`;
+    const outputOptions = IMAGE_OUTPUT_PRESETS.avatar;
+    const fileBaseName = `enemy_avatar_${sessionId}_${safeName}_${promptHash}`;
+    const fileName = this.imageFileName(fileBaseName, outputOptions);
     const storage = overrideStorageProvider ?? getImageStorageProvider();
     const config = getConfig();
 
-    if (await storage.exists(fileName)) {
-      return { url: storage.getPublicUrl(fileName), storageKey: fileName, storageProvider: config.IMAGE_STORAGE_PROVIDER };
+    const existingKey = await this.findExistingImage(fileBaseName, fileName, storage);
+    if (existingKey) {
+      return { url: storage.getPublicUrl(existingKey), storageKey: existingKey, storageProvider: config.IMAGE_STORAGE_PROVIDER };
     }
 
     try {
       console.log(`[ImageService] Generating enemy avatar for ${enemy.name}`);
       const imageProvider = overrideImageProvider ?? createImageProvider();
-      const result = await imageProvider.generateImage({ prompt });
+      const result = await imageProvider.generateImage({ prompt, ...outputOptions });
       const buffer = await this.fetchImageBuffer(result.url);
-      const stored = await storage.putImage({ key: fileName, contentType: 'image/png', body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
+      const outputDetails = this.providerOutputDetails(result, outputOptions);
+      const stored = await storage.putImage({ key: this.imageFileNameWithExtension(fileBaseName, outputDetails.extension), contentType: outputDetails.contentType, body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
       return { url: stored.publicUrl, storageKey: stored.key, storageProvider: config.IMAGE_STORAGE_PROVIDER };
     } catch (error) {
       console.error(`[ImageService] Enemy avatar generation failed for ${enemy.name}:`, error);
@@ -186,21 +251,25 @@ export class ImageService {
   ): Promise<ImageResult | null> {
     const finalPrompt = this.buildSceneImagePrompt(prompt, context);
     const promptHash = crypto.createHash('md5').update(finalPrompt).digest('hex');
-    const fileName = `${sessionId}_turn${turn}_${promptHash}.png`;
+    const outputOptions = IMAGE_OUTPUT_PRESETS.scene;
+    const fileBaseName = `${sessionId}_turn${turn}_${promptHash}`;
+    const fileName = this.imageFileName(fileBaseName, outputOptions);
     const storage = overrideStorageProvider ?? getImageStorageProvider();
     const config = getConfig();
 
-    if (await storage.exists(fileName)) {
-      return { url: storage.getPublicUrl(fileName), storageKey: fileName, storageProvider: config.IMAGE_STORAGE_PROVIDER };
+    const existingKey = await this.findExistingImage(fileBaseName, fileName, storage);
+    if (existingKey) {
+      return { url: storage.getPublicUrl(existingKey), storageKey: existingKey, storageProvider: config.IMAGE_STORAGE_PROVIDER };
     }
 
     try {
       console.log(`[ImageService] Generating image for session ${sessionId}: ${prompt}`);
       const imageProvider = overrideImageProvider ?? createImageProvider();
-      const result = await imageProvider.generateImage({ prompt: finalPrompt });
+      const result = await imageProvider.generateImage({ prompt: finalPrompt, ...outputOptions });
 
       const buffer = await this.fetchImageBuffer(result.url);
-      const stored = await storage.putImage({ key: fileName, contentType: 'image/png', body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
+      const outputDetails = this.providerOutputDetails(result, outputOptions);
+      const stored = await storage.putImage({ key: this.imageFileNameWithExtension(fileBaseName, outputDetails.extension), contentType: outputDetails.contentType, body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
       return { url: stored.publicUrl, storageKey: stored.key, storageProvider: config.IMAGE_STORAGE_PROVIDER };
     } catch (error: unknown) {
       const code = (error as { code?: string })?.code;
@@ -248,15 +317,23 @@ export class ImageService {
     const sanitized = this.sanitizePrompt(originalPrompt);
     const finalPrompt = this.buildSceneImagePrompt(`Family-friendly adventure moment: ${sanitized}`, context);
     const promptHash = crypto.createHash('md5').update(finalPrompt).digest('hex');
-    const fileName = `${sessionId}_turn${turn}_${promptHash}_safe.png`;
+    const outputOptions = IMAGE_OUTPUT_PRESETS.scene;
+    const fileBaseName = `${sessionId}_turn${turn}_${promptHash}_safe`;
+    const fileName = this.imageFileName(fileBaseName, outputOptions);
     const storage = overrideStorageProvider ?? getImageStorageProvider();
     const config = getConfig();
 
+    const existingKey = await this.findExistingImage(fileBaseName, fileName, storage);
+    if (existingKey) {
+      return { url: storage.getPublicUrl(existingKey), storageKey: existingKey, storageProvider: config.IMAGE_STORAGE_PROVIDER };
+    }
+
     try {
       const imageProvider = overrideImageProvider ?? createImageProvider();
-      const result = await imageProvider.generateImage({ prompt: finalPrompt });
+      const result = await imageProvider.generateImage({ prompt: finalPrompt, ...outputOptions });
       const buffer = await this.fetchImageBuffer(result.url);
-      const stored = await storage.putImage({ key: fileName, contentType: 'image/png', body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
+      const outputDetails = this.providerOutputDetails(result, outputOptions);
+      const stored = await storage.putImage({ key: this.imageFileNameWithExtension(fileBaseName, outputDetails.extension), contentType: outputDetails.contentType, body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
       return { url: stored.publicUrl, storageKey: stored.key, storageProvider: config.IMAGE_STORAGE_PROVIDER };
     } catch {
       console.warn('[ImageService] Sanitized image also failed, using default.');
@@ -323,20 +400,24 @@ export class ImageService {
     );
 
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');
-    const fileName = `preview_${session.id}_${promptHash}.png`;
+    const outputOptions = IMAGE_OUTPUT_PRESETS.preview;
+    const fileBaseName = `preview_${session.id}_${promptHash}`;
+    const fileName = this.imageFileName(fileBaseName, outputOptions);
     const storage = overrideStorageProvider ?? getImageStorageProvider();
     const config = getConfig();
 
-    if (await storage.exists(fileName)) {
-      return { url: storage.getPublicUrl(fileName), storageKey: fileName, storageProvider: config.IMAGE_STORAGE_PROVIDER };
+    const existingKey = await this.findExistingImage(fileBaseName, fileName, storage);
+    if (existingKey) {
+      return { url: storage.getPublicUrl(existingKey), storageKey: existingKey, storageProvider: config.IMAGE_STORAGE_PROVIDER };
     }
 
     try {
       console.log(`[ImageService] Generating session preview for ${session.displayName}`);
       const imageProvider = overrideImageProvider ?? createImageProvider();
-      const result = await imageProvider.generateImage({ prompt });
+      const result = await imageProvider.generateImage({ prompt, ...outputOptions });
       const buffer = await this.fetchImageBuffer(result.url);
-      const stored = await storage.putImage({ key: fileName, contentType: 'image/png', body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
+      const outputDetails = this.providerOutputDetails(result, outputOptions);
+      const stored = await storage.putImage({ key: this.imageFileNameWithExtension(fileBaseName, outputDetails.extension), contentType: outputDetails.contentType, body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
       return { url: stored.publicUrl, storageKey: stored.key, storageProvider: config.IMAGE_STORAGE_PROVIDER };
     } catch (error: unknown) {
       const code = (error as { code?: string })?.code;

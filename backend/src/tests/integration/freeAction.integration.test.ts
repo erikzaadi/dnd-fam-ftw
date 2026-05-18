@@ -92,7 +92,7 @@ describe('executeTurnAction free action integration', () => {
         name: 'Ambusher Skirmish',
         status: 'active',
         round: 1,
-        enemies: [{ id: 'enemy-ambusher', name: 'Ambusher', role: 'minion', hp: 1, maxHp: 1, status: 'active' }],
+        enemies: [{ id: 'enemy-ambusher', name: 'Ambusher', role: 'standard', hp: 1, maxHp: 6, status: 'active' }],
         areas: [],
       },
     });
@@ -111,13 +111,20 @@ describe('executeTurnAction free action integration', () => {
     }
 
     expect(result.body.turnResult.narration).toContain('Ambusher collapses, defeated');
+    expect(result.body.turnResult.narration).toContain('Pip claims Ambusher Token from the aftermath');
     expect(result.body.turnResult.narration).not.toContain('wounded but fierce');
     expect(result.body.turnResult.choices.map(choice => choice.label).join(' ')).not.toContain('Ambusher');
+    expect(result.body.turnResult.inventoryChanges).toContainEqual({
+      characterName: 'Pip',
+      itemName: 'Ambusher Token',
+      type: 'added',
+    });
     expect(result.body.turnResult.encounterEnemyChanges?.[0]).toMatchObject({
       enemyName: 'Ambusher',
       newStatus: 'defeated',
     });
     const stored = await StateService.getSession('free-action-resolved-encounter-session');
+    expect(stored?.party[0].inventory.map(item => item.name)).toContain('Ambusher Token');
     expect(stored?.lastChoices.map(choice => choice.label).join(' ')).not.toContain('Ambusher');
   });
 

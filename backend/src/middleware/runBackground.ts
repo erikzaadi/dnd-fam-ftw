@@ -1,17 +1,11 @@
-const isDev = process.env.NODE_ENV !== 'production';
+import { devLog } from '../lib/devLog.js';
 
 export const runBackground = (label: string, fn: () => Promise<void>): void => {
-  if (isDev) {
-    console.log(`[bg] start ${label}`);
-  }
+  devLog.log(`[bg] start ${label}`);
   const start = Date.now();
   void fn().then(() => {
-    if (isDev) {
-      console.log(`[bg] done ${label} — ${Date.now() - start}ms`);
-    }
+    devLog.log(`[bg] done ${label} — ${Date.now() - start}ms`);
   }).catch(err => {
-    if (isDev) {
-      console.log(`[bg] error ${label} — ${Date.now() - start}ms`, err);
-    }
+    devLog.log(`[bg] error ${label} — ${Date.now() - start}ms`, err);
   });
 };

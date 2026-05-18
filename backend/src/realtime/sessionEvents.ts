@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import type { Request, Response } from 'express';
+import { devLog } from '../lib/devLog.js';
 
 const eventEmitter = new EventEmitter();
 const HEARTBEAT_INTERVAL_MS = 25000;
@@ -55,6 +56,7 @@ export const registerSessionListEventStream = (req: Request, res: Response, name
 };
 
 export const broadcastUpdate = (sessionId: string, type: string, payload: Record<string, unknown>) => {
+  devLog.log(`[Broadcast] ${type} session=${sessionId}`);
   eventEmitter.emit('update', { sessionId, type, ...payload });
 };
 

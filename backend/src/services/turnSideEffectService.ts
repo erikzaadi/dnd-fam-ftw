@@ -6,6 +6,7 @@ import { GameEngine } from './gameEngine.js';
 import { ImageService } from './imageService.js';
 import { StateService } from './stateService.js';
 import { StorySummaryService } from './storySummaryService.js';
+import { devLog } from '../lib/devLog.js';
 
 interface CompletedTurnSideEffectsInput {
   sessionId: string;
@@ -14,6 +15,8 @@ interface CompletedTurnSideEffectsInput {
   newState: SessionState;
   turnResult: TurnResult;
 }
+
+const inFlightImageJobs = new Set<string>();
 
 const getTurnEncounterId = (previousSession: SessionState, newState: SessionState): string | undefined => {
   if (previousSession.encounterState?.status === 'active') {
@@ -53,12 +56,12 @@ const queuePartyWipeFollowUp = (
 
   if (rescuesUsed >= rescueLimit) {
     runBackground(`game-over session=${sessionId}`, async () => {
-      console.log('[GameOver] Party wiped with no rescues remaining — campaign over');
+      devLog.log('[GameOver] Party wiped with no rescues remaining — campaign over');
       const gameOverState = { ...newState, gameOver: true };
       await StateService.updateSession(sessionId, gameOverState);
       broadcastUpdate(sessionId, 'game_over', { session: gameOverState });
       broadcastSessionChanged(namespaceId, sessionId, 'updated');
-      console.log('[GameOver] State saved and broadcast');
+      devLog.log('[GameOver] State saved and broadcast');
     });
     return;
   }
@@ -78,7 +81,7 @@ const queueInterventionRescue = (
   newState: SessionState,
 ) => {
   runBackground(`intervention session=${sessionId}`, async () => {
-    console.log('[Intervention] Party wiped — triggering dragon rescue');
+    devLog.log('[Intervention] Party wiped — triggering dragon rescue');
     const rescuedState = GameEngine.applyIntervention(newState);
     await StateService.updateSession(sessionId, rescuedState);
 
@@ -100,7 +103,7 @@ const queueInterventionRescue = (
     broadcastUpdate(sessionId, 'intervention', { session: postState, turnResult: interventionTurn });
     broadcastSessionChanged(namespaceId, sessionId, 'updated');
     runBackground(`intervention-summary session=${sessionId}`, () => StorySummaryService.updateAfterIntervention(sessionId, interventionTurn.narration));
-    console.log('[Intervention] Dragon rescue complete');
+    devLog.log('[Intervention] Dragon rescue complete');
   });
 };
 
@@ -113,7 +116,7 @@ const queueSanctuaryRecovery = (
   rescueLimit: number,
 ) => {
   runBackground(`sanctuary session=${sessionId}`, async () => {
-    console.log(`[Sanctuary] Party wiped (rescue ${rescuesUsed + 1}/${rescueLimit}) — triggering sanctuary recovery`);
+    devLog.log(`[Sanctuary] Party wiped (rescue ${rescuesUsed + 1}/${rescueLimit}) — triggering sanctuary recovery`);
     const sanctuaryState = GameEngine.applySanctuaryRecovery(newState);
     await StateService.updateSession(sessionId, sanctuaryState);
 
@@ -135,7 +138,7 @@ const queueSanctuaryRecovery = (
     broadcastUpdate(sessionId, 'sanctuary_recovery', { session: postState, turnResult: sanctuaryTurn });
     broadcastSessionChanged(namespaceId, sessionId, 'updated');
     runBackground(`sanctuary-summary session=${sessionId}`, () => StorySummaryService.updateAfterIntervention(sessionId, sanctuaryTurn.narration));
-    console.log('[Sanctuary] Recovery complete');
+    devLog.log('[Sanctuary] Recovery complete');
   });
 };
 
@@ -145,10 +148,16 @@ const queueTurnImageGeneration = (
   newState: SessionState,
   turnResult: TurnResult,
 ) => {
-  console.log(`[Action] imageSuggested=${turnResult.imageSuggested} imagePrompt=${turnResult.imagePrompt ?? 'null'} savingsMode=${previousSession.savingsMode}`);
+  devLog.log(`[Action] imageSuggested=${turnResult.imageSuggested} imagePrompt=${turnResult.imagePrompt ?? 'null'} savingsMode=${previousSession.savingsMode}`);
   if (previousSession.savingsMode || !turnResult.imageSuggested || !turnResult.imagePrompt) {
     return;
   }
+
+  const sceneKey = `scene:${sessionId}:${newState.turn}`;
+  if (inFlightImageJobs.has(sceneKey)) {
+    return;
+  }
+  inFlightImageJobs.add(sceneKey);
 
   void ImageService.generateImage(
     turnResult.imagePrompt,
@@ -168,7 +177,12 @@ const queueTurnImageGeneration = (
       await StateService.updateLatestTurnImage(sessionId, result.url, result.storageKey, result.storageProvider);
       broadcastUpdate(sessionId, 'image_ready', { target: 'scene', imageUrl: result.url });
     }
-  }).catch(err => console.error('[Action] Background image generation failed:', err));
+  }).catch(err => {
+    devLog.error('[Action] Background image generation failed:', err);
+  })
+    .finally(() => {
+      inFlightImageJobs.delete(sceneKey);
+    });
 };
 
 const queueEncounterImageGeneration = (
@@ -190,33 +204,53 @@ const queueEncounterImageGeneration = (
     if (enemy.avatarUrl) {
       continue;
     }
+    const enemyKey = `encounter-enemy:${sessionId}:${encounter.id}:${enemy.id}`;
+    if (inFlightImageJobs.has(enemyKey)) {
+      continue;
+    }
+    inFlightImageJobs.add(enemyKey);
     void ImageService.generateEnemyAvatar(
       { name: enemy.name, role: enemy.role, traits: enemy.traits },
       sessionId,
     ).then(async result => {
       if (!result.url) {
-        console.warn(`[EncounterImages] Avatar generation returned empty URL for enemy "${enemy.name}"`);
+        devLog.warn(`[EncounterImages] Avatar generation returned empty URL for enemy "${enemy.name}"`);
         return;
       }
       await StateService.patchEncounterEnemyAvatar(sessionId, encounter.id, enemy.id, result.url);
       broadcastUpdate(sessionId, 'image_ready', { target: 'encounter_enemy', encounterId: encounter.id, enemyId: enemy.id, imageUrl: result.url });
-    }).catch(err => console.error(`[EncounterImages] Avatar generation failed for enemy "${enemy.name}":`, err));
+    }).catch(err => {
+      devLog.error(`[EncounterImages] Avatar generation failed for enemy "${enemy.name}":`, err);
+    })
+      .finally(() => {
+        inFlightImageJobs.delete(enemyKey);
+      });
   }
 
   for (const area of encounter.areas) {
     if (area.imageUrl) {
       continue;
     }
+    const areaKey = `encounter-area:${sessionId}:${encounter.id}:${area.id}`;
+    if (inFlightImageJobs.has(areaKey)) {
+      continue;
+    }
+    inFlightImageJobs.add(areaKey);
     void ImageService.generateAreaImage(
       { label: area.label, description: area.description, tags: area.tags },
       sessionId,
     ).then(async result => {
       if (!result.url) {
-        console.warn(`[EncounterImages] Area image generation returned empty URL for area "${area.label}"`);
+        devLog.warn(`[EncounterImages] Area image generation returned empty URL for area "${area.label}"`);
         return;
       }
       await StateService.patchEncounterAreaImage(sessionId, encounter.id, area.id, result.url);
       broadcastUpdate(sessionId, 'image_ready', { target: 'encounter_area', encounterId: encounter.id, areaId: area.id, imageUrl: result.url });
-    }).catch(err => console.error(`[EncounterImages] Area image generation failed for area "${area.label}":`, err));
+    }).catch(err => {
+      devLog.error(`[EncounterImages] Area image generation failed for area "${area.label}":`, err);
+    })
+      .finally(() => {
+        inFlightImageJobs.delete(areaKey);
+      });
   }
 };

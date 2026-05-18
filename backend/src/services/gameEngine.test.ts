@@ -836,6 +836,56 @@ describe('GameEngine.updateState - encounter auto-damage', () => {
     expect(aiChanges.narration).toBe('The final Memory Crab skitters back and collapses into drifting sparks.');
   });
 
+  it('grants fallback trophy loot for a non-trivial organic encounter on normal difficulty', () => {
+    const encounterState: EncounterState = {
+      id: 'enc-1',
+      name: 'Shadow Ambusher Skirmish',
+      status: 'active',
+      round: 1,
+      enemies: [{ id: 'enemy-1', name: 'Shadow Ambusher', role: 'standard', hp: 1, maxHp: 6, status: 'active' }],
+      areas: [],
+    };
+    const session = makeSession({ encounterState, difficulty: 'normal' });
+    const attempt = {
+      actionAttempt: 'Strike the ambusher',
+      actionResult: { success: true, roll: 16, statUsed: 'magic' as const, impact: 'normal' as const },
+    };
+    const aiChanges: Record<string, unknown> = {
+      narration: 'The bolt drops the Shadow Ambusher.',
+      suggestedEncounterUpdate: null,
+    };
+
+    const result = GameEngine.updateState(session, attempt, aiChanges);
+
+    expect(result.encounterState?.status).toBe('defeated');
+    expect(result.party[0].inventory.map(i => i.name)).toContain('Shadow Ambusher Token');
+    expect(aiChanges.narration).toContain('Barnaby claims Shadow Ambusher Token from the aftermath.');
+  });
+
+  it('does not grant fallback trophy loot for trivial organic minions', () => {
+    const encounterState: EncounterState = {
+      id: 'enc-1',
+      name: 'Ledger Speck Skirmish',
+      status: 'active',
+      round: 1,
+      enemies: [{ id: 'enemy-1', name: 'Ledger Speck', role: 'minion', hp: 1, maxHp: 1, status: 'active' }],
+      areas: [],
+    };
+    const session = makeSession({ encounterState, difficulty: 'normal' });
+    const attempt = {
+      actionAttempt: 'Swat the speck',
+      actionResult: { success: true, roll: 16, statUsed: 'might' as const, impact: 'normal' as const },
+    };
+
+    const result = GameEngine.updateState(session, attempt, {
+      narration: 'The Ledger Speck pops like a soap bubble.',
+      suggestedEncounterUpdate: null,
+    });
+
+    expect(result.encounterState?.status).toBe('defeated');
+    expect(result.party[0].inventory).toHaveLength(0);
+  });
+
   it('starts an organic encounter from high-danger combat narration when AI omits suggestedEncounterStart', () => {
     const session = makeSession();
     const attempt = {

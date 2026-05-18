@@ -26,12 +26,15 @@ afterAll(() => {
 
 const FAKE_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
-function makeMockStorage(existingKeys: Set<string> = new Set()): ImageStorageProvider & { stored: Map<string, Buffer> } {
+function makeMockStorage(existingKeys: Set<string> = new Set()): ImageStorageProvider & { stored: Map<string, Buffer>; contentTypes: Map<string, string> } {
   const stored = new Map<string, Buffer>();
+  const contentTypes = new Map<string, string>();
   return {
     stored,
-    putImage: async ({ key, body }: { key: string; contentType: string; body: Buffer; cacheControl?: string }): Promise<StoredImage> => {
+    contentTypes,
+    putImage: async ({ key, contentType, body }: { key: string; contentType: string; body: Buffer; cacheControl?: string }): Promise<StoredImage> => {
       stored.set(key, body);
+      contentTypes.set(key, contentType);
       return { key, publicUrl: `http://mock-storage/${key}` };
     },
     getPublicUrl: (key: string): string => `http://mock-storage/${key}`,
@@ -44,9 +47,9 @@ function makeMockImageProvider(returnUrl: string = FAKE_DATA_URL): ImageProvider
   const calls: string[] = [];
   return {
     calls,
-    generateImage: async ({ prompt }: { prompt: string }): Promise<{ url: string }> => {
+    generateImage: async ({ prompt }: { prompt: string }): Promise<{ url: string; contentType: string; extension: string }> => {
       calls.push(prompt);
-      return { url: returnUrl };
+      return { url: returnUrl, contentType: 'image/jpeg', extension: 'jpg' };
     },
   };
 }
@@ -66,6 +69,8 @@ describe('ImageService.generateImage', () => {
     expect(provider.calls[0]).toContain('Dungeons and Dragons adventure moment');
     expect(provider.calls[0]).not.toContain('storybook');
     expect(storage.stored.size).toBe(1);
+    expect([...storage.stored.keys()][0]).toMatch(/\.jpg$/);
+    expect([...storage.contentTypes.values()][0]).toBe('image/jpeg');
     expect(result!.url).toMatch(/^http:\/\/mock-storage\//);
   });
 
@@ -104,7 +109,7 @@ describe('ImageService.generateImage', () => {
   it('returns null on provider failure', async () => {
     const storage = makeMockStorage();
     const failProvider: ImageProvider = {
-      generateImage: async (): Promise<{ url: string }> => {
+      generateImage: async (): Promise<{ url: string; contentType: string; extension: string }> => {
         throw new Error('Provider exploded');
       },
     };
@@ -117,7 +122,7 @@ describe('ImageService.generateImage', () => {
     let callCount = 0;
     const receivedPrompts: string[] = [];
     const policyProvider: ImageProvider = {
-      generateImage: async ({ prompt }: { prompt: string }): Promise<{ url: string }> => {
+      generateImage: async ({ prompt }: { prompt: string }): Promise<{ url: string; contentType: string; extension: string }> => {
         callCount++;
         receivedPrompts.push(prompt);
         if (callCount === 1) {
@@ -125,7 +130,7 @@ describe('ImageService.generateImage', () => {
           err.code = 'content_policy_violation';
           throw err;
         }
-        return { url: FAKE_DATA_URL };
+        return { url: FAKE_DATA_URL, contentType: 'image/jpeg', extension: 'jpg' };
       },
     };
     const result = await ImageService.generateImage('kill the undead skeleton', 'sess-policy', 3, policyProvider, storage);
@@ -139,7 +144,7 @@ describe('ImageService.generateImage', () => {
   it('returns null when sanitized retry also fails', async () => {
     const storage = makeMockStorage();
     const alwaysFailProvider: ImageProvider = {
-      generateImage: async (): Promise<{ url: string }> => {
+      generateImage: async (): Promise<{ url: string; contentType: string; extension: string }> => {
         const err = new Error('Content policy') as Error & { code: string };
         err.code = 'content_policy_violation';
         throw err;
@@ -189,7 +194,7 @@ describe('ImageService.generateAvatar', () => {
   it('falls back to initials SVG on provider failure', async () => {
     const storage = makeMockStorage();
     const failProvider: ImageProvider = {
-      generateImage: async (): Promise<{ url: string }> => {
+      generateImage: async (): Promise<{ url: string; contentType: string; extension: string }> => {
         throw new Error('Avatar provider exploded');
       },
     };

@@ -1,5 +1,6 @@
 import type { NarrationInput, NarrationOutput } from './NarrationProvider.js';
 import { narrationOutputSchema, type ValidNarrationOutput } from './narrationSchemas.js';
+import { devLog } from '../../../lib/devLog.js';
 
 const HEALING_ACTION_RE = /\b(heal|healing|restore|restoring|revive|reviving|mend|mending|soothe|soothing|recover|recovery|rest|resting|sleep|sleeping|eat|eating|meal|care|treat|treating|medicine|potion|bandage|sanctuary)\b/i;
 const LOW_MOTION_RE = /\b(inspect|wait|look around|look|listen|rest|discuss|search)\b/i;
@@ -128,6 +129,37 @@ function resolvedThreatPhrases(input: NarrationInput): Set<string> {
   return phrases;
 }
 
+function activeEncounterThreatPhrases(input: NarrationInput): Set<string> {
+  const phrases = new Set<string>();
+  if (input.encounterState?.status !== 'active') {
+    return phrases;
+  }
+
+  for (const enemy of input.encounterState.enemies) {
+    if (enemy.status !== 'active') {
+      continue;
+    }
+    phrases.add(normalizedText(enemy.name));
+    for (const alias of enemy.aliases ?? []) {
+      phrases.add(normalizedText(alias));
+    }
+  }
+
+  return phrases;
+}
+
+function isActiveEncounterThreatPhrase(phrase: string, activePhrases: Set<string>): boolean {
+  for (const activePhrase of activePhrases) {
+    if (!activePhrase) {
+      continue;
+    }
+    if (activePhrase === phrase || activePhrase.includes(phrase) || phrase.includes(activePhrase)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function repeatsResolvedThreat(input: NarrationInput, outputText: string): string | null {
   const outputNormalized = normalizedText(outputText);
   const outputIsThreatening = REVIVED_THREAT_RE.test(outputText);
@@ -135,7 +167,11 @@ function repeatsResolvedThreat(input: NarrationInput, outputText: string): strin
     return null;
   }
 
+  const activePhrases = activeEncounterThreatPhrases(input);
   for (const phrase of resolvedThreatPhrases(input)) {
+    if (isActiveEncounterThreatPhrase(phrase, activePhrases)) {
+      continue;
+    }
     if (phrase && outputNormalized.includes(phrase)) {
       return phrase;
     }
@@ -162,6 +198,7 @@ function canonicalizeItemChoices(input: NarrationInput, output: ValidNarrationOu
 
     // Item missing or belongs to a character other than the next actor - degrade to standard.
     // This handles cross-character enchants where the AI wants to reference the updated item.
+    devLog.warn('[Guard] item choice degraded to standard', { label: choice.label, itemName: choice.itemName, itemOwnerName: choice.itemOwnerName, nextCharacterName: input.nextCharacterName });
     choice.flavor = 'standard';
     delete choice.itemOwnerName;
     delete choice.itemName;
@@ -174,18 +211,24 @@ function normalizeNarrationMetadata(input: NarrationInput, output: ValidNarratio
   }
 
   if (output.suggestedHeal?.length && !HEALING_ACTION_RE.test(input.actionAttempt)) {
+    devLog.warn('[Guard] suggestedHeal stripped - action did not match healing pattern', { actionAttempt: input.actionAttempt, healTargets: output.suggestedHeal.map(h => h.characterName) });
     output.suggestedHeal = null;
   }
 
   if (output.suggestedBuffAdd) {
+    const before = output.suggestedBuffAdd.length;
     const validated = output.suggestedBuffAdd.flatMap(buff => {
       const target = input.party.find(c => c.name === buff.characterName);
       if (!target || target.status !== 'active') {
+        devLog.warn('[Guard] suggestedBuffAdd entry dropped - invalid or downed target', { characterName: buff.characterName, buffName: buff.name });
         return [];
       }
       buff.characterName = target.name;
       return [buff];
     });
+    if (validated.length < before) {
+      devLog.warn('[Guard] suggestedBuffAdd filtered', { before, after: validated.length });
+    }
     output.suggestedBuffAdd = validated.length > 0 ? validated : null;
   }
 
@@ -251,6 +294,10 @@ function validateMomentumOutput(input: NarrationInput, output: ValidNarrationOut
   const momentum = input.sceneMomentum;
   const choiceText = output.choices.map(choice => `${choice.label} ${choice.narration ?? ''}`).join(' ');
   const fullText = `${output.narration} ${choiceText}`;
+  const nonItemChoiceText = output.choices
+    .filter(choice => choice.flavor !== 'item')
+    .map(choice => `${choice.label} ${choice.narration ?? ''}`)
+    .join(' ');
 
   if (momentum) {
     const hasPortalTransition = PORTAL_TRANSITION_RE.test(fullText);
@@ -296,7 +343,7 @@ function validateMomentumOutput(input: NarrationInput, output: ValidNarrationOut
     return 'Narration repeats the previous turn too closely. Continue from the current action instead of restating the same scene setup.';
   }
 
-  const repeatedResolvedThreat = repeatsResolvedThreat(input, fullText);
+  const repeatedResolvedThreat = repeatsResolvedThreat(input, `${output.narration} ${output.rollNarration ?? ''} ${nonItemChoiceText}`);
   if (repeatedResolvedThreat) {
     return `Output revives recently resolved threat: "${repeatedResolvedThreat}". Move to a different beat, consequence, clue, NPC, or location.`;
   }
@@ -339,6 +386,7 @@ function validateMomentumOutput(input: NarrationInput, output: ValidNarrationOut
 function normalizeEncounterOutput(input: NarrationInput, output: ValidNarrationOutput): void {
   // Block encounter start when one is already active
   if (output.suggestedEncounterStart != null && input.encounterState?.status === 'active') {
+    devLog.warn('[Guard] suggestedEncounterStart blocked - encounter already active', { encounterName: input.encounterState.name });
     output.suggestedEncounterStart = null;
   }
 
@@ -347,6 +395,7 @@ function normalizeEncounterOutput(input: NarrationInput, output: ValidNarrationO
     const resolvedNames = new Set((input.resolvedEncounterEnemyNames ?? []).map(n => normalizedText(n)));
     const allDefeated = output.suggestedEncounterStart.enemies.every(e => resolvedNames.has(normalizedText(e.name)));
     if (allDefeated) {
+      devLog.warn('[Guard] suggestedEncounterStart blocked - all proposed enemies already resolved', { enemies: output.suggestedEncounterStart.enemies.map(e => e.name) });
       output.suggestedEncounterStart = null;
     }
   }
@@ -358,12 +407,14 @@ function normalizeEncounterOutput(input: NarrationInput, output: ValidNarrationO
 
   // Clear encounter update when no active encounter exists
   if (input.encounterState?.status !== 'active') {
+    devLog.warn('[Guard] suggestedEncounterUpdate cleared - no active encounter');
     output.suggestedEncounterUpdate = null;
     return;
   }
 
   // Filter out invalid damage entries
   if (Array.isArray(update.enemyDamage)) {
+    const before = update.enemyDamage.length;
     update.enemyDamage = update.enemyDamage.filter(d => {
       if (!d.enemyId && !d.enemyName) {
         return false;
@@ -377,10 +428,14 @@ function normalizeEncounterOutput(input: NarrationInput, output: ValidNarrationO
       );
       return enemy?.status === 'active';
     });
+    if (update.enemyDamage.length < before) {
+      devLog.warn('[Guard] enemyDamage entries filtered', { before, after: update.enemyDamage.length });
+    }
   }
 
   // Filter out status changes targeting already-resolved enemies
   if (Array.isArray(update.enemyStatus)) {
+    const before = update.enemyStatus.length;
     update.enemyStatus = update.enemyStatus.filter(es => {
       const enemy = input.encounterState!.enemies.find(e =>
         (es.enemyId && e.id === es.enemyId) ||
@@ -388,6 +443,9 @@ function normalizeEncounterOutput(input: NarrationInput, output: ValidNarrationO
       );
       return enemy?.status === 'active';
     });
+    if (update.enemyStatus.length < before) {
+      devLog.warn('[Guard] enemyStatus entries filtered', { before, after: update.enemyStatus.length });
+    }
   }
 }
 
@@ -425,13 +483,13 @@ export function parseNarrationOutput(
   const enforceGameplayGuards = options.enforceGameplayGuards ?? true;
   const parsed = narrationOutputSchema.safeParse(raw);
   if (!parsed.success) {
-    return { success: false, error: parsed.error.message };
+    return { success: false, error: `schema: ${parsed.error.message}` };
   }
 
   if (enforceGameplayGuards) {
     const leakageError = validateNarrationLeakage(parsed.data);
     if (leakageError) {
-      return { success: false, error: leakageError };
+      return { success: false, error: `leakage: ${leakageError}` };
     }
   }
   stripNarrationEmDashes(parsed.data);
@@ -439,7 +497,7 @@ export function parseNarrationOutput(
   if (enforceGameplayGuards) {
     const choiceActorError = validateChoiceActors(input, parsed.data);
     if (choiceActorError) {
-      return { success: false, error: choiceActorError };
+      return { success: false, error: `choice-actors: ${choiceActorError}` };
     }
   }
   normalizeNarrationMetadata(input, parsed.data);
@@ -447,7 +505,7 @@ export function parseNarrationOutput(
   if (enforceGameplayGuards) {
     const momentumError = validateMomentumOutput(input, parsed.data);
     if (momentumError) {
-      return { success: false, error: momentumError };
+      return { success: false, error: `momentum: ${momentumError}` };
     }
   }
 

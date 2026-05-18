@@ -1,0 +1,19 @@
+const isDev = import.meta.env.DEV;
+
+export const devLog = {
+  log: (...args: unknown[]): void => {
+    if (isDev) {
+      console.log(...args);
+    }
+  },
+  warn: (...args: unknown[]): void => {
+    if (isDev) {
+      console.warn(...args);
+    }
+  },
+  error: (...args: unknown[]): void => {
+    if (isDev) {
+      console.error(...args);
+    }
+  },
+};

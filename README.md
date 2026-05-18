@@ -22,8 +22,8 @@ No prep required. No DM experience required. Just vibes and a d20.
 
 ![Scene image with savings toggle](docs/scene-image-gameplay.png)
 
-- **AI Dungeon Master** : GPT-4o narrates your story in real-time
-- **DALL-E 3 scene and realm images** : every major moment gets illustrated, and each realm gets a generated preview image for home and recap screens
+- **AI Dungeon Master** : OpenAI models narrate your story in real-time
+- **GPT Image scene and realm images** : every major moment gets illustrated, and each realm gets a generated preview image for home and recap screens
 - **Three stats** : Might, Magic, and Mischief (it's a family game)
 - **d20 rolls** : classic dice mechanics, displayed with a satisfying SVG die; the exact target needed is shown per action
 - **Dynamic difficulty (DRAMA LLAMA)** : the AI tunes the specific roll target per action based on the current situation, within the spirit of the chosen difficulty
@@ -188,8 +188,8 @@ dnd-fam-ftw/
 │       ├── types.ts              # Backend extensions plus shared type re-exports
 │       ├── services/
 │       │   ├── gameEngine.ts     # Dice, damage, state
-│       │   ├── aiDmService.ts    # GPT-4o narration
-│       │   ├── imageService.ts   # DALL-E 3 + caching
+│       │   ├── aiDmService.ts    # OpenAI narration
+│       │   ├── imageService.ts   # GPT Image + caching
 │       │   ├── authService.ts    # Google OAuth + JWT
 │       │   └── stateService.ts   # SQLite persistence
 │       └── scripts/
@@ -384,7 +384,7 @@ Pick a difficulty, choose a **game pacing** mode (Cinematic for rich description
 ## Tips
 
 - The AI takes the `quirk` field seriously. A character who *"has strong opinions about cheese"* will absolutely have those opinions come up at the worst possible moment.
-- Savings mode is your friend during testing. DALL-E isn't cheap.
+- Savings mode is your friend during testing. Generated images are not cheap.
 - The TLDR recap is great for the family member who missed last week's session and claims they "totally remember what happened."
 
 ---

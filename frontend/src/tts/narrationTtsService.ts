@@ -1,8 +1,7 @@
 import { browserTtsService } from './browserTtsService';
 import { openAiTtsService } from './openaiTtsService';
 import type { TtsSettings } from './ttsTypes';
-
-const isDev = import.meta.env.DEV;
+import { devLog } from '../lib/devLog';
 
 type SpeakNarrationInput = {
   text: string;
@@ -60,9 +59,7 @@ class NarrationTtsService {
         });
         return;
       } catch (error) {
-        if (isDev) {
-          console.warn('[TTS] OpenAI narration failed:', error);
-        }
+        devLog.warn('[TTS] OpenAI narration failed:', error);
         return;
       }
     }

@@ -1,22 +1,39 @@
 import { audioCatalog } from 'virtual:audio-catalog';
 import type { MusicCategory, MusicPlayer } from './audioTypes';
 
-const CROSSFADE_DURATION = 2000;
+const CROSSFADE_DURATION = 5000;
 
 export class WebMusicPlayer implements MusicPlayer {
   private channels: [HTMLAudioElement, HTMLAudioElement];
   private activeChannelIndex = 0;
   private currentCategory: MusicCategory | null = null;
   private currentTrack: string | null = null;
+  private currentTrackPlayCount = 0;
   private volume = 1;
   private muted = false;
   private fadeInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     this.channels = [new Audio(), new Audio()];
-    this.channels.forEach(audio => {
+    this.channels.forEach((audio, index) => {
       audio.loop = false;
-      audio.onended = () => this.playNext();
+      audio.onended = () => {
+        if (index !== this.activeChannelIndex) {
+          return;
+        }
+
+        if (this.currentTrackPlayCount < 2) {
+          this.currentTrackPlayCount++;
+          audio.currentTime = 0;
+          audio.play().catch(e => {
+            if (e instanceof Error && e.name !== 'AbortError') {
+              console.warn('Music loop failed', e);
+            }
+          });
+        } else {
+          this.playNext();
+        }
+      };
     });
   }
 
@@ -64,6 +81,7 @@ export class WebMusicPlayer implements MusicPlayer {
     }
     this.currentCategory = null;
     this.currentTrack = null;
+    this.currentTrackPlayCount = 0;
     this.channels.forEach(audio => {
       audio.pause();
       audio.src = '';
@@ -86,6 +104,7 @@ export class WebMusicPlayer implements MusicPlayer {
     }
 
     this.currentTrack = nextTrack;
+    this.currentTrackPlayCount = 1;
     const incomingIndex = 1 - this.activeChannelIndex;
     const outgoing = this.channels[this.activeChannelIndex];
     const incoming = this.channels[incomingIndex];
@@ -110,7 +129,7 @@ export class WebMusicPlayer implements MusicPlayer {
       clearInterval(this.fadeInterval);
     }
 
-    const steps = 20;
+    const steps = 50;
     const stepDuration = CROSSFADE_DURATION / steps;
     let currentStep = 0;
 

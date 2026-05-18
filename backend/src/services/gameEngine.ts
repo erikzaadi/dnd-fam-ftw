@@ -54,6 +54,34 @@ export class GameEngine {
     aiSuggestedChanges.narration = `${aiSuggestedChanges.narration} ${characterName} claims ${itemName} from the aftermath.`;
   }
 
+  private static shouldGrantOrganicEncounterLoot(state: SessionState, encounter: NonNullable<SessionState['encounterState']>): boolean {
+    if (state.gameMode === 'zug-ma-geddon') {
+      return false;
+    }
+    const resolvedEnemies = encounter.enemies.filter(enemy => enemy.status !== 'active');
+    const meaningfulVictory = resolvedEnemies.some(enemy => enemy.role !== 'minion' || enemy.maxHp > 2);
+    if (!meaningfulVictory) {
+      return false;
+    }
+    if (state.difficulty === 'easy' || state.difficulty === 'normal') {
+      return true;
+    }
+    return resolvedEnemies.some(enemy =>
+      enemy.role === 'elite' ||
+      enemy.role === 'boss' ||
+      enemy.maxHp >= 8 ||
+      !!encounter.objective
+    );
+  }
+
+  private static organicEncounterLootName(encounter: NonNullable<SessionState['encounterState']>): string {
+    const sourceName = encounter.lastResolvedEnemyName ||
+      encounter.enemies.find(enemy => enemy.status !== 'active')?.name ||
+      encounter.name.replace(/\s+Skirmish$/i, '').trim() ||
+      'Victory';
+    return `${sourceName} Token`;
+  }
+
   private static isNonOffensiveEncounterAction(actionAttempt: ActionAttempt, aiSuggestedChanges?: Record<string, unknown>): boolean {
     const text = actionAttempt.actionAttempt.toLowerCase();
     if (/\b(heal|healing|mend|restore|revive|prayer|bless|aid|help|support|bolster|rally|inspire|encourage|protect|shield|recover|rest|stabilize)\b/.test(text)) {
@@ -685,6 +713,19 @@ export class GameEngine {
             const lootName = this.cleanItemName(encSeed.lootHint);
             if (lootName && !this.partyHasItem(newState.party, lootName)) {
               actingChar.inventory.push({ id: createId(), name: lootName, description: '', tags: [] });
+              if (aiSuggestedChanges) {
+                this.appendLootNarration(aiSuggestedChanges, actingChar.name, lootName);
+              }
+            }
+          } else if (!encSeed && this.shouldGrantOrganicEncounterLoot(state, updated)) {
+            const lootName = this.cleanItemName(this.organicEncounterLootName(updated));
+            if (lootName && !this.partyHasItem(newState.party, lootName)) {
+              actingChar.inventory.push({
+                id: createId(),
+                name: lootName,
+                description: `A small trophy from the defeated ${updated.lastResolvedEnemyName ?? updated.name}.`,
+                tags: ['trophy'],
+              });
               if (aiSuggestedChanges) {
                 this.appendLootNarration(aiSuggestedChanges, actingChar.name, lootName);
               }

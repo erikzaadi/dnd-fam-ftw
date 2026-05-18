@@ -157,11 +157,11 @@ Controlled by `IMAGE_STORAGE_PROVIDER` env var (`local` or `s3`). Never call `fs
 
 ## Image prompt architecture
 
-All image prompts are built via `buildImagePrompt()` in `imageService.ts`, which prepends `IMAGE_COMPOSITION_GUARDRAIL` (a long inline negative-instruction string) to every prompt. This is the source of truth for suppressing unwanted image content because OpenAI/DALL-E and many OpenAI-compatible image endpoints do not honor a separate negative prompt parameter. `DEFAULT_NEGATIVE_PROMPT` remains a compatibility hint on the provider input type, but new suppression rules belong in `IMAGE_COMPOSITION_GUARDRAIL`.
+All image prompts are built via `buildImagePrompt()` in `imageService.ts`, which prepends `IMAGE_COMPOSITION_GUARDRAIL` (a long inline negative-instruction string) to every prompt. This is the source of truth for suppressing unwanted image content because GPT Image and many OpenAI-compatible image endpoints do not honor a separate negative prompt parameter. `DEFAULT_NEGATIVE_PROMPT` remains a compatibility hint on the provider input type, but new suppression rules belong in `IMAGE_COMPOSITION_GUARDRAIL`.
 
 ## Static image assets
 
-`backend/src/scripts/generateStaticAssets.ts` is a one-time DALL-E generation script for bundled frontend images (intervention dragon, sanctuary light, home banner, UI icons, etc.). Output goes to `frontend/public/images/`. The script is idempotent - it skips files that already exist. Run from `backend/`:
+`backend/src/scripts/generateStaticAssets.ts` is a one-time GPT Image generation script for bundled frontend images (intervention dragon, sanctuary light, home banner, UI icons, etc.). Output goes to `frontend/public/images/`. The script is idempotent - it skips files that already exist. Run from `backend/`:
 
 ```bash
 npx tsx --env-file=../.env src/scripts/generateStaticAssets.ts

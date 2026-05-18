@@ -196,6 +196,22 @@ describe('inferOrganicEncounterStart', () => {
     expect(proposal?.enemies[0].role).toBe('standard');
   });
 
+  it('names a targeted shadow foe from the action instead of filler attack words', () => {
+    const proposal = inferOrganicEncounterStart({
+      narration: "Vesperine's shadowy form twists the wild magic, the fissure's chaotic pulse surging violently.",
+      imagePrompt: "Half-Orc cleric Sprocket sneezes near a glowing, chaotic magical fissure as Vesperine's shadow looms in ruined marble basilica, tension crackling.",
+      actionAttempt: "I charge directly at Vesperine's shadowy figure, unleashing a mighty roar to strike down her dark presence.",
+      currentTensionLevel: 'high',
+      suggestedDamage: 2,
+    }, undefined);
+
+    expect(proposal?.name).toBe("Vesperine's Shadow Skirmish");
+    expect(proposal?.enemies[0].name).toBe("Vesperine's Shadow");
+    expect(proposal?.enemies[0].traits).toEqual(['looming shadow-form', 'feeds on unstable magic', 'uses broken terrain']);
+    expect(proposal?.enemies[0].weaknesses?.[0]).toEqual({ label: 'stable ritual focus', school: 'force' });
+    expect(proposal?.objective).toBe("Contain Vesperine's Shadow before the wild magic tears wider");
+  });
+
   it('does not infer from atmospheric tension alone', () => {
     const proposal = inferOrganicEncounterStart({
       narration: 'The hallway grows colder as distant bells echo.',

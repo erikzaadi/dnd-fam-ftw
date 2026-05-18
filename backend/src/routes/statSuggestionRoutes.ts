@@ -7,6 +7,7 @@ import { parseBody } from './routeValidation.js';
 import type { FreeActionPreview } from '@dnd-fam-ftw/shared';
 import { buildFreeActionWarnings, getFreeActionDifficulty } from '../services/freeActionPolicyService.js';
 import { registerSessionIdParam } from '../middleware/sessionParam.js';
+import { devLog } from '../lib/devLog.js';
 
 const suggestStatBodySchema = z.object({
   action: z.string().min(1),
@@ -42,16 +43,26 @@ export const createStatSuggestionRouter = () => {
   }));
 
   router.post('/session/:id/preview-action', asyncHandler(async (req, res) => {
+    const start = Date.now();
     const body = parseBody(req, res, previewActionBodySchema);
     if (!body) {
       return;
     }
+    const sessionId = req.params.id as string;
+    let stepStart = Date.now();
     const session = req.session!;
-    const action = body.action?.trim() || await suggestPreviewActionText(req.params.id as string, body);
+    devLog.log(`[PreviewAction] start session=${sessionId} hasAction=${body.action ? 'true' : 'false'} intent=${body.intent ?? 'custom'} encounter=${session.encounterState?.status ?? 'none'}`);
+    const action = body.action?.trim() || await suggestPreviewActionText(sessionId, body);
+    devLog.log(`[PreviewAction] action-text session=${sessionId} durationMs=${Date.now() - stepStart} chars=${action.length}`);
+    stepStart = Date.now();
     const encounterContext = session.encounterState?.status === 'active'
       ? buildEncounterContextFromEnemies(session.encounterState.enemies)
       : null;
-    const suggestion = await previewFreeAction(req.params.id as string, { action, encounterContext });
+    devLog.log(`[PreviewAction] encounter-context session=${sessionId} durationMs=${Date.now() - stepStart} enemies=${encounterContext?.activeEnemies.length ?? 0}`);
+    stepStart = Date.now();
+    const suggestion = await previewFreeAction(sessionId, { action, encounterContext });
+    devLog.log(`[PreviewAction] preview-free-action session=${sessionId} durationMs=${Date.now() - stepStart} stat=${suggestion.stat} interpreted=${suggestion.interpretedAction ? 'true' : 'false'}`);
+    stepStart = Date.now();
     const interpretedAction = suggestion.interpretedAction ?? action;
     const SUPPORT_INTENTS = new Set(['bless_character', 'aid_character', 'improve_item', 'party_boost']);
     const isSupportIntent = !!body.intent && SUPPORT_INTENTS.has(body.intent);
@@ -80,6 +91,7 @@ export const createStatSuggestionRouter = () => {
       ...(suggestion.likelyEnemyName !== undefined && { likelyEnemyName: suggestion.likelyEnemyName }),
       ...(suggestion.weakPointMatch !== undefined && { weakPointMatch: suggestion.weakPointMatch }),
     };
+    devLog.log(`[PreviewAction] response session=${sessionId} durationMs=${Date.now() - stepStart} totalMs=${Date.now() - start}`);
     res.json(preview);
   }));
 
