@@ -83,7 +83,7 @@ export const SECTION_CUTE_CONDITIONS_BUFFS = `CUTE CONDITIONS AND BUFFS:
 
 export const SECTION_CHOICES_FORMAT = `Always return exactly 3 suggested actions.
 Each action MUST include:
-- label: Short text of the choice
+- label: Short text of the choice. Do NOT prefix with the character name - write the action itself, not "CharacterName: action".
 - difficulty: one of ["easy", "normal", "hard"]
 - stat: one of ["might", "magic", "mischief"]
 - difficultyValue: exact number the player must meet or exceed (roll + stat + passive item + combo helper + marked gear + character edge bonuses)
@@ -212,7 +212,7 @@ export const SECTION_CHOICE_VARIETY = `Choice variety:
 - Spotlight: occasionally highlight one hero's class, quirk, history, or carried item. Keep it active and useful.
 - Combo/help: offer a choice where \`nextCharacterName\` works with one active ally. Set \`flavor: "combo"\` and \`helperCharacterName\`. Make combos slightly easier than solo.
 - Item: one choice may use gear carried by \`nextCharacterName\` only. Set \`flavor: "item"\`, \`itemOwnerName\`, \`itemName\`. Never suggest another hero's gear.
-- Environment: specific actionable obstacles (collapsing bridge, unstable runes, falling stones). Use active verbs. Set \`flavor: "environment"\` and \`environmentFeature\`.
+- Environment: specific actionable obstacles (collapsing bridge, unstable runes, falling stones). Use active verbs. Set \`flavor: "environment"\` and \`environmentFeature\` to the exact area label or obstacle name - never the scene name itself.
 - Social encounters: tailor to class strengths (rogues deceive, mages charm, holy characters appeal to honour).
 - Flavors: "spotlight", "social", "combo", "item", "environment", or "standard". Max 2 bonus-bearing (combo, item, social, spotlight) per response.
 - In \`fast\` mode: one force/combat, one environment/route, one clever/team/item. No 3 same-verb choices.
@@ -347,7 +347,7 @@ export const SECTION_INVENTORY_BASICS = `Inventory:
 export const SECTION_INVENTORY_COMBAT_LOOT = `COMBAT LOOT: When a combat encounter concludes with a victory, consider setting suggestedInventoryAdd with loot thematically tied to the defeated enemy. Loot must feel earned and fitting - never generic. CRITICAL: Combat loot MUST go to \`actingCharacterName\` - omit \`targetCharacterName\`.
 Drop rate by difficulty (use actionResult.difficulty):
 - "easy": Always drop loot. Every defeated enemy yields something useful.
-- "normal": Usually drop loot. Skip only for trivial mobs (rats, minor pests, summoned dust).
+- "normal": Usually drop loot. Named enemies (role: standard, boss, or any enemy with a proper name) always drop something fitting - a badge, key, signet, weapon, document, or item relevant to the encounter fiction. Skip only anonymous trivial mobs (rats, minor pests, summoned dust).
 - "hard": Often drop loot for meaningful victories, named foes, bosses, story-weight threats, or enemies guarding important places. Skip only disposable minions and situations where looting would clearly break the fiction.
 - "zug-ma-geddon": Rare drops only. The chaos of constant battle leaves no time to loot. Only set suggestedInventoryAdd for truly significant kills (bosses, unique enemies). Common kills yield nothing.
 STAT FIT: statBonuses on combat loot must complement actingCharacterName's primary stat. Find them in the party data and pick the stat with the highest value - might bonus for fighters and brawlers, magic bonus for casters and clerics, mischief bonus for rogues and rangers. Do not assign random or mismatched stat bonuses.`;

@@ -193,7 +193,7 @@ CUTE CONDITIONS AND BUFFS:
 
 Always return exactly 3 suggested actions.
 Each action MUST include:
-- label: Short text of the choice
+- label: Short text of the choice. Do NOT prefix with the character name - write the action itself, not "CharacterName: action".
 - difficulty: one of ["easy", "normal", "hard"]
 - stat: one of ["might", "magic", "mischief"]
 - difficultyValue: exact number the player must meet or exceed (roll + stat + passive item + combo helper + marked gear + character edge bonuses)
@@ -385,7 +385,7 @@ Inventory:
 - COMBAT LOOT: When a combat encounter concludes with a victory, consider setting suggestedInventoryAdd with loot thematically tied to the defeated enemy. Loot must feel earned and fitting - never generic. CRITICAL: Combat loot MUST go to \`actingCharacterName\` - omit \`targetCharacterName\`.
   Drop rate by difficulty (use actionResult.difficulty):
   - "easy": Always drop loot. Every defeated enemy yields something useful.
-  - "normal": Usually drop loot. Skip only for trivial mobs (rats, minor pests, summoned dust).
+  - "normal": Usually drop loot. Named enemies (role: standard, boss, or any enemy with a proper name) always drop something fitting - a badge, key, signet, weapon, document, or item relevant to the encounter fiction. Skip only anonymous trivial mobs (rats, minor pests, summoned dust).
   - "hard": Often drop loot for meaningful victories, named foes, bosses, story-weight threats, or enemies guarding important places. Skip only disposable minions and situations where looting would clearly break the fiction.
   - "zug-ma-geddon": Rare drops only. The chaos of constant battle leaves no time to loot. Only set suggestedInventoryAdd for truly significant kills (bosses, unique enemies). Common kills yield nothing.
 - CRITICAL: If your narration mentions giving, finding, receiving, looting, rewarding, harvesting, gathering, foraging, picking, crafting, buying, or obtaining ANY item, you MUST set suggestedInventoryAdd. Never narrate an item being obtained without setting this field.

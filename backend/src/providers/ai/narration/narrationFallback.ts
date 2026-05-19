@@ -24,9 +24,11 @@ const isInternalGuidance = (text: string): boolean => {
   return INTERNAL_GUIDANCE_FRAGMENTS.some(fragment => normalized.includes(fragment));
 };
 
+const PLACEHOLDER_SCENE_NAMES = new Set(['a new realm', 'new realm', 'a new area', 'unknown area']);
+
 const sceneNoun = (scene: string): string => {
   const cleaned = cleanLabel(scene);
-  if (!cleaned) {
+  if (!cleaned || PLACEHOLDER_SCENE_NAMES.has(cleaned.toLowerCase())) {
     return 'the area';
   }
   return cleaned.length > 44 ? `${cleaned.slice(0, 41).trim()}...` : cleaned;

@@ -356,7 +356,12 @@ function validateMomentumOutput(input: NarrationInput, output: ValidNarrationOut
     return `Output revives recently resolved threat: "${repeatedResolvedThreat}". Move to a different beat, consequence, clue, NPC, or location.`;
   }
 
-  const hiddenPathLoop = HIDDEN_PATH_RE.test(fullText) && input.recentHistory.some(previous => HIDDEN_PATH_RE.test(previous));
+  // Exempt when the narration describes the path being resolved (door opens, party descends, etc.) - that IS the payoff.
+  // Only check choice text for repetition when the narration itself is not resolving the beat.
+  const HIDDEN_PATH_RESOLVED_RE = /\b(open|opens|opened|swing|swings|swung|reveal|reveals|revealed|enter|enters|entered|descend|descends|descended|beyond|through the)\b/i;
+  const hiddenPathLoop = HIDDEN_PATH_RE.test(fullText) &&
+    input.recentHistory.some(previous => HIDDEN_PATH_RE.test(previous)) &&
+    !HIDDEN_PATH_RESOLVED_RE.test(output.narration);
   if (hiddenPathLoop) {
     return 'Hidden-path beat repeats recent story continuity. Pay off the discovered route or introduce a different concrete obstacle, clue, NPC, or location.';
   }
@@ -462,6 +467,20 @@ function validateNarrationLeakage(output: ValidNarrationOutput): string | null {
   return null;
 }
 
+function repairChoiceLabels(input: NarrationInput, output: ValidNarrationOutput): void {
+  const namePrefix = input.nextCharacterName ? `${input.nextCharacterName}: ` : null;
+  for (const choice of output.choices) {
+    if (namePrefix && choice.label.startsWith(namePrefix)) {
+      choice.label = choice.label.slice(namePrefix.length);
+    }
+    if (choice.environmentFeature && choice.environmentFeature === input.scene) {
+      devLog.warn('[Guard] environmentFeature cleared - matches scene name', { environmentFeature: choice.environmentFeature });
+      delete choice.environmentFeature;
+      choice.flavor = 'standard';
+    }
+  }
+}
+
 function repairChoiceActors(input: NarrationInput, output: ValidNarrationOutput): void {
   if (!input.nextCharacterName) {
     return;
@@ -509,6 +528,7 @@ export function parseNarrationOutput(
     }
   }
   stripNarrationEmDashes(parsed.data);
+  repairChoiceLabels(input, parsed.data);
   canonicalizeItemChoices(input, parsed.data);
   repairChoiceActors(input, parsed.data);
   repairRepeatedItemChoices(input, parsed.data);

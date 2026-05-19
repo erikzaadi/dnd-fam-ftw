@@ -461,6 +461,32 @@ describe('parseNarrationOutput', () => {
     }
   });
 
+  it('allows hidden-path narration when the narration resolves the beat (door opens, party descends)', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      recentHistory: ['Pip found a hidden path behind the blue flowers.'],
+      sceneMomentum: {
+        directive: 'press_current_scene',
+        staleChoiceCount: 0,
+        turnsSinceSceneChange: 2,
+        turnsSinceCombat: 3,
+        justCompletedCombat: false,
+        justCompletedDifficultChallenge: false,
+        suggestedNextBeat: 'Pay off the discovered route.',
+        reason: 'Pressure continues.',
+      },
+    }, output({
+      narration: 'The hidden door swings fully open, revealing a spiral staircase descending into darkness.',
+      choices: [
+        { label: 'Descend the staircase cautiously', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+        { label: 'Illuminate the hidden path with a lantern', difficulty: 'easy', stat: 'magic', difficultyValue: 8 },
+        { label: 'Confront the figure blocking the way', difficulty: 'hard', stat: 'might', difficultyValue: 14 },
+      ],
+    }));
+
+    expect(result.success).toBe(true);
+  });
+
   it('rejects portal transitions before a completed combat or difficult challenge', () => {
     const result = parseNarrationOutput({
       ...input,
