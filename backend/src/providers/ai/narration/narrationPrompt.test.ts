@@ -100,9 +100,49 @@ describe('buildNarrationSystemPrompt', () => {
     expect(prompt).not.toContain('DRAMA LLAMA');
   });
 
-  it('always includes inventory section', () => {
+  it('includes difficulty, continuity, acting, choice-variety sections on plain turn', () => {
     const prompt = buildNarrationSystemPrompt(makeInput());
+    expect(prompt).toContain('DYNAMIC DIFFICULTY');
+    expect(prompt).toContain('Story Continuity');
+    expect(prompt).toContain('Acting and Next Character');
+    expect(prompt).toContain('Choice variety');
+  });
+
+  it('excludes inventory section when inventory is empty and not a loot turn', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput({ inventory: [] }));
+    expect(prompt).not.toContain('Inventory:');
+  });
+
+  it('includes inventory section when inventory is non-empty', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput({
+      inventory: [{ name: '⚔️ Iron Sword', description: 'A sword', ownerName: 'Pip', statBonuses: {}, transferable: true, consumable: false }],
+    }));
     expect(prompt).toContain('Inventory:');
+  });
+
+  it('excludes revival/healing section when nobody is downed and not a rest turn', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput());
+    expect(prompt).not.toContain('CRITICAL - Character Revival');
+  });
+
+  it('includes revival/healing section when a character is downed', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput({
+      party: [
+        { name: 'Pip', class: 'Rogue', species: 'Halfling', hp: 8, maxHp: 10, stats: { might: 1, magic: 2, mischief: 4 }, status: 'active' },
+        { name: 'Brom', class: 'Warrior', species: 'Human', hp: 0, maxHp: 10, stats: { might: 4, magic: 1, mischief: 2 }, status: 'downed' },
+      ],
+    }));
+    expect(prompt).toContain('CRITICAL - Character Revival');
+  });
+
+  it('includes damage section when action has a stat', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput({ actionResult: { success: true, summary: 'ok', statUsed: 'might' } }));
+    expect(prompt).toContain('CRITICAL - Damage on Failure');
+  });
+
+  it('excludes damage section when action has no stat', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput({ actionResult: { success: true, summary: 'ok' } }));
+    expect(prompt).not.toContain('CRITICAL - Damage on Failure');
   });
 
   it('non-buff turn does not include buffs curses format', () => {

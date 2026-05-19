@@ -338,6 +338,11 @@ export const migrate = (db: DB): void => {
     db.prepare("ALTER TABLE sessions ADD COLUMN past_encounters TEXT").run();
   }
 
+  const sessionColsCompiled = (db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[]).map(r => r.name);
+  if (!sessionColsCompiled.includes('compiled_dm_prep')) {
+    db.prepare("ALTER TABLE sessions ADD COLUMN compiled_dm_prep TEXT").run();
+  }
+
   const sessionColsOrigin = (db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[]).map(r => r.name);
   if (!sessionColsOrigin.includes('origin_story')) {
     db.prepare("ALTER TABLE sessions ADD COLUMN origin_story TEXT").run();

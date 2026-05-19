@@ -5,6 +5,7 @@ import { AiDmService } from './aiDmService.js';
 import { GameEngine } from './gameEngine.js';
 import { StateService } from './stateService.js';
 import { queueCompletedTurnSideEffects } from './turnSideEffectService.js';
+import { compileDmPrepPremise } from './dmPrepCompilationService.js';
 import { computeBuffChanges, computeEncounterEnemyChanges, computeHpChanges, computeInventoryChanges } from './turnChangeService.js';
 import { resolveRiddleAnswer } from './riddleService.js';
 import {
@@ -179,6 +180,20 @@ export const executeTurnAction = async (
   stepStart = logTurnStep(sessionId, 'load-session', stepStart);
   if (!session) {
     return { ok: false, status: 404, body: { error: 'Session not found' } };
+  }
+
+  if (session.dmPrep && !session.compiledDmPrep) {
+    devLog.log(`[DmPrepCompile] no compiled premise found for session=${sessionId} dmPrepChars=${session.dmPrep.length} - compiling in background`);
+    compileDmPrepPremise(session.dmPrep).then(compiled => {
+      if (compiled) {
+        devLog.log(`[DmPrepCompile] compiled premise stored for session=${sessionId} chars=${compiled.length}`);
+        StateService.patchSession(sessionId, { compiledDmPrep: compiled }).catch(err => {
+          devLog.warn(`[DmPrepCompile] failed to store compiled premise for session=${sessionId}`, err);
+        });
+      }
+    }).catch(err => {
+      devLog.warn(`[DmPrepCompile] compilation failed for session=${sessionId}`, err);
+    });
   }
 
   const actingCharId = characterId || session.activeCharacterId;

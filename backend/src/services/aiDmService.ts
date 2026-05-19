@@ -29,14 +29,12 @@ export function toNarrationInput(input: AIInput): NarrationInput {
 
   const isActiveEncounter = input.encounterState?.status === 'active';
 
-  // Build compacted dmPrep
+  // Build compacted dmPrep - omitted during active encounters, compiled premise preferred otherwise
   let compactedDmPrep: string | undefined;
-  if (input.dmPrep) {
-    if (isActiveEncounter) {
-      // Omit dmPrep during active encounters - encounterState is authoritative
-      compactedDmPrep = undefined;
+  if (input.dmPrep && !isActiveEncounter) {
+    if (input.compiledDmPrep) {
+      compactedDmPrep = input.compiledDmPrep;
     } else {
-      // Cap at 3000 chars on non-encounter turns
       compactedDmPrep = input.dmPrep.length > 3000
         ? input.dmPrep.slice(0, 3000)
         : input.dmPrep;
@@ -147,6 +145,7 @@ export class AiDmService {
       `history=${narrationInput.recentHistory.length}`,
       `choices=${narrationInput.previousChoiceLabels?.length ?? 0}`,
       `dmPrepChars=${narrationInput.dmPrep?.length ?? 0}`,
+      `dmPrepCompiled=${input.compiledDmPrep ? 'true' : 'false'}`,
       `encounters=${narrationInput.dmPrepEncounters?.length ?? 0}`,
       `hasEncounterState=${narrationInput.encounterState ? 'true' : 'false'}`,
       `momentum=${narrationInput.sceneMomentum?.directive ?? 'none'}`,

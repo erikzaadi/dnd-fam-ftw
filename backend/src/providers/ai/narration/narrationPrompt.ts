@@ -11,9 +11,13 @@ import {
   SECTION_CHOICES_RIDDLE,
   SECTION_CHOICES_VENDOR,
   SECTION_DRAMA_ROLL,
-  SECTION_DYNAMIC_DIFFICULTY_CONTINUITY_ACTING_CHOICES,
+  SECTION_DIFFICULTY_SHORT,
+  SECTION_CONTINUITY_SHORT,
+  SECTION_ACTING_SHORT,
+  SECTION_CHOICE_VARIETY,
   SECTION_PARTY_STATUS,
-  SECTION_CRITICAL_DAMAGE_REVIVAL_HEALING,
+  SECTION_DAMAGE_FAILURE,
+  SECTION_REVIVAL_HEALING,
   SECTION_BUFFS_CURSES_FORMAT,
   SECTION_SUPPORT_ACTION_PAYOFF,
   SECTION_ACTION_INTENT,
@@ -74,6 +78,8 @@ export function buildNarrationSystemPrompt(input: NarrationInput): string {
   const hasDramaRoll = input.actionResult.statUsed !== undefined;
   const restTurn = isRestTurn(input);
   const buffTurn = isBuffTurn(input);
+  const hasDownedOrHealing = restTurn || input.party.some(c => c.status === 'downed');
+  const inventoryRelevant = input.inventory.length > 0 || isLootTurn || tradeEnabled;
 
   const sections: string[] = [
     SECTION_PREAMBLE_PACING_TENSION,
@@ -84,13 +90,17 @@ export function buildNarrationSystemPrompt(input: NarrationInput): string {
     ...(buffTurn ? [SECTION_CUTE_CONDITIONS_BUFFS] : []),
     SECTION_CHOICES_FORMAT,
     ...(hasDramaRoll ? [SECTION_DRAMA_ROLL] : []),
-    SECTION_DYNAMIC_DIFFICULTY_CONTINUITY_ACTING_CHOICES,
+    SECTION_DIFFICULTY_SHORT,
+    SECTION_CONTINUITY_SHORT,
+    SECTION_ACTING_SHORT,
+    SECTION_CHOICE_VARIETY,
     ...(riddleEnabled ? [SECTION_CHOICES_RIDDLE] : []),
     ...(tradeEnabled ? [SECTION_CHOICES_VENDOR] : []),
     SECTION_PARTY_STATUS,
-    SECTION_CRITICAL_DAMAGE_REVIVAL_HEALING,
+    ...(hasDramaRoll || isActiveCombat ? [SECTION_DAMAGE_FAILURE] : []),
+    ...(hasDownedOrHealing ? [SECTION_REVIVAL_HEALING] : []),
     ...(buffTurn ? [SECTION_BUFFS_CURSES_FORMAT, SECTION_SUPPORT_ACTION_PAYOFF, SECTION_ACTION_INTENT] : []),
-    SECTION_INVENTORY_BASICS,
+    ...(inventoryRelevant ? [SECTION_INVENTORY_BASICS] : []),
     ...(isLootTurn ? [SECTION_INVENTORY_COMBAT_LOOT] : []),
     ...(tradeEnabled ? [SECTION_INVENTORY_TRADE] : []),
   ];
@@ -217,15 +227,14 @@ DRAMA LLAMA - Roll Impact (applies only when actionResult.statUsed !== "none"):
 
 ROLL NARRATION (rollNarration):
 - Provide a very short (max 10 words) evocative narration of the final resolved action result, not the die alone.
-- Examples: "🎲 A near-perfect roll! The blade strikes true.", "🎲 Disaster! You trip over your own feet.", "🎲 A solid effort, but the lock holds firm."
+- Examples: "A near-perfect roll! The blade strikes true.", "Disaster! You trip over your own feet.", "A solid effort, but the lock holds firm."
 - This should be context-aware based on the action attempted.
 - This MUST reflect actionResult.success, actionResult.impact, and actionResult.margin. If success is true with strong/extreme impact, rollNarration must sound successful even when the raw die was low.
 - Do not write a failed/uncertain rollNarration like "but the lock holds" or "flames still flicker" when actionResult.success is true.
 - This should reflect actionResult.impact: normal is concise, strong is punchier, extreme is memorable.
-- Always include the die emoji 🎲 at the start.
 
 CRITICAL -Narration vs Roll Narration separation:
-- \`narration\` is the STORY consequence of the outcome: what happens in the world, not the mechanical result. Never mention dice, rolls, numbers, or success/failure as concepts. Do not start with "🎲".
+- \`narration\` is the STORY consequence of the outcome: what happens in the world, not the mechanical result. Never mention dice, rolls, numbers, or success/failure as concepts.
 - \`rollNarration\` handles the mechanical framing. These are separate fields with separate jobs.
 
 DYNAMIC DIFFICULTY (difficultyValue):

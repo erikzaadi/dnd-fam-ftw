@@ -1,8 +1,10 @@
 import { ImageService } from './imageService.js';
 import { StateService } from './stateService.js';
 import { StorySummaryService } from './storySummaryService.js';
+import { compileDmPrepPremise } from './dmPrepCompilationService.js';
 import { broadcastSessionListUpdate, broadcastUpdate } from '../realtime/sessionEvents.js';
 import { runBackground } from '../middleware/runBackground.js';
+import type { SessionPatch } from '../repositories/sessionRepository.js';
 
 export const triggerPreviewRegen = (sessionId: string, namespaceId?: string) => {
   runBackground(`preview-regen session=${sessionId}`, async () => {
@@ -33,12 +35,18 @@ export const refreshDmPrepImageBriefAndPreview = (
   namespaceId?: string,
 ) => {
   runBackground(`dm-prep-brief session=${sessionId}`, async () => {
-    try {
-      const brief = await StorySummaryService.generateDmPrepImageBrief(dmPrep);
-      await StateService.patchSession(sessionId, { dmPrepImageBrief: brief });
-    } catch (err) {
-      console.warn('[Preview] DM prep visual brief refresh failed:', err);
+    const [brief, compiledPremise] = await Promise.allSettled([
+      StorySummaryService.generateDmPrepImageBrief(dmPrep),
+      compileDmPrepPremise(dmPrep ?? ''),
+    ]);
+    const patch: SessionPatch = {
+      dmPrepImageBrief: brief.status === 'fulfilled' ? brief.value : undefined,
+      compiledDmPrep: compiledPremise.status === 'fulfilled' ? compiledPremise.value : null,
+    };
+    if (brief.status === 'rejected') {
+      console.warn('[Preview] DM prep visual brief refresh failed:', brief.reason);
     }
+    await StateService.patchSession(sessionId, patch);
     triggerPreviewRegen(sessionId, namespaceId);
   });
 };

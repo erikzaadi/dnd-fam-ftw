@@ -45,7 +45,7 @@ export class OpenAINarrationProvider implements NarrationProvider {
     const userContent = buildNarrationUserContent(input, validationError);
     const isHighStakesTurn = input.encounterState?.status === 'active'
       || input.sceneMomentum?.directive === 'climax_pressure';
-    const timeoutMs = isHighStakesTurn ? 60_000 : 50_000;
+    const timeoutMs = isHighStakesTurn ? 25_000 : 50_000;
     const systemChars = systemPrompt.length;
     const userChars = userContent.length;
     const storySummaryChars = input.storySummary ? JSON.stringify(input.storySummary).length : 0;
@@ -89,7 +89,7 @@ export class OpenAINarrationProvider implements NarrationProvider {
         ],
         response_format: zodResponseFormat(narrationOutputSchema, 'narration_output'),
         temperature: 0.7,
-        max_completion_tokens: 1200,
+        max_completion_tokens: isHighStakesTurn ? 1500 : 1300,
       }, { signal: AbortSignal.timeout(timeoutMs) });
     } catch (error: unknown) {
       const durationMs = Date.now() - start;

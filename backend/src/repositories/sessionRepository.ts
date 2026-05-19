@@ -28,6 +28,7 @@ export type SessionPatch = {
   difficulty?: string;
   gameMode?: string;
   dmPrep?: string | null;
+  compiledDmPrep?: string | null;
   dmPrepImageBrief?: string | null;
   worldDescription?: string | null;
   encounterState?: EncounterState | null;
@@ -91,6 +92,7 @@ export const sessionRepository = {
       sceneId: string;
       worldDescription: string | null;
       dm_prep: string | null;
+      compiled_dm_prep: string | null;
       dm_prep_image_brief: string | null;
       encounter_state: string | null;
       past_encounters: string | null;
@@ -176,6 +178,7 @@ export const sessionRepository = {
       sceneId: row.sceneId,
       worldDescription: row.worldDescription || undefined,
       dmPrep: row.dm_prep || undefined,
+      compiledDmPrep: row.compiled_dm_prep || undefined,
       dmPrepImageBrief: row.dm_prep_image_brief || undefined,
       encounterState: row.encounter_state ? (JSON.parse(row.encounter_state) as EncounterState) : undefined,
       pastEncounters: row.past_encounters ? (JSON.parse(row.past_encounters) as EncounterState[]) : undefined,
@@ -278,6 +281,7 @@ export const sessionRepository = {
       difficulty: 'difficulty',
       gameMode: 'gameMode',
       dmPrep: 'dm_prep',
+      compiledDmPrep: 'compiled_dm_prep',
       dmPrepImageBrief: 'dm_prep_image_brief',
       worldDescription: 'worldDescription',
       originStory: 'origin_story',

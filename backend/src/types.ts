@@ -13,6 +13,7 @@ export interface SessionState extends Session {
   sceneId: string;
   worldDescription?: string;
   dmPrep?: string;
+  compiledDmPrep?: string;
   dmPrepImageBrief?: string;
   encounterState?: EncounterState;
   pastEncounters?: EncounterState[];

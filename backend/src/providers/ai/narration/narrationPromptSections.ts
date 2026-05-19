@@ -117,15 +117,14 @@ export const SECTION_DRAMA_ROLL = `DRAMA LLAMA - Roll Impact (applies only when 
 
 ROLL NARRATION (rollNarration):
 - Provide a very short (max 10 words) evocative narration of the final resolved action result, not the die alone.
-- Examples: "🎲 A near-perfect roll! The blade strikes true.", "🎲 Disaster! You trip over your own feet.", "🎲 A solid effort, but the lock holds firm."
+- Examples: "A near-perfect roll! The blade strikes true.", "Disaster! You trip over your own feet.", "A solid effort, but the lock holds firm."
 - This should be context-aware based on the action attempted.
 - This MUST reflect actionResult.success, actionResult.impact, and actionResult.margin. If success is true with strong/extreme impact, rollNarration must sound successful even when the raw die was low.
 - Do not write a failed/uncertain rollNarration like "but the lock holds" or "flames still flicker" when actionResult.success is true.
 - This should reflect actionResult.impact: normal is concise, strong is punchier, extreme is memorable.
-- Always include the die emoji 🎲 at the start.
 
 CRITICAL -Narration vs Roll Narration separation:
-- \`narration\` is the STORY consequence of the outcome: what happens in the world, not the mechanical result. Never mention dice, rolls, numbers, or success/failure as concepts. Do not start with "🎲".
+- \`narration\` is the STORY consequence of the outcome: what happens in the world, not the mechanical result. Never mention dice, rolls, numbers, or success/failure as concepts.
 - \`rollNarration\` handles the mechanical framing. These are separate fields with separate jobs.`;
 
 export const SECTION_CHOICES_RIDDLE = `RIDDLES AND PUZZLES: If THIS TURN's narration introduces a direct riddle, pun question, password, or answerable puzzle, exactly 2 of the 3 choices MUST be possible answers. One answer choice MUST be correct and one MUST be plausible but wrong. For these two answer choices, set riddleAnswer to the exact answer text and riddleCorrect to true or false. The third choice MUST be a non-answer action tailored to \`nextCharacterName\` such as scouting, asking for a hint, using an item, or investigating the scene, and MUST NOT include riddleAnswer. Correct riddle answers are resolved by the game without a dice roll, so do not describe them as risky guesses.
@@ -187,6 +186,39 @@ Choices:
 - Do NOT suggest targeting or interacting with downed characters in any choice unless it's to heal/revive them.
 - SETUP AND PAYOFF CHOICES: If \`dmPrep\`, \`storySummary\`, \`recentHistory\`, or \`inventory\` indicates the party found a key clue, password, token, map, relic, ingredient, badge, shard, or quest object for a later challenge, use that memory. When the matching challenge appears, one suggested action should explicitly use the carried clue/object or remembered answer. Example labels: "Fit the moon key into the silver lock", "Show the badge to the gate warden", "Speak the raven password", "Compare the map to the hallway".`;
 
+export const SECTION_DIFFICULTY_SHORT = `DYNAMIC DIFFICULTY (difficultyValue):
+- Trivial (sleeping guard, cooperative NPC): 5-8
+- Moderate (alert foe, unknown terrain): 9-11
+- Active conflict (combat, trap, resistant enemy): 12-14
+- Dangerous (powerful enemy, life-or-death stakes): 15-18
+- Labels: easy 5-10, normal 9-15, hard 13-18. Same label can vary by context: sleeping guard easy 6, paranoid sentry easy 10.`;
+
+export const SECTION_CONTINUITY_SHORT = `Story Continuity:
+- Use \`storySummary\` for continuity. Build on \`recentHistory\`, never repeat it.
+- Vary choices using \`previousChoiceFlavors\` and \`selectedChoiceFlavor\`.
+- If \`dmPrep\` is provided: honour its lore, villains, locations, and plot hooks. Reveal secrets gradually through clues, NPC reactions, and environmental details. When the party earns a quest object, set \`suggestedInventoryAdd\`. When the matching obstacle appears, offer a choice using the carried object (easier than brute force). Quest-critical objects must use \`transferable: false\` unless the story says otherwise.
+- NPCs from \`dmPrep\` must appear IN the narration itself - they speak, react, interfere, threaten, or help. A villain should loom; a merchant should call out. NPCs are part of the living world, not just action targets.
+- NPC FOLLOW-THROUGH: if the same NPC has loomed without acting in 2 or more of the last 3 turns, have them act now - a spoken line, a physical move, a demand, or a visible arrival.
+- No \`dmPrep\`: invent and maintain an implicit 3-stage arc (discovery, escalation, climax) with a destination, looming threat, and unfolding mystery.`;
+
+export const SECTION_ACTING_SHORT = `Acting and Next Character:
+- \`actingCharacterName\` performed the action. Narration MUST describe what THEY did and what happened. NEVER attribute the result to \`nextCharacterName\`.
+- \`nextCharacterName\` takes the next turn. All 3 choices must be actions THEY can take.
+- Transition naturally through story context. Do NOT write turn-order commentary like "X's turn" or "X steps forward to act".
+- Write choices as direct actions BY \`nextCharacterName\`. Match their class, species, stats, quirk, inventory, and status.`;
+
+export const SECTION_CHOICE_VARIETY = `Choice variety:
+- Use pronouns matching each character's \`gender\` field.
+- Spotlight: occasionally highlight one hero's class, quirk, history, or carried item. Keep it active and useful.
+- Combo/help: offer a choice where \`nextCharacterName\` works with one active ally. Set \`flavor: "combo"\` and \`helperCharacterName\`. Make combos slightly easier than solo.
+- Item: one choice may use gear carried by \`nextCharacterName\` only. Set \`flavor: "item"\`, \`itemOwnerName\`, \`itemName\`. Never suggest another hero's gear.
+- Environment: specific actionable obstacles (collapsing bridge, unstable runes, falling stones). Use active verbs. Set \`flavor: "environment"\` and \`environmentFeature\`.
+- Social encounters: tailor to class strengths (rogues deceive, mages charm, holy characters appeal to honour).
+- Flavors: "spotlight", "social", "combo", "item", "environment", or "standard". Max 2 bonus-bearing (combo, item, social, spotlight) per response.
+- In \`fast\` mode: one force/combat, one environment/route, one clever/team/item. No 3 same-verb choices.
+- NEVER use a downed character as ally in choices, except heal/revive.
+- Setup/payoff: if the party holds a quest clue or key, include a choice that uses it when the matching obstacle appears.`;
+
 export const SECTION_PARTY_STATUS = `Party Status:
 - Each party member has a \`status\`: "active" (can act) or "downed" (at 0 HP, cannot act).
 - Each party member may also have \`buffs\`, which are current temporary character effects, including helpful buffs and harmful curses.
@@ -230,6 +262,32 @@ CRITICAL - Healing (Active and Passive):
 - NEVER narrate healing happening and return suggestedHeal: null -that leaves the character's HP unchanged despite the story.
 - Examples: "channels restoration magic on [target]", "heals wounds", "divine light mends injuries", "rest by the fire", "drink a healing potion", "latent magic restores vigor", "herbs restore strength".
 - Otherwise set suggestedHeal: null.`;
+
+export const SECTION_DAMAGE_FAILURE = `CRITICAL - Damage on Failure:
+- When the action FAILED (success: false), set suggestedDamage to the HP damage.
+- 0 for failed persuasion, missed clue, social blunder, non-combat stumble.
+- 0 for failed healing or support actions (caster takes no damage).
+- 1 for minor physical failures (glancing blow, bad footing, minor burn).
+- 2-3 for significant combat failures or dangerous situations.
+- null to let the engine apply difficulty-based damage.
+- Roll 1 in combat: suggestedDamage should be at least 1.
+- Scale with actionResult.impact: strong/extreme failures hurt proportionally more.
+- When the action SUCCEEDED (success: true): set suggestedDamage: 0.`;
+
+export const SECTION_REVIVAL_HEALING = `CRITICAL - Character Revival (downed → alive):
+- If narration revives a downed character: MUST use suggestedRevive, NOT suggestedHeal.
+- suggestedRevive: { "characterName": "exact name", "hp": N }. hp: 3 modest, 5-7 strong, up to max miraculous.
+- NEVER narrate a revival and return suggestedRevive: null.
+
+CRITICAL - Healing (Active and Passive):
+- Set suggestedHeal only when the action is healing, resting, eating, sleeping, or receiving care.
+- NOT for high rolls, triumphant moments, escape, shortcuts, or safe arrival.
+- The characterName is the character RECEIVING healing, not the caster.
+- Active healing: healed characters only, hp 3-6 standard, up to max for powerful healing.
+- Passive/rest: all active party members, hp 2-3 brief rest, 4-6 proper camp, 6-8 long sleep.
+- Only active characters in suggestedHeal - use suggestedRevive for downed.
+- NEVER narrate healing and return suggestedHeal: null.
+- Otherwise set suggestedHeal: null and suggestedRevive: null.`;
 
 export const SECTION_BUFFS_CURSES_FORMAT = `Buffs and Curses:
 - To add a character-bound temporary effect, set \`suggestedBuffAdd\` to an array: [{ "characterName": "exact active target", "name": "Blessed", "kind": "buff", "description": "A short concrete effect", "statBonuses": {"magic": 1}, "remainingTurns": 2, "remainingUses": null, "sourceCharacterName": "optional caster/helper/NPC/enemy exact name" }]. For single-target effects, wrap the object in an array. For party-wide effects, include one entry per affected character.

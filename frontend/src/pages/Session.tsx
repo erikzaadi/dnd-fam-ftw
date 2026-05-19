@@ -1087,7 +1087,7 @@ export const SessionPage = () => {
             />
             {lastRoll.rollNarration && (
               <p className="text-amber-100/90 text-center font-medium italic mt-2 max-w-xs leading-tight animate-in slide-in-from-bottom-2 duration-700">
-                {lastRoll.rollNarration}
+                {`🎲 ${lastRoll.rollNarration}`}
               </p>
             )}
             {lastRoll.encounterName && (

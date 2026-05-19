@@ -378,16 +378,6 @@ function validateMomentumOutput(input: NarrationInput, output: ValidNarrationOut
     return `Choice label repeats the previous turn exactly: "${repeatedExactChoice.label}". Continue the scene with a fresh specific action.`;
   }
 
-  const previousItemNames = new Set((input.previousChoiceItemNames ?? []).map(normalizedItemName));
-  const repeatedItemChoice = output.choices.find(choice =>
-    choice.flavor === 'item' &&
-    choice.itemName &&
-    previousItemNames.has(normalizedItemName(choice.itemName))
-  );
-  if (repeatedItemChoice?.itemName) {
-    return `Item choice repeats recently suggested gear: "${repeatedItemChoice.itemName}". Use a different item, route, NPC, obstacle, or standard action.`;
-  }
-
   return null;
 }
 
@@ -472,15 +462,33 @@ function validateNarrationLeakage(output: ValidNarrationOutput): string | null {
   return null;
 }
 
-function validateChoiceActors(input: NarrationInput, output: ValidNarrationOutput): string | null {
+function repairChoiceActors(input: NarrationInput, output: ValidNarrationOutput): void {
   if (!input.nextCharacterName) {
-    return null;
+    return;
   }
-  const selfHelper = output.choices.find(c => c.helperCharacterName === input.nextCharacterName);
-  if (selfHelper) {
-    return `Choice "${selfHelper.label}" names "${input.nextCharacterName}" as a helper but that character IS the next actor. Write all 3 choices as actions FOR ${input.nextCharacterName}, not involving them as a helper.`;
+  for (const choice of output.choices) {
+    if (choice.helperCharacterName === input.nextCharacterName) {
+      devLog.warn('[Guard] helperCharacterName cleared - next actor cannot be own helper', { label: choice.label, nextCharacterName: input.nextCharacterName });
+      choice.flavor = 'standard';
+      delete choice.helperCharacterName;
+    }
   }
-  return null;
+}
+
+function repairRepeatedItemChoices(input: NarrationInput, output: ValidNarrationOutput): void {
+  const previousItemNames = new Set((input.previousChoiceItemNames ?? []).map(normalizedItemName));
+  for (const choice of output.choices) {
+    if (
+      choice.flavor === 'item' &&
+      choice.itemName &&
+      previousItemNames.has(normalizedItemName(choice.itemName))
+    ) {
+      devLog.warn('[Guard] repeated item choice degraded to standard', { itemName: choice.itemName });
+      choice.flavor = 'standard';
+      delete choice.itemOwnerName;
+      delete choice.itemName;
+    }
+  }
 }
 
 export function parseNarrationOutput(
@@ -502,12 +510,8 @@ export function parseNarrationOutput(
   }
   stripNarrationEmDashes(parsed.data);
   canonicalizeItemChoices(input, parsed.data);
-  if (enforceGameplayGuards) {
-    const choiceActorError = validateChoiceActors(input, parsed.data);
-    if (choiceActorError) {
-      return { success: false, error: `choice-actors: ${choiceActorError}` };
-    }
-  }
+  repairChoiceActors(input, parsed.data);
+  repairRepeatedItemChoices(input, parsed.data);
   normalizeNarrationMetadata(input, parsed.data);
   normalizeEncounterOutput(input, parsed.data);
   if (enforceGameplayGuards) {

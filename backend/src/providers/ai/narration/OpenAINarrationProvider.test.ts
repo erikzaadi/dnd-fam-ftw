@@ -286,11 +286,21 @@ describe('OpenAINarrationProvider', () => {
     expect(result.narration).not.toContain('push toward a climactic confrontation');
   });
 
-  it('passes max_completion_tokens to the API call', async () => {
+  it('passes 1300 max_completion_tokens on normal turns', async () => {
     mocks.parse.mockResolvedValueOnce({ choices: [{ message: { parsed: output() }, finish_reason: 'stop' }] });
     await new OpenAINarrationProvider().generateTurn(input);
     const callArgs = mocks.parse.mock.calls[0]?.[0] as { max_completion_tokens?: number } | undefined;
-    expect(callArgs?.max_completion_tokens).toBe(1200);
+    expect(callArgs?.max_completion_tokens).toBe(1300);
+  });
+
+  it('passes 1500 max_completion_tokens on high-stakes combat turns', async () => {
+    mocks.parse.mockResolvedValueOnce({ choices: [{ message: { parsed: output() }, finish_reason: 'stop' }] });
+    await new OpenAINarrationProvider().generateTurn({
+      ...input,
+      encounterState: { id: 'enc-1', name: 'Boss Fight', status: 'active', enemies: [], areas: [], round: 1 },
+    });
+    const callArgs = mocks.parse.mock.calls[0]?.[0] as { max_completion_tokens?: number } | undefined;
+    expect(callArgs?.max_completion_tokens).toBe(1500);
   });
 
   it('throws on content_filter finish reason', async () => {

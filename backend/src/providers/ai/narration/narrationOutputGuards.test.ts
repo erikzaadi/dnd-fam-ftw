@@ -136,7 +136,7 @@ describe('parseNarrationOutput', () => {
     }
   });
 
-  it('rejects item choices that repeat recently suggested gear', () => {
+  it('degrades repeated item choices to standard instead of failing', () => {
     const result = parseNarrationOutput({
       ...input,
       nextCharacterName: 'Pip',
@@ -152,9 +152,11 @@ describe('parseNarrationOutput', () => {
       ],
     }));
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toContain('repeats recently suggested gear');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.choices[0].flavor).toBe('standard');
+      expect(result.data.choices[0].itemOwnerName).toBeUndefined();
+      expect(result.data.choices[0].itemName).toBeUndefined();
     }
   });
 
