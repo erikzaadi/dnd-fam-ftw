@@ -90,11 +90,6 @@ describe('buildNarrationSystemPrompt', () => {
     expect(prompt).toContain('FAIL FORWARD');
   });
 
-  it('always includes image strategy section', () => {
-    const prompt = buildNarrationSystemPrompt(makeInput());
-    expect(prompt).toContain('Image Strategy');
-  });
-
   it('statUsed present includes drama llama section', () => {
     const prompt = buildNarrationSystemPrompt(makeInput({ actionResult: { success: true, summary: 'ok', statUsed: 'magic' } }));
     expect(prompt).toContain('DRAMA LLAMA');

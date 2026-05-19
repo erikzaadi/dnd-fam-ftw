@@ -10,8 +10,6 @@ describe('narrationOutputSchema', () => {
         { label: 'Check the threshold', difficulty: 'easy', stat: 'mischief', difficultyValue: 6 },
         { label: 'Brace and charge through', difficulty: 'normal', stat: 'might', difficultyValue: 10 },
       ],
-      imagePrompt: null,
-      imageSuggested: false,
       currentTensionLevel: 'medium',
       suggestedInventoryAdd: null,
     });
@@ -27,8 +25,6 @@ describe('narrationOutputSchema', () => {
         { label: 'Sneak ahead', difficulty: 'normal', stat: 'mischief' },
         { label: 'Light the way', difficulty: 'normal', stat: 'magic', difficultyValue: 11 },
       ],
-      imagePrompt: null,
-      imageSuggested: false,
       currentTensionLevel: 'medium',
       suggestedInventoryAdd: null,
     });
@@ -44,8 +40,6 @@ describe('narrationOutputSchema', () => {
         { label: 'Answer: a shadow', difficulty: 'normal', stat: 'mischief', difficultyValue: 12, narration: 'A gloomy answer could fit the realm.', riddleAnswer: 'a shadow', riddleCorrect: false },
         { label: 'Ask Fiddlewick for a hint', difficulty: 'easy', stat: 'mischief', difficultyValue: 8, narration: 'A clever question may reveal another clue.' },
       ],
-      imagePrompt: null,
-      imageSuggested: false,
       currentTensionLevel: 'medium',
       suggestedInventoryAdd: null,
     });

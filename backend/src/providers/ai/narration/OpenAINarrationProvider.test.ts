@@ -44,8 +44,6 @@ const output = (overrides: Partial<NarrationOutput> = {}): NarrationOutput => ({
     { label: 'Call for help', difficulty: 'easy', stat: 'magic', difficultyValue: 7 },
   ],
   rollNarration: 'No roll was needed.',
-  imagePrompt: null,
-  imageSuggested: false,
   currentTensionLevel: 'medium',
   suggestedInventoryAdd: null,
   suggestedInventoryRemove: null,
@@ -286,6 +284,23 @@ describe('OpenAINarrationProvider', () => {
     expect(result.narration).toContain('A shadow of worse things falls across A ruined keep');
     expect(result.narration).not.toContain('Connect this turn to the main threat');
     expect(result.narration).not.toContain('push toward a climactic confrontation');
+  });
+
+  it('passes max_completion_tokens to the API call', async () => {
+    mocks.parse.mockResolvedValueOnce({ choices: [{ message: { parsed: output() }, finish_reason: 'stop' }] });
+    await new OpenAINarrationProvider().generateTurn(input);
+    const callArgs = mocks.parse.mock.calls[0]?.[0] as { max_completion_tokens?: number } | undefined;
+    expect(callArgs?.max_completion_tokens).toBe(1200);
+  });
+
+  it('throws on content_filter finish reason', async () => {
+    mocks.parse.mockResolvedValueOnce({ choices: [{ message: { parsed: null, refusal: null }, finish_reason: 'content_filter' }] });
+    await expect(new OpenAINarrationProvider().generateTurn(input)).rejects.toThrow('content_filter');
+  });
+
+  it('throws with length truncation message when finish_reason is length', async () => {
+    mocks.parse.mockResolvedValueOnce({ choices: [{ message: { parsed: null, refusal: null }, finish_reason: 'length' }] });
+    await expect(new OpenAINarrationProvider().generateTurn(input)).rejects.toThrow('max_completion_tokens');
   });
 
   it('allows a resolved enemy name when it is also the active encounter enemy alias', () => {

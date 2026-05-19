@@ -48,9 +48,36 @@ const nextBeat = (input: NarrationInput, scene: string): string => {
   return `${scene} is not the same as it was a moment ago.`;
 };
 
+const combatFallbackChoices = (enemyName: string, difficulty: number): NarrationOutput['choices'] => [
+  {
+    label: `Press the attack against ${enemyName}`,
+    difficulty: 'normal',
+    stat: 'might',
+    difficultyValue: difficulty,
+    narration: 'Strike before the enemy recovers.',
+  },
+  {
+    label: `Find an opening in ${enemyName}'s defenses`,
+    difficulty: 'normal',
+    stat: 'mischief',
+    difficultyValue: Math.max(difficulty - 1, 8),
+    narration: 'Watch for the moment the enemy overextends.',
+  },
+  {
+    label: `Channel magic to weaken ${enemyName}`,
+    difficulty: 'normal',
+    stat: 'magic',
+    difficultyValue: difficulty,
+    narration: 'Turn the tide with arcane force.',
+  },
+];
+
 export function buildNarrationFallback(input: NarrationInput): NarrationOutput {
   const actor = input.actingCharacterName ?? input.party.find(character => character.status === 'active')?.name ?? 'The party';
-  const scene = sceneNoun(input.scene);
+  const activeEncounter = input.encounterState?.status === 'active' ? input.encounterState : null;
+  const scene = activeEncounter
+    ? sceneNoun(activeEncounter.areas?.[0]?.label ?? activeEncounter.name)
+    : sceneNoun(input.scene);
   const action = cleanLabel(input.actionAttempt);
   const succeeded = input.actionResult.success;
   const beat = nextBeat(input, scene);
@@ -64,33 +91,36 @@ export function buildNarrationFallback(input: NarrationInput): NarrationOutput {
     ? `${actionText} works. ${beat}`
     : `${actionText} falls short. ${beat}`;
 
-  return {
-    narration: result,
-    choices: [
+  const activeEnemy = activeEncounter?.enemies?.find(e => e.status === 'active');
+  const choices = activeEnemy
+    ? combatFallbackChoices(activeEnemy.name, input.scenePressure?.kind === 'combat' ? 13 : 12)
+    : [
       {
         label: `Press deeper into ${scene}`,
-        difficulty: 'normal',
-        stat: 'might',
+        difficulty: 'normal' as const,
+        stat: 'might' as const,
         difficultyValue: 12,
         narration: 'Push forward before the situation settles.',
       },
       {
         label: `Search ${scene} for a clue`,
-        difficulty: 'normal',
-        stat: 'mischief',
+        difficulty: 'normal' as const,
+        stat: 'mischief' as const,
         difficultyValue: 11,
         narration: 'Look for the detail everyone else missed.',
       },
       {
         label: `Read the magic around ${scene}`,
-        difficulty: 'normal',
-        stat: 'magic',
+        difficulty: 'normal' as const,
+        stat: 'magic' as const,
         difficultyValue: 12,
         narration: 'Sense what is hidden or changing nearby.',
       },
-    ],
-    imagePrompt: null,
-    imageSuggested: false,
+    ];
+
+  return {
+    narration: result,
+    choices,
     currentTensionLevel: input.scenePressure?.kind === 'combat' || input.gameMode === 'zug-ma-geddon'
       ? 'high'
       : 'medium',

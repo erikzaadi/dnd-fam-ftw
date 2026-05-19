@@ -7,6 +7,7 @@ import { ImageService } from './imageService.js';
 import { StateService } from './stateService.js';
 import { StorySummaryService } from './storySummaryService.js';
 import { devLog } from '../lib/devLog.js';
+import { generateImageBrief } from '../providers/ai/images/imageBriefProvider.js';
 
 interface CompletedTurnSideEffectsInput {
   sessionId: string;
@@ -148,8 +149,8 @@ const queueTurnImageGeneration = (
   newState: SessionState,
   turnResult: TurnResult,
 ) => {
-  devLog.log(`[Action] imageSuggested=${turnResult.imageSuggested} imagePrompt=${turnResult.imagePrompt ?? 'null'} savingsMode=${previousSession.savingsMode}`);
-  if (previousSession.savingsMode || !turnResult.imageSuggested || !turnResult.imagePrompt) {
+  devLog.log(`[Action] savingsMode=${previousSession.savingsMode}`);
+  if (previousSession.savingsMode) {
     return;
   }
 
@@ -159,20 +160,32 @@ const queueTurnImageGeneration = (
   }
   inFlightImageJobs.add(sceneKey);
 
-  void ImageService.generateImage(
-    turnResult.imagePrompt,
-    previousSession.id,
-    newState.turn,
-    undefined,
-    undefined,
-    {
-      worldDescription: newState.worldDescription,
-      dmPrepImageBrief: newState.dmPrepImageBrief,
-      party: newState.party,
-      activeCharacterId: newState.activeCharacterId,
-      currentTensionLevel: turnResult.currentTensionLevel,
-    },
-  ).then(async result => {
+  const activeCharacter = newState.party.find(c => c.id === newState.activeCharacterId);
+
+  void generateImageBrief(
+    turnResult.narration,
+    newState.worldDescription ?? newState.id,
+    activeCharacter?.name,
+    turnResult.currentTensionLevel,
+  ).then(brief => {
+    if (!brief) {
+      return null;
+    }
+    return ImageService.generateImage(
+      brief,
+      previousSession.id,
+      newState.turn,
+      undefined,
+      undefined,
+      {
+        worldDescription: newState.worldDescription,
+        dmPrepImageBrief: newState.dmPrepImageBrief,
+        party: newState.party,
+        activeCharacterId: newState.activeCharacterId,
+        currentTensionLevel: turnResult.currentTensionLevel,
+      },
+    );
+  }).then(async result => {
     if (result) {
       await StateService.updateLatestTurnImage(sessionId, result.url, result.storageKey, result.storageProvider);
       broadcastUpdate(sessionId, 'image_ready', { target: 'scene', imageUrl: result.url });

@@ -364,6 +364,14 @@ describe('toNarrationInput', () => {
     expect(out.dmPrep?.length).toBe(3000);
   });
 
+  it('caps long dmPrep at 3000 chars synchronously with no async enrichment', () => {
+    // toNarrationInput is synchronous - long prep is truncated by slice, never enriched
+    const longPrep = 'B'.repeat(8000);
+    const out = toNarrationInput(makeAIInput({ dmPrep: longPrep }));
+    expect(out.dmPrep?.length).toBe(3000);
+    expect(out.dmPrep).toBe(longPrep.slice(0, 3000));
+  });
+
   it('keeps dmPrep under 3000 chars unchanged on non-encounter turns', () => {
     const shortPrep = 'Short campaign prep.';
     const out = toNarrationInput(makeAIInput({ dmPrep: shortPrep }));

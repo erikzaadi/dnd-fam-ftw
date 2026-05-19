@@ -284,10 +284,6 @@ function stripNarrationEmDashes(output: ValidNarrationOutput): void {
   if (output.rollNarration) {
     output.rollNarration = cleanText(output.rollNarration);
   }
-  if (output.imagePrompt) {
-    output.imagePrompt = cleanText(output.imagePrompt);
-  }
-
   for (const choice of output.choices) {
     choice.label = cleanText(choice.label);
     if (choice.narration) {

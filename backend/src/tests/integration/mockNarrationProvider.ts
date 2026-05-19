@@ -8,8 +8,6 @@ export const FIXED_NARRATION_OUTPUT: NarrationOutput = {
     { label: 'Taunt the goblin', difficulty: 'easy', stat: 'mischief', difficultyValue: 8 },
     { label: 'Flee dramatically', difficulty: 'hard', stat: 'magic', difficultyValue: 16 },
   ],
-  imagePrompt: null,
-  imageSuggested: false,
   currentTensionLevel: 'medium',
   suggestedInventoryAdd: null,
   suggestedInventoryRemove: null,

@@ -301,13 +301,3 @@ export const SECTION_INVENTORY_TRADE = `PARTY AND NPC ITEM TRANSFERS:
 - For trades with NPCs: set BOTH suggestedInventoryRemove (item given away) AND suggestedInventoryAdd (item received). Use targetCharacterName on suggestedInventoryAdd if the received item goes to a specific character.
 - Otherwise set suggestedInventoryRemove: null.`;
 
-export const SECTION_IMAGE_STRATEGY = `Image Strategy:
-- ALWAYS set imageSuggested: true and provide an imagePrompt for every turn.
-- imagePrompt is a short visual brief (15-25 words): who is in the scene, what action is happening, the environment, and the mood. That is all.
-- Do NOT include art style phrases, rendering guidance, or technical instructions - those are added by the image pipeline.
-- Do NOT include text, writing, letters, numbers, runes, glyphs, symbols, inscriptions, book pages, title cards, posters, maps with markings, signs, banners with markings, labels, captions, UI, cards, panels, or border/margin instructions in imagePrompt.
-- If the scene needs magic, show it as glow, light, mist, particles, color, or motion. Never describe floating words, arcane letters, readable markings, or pseudo-writing.
-- Safe word substitutions (the image API is sensitive to these):
-  - Never use: undead, corpse, dead, zombie, skeleton, gore, blood, kill, death, decapitate, mutilate
-  - Instead use: spectral, ethereal, skeletal warrior, cursed, shadowy, necrotic, withered
-  - Describe actions as: clashes with, faces, confronts, battles, defends against`;

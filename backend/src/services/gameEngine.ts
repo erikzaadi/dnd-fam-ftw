@@ -92,8 +92,12 @@ export class GameEngine {
     }
     const hasHealing = Array.isArray(aiSuggestedChanges?.suggestedHeal) && aiSuggestedChanges.suggestedHeal.length > 0;
     const hasRevive = !!aiSuggestedChanges?.suggestedRevive;
-    const hasBuff = Array.isArray(aiSuggestedChanges?.suggestedBuffAdd) && aiSuggestedChanges.suggestedBuffAdd.length > 0;
     const hasItemUpdate = !!aiSuggestedChanges?.suggestedInventoryUpdate;
+    // A buff suggestion alone is not a reliable non-offensive signal: the AI model sometimes
+    // adds spurious buffs to combat actions (e.g. "Strike a holy blow"). Only treat hasBuff
+    // as non-offensive when the action text does not contain combat verbs.
+    const hasCombatVerb = /\b(strike|attack|hit|slash|stab|smash|bash|charge|blow|blows|thrust|swing|swings|lunge|lunges|punch|punches|cleave|cleaves)\b/.test(text);
+    const hasBuff = !hasCombatVerb && Array.isArray(aiSuggestedChanges?.suggestedBuffAdd) && aiSuggestedChanges.suggestedBuffAdd.length > 0;
     return hasHealing || hasRevive || hasBuff || hasItemUpdate;
   }
 

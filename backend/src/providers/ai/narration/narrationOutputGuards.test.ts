@@ -23,8 +23,6 @@ const output = (overrides: Partial<NarrationOutput> = {}): NarrationOutput => ({
     { label: 'Call for help', difficulty: 'easy', stat: 'magic', difficultyValue: 7 },
   ],
   rollNarration: 'No roll was needed.',
-  imagePrompt: null,
-  imageSuggested: false,
   currentTensionLevel: 'medium',
   suggestedInventoryAdd: null,
   suggestedInventoryRemove: null,

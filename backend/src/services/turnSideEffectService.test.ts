@@ -29,6 +29,10 @@ vi.mock('./imageService.js', () => ({
   ImageService: imageServiceMocks,
 }));
 
+vi.mock('../providers/ai/images/imageBriefProvider.js', () => ({
+  generateImageBrief: vi.fn().mockResolvedValue('a dark forest scene'),
+}));
+
 const makeSession = (overrides: Partial<SessionState> = {}): SessionState => ({
   id: 'test-session',
   scene: 'A dark forest',

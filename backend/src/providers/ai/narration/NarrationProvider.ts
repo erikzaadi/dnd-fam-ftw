@@ -97,8 +97,6 @@ export type NarrationOutput = {
   narration: string;
   choices: NarrationChoice[];
   rollNarration?: string;
-  imagePrompt: string | null;
-  imageSuggested: boolean;
   currentTensionLevel: TensionLevel;
   suggestedInventoryAdd: {
     name: string;

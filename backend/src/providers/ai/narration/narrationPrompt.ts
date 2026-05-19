@@ -20,7 +20,6 @@ import {
   SECTION_INVENTORY_BASICS,
   SECTION_INVENTORY_COMBAT_LOOT,
   SECTION_INVENTORY_TRADE,
-  SECTION_IMAGE_STRATEGY,
 } from './narrationPromptSections.js';
 
 const BUFF_ACTION_INTENTS = ['bless_character', 'aid_character', 'party_boost', 'improve_item'];
@@ -94,7 +93,6 @@ export function buildNarrationSystemPrompt(input: NarrationInput): string {
     SECTION_INVENTORY_BASICS,
     ...(isLootTurn ? [SECTION_INVENTORY_COMBAT_LOOT] : []),
     ...(tradeEnabled ? [SECTION_INVENTORY_TRADE] : []),
-    SECTION_IMAGE_STRATEGY,
   ];
 
   return sections.join('\n\n');
@@ -399,16 +397,6 @@ Inventory:
 - Otherwise set suggestedInventoryRemove: null.
 - Otherwise set suggestedInventoryUpdate: null.
 
-Image Strategy:
-- ALWAYS set imageSuggested: true and provide an imagePrompt for every turn.
-- imagePrompt is a short visual brief (15-25 words): who is in the scene, what action is happening, the environment, and the mood. That is all.
-- Do NOT include art style phrases, rendering guidance, or technical instructions - those are added by the image pipeline.
-- Do NOT include text, writing, letters, numbers, runes, glyphs, symbols, inscriptions, book pages, title cards, posters, maps with markings, signs, banners with markings, labels, captions, UI, cards, panels, or border/margin instructions in imagePrompt.
-- If the scene needs magic, show it as glow, light, mist, particles, color, or motion. Never describe floating words, arcane letters, readable markings, or pseudo-writing.
-- Safe word substitutions (the image API is sensitive to these):
-  - Never use: undead, corpse, dead, zombie, skeleton, gore, blood, kill, death, decapitate, mutilate
-  - Instead use: spectral, ethereal, skeletal warrior, cursed, shadowy, necrotic, withered
-  - Describe actions as: clashes with, faces, confronts, battles, defends against
 `;
 
 export function buildNarrationRetryInstructions(validationError: string): string {
@@ -429,7 +417,7 @@ export function buildNarrationRetryInstructions(validationError: string): string
     const nameMatch = /Output revives recently resolved threat: "([^"]+)"/.exec(validationError);
     const banned = nameMatch ? nameMatch[1] : null;
     if (banned) {
-      fixes.push(`HARD BAN: "${banned}" is defeated and must not appear in any form in this response - not in narration, rollNarration, choices, or imagePrompt. Do not name it, reference it, hint at it, or use synonyms for it. Write about a completely different element: a new location, an NPC acting, a discovered object, an environmental hazard, or a faction pressure. Treat "${banned}" as if it never existed in this scene.`);
+      fixes.push(`HARD BAN: "${banned}" is defeated and must not appear in any form in this response - not in narration, rollNarration, or choices. Do not name it, reference it, hint at it, or use synonyms for it. Write about a completely different element: a new location, an NPC acting, a discovered object, an environmental hazard, or a faction pressure. Treat "${banned}" as if it never existed in this scene.`);
     } else {
       fixes.push('For resolved-threat repeats, do not bring back the named defeated enemy in any form. Replace it with a new location, NPC action, discovered clue, environmental hazard, or faction pressure.');
     }

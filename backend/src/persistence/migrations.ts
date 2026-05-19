@@ -236,6 +236,9 @@ export const migrate = (db: DB): void => {
   if (!turnCols.includes('encounterEnemyChanges')) {
     db.prepare("ALTER TABLE turn_history ADD COLUMN encounterEnemyChanges TEXT").run();
   }
+  if (!turnCols.includes('buffChanges')) {
+    db.prepare("ALTER TABLE turn_history ADD COLUMN buffChanges TEXT").run();
+  }
 
   if (!choiceCols.includes('narration')) {
     db.prepare("ALTER TABLE turn_choices ADD COLUMN narration TEXT").run();

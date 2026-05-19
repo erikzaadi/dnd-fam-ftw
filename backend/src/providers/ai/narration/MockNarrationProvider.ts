@@ -16,8 +16,6 @@ export class MockNarrationProvider implements NarrationProvider {
         ? `The die lands on ${input.actionResult.roll}.`
         : 'No roll was needed.',
       choices,
-      imagePrompt: null,
-      imageSuggested: false,
       currentTensionLevel: 'medium',
       suggestedInventoryAdd: grantsBridgeToken
         ? {

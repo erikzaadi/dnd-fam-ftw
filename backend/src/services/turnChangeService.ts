@@ -80,10 +80,18 @@ export const computeBuffChanges = (before: Character[], after: Character[]): Buf
     if (!afterChar) {
       continue;
     }
-    const beforeIds = new Set((beforeChar.buffs ?? []).map(b => b.id));
+    const beforeBuffMap = new Map((beforeChar.buffs ?? []).map(b => [b.id, b]));
     const afterIds = new Set((afterChar.buffs ?? []).map(b => b.id));
     for (const buff of afterChar.buffs ?? []) {
-      if (!beforeIds.has(buff.id)) {
+      const beforeBuff = beforeBuffMap.get(buff.id);
+      if (!beforeBuff) {
+        changes.push({ characterName: afterChar.name, buffName: buff.name, kind: buff.kind ?? 'buff', type: 'added' });
+      } else if (
+        typeof buff.remainingTurns === 'number' &&
+        typeof beforeBuff.remainingTurns === 'number' &&
+        buff.remainingTurns >= beforeBuff.remainingTurns
+      ) {
+        // remainingTurns didn't decrease - buff was refreshed rather than naturally ticking down
         changes.push({ characterName: afterChar.name, buffName: buff.name, kind: buff.kind ?? 'buff', type: 'added' });
       }
     }

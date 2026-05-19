@@ -89,6 +89,7 @@ export class OpenAINarrationProvider implements NarrationProvider {
         ],
         response_format: zodResponseFormat(narrationOutputSchema, 'narration_output'),
         temperature: 0.7,
+        max_completion_tokens: 1200,
       }, { signal: AbortSignal.timeout(timeoutMs) });
     } catch (error: unknown) {
       const durationMs = Date.now() - start;
@@ -107,14 +108,32 @@ export class OpenAINarrationProvider implements NarrationProvider {
       ].join(' '));
       throw error;
     }
-    devLog.log(`[Narration] ${attempt} done — ${Date.now() - start}ms`);
+    const durationMs = Date.now() - start;
+    const choice = response.choices[0];
+    const finishReason = choice.finish_reason ?? 'unknown';
+    const usage = response.usage;
+    devLog.log([
+      `[Narration] ${attempt} done`,
+      `model=${model}`,
+      `durationMs=${durationMs}`,
+      `finishReason=${finishReason}`,
+      ...(usage ? [
+        `promptTokens=${usage.prompt_tokens}`,
+        `completionTokens=${usage.completion_tokens}`,
+        `cachedTokens=${(usage as { prompt_tokens_details?: { cached_tokens?: number } }).prompt_tokens_details?.cached_tokens ?? 0}`,
+      ] : []),
+    ].join(' '));
 
-    const message = response.choices[0].message;
+    const message = choice.message;
     if (message.refusal) {
       throw new Error(`OpenAI refused: ${message.refusal}`);
     }
+    if (finishReason === 'content_filter') {
+      throw new Error(`Content filtered by provider (finish_reason=content_filter)`);
+    }
     if (!message.parsed) {
-      throw new Error('OpenAI response did not include parsed structured output.');
+      const reason = finishReason === 'length' ? 'output truncated by max_completion_tokens' : 'no parsed structured output';
+      throw new Error(`OpenAI response failed: ${reason}`);
     }
     return message.parsed;
   }

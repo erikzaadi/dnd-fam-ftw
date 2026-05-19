@@ -4,7 +4,6 @@ import type { NarrationInput } from '../providers/ai/narration/NarrationProvider
 import { buildNarrationFallback } from '../providers/ai/narration/narrationFallback.js';
 import { resolveEncounterSeed } from './encounterService.js';
 import { devLog } from '../lib/devLog.js';
-import { extractRelevantDmPrep } from './dmPrepRelevanceService.js';
 
 export function toNarrationInput(input: AIInput): NarrationInput {
   const actingChar = input.party.find(c => c.id === input.characterId);
@@ -135,49 +134,34 @@ export function toNarrationInput(input: AIInput): NarrationInput {
   };
 }
 
-async function enrichDmPrep(narrationInput: NarrationInput, rawInput: AIInput): Promise<NarrationInput> {
-  const isActiveEncounter = rawInput.encounterState?.status === 'active';
-  if (!rawInput.dmPrep || rawInput.dmPrep.length <= 3000 || isActiveEncounter) {
-    return narrationInput;
-  }
-  const enriched = await extractRelevantDmPrep(rawInput.dmPrep, {
-    scene: narrationInput.scene,
-    storySummary: narrationInput.storySummary,
-    recentHistory: narrationInput.recentHistory,
-    encounterName: rawInput.encounterState?.name,
-  });
-  return { ...narrationInput, dmPrep: enriched };
-}
-
 export class AiDmService {
   public static async generateTurnResult(input: AIInput): Promise<TurnResult> {
     const totalStart = Date.now();
     const narrationInput = toNarrationInput(input);
-    const enrichedInput = await enrichDmPrep(narrationInput, input);
     devLog.log([
       '[AiDm] narration-input',
       `sessionTurn=${input.turn}`,
       `durationMs=${Date.now() - totalStart}`,
-      `party=${enrichedInput.party.length}`,
-      `inventory=${enrichedInput.inventory.length}`,
-      `history=${enrichedInput.recentHistory.length}`,
-      `choices=${enrichedInput.previousChoiceLabels?.length ?? 0}`,
-      `dmPrepChars=${enrichedInput.dmPrep?.length ?? 0}`,
-      `encounters=${enrichedInput.dmPrepEncounters?.length ?? 0}`,
-      `hasEncounterState=${enrichedInput.encounterState ? 'true' : 'false'}`,
-      `momentum=${enrichedInput.sceneMomentum?.directive ?? 'none'}`,
+      `party=${narrationInput.party.length}`,
+      `inventory=${narrationInput.inventory.length}`,
+      `history=${narrationInput.recentHistory.length}`,
+      `choices=${narrationInput.previousChoiceLabels?.length ?? 0}`,
+      `dmPrepChars=${narrationInput.dmPrep?.length ?? 0}`,
+      `encounters=${narrationInput.dmPrepEncounters?.length ?? 0}`,
+      `hasEncounterState=${narrationInput.encounterState ? 'true' : 'false'}`,
+      `momentum=${narrationInput.sceneMomentum?.directive ?? 'none'}`,
     ].join(' '));
     try {
       const provider = createNarrationProvider();
-      const output = await provider.generateTurn(enrichedInput);
+      const output = await provider.generateTurn(narrationInput);
       devLog.log(`[AiDm] provider-done sessionTurn=${input.turn} durationMs=${Date.now() - totalStart}`);
 
       return {
         narration: output.narration,
         choices: output.choices,
         rollNarration: output.rollNarration,
-        imagePrompt: output.imagePrompt,
-        imageSuggested: output.imageSuggested,
+        imagePrompt: null,
+        imageSuggested: false,
         currentTensionLevel: output.currentTensionLevel,
         suggestedInventoryAdd: output.suggestedInventoryAdd ?? null,
         suggestedInventoryRemove: output.suggestedInventoryRemove ?? null,
@@ -206,14 +190,16 @@ export class AiDmService {
         if (error instanceof Error) {
           const constructorName = error.constructor?.name ?? '';
           if (constructorName === 'APIUserAbortError') {
-            return `timeout after 40000ms`;
+            return `timeout (abort signal fired)`;
           }
           return error.message;
         }
         return String(error);
       })();
       return {
-        ...buildNarrationFallback(enrichedInput),
+        ...buildNarrationFallback(narrationInput),
+        imagePrompt: null,
+        imageSuggested: false,
         narrationFailed: true,
         narrationValidationError: fallbackError,
         imageUrl: null,

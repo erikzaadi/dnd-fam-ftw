@@ -175,8 +175,6 @@ describe('executeTurnAction predefined action integration', () => {
         { label: 'Search The Crimson Cliffs for a clue', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
         { label: 'Read the magic around The Crimson Cliffs', difficulty: 'normal', stat: 'magic', difficultyValue: 12 },
       ],
-      imagePrompt: null,
-      imageSuggested: false,
       currentTensionLevel: 'medium',
       suggestedInventoryAdd: null,
       suggestedInventoryRemove: null,
