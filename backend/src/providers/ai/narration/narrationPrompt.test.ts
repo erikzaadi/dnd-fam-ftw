@@ -230,6 +230,48 @@ describe('buildNarrationSystemPrompt', () => {
   });
 });
 
+describe('stable prefix ordering', () => {
+  it('system prompt preamble section comes before all conditional sections', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput({
+      sceneMomentum: { directive: 'press_current_scene', suggestedNextBeat: 'Go', staleChoiceCount: 0, turnsSinceSceneChange: 1, turnsSinceCombat: 2, justCompletedCombat: false, justCompletedDifficultChallenge: false, reason: 'test' },
+      encounterState: { id: 'enc-1', name: 'Fight', status: 'active', enemies: [], areas: [], round: 1 },
+    }));
+    const preambleIdx = prompt.indexOf('GAME PACING (gameMode)');
+    const momentumIdx = prompt.indexOf('MOMENTUM DIRECTIVES');
+    const combatIdx = prompt.indexOf('COMBAT PACING - Decisive Encounters');
+    expect(preambleIdx).toBeGreaterThanOrEqual(0);
+    expect(preambleIdx).toBeLessThan(momentumIdx);
+    expect(preambleIdx).toBeLessThan(combatIdx);
+  });
+
+  it('fail-forward section comes before choices format section', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput());
+    const failIdx = prompt.indexOf('FAIL FORWARD');
+    const choicesIdx = prompt.indexOf('Always return exactly 3 suggested actions');
+    expect(failIdx).toBeGreaterThanOrEqual(0);
+    expect(failIdx).toBeLessThan(choicesIdx);
+  });
+
+  it('party-status section comes before damage section', () => {
+    const prompt = buildNarrationSystemPrompt(makeInput({
+      actionResult: { success: true, summary: 'ok', statUsed: 'might' },
+    }));
+    const partyIdx = prompt.indexOf('Party Status:');
+    const damageIdx = prompt.indexOf('CRITICAL - Damage on Failure');
+    expect(partyIdx).toBeGreaterThanOrEqual(0);
+    expect(partyIdx).toBeLessThan(damageIdx);
+  });
+
+  it('system prompt section order is deterministic across identical calls', () => {
+    const input = makeInput({
+      sceneMomentum: { directive: 'press_current_scene', suggestedNextBeat: 'Go', staleChoiceCount: 0, turnsSinceSceneChange: 1, turnsSinceCombat: 2, justCompletedCombat: false, justCompletedDifficultChallenge: false, reason: 'test' },
+      actionResult: { success: true, summary: 'ok', statUsed: 'magic' },
+    });
+    expect(buildNarrationSystemPrompt(input)).toBe(buildNarrationSystemPrompt(input));
+  });
+
+});
+
 describe('isTradeTurn', () => {
   const makeTradeInput = (overrides: Partial<NarrationInput> = {}): NarrationInput => ({
     scene: 'A dark dungeon',

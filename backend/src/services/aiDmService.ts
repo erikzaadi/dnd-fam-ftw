@@ -139,15 +139,22 @@ export function toNarrationInput(input: AIInput): NarrationInput {
     ...(c.buffs && c.buffs.length > 0 && { buffs: c.buffs }),
   }));
 
+  // Stable fields first so JSON.stringify produces a consistent prefix for provider prompt caching.
+  // Volatile fields (actionResult, recentHistory, scenePressure/Momentum, etc.) come after.
   return {
+    // --- stable: rarely or never change between consecutive turns ---
     scene: input.scene,
+    tone: input.tone,
+    gameMode: input.gameMode,
+    ...(compactedDmPrep && { dmPrep: compactedDmPrep }),
+    ...(!isActiveEncounter && input.dmPrepEncounters && input.dmPrepEncounters.length > 0 && { dmPrepEncounters: input.dmPrepEncounters }),
+    inventory: inventorySnippet,
     storySummary: input.storySummary || undefined,
-    ...(input.scenePressure && { scenePressure: input.scenePressure }),
-    ...(input.sceneMomentum && { sceneMomentum: input.sceneMomentum }),
+    isFirstTurn: input.turn === 1,
+    party,
+    // --- volatile: changes every turn ---
     actingCharacterName: actingChar?.name,
     nextCharacterName: nextChar?.name,
-    party,
-    inventory: inventorySnippet,
     actionAttempt: input.actionAttempt,
     actionResult: {
       success: input.actionResult.success,
@@ -179,13 +186,8 @@ export function toNarrationInput(input: AIInput): NarrationInput {
     ...(previousChoiceFlavors.length > 0 && { previousChoiceFlavors }),
     ...(selectedChoice?.flavor && { selectedChoiceFlavor: selectedChoice.flavor }),
     ...(selectedChoice?.environmentFeature && { selectedEnvironmentFeature: selectedChoice.environmentFeature }),
-    tone: input.tone,
-    gameMode: input.gameMode,
-    ...(compactedDmPrep && { dmPrep: compactedDmPrep }),
-    ...(!isActiveEncounter && input.dmPrepEncounters && input.dmPrepEncounters.length > 0 && { dmPrepEncounters: input.dmPrepEncounters }),
-    isFirstTurn: input.turn === 1,
-    interventionRescue: input.interventionRescue,
-    sanctuaryRecovery: input.sanctuaryRecovery,
+    ...(input.scenePressure && { scenePressure: input.scenePressure }),
+    ...(input.sceneMomentum && { sceneMomentum: input.sceneMomentum }),
     ...(input.actionIntent && { actionIntent: input.actionIntent }),
     ...(input.encounterState && { encounterState: input.encounterState }),
     encounterJustResolved: input.encounterState != null && input.encounterState.status !== 'active',
@@ -200,6 +202,8 @@ export function toNarrationInput(input: AIInput): NarrationInput {
         return seed?.lootHint ? { encounterLootHint: seed.lootHint } : {};
       })()
       : {}),
+    interventionRescue: input.interventionRescue,
+    sanctuaryRecovery: input.sanctuaryRecovery,
   };
 }
 

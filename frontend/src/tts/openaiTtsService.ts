@@ -178,7 +178,7 @@ class OpenAiTtsService {
       audio.onended = finish;
       audio.onerror = finish;
 
-      audio.play().catch(finish);
+      audio.play().catch(() => finish());
     });
   }
 }

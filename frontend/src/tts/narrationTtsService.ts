@@ -59,6 +59,9 @@ class NarrationTtsService {
         });
         return;
       } catch (error) {
+        if (error instanceof DOMException && (error.name === 'AbortError' || error.name === 'NotAllowedError')) {
+          return;
+        }
         devLog.warn('[TTS] OpenAI narration failed:', error);
         return;
       }

@@ -83,6 +83,11 @@ const INSTRUCTION_LEAK_FRAGMENTS = [
   'scenemomentum',
   'suggestednextbeat',
   'has the next move',
+  'press into the next beat',
+  'move into the next beat',
+  'chance to press',
+  'next beat awaits',
+  'the next beat',
 ] as const;
 
 const significantTokens = (text: string): Set<string> => new Set(
@@ -468,10 +473,15 @@ function validateNarrationLeakage(output: ValidNarrationOutput): string | null {
 }
 
 function repairChoiceLabels(input: NarrationInput, output: ValidNarrationOutput): void {
-  const namePrefix = input.nextCharacterName ? `${input.nextCharacterName}: ` : null;
+  const partyNames = input.party.map(c => c.name);
   for (const choice of output.choices) {
-    if (namePrefix && choice.label.startsWith(namePrefix)) {
-      choice.label = choice.label.slice(namePrefix.length);
+    for (const name of partyNames) {
+      const prefix = `${name}: `;
+      if (choice.label.startsWith(prefix)) {
+        devLog.warn('[Guard] stripped character name prefix from choice label', { label: choice.label, name });
+        choice.label = choice.label.slice(prefix.length);
+        break;
+      }
     }
     if (choice.environmentFeature && choice.environmentFeature === input.scene) {
       devLog.warn('[Guard] environmentFeature cleared - matches scene name', { environmentFeature: choice.environmentFeature });

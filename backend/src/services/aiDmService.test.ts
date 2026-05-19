@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { toNarrationInput } from './aiDmService.js';
 import type { AIInput, EncounterSeed } from '../types.js';
 import { clearSessionPromptCacheForTest } from '../lib/sessionPromptCache.js';
+import { buildNarrationUserContent } from '../providers/ai/narration/narrationPrompt.js';
 
 const makeAIInput = (overrides: Partial<AIInput> = {}): AIInput => ({
   id: 'session-1',
@@ -438,6 +439,48 @@ describe('toNarrationInput', () => {
     }));
     // lootHint should still be available even though dmPrepEncounters are omitted from narration input
     expect(out.encounterLootHint).toBe('a moon-stamped pantry key');
+  });
+
+  describe('stable-first user content field ordering', () => {
+    it('scene and tone appear before recentHistory in serialized user content', () => {
+      const narrationInput = toNarrationInput(makeAIInput({ recentHistory: ['Turn 1 happened.'] }));
+      const content = buildNarrationUserContent(narrationInput);
+      const keys = Object.keys(JSON.parse(content) as Record<string, unknown>);
+      expect(keys.indexOf('scene')).toBeLessThan(keys.indexOf('recentHistory'));
+      expect(keys.indexOf('tone')).toBeLessThan(keys.indexOf('recentHistory'));
+    });
+
+    it('inventory appears before actionResult in serialized user content', () => {
+      const item = { id: 'i1', name: '⚔️ Sword', description: 'Sharp.', consumable: false, transferable: true };
+      const narrationInput = toNarrationInput(makeAIInput({
+        party: [{ ...makeAIInput().party[0], inventory: [item] }],
+      }));
+      const content = buildNarrationUserContent(narrationInput);
+      const keys = Object.keys(JSON.parse(content) as Record<string, unknown>);
+      expect(keys.indexOf('inventory')).toBeLessThan(keys.indexOf('actionResult'));
+    });
+
+    it('dmPrep appears before actionResult and recentHistory in serialized user content', () => {
+      const narrationInput = toNarrationInput(makeAIInput({
+        dmPrep: 'The villain is a dragon named Zyx.',
+        recentHistory: ['Turn 1 happened.'],
+      }));
+      const content = buildNarrationUserContent(narrationInput);
+      const keys = Object.keys(JSON.parse(content) as Record<string, unknown>);
+      expect(keys.indexOf('dmPrep')).toBeGreaterThanOrEqual(0);
+      expect(keys.indexOf('dmPrep')).toBeLessThan(keys.indexOf('actionResult'));
+      expect(keys.indexOf('dmPrep')).toBeLessThan(keys.indexOf('recentHistory'));
+    });
+
+    it('scenePressure appears after recentHistory in serialized user content', () => {
+      const narrationInput = toNarrationInput(makeAIInput({
+        recentHistory: ['Turn 1.'],
+        scenePressure: { kind: 'combat', pressureTurns: 1, successfulPressureTurns: 1, previousTensionLevels: ['high'], reason: 'test' },
+      }));
+      const content = buildNarrationUserContent(narrationInput);
+      const keys = Object.keys(JSON.parse(content) as Record<string, unknown>);
+      expect(keys.indexOf('recentHistory')).toBeLessThan(keys.indexOf('scenePressure'));
+    });
   });
 
   describe('prompt cache integration', () => {
