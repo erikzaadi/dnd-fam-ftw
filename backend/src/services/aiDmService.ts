@@ -4,6 +4,80 @@ import type { NarrationInput } from '../providers/ai/narration/NarrationProvider
 import { buildNarrationFallback } from '../providers/ai/narration/narrationFallback.js';
 import { resolveEncounterSeed } from './encounterService.js';
 import { devLog } from '../lib/devLog.js';
+import {
+  getSessionPromptCache,
+  setSessionPromptCache,
+  type CachedStablePartyMember,
+  type CachedInventoryItem,
+} from '../lib/sessionPromptCache.js';
+
+function computePartyVersion(party: AIInput['party']): string {
+  return party
+    .map(c =>
+      [
+        c.id,
+        c.name,
+        c.class,
+        c.species,
+        JSON.stringify(c.stats),
+        c.max_hp,
+        c.quirk,
+        (c.history ?? '').slice(0, 200),
+        c.gender ?? '',
+      ].join('|'),
+    )
+    .join(';');
+}
+
+function computeInventoryVersion(party: AIInput['party'], characterNameById: Map<string, string>): string {
+  return party
+    .flatMap(c =>
+      (c.inventory ?? []).map(item =>
+        [
+          c.name,
+          item.name,
+          item.description.slice(0, 200),
+          JSON.stringify(item.statBonuses ?? {}),
+          characterNameById.get(item.boundToCharacterId ?? '') ?? '',
+          item.charges ?? '',
+          item.condition ?? '',
+        ].join('|'),
+      ),
+    )
+    .join(';');
+}
+
+function buildStableParty(party: AIInput['party']): CachedStablePartyMember[] {
+  return party.map(c => ({
+    name: c.name,
+    class: c.class,
+    species: c.species,
+    maxHp: c.max_hp,
+    stats: c.stats,
+    quirk: c.quirk,
+    ...(c.gender && { gender: c.gender }),
+    ...(c.history && { history: c.history.length > 200 ? c.history.slice(0, 200) : c.history }),
+  }));
+}
+
+function buildInventorySnippet(party: AIInput['party'], characterNameById: Map<string, string>): CachedInventoryItem[] {
+  return party.flatMap(c =>
+    (c.inventory ?? []).map(item => ({
+      ownerName: c.name,
+      name: item.name,
+      description: item.description.length > 200 ? item.description.slice(0, 200) : item.description,
+      statBonuses: item.statBonuses ?? {},
+      healValue: item.healValue,
+      consumable: item.consumable,
+      transferable: item.transferable,
+      tags: item.tags,
+      effect: item.effect && item.effect.length <= 150 ? item.effect : undefined,
+      charges: item.charges,
+      condition: item.condition,
+      boundToCharacterName: item.boundToCharacterId ? characterNameById.get(item.boundToCharacterId) : undefined,
+    })),
+  );
+}
 
 export function toNarrationInput(input: AIInput): NarrationInput {
   const actingChar = input.party.find(c => c.id === input.characterId);
@@ -41,6 +115,30 @@ export function toNarrationInput(input: AIInput): NarrationInput {
     }
   }
 
+  // Stable party/inventory snippets are cached per session and rebuilt only when stable sources change.
+  const partyVersion = computePartyVersion(input.party);
+  const inventoryVersion = computeInventoryVersion(input.party, characterNameById);
+  const cached = getSessionPromptCache(input.id, partyVersion, inventoryVersion);
+
+  let stableParty: CachedStablePartyMember[];
+  let inventorySnippet: CachedInventoryItem[];
+  if (cached) {
+    stableParty = cached.stableParty;
+    inventorySnippet = cached.inventory;
+  } else {
+    stableParty = buildStableParty(input.party);
+    inventorySnippet = buildInventorySnippet(input.party, characterNameById);
+    setSessionPromptCache(input.id, partyVersion, inventoryVersion, stableParty, inventorySnippet);
+  }
+
+  // Merge stable base with volatile per-turn fields (hp, status, buffs)
+  const party = input.party.map((c, i) => ({
+    ...stableParty[i],
+    hp: c.hp,
+    status: (c.status ?? 'active') as 'active' | 'downed',
+    ...(c.buffs && c.buffs.length > 0 && { buffs: c.buffs }),
+  }));
+
   return {
     scene: input.scene,
     storySummary: input.storySummary || undefined,
@@ -48,35 +146,8 @@ export function toNarrationInput(input: AIInput): NarrationInput {
     ...(input.sceneMomentum && { sceneMomentum: input.sceneMomentum }),
     actingCharacterName: actingChar?.name,
     nextCharacterName: nextChar?.name,
-    party: input.party.map(c => ({
-      name: c.name,
-      class: c.class,
-      species: c.species,
-      hp: c.hp,
-      maxHp: c.max_hp,
-      stats: c.stats,
-      status: c.status ?? 'active',
-      quirk: c.quirk,
-      ...(c.gender && { gender: c.gender }),
-      ...(c.history && { history: c.history.length > 200 ? c.history.slice(0, 200) : c.history }),
-      ...(c.buffs && c.buffs.length > 0 && { buffs: c.buffs }),
-    })),
-    inventory: input.party.flatMap(c =>
-      (c.inventory ?? []).map(item => ({
-        ownerName: c.name,
-        name: item.name,
-        description: item.description.length > 200 ? item.description.slice(0, 200) : item.description,
-        statBonuses: item.statBonuses ?? {},
-        healValue: item.healValue,
-        consumable: item.consumable,
-        transferable: item.transferable,
-        tags: item.tags,
-        effect: item.effect && item.effect.length <= 150 ? item.effect : undefined,
-        charges: item.charges,
-        condition: item.condition,
-        boundToCharacterName: item.boundToCharacterId ? characterNameById.get(item.boundToCharacterId) : undefined,
-      }))
-    ),
+    party,
+    inventory: inventorySnippet,
     actionAttempt: input.actionAttempt,
     actionResult: {
       success: input.actionResult.success,

@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { toNarrationInput } from './aiDmService.js';
 import type { AIInput, EncounterSeed } from '../types.js';
+import { clearSessionPromptCacheForTest } from '../lib/sessionPromptCache.js';
 
 const makeAIInput = (overrides: Partial<AIInput> = {}): AIInput => ({
   id: 'session-1',
@@ -49,6 +50,10 @@ const makeAIInput = (overrides: Partial<AIInput> = {}): AIInput => ({
   actionAttempt: 'Sneak past the chef',
   actionResult: { success: true, roll: 14, statUsed: 'mischief' },
   ...overrides,
+});
+
+beforeEach(() => {
+  clearSessionPromptCacheForTest();
 });
 
 describe('toNarrationInput', () => {
@@ -433,5 +438,52 @@ describe('toNarrationInput', () => {
     }));
     // lootHint should still be available even though dmPrepEncounters are omitted from narration input
     expect(out.encounterLootHint).toBe('a moon-stamped pantry key');
+  });
+
+  describe('prompt cache integration', () => {
+    it('produces identical stable fields on second call (cache hit)', () => {
+      const first = toNarrationInput(makeAIInput());
+      const second = toNarrationInput(makeAIInput());
+      expect(second.party[0].class).toBe(first.party[0].class);
+      expect(second.party[0].species).toBe(first.party[0].species);
+      expect(second.party[0].stats).toEqual(first.party[0].stats);
+      expect(second.inventory).toEqual(first.inventory);
+    });
+
+    it('reflects volatile HP change even when stable fields are cached', () => {
+      toNarrationInput(makeAIInput()); // prime cache
+      const input = makeAIInput();
+      input.party[0] = { ...input.party[0], hp: 3 }; // only HP changes (volatile)
+      const out = toNarrationInput(input);
+      expect(out.party[0].hp).toBe(3);
+      expect(out.party[0].class).toBe('Rogue'); // stable field still present
+    });
+
+    it('reflects volatile downed status change even when stable fields are cached', () => {
+      toNarrationInput(makeAIInput()); // prime cache
+      const input = makeAIInput();
+      input.party[0] = { ...input.party[0], hp: 0, status: 'downed' };
+      const out = toNarrationInput(input);
+      expect(out.party[0].status).toBe('downed');
+      expect(out.party[0].maxHp).toBe(10); // stable field still present
+    });
+
+    it('rebuilds stable party when stats change (version mismatch)', () => {
+      toNarrationInput(makeAIInput()); // prime cache
+      const input = makeAIInput();
+      input.party[0] = { ...input.party[0], stats: { might: 5, magic: 2, mischief: 4 } };
+      const out = toNarrationInput(input);
+      expect(out.party[0].stats.might).toBe(5);
+    });
+
+    it('rebuilds inventory when item is added (version mismatch)', () => {
+      toNarrationInput(makeAIInput()); // prime cache - no inventory
+      const item = { id: 'i1', name: '🗡️ Dagger', description: 'Sharp.', consumable: false, transferable: true };
+      const input = makeAIInput();
+      input.party[0] = { ...input.party[0], inventory: [item] };
+      const out = toNarrationInput(input);
+      expect(out.inventory).toHaveLength(1);
+      expect(out.inventory[0].name).toBe('🗡️ Dagger');
+    });
   });
 });
