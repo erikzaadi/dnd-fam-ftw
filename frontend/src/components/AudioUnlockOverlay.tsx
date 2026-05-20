@@ -22,6 +22,7 @@ export const AudioUnlockOverlay = () => {
     // unlock() runs in the background - no await to avoid async gesture issues on iOS.
     setShow(false);
     audioManager.unlock();
+    document.dispatchEvent(new CustomEvent('audio-unlocked'));
   };
 
   return (

@@ -82,6 +82,7 @@ export function useCarConductor({
   const currentSequenceRef = useRef<SpokenSegment[]>([]);
   const currentSegmentIdxRef = useRef<number>(0);
   const lastSpokenTurnIdRef = useRef<number | undefined>(undefined);
+  const spokenRollTurnIdRef = useRef<number | undefined>(undefined);
   const confirmingActionRef = useRef<string | null>(null);
   const retryCountRef = useRef(0);
   const listeningTimeoutRef = useRef<number | undefined>(undefined);
@@ -178,12 +179,37 @@ export function useCarConductor({
     }
   }, [ttsSettings, hasTts, cancelListening]);
 
+  const speakRollNarration = useCallback(async (text: string) => {
+    if (isPausedRef.current) {
+      return;
+    }
+    setConductorState('speaking');
+    narrationTtsService.stopNarration();
+    cancelListening();
+
+    try {
+      await narrationTtsService.speakNarration({
+        text,
+        settings: ttsSettings,
+        hasTts,
+      });
+      // Mark that we spoke a roll result for the currently incoming turn
+      // Note: we'll match it with the NEXT turnId that appears in history
+      spokenRollTurnIdRef.current = (history[history.length - 1]?.id ?? 0) + 1;
+    } catch (err) {
+      console.error('[CarConductor] speakRollNarration failed:', err);
+    }
+    setConductorState('processing');
+  }, [ttsSettings, hasTts, cancelListening, history]);
+
   const playSequence = useCallback(async (seq: SpokenSegment[], startIndex = 0) => {
     if (isPausedRef.current) {
       return;
     }
 
     setConductorState('speaking');
+    narrationTtsService.stopNarration();
+    cancelListening();
     currentSequenceRef.current = seq;
 
     for (let i = startIndex; i < seq.length; i++) {
@@ -211,7 +237,7 @@ export function useCarConductor({
       return;
     }
     startListeningFlow();
-  }, [ttsSettings, hasTts, startListeningFlow]);
+  }, [ttsSettings, hasTts, startListeningFlow, cancelListening]);
 
   const speakOptionsAndPrompt = useCallback(() => {
     const latestTurn = history[history.length - 1];
@@ -252,9 +278,12 @@ export function useCarConductor({
 
     const seq: SpokenSegment[] = [];
 
-    const rollSeg = buildRollResultSegment(latestTurn);
-    if (rollSeg) {
-      seq.push({ type: 'roll', text: rollSeg });
+    // Only add roll segment if we didn't already speak it mid-turn
+    if (spokenRollTurnIdRef.current !== latestTurn.id) {
+      const rollSeg = buildRollResultSegment(latestTurn);
+      if (rollSeg) {
+        seq.push({ type: 'roll', text: rollSeg });
+      }
     }
 
     const currentEncounterStatus = session?.encounterState?.status || 'none';
@@ -319,6 +348,7 @@ export function useCarConductor({
         await speakAlert('Action sent.');
         try {
           await submitAction(choice.label, choice.stat, choice.difficulty, choice.difficultyValue ?? null);
+          setConductorState('processing');
         } catch {
           addToTranscriptLog('System: Action submission failed.');
           setConductorState('error');
@@ -350,6 +380,7 @@ export function useCarConductor({
               null
             );
             clearPreview();
+            setConductorState('processing');
           } catch {
             addToTranscriptLog('System: Action submission failed.');
             setConductorState('error');
@@ -465,6 +496,7 @@ export function useCarConductor({
     state: sttState,
     startListening,
     cancel: cancelSpeechRec,
+    confirmTranscript,
     errorMessage: sttError,
   } = useSpeechRecognition({
     onConfirmTranscript: handleSpeechTranscript,
@@ -481,6 +513,12 @@ export function useCarConductor({
     addToTranscriptLog('System: Voice mode resumed.');
     void playSequence(currentSequenceRef.current, currentSegmentIdxRef.current);
   }, [playSequence, addToTranscriptLog]);
+
+  useEffect(() => {
+    if (sttState.status === 'confirming') {
+      void confirmTranscript();
+    }
+  }, [sttState.status, confirmTranscript]);
 
   useEffect(() => {
     if (sttState.status === 'error' && lastSttStatusRef.current !== 'error') {
@@ -575,6 +613,7 @@ export function useCarConductor({
   // Clean up on unmount
   useEffect(() => {
     return () => {
+      isPausedRef.current = true;
       narrationTtsService.stopNarration();
       if (listeningTimeoutRef.current) {
         window.clearTimeout(listeningTimeoutRef.current);
@@ -591,6 +630,7 @@ export function useCarConductor({
     resumeConductor,
     speakFullStorySequence,
     speakOptionsAndPrompt,
+    speakRollNarration,
     sttError,
     sttStatus: sttState.status,
     recognizedTranscript: 'transcript' in sttState ? sttState.transcript : '',

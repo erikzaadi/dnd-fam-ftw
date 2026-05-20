@@ -1,12 +1,11 @@
 
+import { useRef, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTtsSettings } from '../tts/useTtsSettings';
 import { useSttSettings } from '../stt/useSttSettings';
 import { useCapabilities } from '../hooks/useCapabilities';
 import { useCarSessionRuntime } from '../session/car/useCarSessionRuntime';
 import { useCarConductor } from '../session/car/useCarConductor';
-import { SiteHeader } from '../components/SiteHeader';
-import { DmFooter } from '../components/DmFooter';
 
 export const CarMode = () => {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +17,8 @@ export const CarMode = () => {
 
   // If either narration voice or voice actions is disabled, we render setup view.
   const needsSetup = !ttsSettings.enabled || !sttSettings.enabled;
+
+  const speakRollNarrationRef = useRef<((text: string) => Promise<void>) | null>(null);
 
   const {
     session,
@@ -37,6 +38,9 @@ export const CarMode = () => {
     onTurnError: () => {},
     onConnected: () => {},
     onNarrating: () => {},
+    onPendingRollNarration: useCallback((text: string) => {
+      void speakRollNarrationRef.current?.(text);
+    }, []),
   });
 
   const {
@@ -47,6 +51,7 @@ export const CarMode = () => {
     resumeConductor,
     speakFullStorySequence,
     speakOptionsAndPrompt,
+    speakRollNarration,
     sttError,
     recognizedTranscript,
   } = useCarConductor({
@@ -64,6 +69,10 @@ export const CarMode = () => {
     hasTts: capabilities.hasTts,
   });
 
+  useEffect(() => {
+    speakRollNarrationRef.current = speakRollNarration;
+  }, [speakRollNarration]);
+
   if (!id) {
     return null;
   }
@@ -76,7 +85,6 @@ export const CarMode = () => {
   if (needsSetup) {
     return (
       <div className="h-screen bg-slate-950 text-white flex flex-col overflow-hidden">
-        <SiteHeader />
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto space-y-8">
           <div>
             <h2 className="text-3xl font-display font-black text-amber-400 italic tracking-tighter uppercase">
@@ -130,7 +138,6 @@ export const CarMode = () => {
             Exit to Standard Mode
           </button>
         </div>
-        <DmFooter />
       </div>
     );
   }
@@ -149,8 +156,6 @@ export const CarMode = () => {
 
   return (
     <div className="h-screen bg-slate-950 text-white flex flex-col overflow-hidden">
-      <SiteHeader />
-
       <div className="flex-1 flex flex-col px-6 py-4 overflow-y-auto space-y-6">
         {/* Realm Header Info */}
         <div className="text-center">
@@ -337,7 +342,6 @@ export const CarMode = () => {
           </div>
         </div>
       </div>
-      <DmFooter />
     </div>
   );
 };

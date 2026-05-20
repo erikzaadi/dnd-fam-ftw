@@ -30,10 +30,29 @@ export function sanitizeText(text: string): string {
 export function buildRollResultSegment(turn: TurnResult): string {
   const parts: string[] = [];
   const ar = turn.lastAction?.actionResult;
-  
+
   if (ar && ar.statUsed && ar.statUsed !== 'none' && ar.roll) {
     const outcome = ar.success ? 'Success!' : 'Failure.';
-    parts.push(`${outcome} Rolled a ${ar.roll} for ${ar.statUsed}.`);
+
+    const totalBonus = (ar.statBonus ?? 0)
+      + (ar.itemBonus ?? 0)
+      + (ar.helperBonus ?? 0)
+      + (ar.choiceItemBonus ?? 0)
+      + (ar.characterBonus ?? 0)
+      + (ar.buffBonus ?? 0);
+    const finalTotal = ar.roll + totalBonus;
+
+    let rollText = '';
+    if (ar.difficultyTarget !== undefined) {
+      rollText += `Needed a ${ar.difficultyTarget}. `;
+    }
+    rollText += `Rolled ${ar.roll} on the dice`;
+    if (totalBonus > 0) {
+      rollText += ` with plus ${totalBonus} in bonuses, for a total of ${finalTotal}`;
+    }
+    rollText += `. ${outcome}`;
+
+    parts.push(rollText);
   }
   
   if (turn.rollNarration) {

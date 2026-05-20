@@ -39,7 +39,7 @@ describe('carSpeechSegment', () => {
         ],
       };
       const spoken = buildRollResultSegment(turn);
-      expect(spoken).toContain('Success! Rolled a 15 for might.');
+      expect(spoken).toContain('Rolled 15 on the dice. Success!');
       expect(spoken).toContain('You swing hard and hit.');
       expect(spoken).toContain('Hagar lost 3 H P. Anya gained 2 H P.');
     });

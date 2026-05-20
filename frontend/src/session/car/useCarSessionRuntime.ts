@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Session, TurnResult, FreeActionPreview } from '../../types';
+import type { Session, TurnResult, FreeActionPreview, ImageReadyEvent } from '../../types';
 import { apiFetch } from '../../lib/api';
 import { useSessionEvents } from '../../hooks/useSessionEvents';
+import { audioManager } from '../../audio/audioManager';
 
 interface UseCarSessionRuntimeProps {
   sessionId: string;
@@ -10,6 +11,9 @@ interface UseCarSessionRuntimeProps {
   onTurnError: (error: string, message: string) => void;
   onConnected: () => void;
   onNarrating: () => void;
+  onImageReady?: (imageUrl: string) => void;
+  onPendingRollNarration?: (text: string) => void;
+  onPreviewReady?: (preview: FreeActionPreview) => void;
 }
 
 export function useCarSessionRuntime({
@@ -18,6 +22,9 @@ export function useCarSessionRuntime({
   onTurnError,
   onConnected,
   onNarrating,
+  onImageReady,
+  onPendingRollNarration,
+  onPreviewReady,
 }: UseCarSessionRuntimeProps) {
   const navigate = useNavigate();
   const [session, setSession] = useState<Session | null>(null);
@@ -97,6 +104,23 @@ export function useCarSessionRuntime({
       setLoading(true);
       onNarrating();
     },
+    onRollNarrationDone: (rollNarration, actionResult) => {
+      if (actionResult) {
+        audioManager.playSfx('dice-roll');
+        setTimeout(() => {
+          if (actionResult.roll === 20) {
+            audioManager.playSfx('roll-20');
+          } else if (actionResult.success) {
+            audioManager.playSfx('success-roll');
+          } else {
+            audioManager.playSfx('failed-roll');
+          }
+        }, 600);
+      }
+      if (rollNarration) {
+        onPendingRollNarration?.(rollNarration);
+      }
+    },
     onTurnComplete: (updatedSession, turnResult) => {
       setSession(updatedSession);
       if (turnResult) {
@@ -112,7 +136,11 @@ export function useCarSessionRuntime({
       setLoading(false);
       onTurnError(error, message);
     },
-    onImageReady: () => {},
+    onImageReady: (event: ImageReadyEvent) => {
+      if (event.target === 'scene') {
+        onImageReady?.(event.imageUrl);
+      }
+    },
     onIntervention: () => {},
     onSanctuaryRecovery: () => {},
     onPartyUpdate: (updatedSession) => {
@@ -213,8 +241,9 @@ export function useCarSessionRuntime({
     } finally {
       setActionPreview(preview);
       setPreviewThinking(false);
+      onPreviewReady?.(preview);
     }
-  }, [session, sessionId]);
+  }, [session, sessionId, onPreviewReady]);
 
   const clearPreview = useCallback(() => {
     setActionPreview(null);
