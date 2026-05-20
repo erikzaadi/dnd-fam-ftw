@@ -687,8 +687,8 @@ describe('parseNarrationOutput', () => {
   it('does not treat generic resolved-threat adjectives as enemy names', () => {
     const result = parseNarrationOutput({
       ...input,
-      recentHistory: ['The powerful foe was defeated and the party moved deeper into the vault.'],
-      resolvedEncounterEnemyNames: ['powerful'],
+      recentHistory: ['The radiant foe was defeated and the party moved deeper into the vault.'],
+      resolvedEncounterEnemyNames: ['radiant'],
       sceneMomentum: {
         directive: 'advance_campaign',
         staleChoiceCount: 0,
@@ -700,9 +700,10 @@ describe('parseNarrationOutput', () => {
         reason: 'The encounter has ended.',
       },
     }, output({
-      narration: 'Powerful runes block the vault door, but the old enemy is gone.',
+      rollNarration: 'A radiant burst of encouragement lifts the entire party.',
+      narration: 'Radiant runes block the vault door, but the old enemy is gone.',
       choices: [
-        { label: 'Study the powerful runes', difficulty: 'normal', stat: 'magic', difficultyValue: 12 },
+        { label: 'Study the radiant runes', difficulty: 'normal', stat: 'magic', difficultyValue: 12 },
         { label: 'Search for the vault key', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
         { label: 'Brace the cracked stones', difficulty: 'normal', stat: 'might', difficultyValue: 11 },
       ],

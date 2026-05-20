@@ -47,7 +47,40 @@ const encounterResolutionVerb = (status: string | undefined): string => {
   return 'collapses, defeated';
 };
 
-const buildPostEncounterChoices = (session: SessionState, newState: SessionState): SessionState['lastChoices'] => {
+type PostEncounterLoot = {
+  characterName: string;
+  itemName: string;
+};
+
+const buildPostEncounterChoices = (session: SessionState, newState: SessionState, addedLoot: PostEncounterLoot[]): SessionState['lastChoices'] => {
+  const environmentFeature = /^(a new realm|new realm|unknown realm)$/i.test(session.scene.trim())
+    ? 'unstable magic'
+    : session.scene;
+  const loot = addedLoot[0];
+  const nextActor = newState.party.find(c => c.id === newState.activeCharacterId);
+  const nextActorOwnsLoot = Boolean(loot && nextActor?.name === loot.characterName);
+  const middleChoice = loot
+    ? {
+      label: `Empower ${loot.itemName}`,
+      difficulty: 'normal' as const,
+      stat: 'magic' as const,
+      difficultyValue: 12,
+      narration: `Tinker with ${loot.characterName}'s new find and try to awaken its magic.`,
+      flavor: nextActorOwnsLoot ? 'item' as const : 'standard' as const,
+      ...(nextActorOwnsLoot && {
+        itemOwnerName: loot.characterName,
+        itemName: loot.itemName,
+      }),
+    }
+    : {
+      label: 'Search what the foe guarded',
+      difficulty: 'normal' as const,
+      stat: 'mischief' as const,
+      difficultyValue: 11,
+      narration: 'Look for clues, loot, or a safer route forward.',
+      flavor: 'standard' as const,
+    };
+
   return [
     {
       label: 'Push beyond the battlefield',
@@ -57,14 +90,7 @@ const buildPostEncounterChoices = (session: SessionState, newState: SessionState
       narration: 'Move the party into whatever waits beyond the broken fight.',
       flavor: 'standard',
     },
-    {
-      label: 'Search what the foe guarded',
-      difficulty: 'normal',
-      stat: 'mischief',
-      difficultyValue: 11,
-      narration: 'Look for clues, loot, or a safer route forward.',
-      flavor: 'standard',
-    },
+    middleChoice,
     {
       label: 'Stabilize the scene with magic',
       difficulty: 'normal',
@@ -72,19 +98,50 @@ const buildPostEncounterChoices = (session: SessionState, newState: SessionState
       difficultyValue: 12,
       narration: 'Calm the dangerous magic before it sparks again.',
       flavor: 'environment',
-      environmentFeature: session.scene,
+      environmentFeature,
     },
   ];
 };
 
-const buildLootNarration = (previousSession: SessionState, newState: SessionState): string => {
-  const addedLoot = computeInventoryChanges(previousSession.party, newState.party)
+const sentenceCase = (text: string): string => {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+  return `${trimmed.charAt(0).toLowerCase()}${trimmed.slice(1)}`;
+};
+
+const extractNextPromisedBeat = (storySummary: string | undefined): string | null => {
+  if (!storySummary) {
+    return null;
+  }
+  const match = /NEXT PROMISED BEAT:\s*([^\n]+)/i.exec(storySummary);
+  const beat = match?.[1]?.trim().replace(/[.?!]+$/g, '');
+  return beat || null;
+};
+
+const buildPostEncounterFollowThrough = (session: SessionState): string => {
+  const nextBeat = extractNextPromisedBeat(session.storySummary);
+  if (nextBeat) {
+    return ` Now the party can ${sentenceCase(nextBeat)}.`;
+  }
+  return ' A clue, route, or decision waits beyond the battlefield.';
+};
+
+const getPostEncounterLoot = (previousSession: SessionState, newState: SessionState): PostEncounterLoot[] =>
+  computeInventoryChanges(previousSession.party, newState.party)
     .filter(change => change.type === 'added')
-    .map(change => `${change.characterName} claims ${change.itemName}`);
+    .map(change => ({ characterName: change.characterName, itemName: change.itemName }));
+
+const buildLootNarration = (addedLoot: PostEncounterLoot[]): string => {
   if (addedLoot.length === 0) {
     return '';
   }
-  return ` ${addedLoot.join(', ')} from the aftermath.`;
+  const claims = addedLoot.map(change => `${change.characterName} claims ${change.itemName}`);
+  const hums = addedLoot.length === 1
+    ? ` ${addedLoot[0].itemName} still hums with usable magic.`
+    : ' The new spoils still hum with usable magic.';
+  return ` ${claims.join(', ')} from the aftermath.${hums}`;
 };
 
 const alignTurnWithResolvedEncounter = (
@@ -113,10 +170,12 @@ const alignTurnWithResolvedEncounter = (
   const enemyNames = resolvedEnemies.map(e => e.afterEnemy.name || e.beforeEnemy.name).join(', ');
   const status = newState.encounterState.status;
   const resolution = encounterResolutionVerb(status);
-  const lootNarration = buildLootNarration(previousSession, newState);
-  turnResult.narration = `${enemyNames} ${resolution}.${lootNarration} The immediate fight is over.`;
+  const addedLoot = getPostEncounterLoot(previousSession, newState);
+  const lootNarration = buildLootNarration(addedLoot);
+  const followThrough = buildPostEncounterFollowThrough(previousSession);
+  turnResult.narration = `${enemyNames} ${resolution}.${lootNarration} The immediate fight is over.${followThrough}`;
   turnResult.currentTensionLevel = status === 'defeated' ? 'medium' : turnResult.currentTensionLevel;
-  const choices = buildPostEncounterChoices(previousSession, newState);
+  const choices = buildPostEncounterChoices(previousSession, newState, addedLoot);
   turnResult.choices = choices;
   newState.lastChoices = choices;
 };

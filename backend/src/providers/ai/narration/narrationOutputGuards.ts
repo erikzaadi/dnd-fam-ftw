@@ -10,7 +10,7 @@ const COMBAT_LABEL_RE = /\b(attack|strike|slash|stab|fight|battle|enemy|foe|mons
 const PORTAL_TRANSITION_RE = /\b(portal|teleport|teleports|teleported|teleporting|gateway|gateways|waygate|waygates)\b/i;
 const HIDDEN_PATH_RE = /\b(hidden|secret|concealed|veiled)\b.{0,24}\b(path|paths|trail|route|passage|tunnel|door|doorway)\b/i;
 const RESOLVED_THREAT_RE = /\b(defeated|vanquished|banished|calmed|retreats?|retreated|dissipates?|dissipated|dissolves?|dissolved|fades?|faded|clears?|cleared|silenced|gone)\b/i;
-const REVIVED_THREAT_RE = /\b(ambush|attack|attacks|battle|block|blocks|burst|bursts|confront|confronts|danger|emerges?|fight|growl|hungry|lunges?|menacing|menace|ready to fight|revenge|returns?|shadow|shadows|strike|threat|vengeful|writhes?|writhing)\b/i;
+const REVIVED_THREAT_RE = /\b(ambush|attack|attacks|battle|block|blocks|burst|bursts|confront|confronts|danger|emerges?|fight|growl|hungry|lunges?|menacing|menace|ready to fight|revenge|returns?|shadow|shadows|strike|threat|threatens?|threatening|vengeful|writhes?|writhing)\b/i;
 const THREAT_PHRASE_RE = /\b(?:shadowy|spectral|twisted|vengeful|massive|mechanical|vine|wolf|guardian|shadow|root|clockwork)\s+(?:figure|creature|wolf|guardian|menace|beast|roots?|vines?)\b/gi;
 const VAGUE_ATMOSPHERE_PHRASES = [
   'tension in the air',
@@ -56,6 +56,8 @@ const SIMILARITY_STOPWORDS = new Set([
 const GENERIC_RESOLVED_THREAT_NAMES = new Set([
   'fierce',
   'powerful',
+  'protective',
+  'radiant',
 ]);
 
 const normalizedItemName = (name: string | null | undefined): string => {

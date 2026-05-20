@@ -33,6 +33,7 @@ const GENERIC_ORGANIC_ENEMY_NAMES = new Set([
   'looming',
   'mighty',
   'powerful',
+  'protective',
   'radiant',
   'shadowy',
   'strange',

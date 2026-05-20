@@ -185,6 +185,55 @@ describe('OpenAINarrationProvider', () => {
     }
   });
 
+  it('yellow-cards likely false-positive gameplay guards without retrying', async () => {
+    const softFailure = output({
+      rollNarration: 'Mighty Roar To echoes as Pip lifts the party.',
+      narration: 'Pip steadies the group while Mighty Roar To threatens to shake the cracked floor.',
+      choices: [
+        { label: 'Study Mighty Roar To', difficulty: 'normal', stat: 'magic', difficultyValue: 12 },
+        { label: 'Search the vault archway', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+        { label: 'Brace the shaking stones', difficulty: 'normal', stat: 'might', difficultyValue: 11 },
+      ],
+    });
+
+    mockStream({ choices: [{ message: { parsed: softFailure } }] });
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    try {
+      const result = await new OpenAINarrationProvider().generateTurn({
+        ...input,
+        recentHistory: ['The Mighty Roar To was defeated and the party moved deeper into the vault.'],
+        resolvedEncounterEnemyNames: ['Mighty Roar To'],
+        sceneMomentum: {
+          directive: 'advance_campaign',
+          staleChoiceCount: 0,
+          turnsSinceSceneChange: 2,
+          turnsSinceCombat: 1,
+          justCompletedCombat: true,
+          justCompletedDifficultChallenge: false,
+          suggestedNextBeat: 'Move into the next challenge.',
+          reason: 'The encounter has ended.',
+        },
+      });
+
+      expect(result).toMatchObject(softFailure);
+      expect(result.narrationRetried).toBeUndefined();
+      expect(result.narrationFailed).toBeUndefined();
+      expect(result.narrationValidationError).toContain('Output revives recently resolved threat');
+      expect(mocks.stream).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(
+        '[Narration] attempt-1 guard=yellow-card accepting',
+        expect.any(String)
+      );
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+      error.mockRestore();
+    }
+  });
+
   it('uses a contextual fallback when both attempts fail validation', async () => {
     const malformed = { narration: 'Pip charges forward.', choices: 'not-an-array' };
 
@@ -334,7 +383,9 @@ describe('OpenAINarrationProvider', () => {
 
     const callArgs = mocks.stream.mock.calls[0]?.[0] as {
       model?: string;
+      max_completion_tokens?: number;
       reasoning_effort?: string;
+      temperature?: number;
       verbosity?: string;
       service_tier?: string;
     } | undefined;

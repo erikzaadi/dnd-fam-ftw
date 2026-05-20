@@ -43,6 +43,14 @@ function effectiveReasoningEffort(model: string, configured: ReturnType<typeof g
   return /^gpt-5(?:[.-]|$)/i.test(model) ? 'low' : undefined;
 }
 
+function isYellowCardValidationError(error: string): boolean {
+  return (
+    error.includes('Output revives recently resolved threat') ||
+    error.includes('Narration repeats vague atmosphere filler') ||
+    error.includes('Narration repeats the previous turn too closely')
+  );
+}
+
 export class OpenAINarrationProvider implements NarrationProvider {
   async generateTurn(input: NarrationInput, callbacks?: NarrationStreamCallbacks): Promise<NarrationOutput> {
     const raw = await this.callModel(input, undefined, callbacks);
@@ -50,6 +58,17 @@ export class OpenAINarrationProvider implements NarrationProvider {
     if (parsed.success) {
       devLog.log('[Narration] attempt-1 guard=pass');
       return parsed.data;
+    }
+
+    if (isYellowCardValidationError(parsed.error)) {
+      const relaxed = parseNarrationOutput(input, raw, { enforceGameplayGuards: false });
+      if (relaxed.success) {
+        devLog.warn('[Narration] attempt-1 guard=yellow-card accepting', parsed.error);
+        return {
+          ...relaxed.data,
+          narrationValidationError: parsed.error,
+        };
+      }
     }
 
     devLog.warn('[Narration] attempt-1 guard=fail retrying', parsed.error);

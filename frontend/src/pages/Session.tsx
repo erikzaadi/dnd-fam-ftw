@@ -339,12 +339,8 @@ export const SessionPage = () => {
     },
     onNarrationChunkAbort: () => {
       narrationTtsService.stopNarration();
-      if (hasEarlyRollRef.current) {
-        hasEarlyRollRef.current = false;
-        // Keep rollResult visible - the roll is valid, only the narration is retrying.
-        // onTurnComplete will update it with the full data via the non-early path.
-        setConsequencesPending(false);
-      }
+      // Roll result and consequencesPending stay as-is - the roll is valid, only the narration is retrying.
+      // onTurnComplete will arrive after the retry and handle cleanup via the normal early-roll path.
     },
     onTurnError: (_error, message) => {
       setLoading(false);

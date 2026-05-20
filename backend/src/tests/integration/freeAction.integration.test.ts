@@ -87,6 +87,7 @@ describe('executeTurnAction free action integration', () => {
       id: 'free-action-resolved-encounter-session',
       party: [makeTestSession().party[0], makeTestSession().party[1]],
       activeCharacterId: 'char-pip',
+      storySummary: 'STORY SO FAR: The party is in a vault.\nNEXT PROMISED BEAT: Decipher the fractured runic entrance and confront the Ledger doorway.',
       encounterState: {
         id: 'enc-ambusher',
         name: 'Ambusher Skirmish',
@@ -117,13 +118,21 @@ describe('executeTurnAction free action integration', () => {
     expect(lootChange).toBeTruthy();
     const lootName = (lootChange!.itemName) as string;
     expect(result.body.turnResult.narration).toContain(`Pip claims ${lootName} from the aftermath`);
+    expect(result.body.turnResult.narration).toContain(`${lootName} still hums with usable magic.`);
+    expect(result.body.turnResult.narration).toContain('Now the party can decipher the fractured runic entrance and confront the Ledger doorway.');
     expect(result.body.turnResult.narration).not.toContain('wounded but fierce');
     expect(result.body.turnResult.choices.map(choice => choice.label).join(' ')).not.toContain('Ambusher');
     expect(result.body.turnResult.choices.map(choice => choice.label)).toEqual([
       'Push beyond the battlefield',
-      'Search what the foe guarded',
+      `Empower ${lootName}`,
       'Stabilize the scene with magic',
     ]);
+    expect(result.body.turnResult.choices[1]).toMatchObject({
+      stat: 'magic',
+      difficultyValue: 12,
+      flavor: 'standard',
+    });
+    expect(result.body.turnResult.choices[2].environmentFeature).toBe('A goblin kitchen');
     expect(result.body.turnResult.inventoryChanges).toContainEqual({
       characterName: 'Pip',
       itemName: lootName,
