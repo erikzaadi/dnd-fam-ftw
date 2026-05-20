@@ -27,7 +27,7 @@ export const SpeechConfirmDialog = ({
     ? choice
       ? `Action ${intent.index + 1}: ${choice.label}`
       : `Action ${intent.index + 1}`
-    : intent.text;
+    : intent.type === 'custom' ? intent.text : '';
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">

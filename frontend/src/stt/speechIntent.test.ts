@@ -32,4 +32,34 @@ describe('parseSpeechIntent', () => {
       transcript: 'cast a tiny shield',
     });
   });
+
+  it.each([
+    ['confirm', 'confirm'],
+    ['yes', 'confirm'],
+    ['cancel', 'cancel'],
+    ['go back', 'cancel'],
+    ['try again', 'retry'],
+    ['retry action', 'retry'],
+    ['repeat choices', 'repeat'],
+    ['repeat prompt', 'repeat'],
+    ['repeat story', 'story-repeat'],
+    ['story', 'story-repeat'],
+    ['what are the options', 'options'],
+    ['read options', 'options'],
+    ['pause game', 'pause'],
+    ['resume', 'resume'],
+    ['continue', 'resume'],
+    ['help', 'help'],
+    ['voice commands', 'help'],
+    ['status', 'status'],
+    ['current status', 'status'],
+    ['party health', 'party'],
+    ['members', 'party'],
+    ['gear', 'gear'],
+    ['my gear', 'gear'],
+    ['where are we', 'where-are-we'],
+    ['current location', 'where-are-we'],
+  ])('maps %s to command type %s', (text, expectedType) => {
+    expect(parseSpeechIntent(text)).toMatchObject({ type: expectedType, transcript: text });
+  });
 });

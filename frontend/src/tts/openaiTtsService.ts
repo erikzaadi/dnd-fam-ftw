@@ -7,6 +7,7 @@ type OpenAiTtsInput = {
   text: string;
   gender?: 'male' | 'female';
   turnId?: number | string;
+  cacheKey?: string;
   volume?: number;
 };
 
@@ -36,7 +37,7 @@ class OpenAiTtsService {
     return this._speaking;
   }
 
-  public async speakNarration({ text, gender, turnId, volume = 1 }: OpenAiTtsInput): Promise<void> {
+  public async speakNarration({ text, gender, turnId, cacheKey: explicitCacheKey, volume = 1 }: OpenAiTtsInput): Promise<void> {
     if (!this.isSupported()) {
       return;
     }
@@ -44,7 +45,9 @@ class OpenAiTtsService {
     this.stop();
     const generation = this.playbackGeneration;
 
-    const key = turnId === undefined ? null : cacheKey(turnId, gender);
+    const key = explicitCacheKey
+      ? `${explicitCacheKey}:${gender ?? 'male'}`
+      : (turnId === undefined ? null : cacheKey(turnId, gender));
     const cached = key ? this.cache.get(key) : null;
     if (cached && key) {
       this.cache.delete(key);

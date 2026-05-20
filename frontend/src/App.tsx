@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Home } from './pages/Home';
 import { SessionPage } from './pages/Session';
+import { CarMode } from './pages/CarMode';
 import { CreateSession } from './pages/CreateSession';
 import { CharacterAssembly } from './pages/CharacterAssembly';
 import { SessionRecap } from './pages/SessionRecap';
@@ -42,6 +43,7 @@ function AppRoutes() {
         <Route path="/get-me-rollin" element={<GetMeRollin />} />
         <Route path="/create-session" element={<CreateSession />} />
         <Route path="/session/:id" element={<SessionPage />} />
+        <Route path="/session/:id/car" element={<CarMode />} />
         <Route path="/session/:id/recap" element={<SessionRecap />} />
         <Route path="/session/:id/assembly" element={<CharacterAssembly />} />
       </Routes>

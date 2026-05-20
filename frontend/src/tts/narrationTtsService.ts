@@ -8,6 +8,7 @@ type SpeakNarrationInput = {
   settings: TtsSettings;
   hasTts: boolean;
   turnId?: number | string;
+  cacheKey?: string;
   mainNarration?: boolean;
 };
 
@@ -40,6 +41,7 @@ class NarrationTtsService {
     settings,
     hasTts,
     turnId,
+    cacheKey,
     mainNarration = true,
   }: SpeakNarrationInput): Promise<void> {
     if (!settings.enabled) {
@@ -55,6 +57,7 @@ class NarrationTtsService {
           text,
           gender: genderFromSettings(settings),
           turnId,
+          cacheKey,
           volume: settings.volume,
         });
         return;

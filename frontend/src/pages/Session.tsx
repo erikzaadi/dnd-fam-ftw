@@ -914,6 +914,15 @@ export const SessionPage = () => {
             open={gearOpen}
             onOpenChange={setGearOpen}
           />
+          <Tooltip content="Car Mode" position="bottom" align="right" portal>
+            <button
+              onClick={() => navigate(`/session/${session.id}/car`)}
+              className="w-11 h-11 flex items-center justify-center rounded-xl border border-slate-700 text-slate-400 hover:bg-slate-800 hover:border-slate-500 hover:text-slate-200 text-lg transition-all"
+              aria-label="Car Mode"
+            >
+              🚗
+            </button>
+          </Tooltip>
           <Tooltip content="Exit realm [q]" position="bottom" align="right" portal>
             <button
               onClick={handleExitClick}

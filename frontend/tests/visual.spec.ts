@@ -1097,3 +1097,83 @@ test('session dm-recap panel - roll result failure with HP loss', async ({ page 
   await expect(page.getByText('The realm responds...')).toBeVisible({ timeout: 5_000 });
   await screenshotViewports(page, 'session-dm-recap-roll-failure');
 });
+
+async function setupCarModeRoutes(page: Page, sessionId: string): Promise<void> {
+  await page.route(`**/api/session/${sessionId}`, route => {
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: sessionId,
+        displayName: 'Car Mode Adventure',
+        scene: 'The Whispering Forest',
+        turn: 1,
+        activeCharacterId: 'char-1',
+        party: [
+          {
+            id: 'char-1',
+            name: 'Barnabas Strongarm',
+            class: 'Barbarian',
+            species: 'Human',
+            hp: 10,
+            max_hp: 10,
+            status: 'active',
+            inventory: [],
+          },
+        ],
+      }),
+    });
+  });
+  await page.route(`**/api/session/${sessionId}/history`, route => {
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          id: 1,
+          narration: 'You hear a low growl from the dark trees.',
+          choices: [
+            { label: 'Draw your sword', difficulty: 'normal', stat: 'might' },
+            { label: 'Sneak past the bushes', difficulty: 'hard', stat: 'mischief' },
+          ],
+        },
+      ]),
+    });
+  });
+  await page.route('**/api/capabilities', route => {
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ hasCloudAI: true, hasTts: true }),
+    });
+  });
+}
+
+test('car-mode-setup-blocking', async ({ page }) => {
+  const sessionId = 'visual-car-mode-setup';
+  await suppressFirstRunOverlays(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('dnd-tts-settings', JSON.stringify({ enabled: false }));
+    localStorage.setItem('dnd-stt-settings', JSON.stringify({ enabled: false }));
+  });
+  await setupCarModeRoutes(page, sessionId);
+  await page.goto(`/session/${sessionId}/car`);
+  await dismissAudioOverlay(page);
+  await expect(page.getByText('Voice Setup Required')).toBeVisible({ timeout: 5_000 });
+  await screenshotViewports(page, 'car-mode-setup-blocking');
+});
+
+test('car-mode-active', async ({ page }) => {
+  const sessionId = 'visual-car-mode-active';
+  await suppressFirstRunOverlays(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('dnd-tts-settings', JSON.stringify({ enabled: true }));
+    localStorage.setItem('dnd-stt-settings', JSON.stringify({ enabled: true }));
+  });
+  await setupCarModeRoutes(page, sessionId);
+  await page.goto(`/session/${sessionId}/car`);
+  await dismissAudioOverlay(page);
+  await expect(page.getByText('Car Mode Adventure')).toBeVisible({ timeout: 5_000 });
+  await screenshotViewports(page, 'car-mode-active');
+});
+
