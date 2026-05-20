@@ -83,6 +83,19 @@ export class OpenAINarrationProvider implements NarrationProvider {
       };
     }
 
+    if (isYellowCardValidationError(retryParsed.error)) {
+      const relaxedRetry = parseNarrationOutput(input, retryRaw, { enforceGameplayGuards: false });
+      if (relaxedRetry.success) {
+        devLog.warn('[Narration] retry guard=yellow-card accepting', retryParsed.error);
+        return {
+          ...relaxedRetry.data,
+          narrationRetried: true,
+          narrationValidationError: parsed.error,
+          narrationRetryValidationError: retryParsed.error,
+        };
+      }
+    }
+
     devLog.error('[OpenAINarration] Retry also failed, using fallback.', retryParsed.error, 'Raw:', JSON.stringify(retryRaw));
     return {
       ...buildNarrationFallback(input),
