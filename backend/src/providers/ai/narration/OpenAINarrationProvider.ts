@@ -1,10 +1,17 @@
 import { zodResponseFormat } from 'openai/helpers/zod';
+import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions';
 import type { NarrationInput, NarrationOutput, NarrationProvider, NarrationStreamCallbacks } from './NarrationProvider.js';
 import { buildNarrationFallback } from './narrationFallback.js';
 import { buildNarrationSystemPrompt, buildNarrationUserContent } from './narrationPrompt.js';
 import { parseNarrationOutput } from './narrationOutputGuards.js';
 import { narrationOutputSchema } from './narrationSchemas.js';
-import { createOpenAIClient, getModelForTier } from '../openAiClient.js';
+import {
+  createOpenAIClient,
+  getModelForTier,
+  getNarrationReasoningEffort,
+  getNarrationServiceTier,
+  getNarrationTextVerbosity,
+} from '../openAiClient.js';
 import { devLog } from '../../../lib/devLog.js';
 
 function extractStreamingFields(snapshot: string): { rollNarration: string | null; narration: string } {
@@ -51,6 +58,9 @@ export class OpenAINarrationProvider implements NarrationProvider {
 
   private async callModel(input: NarrationInput, validationError?: string, callbacks?: NarrationStreamCallbacks): Promise<unknown> {
     const model = getModelForTier('narration');
+    const reasoningEffort = getNarrationReasoningEffort();
+    const textVerbosity = getNarrationTextVerbosity();
+    const serviceTier = getNarrationServiceTier();
     const attempt = validationError ? 'retry' : 'attempt-1';
     const start = Date.now();
     const systemPrompt = buildNarrationSystemPrompt(input);
@@ -90,9 +100,12 @@ export class OpenAINarrationProvider implements NarrationProvider {
       `inventory=${input.inventory.length}`,
       `encounters=${input.dmPrepEncounters?.length ?? 0}`,
       `hasEncounterState=${input.encounterState ? 'true' : 'false'}`,
+      `reasoningEffort=${reasoningEffort ?? 'default'}`,
+      `verbosity=${textVerbosity ?? 'default'}`,
+      `serviceTier=${serviceTier ?? 'default'}`,
     ].join(' '));
 
-    const stream = createOpenAIClient().chat.completions.stream({
+    const request: ChatCompletionCreateParamsStreaming = {
       model,
       messages: [
         { role: 'system', content: systemPrompt },
@@ -101,9 +114,18 @@ export class OpenAINarrationProvider implements NarrationProvider {
       response_format: zodResponseFormat(narrationOutputSchema, 'narration_output'),
       temperature: 0.7,
       max_completion_tokens: isHighStakesTurn ? 1500 : 1300,
+      stream: true,
       stream_options: { include_usage: true },
-    }, { signal: AbortSignal.timeout(timeoutMs) });
+      ...(reasoningEffort && { reasoning_effort: reasoningEffort }),
+      ...(textVerbosity && { verbosity: textVerbosity }),
+      ...(serviceTier && { service_tier: serviceTier }),
+    };
 
+    const stream = createOpenAIClient().chat.completions.stream(request, { signal: AbortSignal.timeout(timeoutMs) });
+
+    let firstRollChunkMs: number | null = null;
+    let firstNarrationChunkMs: number | null = null;
+    let streamingDoneMs: number | null = null;
     if (callbacks) {
       let emittedNarration = '';
       let emittedRollNarration = '';
@@ -111,6 +133,7 @@ export class OpenAINarrationProvider implements NarrationProvider {
       stream.on('content', (_delta: string, snapshot: string) => {
         const { rollNarration, narration } = extractStreamingFields(snapshot);
         if (narration.length > emittedNarration.length) {
+          firstNarrationChunkMs ??= Date.now() - start;
           if (!rollNarrationDoneFired) {
             rollNarrationDoneFired = true;
             callbacks.onRollNarrationDone?.(rollNarration);
@@ -119,6 +142,7 @@ export class OpenAINarrationProvider implements NarrationProvider {
           emittedNarration = narration;
         }
         if (rollNarration !== null && rollNarration.length > emittedRollNarration.length) {
+          firstRollChunkMs ??= Date.now() - start;
           callbacks.onChunk(rollNarration.slice(emittedRollNarration.length), 'rollNarration');
           emittedRollNarration = rollNarration;
         }
@@ -150,15 +174,28 @@ export class OpenAINarrationProvider implements NarrationProvider {
     const choice = response.choices[0];
     const finishReason = choice.finish_reason ?? 'unknown';
     const usage = response.usage;
+    const promptDetails = usage as { prompt_tokens_details?: { cached_tokens?: number } } | undefined;
+    const completionDetails = usage as { completion_tokens_details?: { reasoning_tokens?: number } } | undefined;
+    if (callbacks) {
+      streamingDoneMs = durationMs;
+    }
     devLog.log([
       `[Narration] ${attempt} done`,
       `model=${model}`,
       `durationMs=${durationMs}`,
       `finishReason=${finishReason}`,
+      `firstRollChunkMs=${firstRollChunkMs ?? 'n/a'}`,
+      `firstNarrationChunkMs=${firstNarrationChunkMs ?? 'n/a'}`,
+      `streamingDoneMs=${streamingDoneMs ?? 'n/a'}`,
+      `reasoningEffort=${reasoningEffort ?? 'default'}`,
+      `verbosity=${textVerbosity ?? 'default'}`,
+      `requestedServiceTier=${serviceTier ?? 'default'}`,
+      `responseServiceTier=${(response as { service_tier?: string | null }).service_tier ?? 'n/a'}`,
       ...(usage ? [
         `promptTokens=${usage.prompt_tokens}`,
         `completionTokens=${usage.completion_tokens}`,
-        `cachedTokens=${(usage as { prompt_tokens_details?: { cached_tokens?: number } }).prompt_tokens_details?.cached_tokens ?? 0}`,
+        `cachedTokens=${promptDetails?.prompt_tokens_details?.cached_tokens ?? 0}`,
+        `reasoningTokens=${completionDetails?.completion_tokens_details?.reasoning_tokens ?? 0}`,
       ] : []),
     ].join(' '));
 
@@ -173,11 +210,12 @@ export class OpenAINarrationProvider implements NarrationProvider {
       const reason = finishReason === 'length' ? 'output truncated by max_completion_tokens' : 'no parsed structured output';
       throw new Error(`OpenAI response failed: ${reason}`);
     }
+    const parsedOutput = message.parsed as NarrationOutput;
 
     if (callbacks) {
-      callbacks.onStreamingDone(message.parsed.narration, message.parsed.rollNarration ?? null);
+      callbacks.onStreamingDone(parsedOutput.narration, parsedOutput.rollNarration ?? null);
     }
 
-    return message.parsed;
+    return parsedOutput;
   }
 }

@@ -53,6 +53,10 @@ const SIMILARITY_STOPWORDS = new Set([
   'while',
   'with',
 ]);
+const GENERIC_RESOLVED_THREAT_NAMES = new Set([
+  'fierce',
+  'powerful',
+]);
 
 const normalizedItemName = (name: string | null | undefined): string => {
   const trimmed = (name ?? '').trim();
@@ -126,7 +130,11 @@ function resolvedThreatPhrases(input: NarrationInput): Set<string> {
   // Include actual enemy names from recently-resolved encounters so named enemy
   // types (e.g. "Memory Wraith") are caught even when the generic regex misses them.
   for (const name of input.resolvedEncounterEnemyNames ?? []) {
-    phrases.add(normalizedText(name));
+    const normalizedName = normalizedText(name);
+    if (GENERIC_RESOLVED_THREAT_NAMES.has(normalizedName)) {
+      continue;
+    }
+    phrases.add(normalizedName);
   }
 
   return phrases;

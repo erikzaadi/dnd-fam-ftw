@@ -684,6 +684,33 @@ describe('parseNarrationOutput', () => {
     }
   });
 
+  it('does not treat generic resolved-threat adjectives as enemy names', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      recentHistory: ['The powerful foe was defeated and the party moved deeper into the vault.'],
+      resolvedEncounterEnemyNames: ['powerful'],
+      sceneMomentum: {
+        directive: 'advance_campaign',
+        staleChoiceCount: 0,
+        turnsSinceSceneChange: 2,
+        turnsSinceCombat: 1,
+        justCompletedCombat: true,
+        justCompletedDifficultChallenge: false,
+        suggestedNextBeat: 'Move into the next challenge.',
+        reason: 'The encounter has ended.',
+      },
+    }, output({
+      narration: 'Powerful runes block the vault door, but the old enemy is gone.',
+      choices: [
+        { label: 'Study the powerful runes', difficulty: 'normal', stat: 'magic', difficultyValue: 12 },
+        { label: 'Search for the vault key', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+        { label: 'Brace the cracked stones', difficulty: 'normal', stat: 'might', difficultyValue: 11 },
+      ],
+    }));
+
+    expect(result.success).toBe(true);
+  });
+
   it('allows victory exits that move into a cavern beat with clues and paths', () => {
     const result = parseNarrationOutput({
       ...input,

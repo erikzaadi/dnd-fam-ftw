@@ -22,6 +22,19 @@ function mockStream(completionValue: unknown) {
   });
 }
 
+function mockStreamWithContent(completionValue: unknown, snapshots: string[]) {
+  mocks.stream.mockReturnValueOnce({
+    on: vi.fn((event: string, callback: (delta: string, snapshot: string) => void) => {
+      if (event === 'content') {
+        for (const snapshot of snapshots) {
+          callback('', snapshot);
+        }
+      }
+    }),
+    finalChatCompletion: vi.fn().mockResolvedValue(completionValue),
+  });
+}
+
 vi.mock('openai', () => ({
   default: mocks.OpenAI,
 }));
@@ -74,6 +87,10 @@ beforeEach(() => {
 afterEach(() => {
   delete process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_BASE_URL;
+  delete process.env.OPENAI_MODEL_NARRATION;
+  delete process.env.OPENAI_REASONING_EFFORT_NARRATION;
+  delete process.env.OPENAI_TEXT_VERBOSITY_NARRATION;
+  delete process.env.OPENAI_SERVICE_TIER_NARRATION;
 });
 
 describe('OpenAINarrationProvider', () => {
@@ -304,6 +321,65 @@ describe('OpenAINarrationProvider', () => {
     });
     const callArgs = mocks.stream.mock.calls[0]?.[0] as { max_completion_tokens?: number } | undefined;
     expect(callArgs?.max_completion_tokens).toBe(1500);
+  });
+
+  it('passes configured narration eval parameters to Chat Completions', async () => {
+    process.env.OPENAI_MODEL_NARRATION = 'gpt-5-mini';
+    process.env.OPENAI_REASONING_EFFORT_NARRATION = 'low';
+    process.env.OPENAI_TEXT_VERBOSITY_NARRATION = 'low';
+    process.env.OPENAI_SERVICE_TIER_NARRATION = 'priority';
+
+    mockStream({ choices: [{ message: { parsed: output() }, finish_reason: 'stop' }] });
+    await new OpenAINarrationProvider().generateTurn(input);
+
+    const callArgs = mocks.stream.mock.calls[0]?.[0] as {
+      model?: string;
+      reasoning_effort?: string;
+      verbosity?: string;
+      service_tier?: string;
+    } | undefined;
+    expect(callArgs).toMatchObject({
+      model: 'gpt-5-mini',
+      reasoning_effort: 'low',
+      verbosity: 'low',
+      service_tier: 'priority',
+    });
+  });
+
+  it('logs stream timings and reasoning token usage when available', async () => {
+    mockStreamWithContent({
+      choices: [{ message: { parsed: output() }, finish_reason: 'stop' }],
+      usage: {
+        prompt_tokens: 1000,
+        completion_tokens: 120,
+        prompt_tokens_details: { cached_tokens: 512 },
+        completion_tokens_details: { reasoning_tokens: 18 },
+      },
+      service_tier: 'priority',
+    }, [
+      '{"rollNarration":"Pip rolls well","narration":"Pip finds',
+      '{"rollNarration":"Pip rolls well","narration":"Pip finds the stairs"}',
+    ]);
+
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      await new OpenAINarrationProvider().generateTurn(input, {
+        onChunk: vi.fn(),
+        onRollNarrationDone: vi.fn(),
+        onStreamingDone: vi.fn(),
+        onAbort: vi.fn(),
+      });
+
+      expect(log).toHaveBeenCalledWith(expect.stringContaining('[Narration] attempt-1 done'));
+      expect(log).toHaveBeenCalledWith(expect.stringContaining('firstRollChunkMs='));
+      expect(log).toHaveBeenCalledWith(expect.stringContaining('firstNarrationChunkMs='));
+      expect(log).toHaveBeenCalledWith(expect.stringContaining('streamingDoneMs='));
+      expect(log).toHaveBeenCalledWith(expect.stringContaining('cachedTokens=512'));
+      expect(log).toHaveBeenCalledWith(expect.stringContaining('reasoningTokens=18'));
+      expect(log).toHaveBeenCalledWith(expect.stringContaining('responseServiceTier=priority'));
+    } finally {
+      log.mockRestore();
+    }
   });
 
   it('throws on content_filter finish reason', async () => {

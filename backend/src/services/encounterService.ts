@@ -23,6 +23,18 @@ const LEADING_ARTICLES = /^(a |an |the )/i;
 const STRIP_PUNCT = /[^a-z0-9\s]/g;
 const ORGANIC_ARRIVAL_RE = /\b(?:a|an|the|some|several|two|three|swarm of|pack of|group of)\s+([a-z][a-z -]{2,40}?)\s+(?:appear|appears|emerge|emerges|arrive|arrives|attack|attacks|strike|strikes|slash|slashes|claw|claws|pounce|pounces|lunge|lunges|charge|charges|spring|springs|burst|bursts|descend|descends|surround|surrounds|block|blocks)\b/i;
 const GENERIC_ENEMY_NAME_RE = /\b(?:enemy|enemies|foe|foes|monster|monsters|creature|creatures|danger|threat|attack|ambush|combat|battle|fight|roar|prayer|spell|ritual|focus|oils?)\b/i;
+const GENERIC_ORGANIC_ENEMY_NAMES = new Set([
+  'dark',
+  'fierce',
+  'great',
+  'huge',
+  'looming',
+  'mighty',
+  'powerful',
+  'shadowy',
+  'strange',
+  'terrible',
+]);
 const OFFENSIVE_ACTION_RE = /\b(?:attack|attacks|strike|strikes|slash|slashes|claw|claws|pounce|pounces|lunge|lunges|charge|charges|roar|smash|smashes|hit|hits|shoot|shoots|blast|blasts|stab|stabs)\b/i;
 const ACTION_TARGET_RE = /\b(?:at|toward|towards|against)\s+([A-Z][A-Za-z' -]{2,48}?)(?:'s)?\s+(shadowy\s+figure|shadowy\s+form|shadow\s+form|shadow|dark\s+presence|presence|form|figure)\b/;
 const POSSESSIVE_SHADOW_RE = /\b([A-Z][A-Za-z' -]{2,48}?)(?:'s)\s+(shadowy\s+figure|shadowy\s+form|shadow\s+form|shadow|dark\s+presence)\b/;
@@ -206,7 +218,7 @@ const titleCaseEnemyName = (raw: string): string => {
     .replace(/[^a-zA-Z'\s-]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  if (!cleaned || GENERIC_ENEMY_NAME_RE.test(cleaned)) {
+  if (!cleaned || GENERIC_ENEMY_NAME_RE.test(cleaned) || GENERIC_ORGANIC_ENEMY_NAMES.has(cleaned.toLowerCase())) {
     return 'Ambusher';
   }
   return cleaned
@@ -228,6 +240,25 @@ const shadowTargetName = (match: RegExpExecArray): string => {
   return `${owner}'s Shadow`;
 };
 
+const contextualOrganicEnemyName = (text: string): string => {
+  if (/\b(wild magic|fissure|arcane|reality frays|chaotic pulse|runes?|ward|spell)\b/i.test(text)) {
+    return 'Arcane Riftspawn';
+  }
+  if (/\b(shadow|shadows|shadowy|dark presence)\b/i.test(text)) {
+    return 'Shadow Ambusher';
+  }
+  if (/\b(construct|constructs|sentinel|sentinels|enforcer|enforcers|guardian|guardians)\b/i.test(text)) {
+    return 'Arcane Sentinel';
+  }
+  if (/\b(wolf|wolves|beast|beasts)\b/i.test(text)) {
+    return 'Wild Beast';
+  }
+  if (/\b(raider|raiders|bandit|bandits|brigand|brigands)\b/i.test(text)) {
+    return 'Raiders';
+  }
+  return 'Shadow Ambusher';
+};
+
 const extractOrganicEnemyName = (text: string, actionAttempt?: string | null): string => {
   const actionTargetMatch = actionAttempt && OFFENSIVE_ACTION_RE.test(actionAttempt)
     ? ACTION_TARGET_RE.exec(actionAttempt)
@@ -243,21 +274,10 @@ const extractOrganicEnemyName = (text: string, actionAttempt?: string | null): s
 
   const arrivalMatch = ORGANIC_ARRIVAL_RE.exec(text);
   if (arrivalMatch?.[1]) {
-    return titleCaseEnemyName(arrivalMatch[1]);
+    const candidate = titleCaseEnemyName(arrivalMatch[1]);
+    return candidate === 'Ambusher' ? contextualOrganicEnemyName(text) : candidate;
   }
-  if (/\b(shadow|shadows)\b/i.test(text)) {
-    return 'Shadow Ambusher';
-  }
-  if (/\b(construct|constructs|sentinel|sentinels|enforcer|enforcers|guardian|guardians)\b/i.test(text)) {
-    return 'Arcane Sentinel';
-  }
-  if (/\b(wolf|wolves|beast|beasts)\b/i.test(text)) {
-    return 'Wild Beast';
-  }
-  if (/\b(raider|raiders|bandit|bandits|brigand|brigands)\b/i.test(text)) {
-    return 'Raiders';
-  }
-  return 'Ambusher';
+  return contextualOrganicEnemyName(text);
 };
 
 const organicFallbackTraits = (enemyName: string): string[] => {

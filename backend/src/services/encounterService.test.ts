@@ -212,6 +212,19 @@ describe('inferOrganicEncounterStart', () => {
     expect(proposal?.objective).toBe("Contain Vesperine's Shadow before the wild magic tears wider");
   });
 
+  it('does not use generic adjectives as organic enemy names', () => {
+    const proposal = inferOrganicEncounterStart({
+      narration: 'A powerful attacks as wild magic cracks through the vault runes.',
+      actionAttempt: 'Shield the party from the wild magic',
+      currentTensionLevel: 'high',
+      suggestedDamage: 2,
+    }, undefined);
+
+    expect(proposal?.name).toBe('Arcane Riftspawn');
+    expect(proposal?.enemies[0].name).toBe('Arcane Riftspawn');
+    expect(proposal?.objective).toBe('Contain Arcane Riftspawn before the wild magic tears wider');
+  });
+
   it('does not infer from atmospheric tension alone', () => {
     const proposal = inferOrganicEncounterStart({
       narration: 'The hallway grows colder as distant bells echo.',

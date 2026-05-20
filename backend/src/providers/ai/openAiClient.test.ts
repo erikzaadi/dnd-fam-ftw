@@ -20,6 +20,9 @@ afterEach(() => {
   delete process.env.OPENAI_MODEL_NARRATION;
   delete process.env.OPENAI_MODEL_PREVIEW;
   delete process.env.OPENAI_MODEL_ASYNC;
+  delete process.env.OPENAI_REASONING_EFFORT_NARRATION;
+  delete process.env.OPENAI_TEXT_VERBOSITY_NARRATION;
+  delete process.env.OPENAI_SERVICE_TIER_NARRATION;
 });
 
 describe('openAiClient', () => {
@@ -62,5 +65,55 @@ describe('openAiClient', () => {
     const { getOpenAIImageModel } = await import('./openAiClient.js');
 
     expect(getOpenAIImageModel()).toBe('custom-image-model');
+  });
+
+  it('returns undefined for unset narration eval parameters', async () => {
+    const {
+      getNarrationReasoningEffort,
+      getNarrationTextVerbosity,
+      getNarrationServiceTier,
+    } = await import('./openAiClient.js');
+
+    expect(getNarrationReasoningEffort()).toBeUndefined();
+    expect(getNarrationTextVerbosity()).toBeUndefined();
+    expect(getNarrationServiceTier()).toBeUndefined();
+  });
+
+  it('returns configured narration eval parameters', async () => {
+    process.env.OPENAI_REASONING_EFFORT_NARRATION = 'low';
+    process.env.OPENAI_TEXT_VERBOSITY_NARRATION = 'low';
+    process.env.OPENAI_SERVICE_TIER_NARRATION = 'priority';
+
+    const {
+      getNarrationReasoningEffort,
+      getNarrationTextVerbosity,
+      getNarrationServiceTier,
+    } = await import('./openAiClient.js');
+
+    expect(getNarrationReasoningEffort()).toBe('low');
+    expect(getNarrationTextVerbosity()).toBe('low');
+    expect(getNarrationServiceTier()).toBe('priority');
+  });
+
+  it('ignores invalid narration eval parameters', async () => {
+    process.env.OPENAI_REASONING_EFFORT_NARRATION = 'turbo';
+    process.env.OPENAI_TEXT_VERBOSITY_NARRATION = 'tiny';
+    process.env.OPENAI_SERVICE_TIER_NARRATION = 'vip';
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const {
+      getNarrationReasoningEffort,
+      getNarrationTextVerbosity,
+      getNarrationServiceTier,
+    } = await import('./openAiClient.js');
+
+    try {
+      expect(getNarrationReasoningEffort()).toBeUndefined();
+      expect(getNarrationTextVerbosity()).toBeUndefined();
+      expect(getNarrationServiceTier()).toBeUndefined();
+      expect(warn).toHaveBeenCalledTimes(3);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
