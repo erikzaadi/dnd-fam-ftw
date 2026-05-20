@@ -24,6 +24,8 @@ const STRIP_PUNCT = /[^a-z0-9\s]/g;
 const ORGANIC_ARRIVAL_RE = /\b(?:a|an|the|some|several|two|three|swarm of|pack of|group of)\s+([a-z][a-z -]{2,40}?)\s+(?:appear|appears|emerge|emerges|arrive|arrives|attack|attacks|strike|strikes|slash|slashes|claw|claws|pounce|pounces|lunge|lunges|charge|charges|spring|springs|burst|bursts|descend|descends|surround|surrounds|block|blocks)\b/i;
 const GENERIC_ENEMY_NAME_RE = /\b(?:enemy|enemies|foe|foes|monster|monsters|creature|creatures|danger|threat|attack|ambush|combat|battle|fight|roar|prayer|spell|ritual|focus|oils?)\b/i;
 const GENERIC_ORGANIC_ENEMY_NAMES = new Set([
+  'enemy',
+  'foe',
   'dark',
   'fierce',
   'great',
@@ -31,9 +33,31 @@ const GENERIC_ORGANIC_ENEMY_NAMES = new Set([
   'looming',
   'mighty',
   'powerful',
+  'radiant',
   'shadowy',
   'strange',
   'terrible',
+  'threat',
+]);
+const TRAILING_ENEMY_NAME_STOPWORDS = new Set([
+  'a',
+  'an',
+  'and',
+  'as',
+  'at',
+  'but',
+  'for',
+  'from',
+  'in',
+  'into',
+  'of',
+  'on',
+  'the',
+  'to',
+  'toward',
+  'towards',
+  'while',
+  'with',
 ]);
 const OFFENSIVE_ACTION_RE = /\b(?:attack|attacks|strike|strikes|slash|slashes|claw|claws|pounce|pounces|lunge|lunges|charge|charges|roar|smash|smashes|hit|hits|shoot|shoots|blast|blasts|stab|stabs)\b/i;
 const ACTION_TARGET_RE = /\b(?:at|toward|towards|against)\s+([A-Z][A-Za-z' -]{2,48}?)(?:'s)?\s+(shadowy\s+figure|shadowy\s+form|shadow\s+form|shadow|dark\s+presence|presence|form|figure)\b/;
@@ -60,6 +84,23 @@ const buildAliases = (name: string): string[] => {
   const words = normalized.split(' ').filter(w => w.length >= 4);
   const aliases = [...new Set([normalized, ...words])];
   return aliases.filter(a => a !== normalized).slice(0, 3);
+};
+
+export const buildEnemyAliases = (name: string): string[] => buildAliases(name);
+
+export const isLowQualityEncounterName = (name: string): boolean => {
+  const normalized = normalizeEnemyName(name);
+  if (!normalized) {
+    return true;
+  }
+  const words = normalized.split(' ');
+  const lastWord = words[words.length - 1];
+  return (
+    GENERIC_ENEMY_NAME_RE.test(normalized) ||
+    GENERIC_ORGANIC_ENEMY_NAMES.has(normalized) ||
+    TRAILING_ENEMY_NAME_STOPWORDS.has(lastWord) ||
+    /\b(?:as the|to the|with the|from the)\b/.test(normalized)
+  );
 };
 
 const clampHp = (role: EncounterEnemy['role']): number => {
@@ -213,12 +254,13 @@ const proposalFromSeed = (seed: EncounterSeed): EncounterStartProposal => ({
 });
 
 const titleCaseEnemyName = (raw: string): string => {
+  const hasConnectorTail = /\b(?:as|at|for|from|in|into|of|on|to|toward|towards|with)\b/i.test(raw);
   const cleaned = raw
     .replace(/\b(?:suddenly|from|nearby|toward|with|and|but|while)\b.*$/i, '')
     .replace(/[^a-zA-Z'\s-]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  if (!cleaned || GENERIC_ENEMY_NAME_RE.test(cleaned) || GENERIC_ORGANIC_ENEMY_NAMES.has(cleaned.toLowerCase())) {
+  if (!cleaned || hasConnectorTail || isLowQualityEncounterName(cleaned)) {
     return 'Ambusher';
   }
   return cleaned

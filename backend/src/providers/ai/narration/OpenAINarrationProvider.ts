@@ -25,6 +25,24 @@ function extractStreamingFields(snapshot: string): { rollNarration: string | nul
   };
 }
 
+function supportsCustomTemperature(model: string): boolean {
+  return !/^gpt-5(?:[.-]|$)/i.test(model);
+}
+
+function narrationMaxCompletionTokens(model: string, isHighStakesTurn: boolean): number {
+  if (/^gpt-5(?:[.-]|$)/i.test(model)) {
+    return isHighStakesTurn ? 2600 : 2200;
+  }
+  return isHighStakesTurn ? 1500 : 1300;
+}
+
+function effectiveReasoningEffort(model: string, configured: ReturnType<typeof getNarrationReasoningEffort>): ReturnType<typeof getNarrationReasoningEffort> {
+  if (configured) {
+    return configured;
+  }
+  return /^gpt-5(?:[.-]|$)/i.test(model) ? 'low' : undefined;
+}
+
 export class OpenAINarrationProvider implements NarrationProvider {
   async generateTurn(input: NarrationInput, callbacks?: NarrationStreamCallbacks): Promise<NarrationOutput> {
     const raw = await this.callModel(input, undefined, callbacks);
@@ -58,7 +76,7 @@ export class OpenAINarrationProvider implements NarrationProvider {
 
   private async callModel(input: NarrationInput, validationError?: string, callbacks?: NarrationStreamCallbacks): Promise<unknown> {
     const model = getModelForTier('narration');
-    const reasoningEffort = getNarrationReasoningEffort();
+    const reasoningEffort = effectiveReasoningEffort(model, getNarrationReasoningEffort());
     const textVerbosity = getNarrationTextVerbosity();
     const serviceTier = getNarrationServiceTier();
     const attempt = validationError ? 'retry' : 'attempt-1';
@@ -112,10 +130,10 @@ export class OpenAINarrationProvider implements NarrationProvider {
         { role: 'user', content: userContent },
       ],
       response_format: zodResponseFormat(narrationOutputSchema, 'narration_output'),
-      temperature: 0.7,
-      max_completion_tokens: isHighStakesTurn ? 1500 : 1300,
+      max_completion_tokens: narrationMaxCompletionTokens(model, isHighStakesTurn),
       stream: true,
       stream_options: { include_usage: true },
+      ...(supportsCustomTemperature(model) && { temperature: 0.7 }),
       ...(reasoningEffort && { reasoning_effort: reasoningEffort }),
       ...(textVerbosity && { verbosity: textVerbosity }),
       ...(serviceTier && { service_tier: serviceTier }),

@@ -225,6 +225,18 @@ describe('inferOrganicEncounterStart', () => {
     expect(proposal?.objective).toBe('Contain Arcane Riftspawn before the wild magic tears wider');
   });
 
+  it('does not keep incomplete prose fragments as organic enemy names', () => {
+    const proposal = inferOrganicEncounterStart({
+      narration: 'The rune pillars to the east attack as the vault magic cracks.',
+      actionAttempt: 'Fire a focused mana bolt at the wounded rune pillar',
+      currentTensionLevel: 'high',
+      suggestedDamage: 2,
+    }, undefined);
+
+    expect(proposal?.name).toBe('Arcane Riftspawn');
+    expect(proposal?.enemies[0].name).toBe('Arcane Riftspawn');
+  });
+
   it('does not infer from atmospheric tension alone', () => {
     const proposal = inferOrganicEncounterStart({
       narration: 'The hallway grows colder as distant bells echo.',

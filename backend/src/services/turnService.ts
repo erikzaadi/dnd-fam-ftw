@@ -19,6 +19,7 @@ import {
 } from './freeActionInferenceService.js';
 import { buildSceneMomentum, buildScenePressure } from './sceneMomentumService.js';
 import { ensureSuccessfulEnchantmentSuggestion, ensureSuccessfulHealingSuggestion, ensureSuccessfulSupportSuggestion, inferActionIntent } from './freeActionPolicyService.js';
+import { repairEncounterNameIfNeeded } from './encounterNameRepairService.js';
 
 const logTurnStep = (sessionId: string, step: string, start: number, details = ''): number => {
   const now = Date.now();
@@ -47,11 +48,9 @@ const encounterResolutionVerb = (status: string | undefined): string => {
 };
 
 const buildPostEncounterChoices = (session: SessionState, newState: SessionState): SessionState['lastChoices'] => {
-  const nextActor = newState.party.find(c => c.id === newState.activeCharacterId);
-  const actorPrefix = nextActor ? `${nextActor.name}: ` : '';
   return [
     {
-      label: `${actorPrefix}Push beyond the battlefield`,
+      label: 'Push beyond the battlefield',
       difficulty: 'normal',
       stat: 'might',
       difficultyValue: 11,
@@ -59,7 +58,7 @@ const buildPostEncounterChoices = (session: SessionState, newState: SessionState
       flavor: 'standard',
     },
     {
-      label: `${actorPrefix}Search what the foe guarded`,
+      label: 'Search what the foe guarded',
       difficulty: 'normal',
       stat: 'mischief',
       difficultyValue: 11,
@@ -67,7 +66,7 @@ const buildPostEncounterChoices = (session: SessionState, newState: SessionState
       flavor: 'standard',
     },
     {
-      label: `${actorPrefix}Stabilize the scene with magic`,
+      label: 'Stabilize the scene with magic',
       difficulty: 'normal',
       stat: 'magic',
       difficultyValue: 12,
@@ -100,15 +99,18 @@ const alignTurnWithResolvedEncounter = (
     return;
   }
 
-  const resolvedEnemies = previousSession.encounterState.enemies.filter(beforeEnemy => {
+  const resolvedEnemies = previousSession.encounterState.enemies.flatMap(beforeEnemy => {
     const afterEnemy = newState.encounterState?.enemies.find(e => e.id === beforeEnemy.id);
-    return beforeEnemy.status === 'active' && afterEnemy && afterEnemy.status !== 'active';
+    if (beforeEnemy.status === 'active' && afterEnemy && afterEnemy.status !== 'active') {
+      return [{ beforeEnemy, afterEnemy }];
+    }
+    return [];
   });
   if (resolvedEnemies.length === 0) {
     return;
   }
 
-  const enemyNames = resolvedEnemies.map(e => e.name).join(', ');
+  const enemyNames = resolvedEnemies.map(e => e.afterEnemy.name || e.beforeEnemy.name).join(', ');
   const status = newState.encounterState.status;
   const resolution = encounterResolutionVerb(status);
   const lootNarration = buildLootNarration(previousSession, newState);
@@ -232,6 +234,10 @@ export const executeTurnAction = async (
     stepStart = logTurnStep(sessionId, 'item-llm', stepStart, `retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
 
     const newState = GameEngine.updateState(itemState, itemAttempt, turnResult as unknown as Record<string, unknown>);
+    await repairEncounterNameIfNeeded(itemState, newState, {
+      narration: turnResult.narration,
+      actionAttempt: itemAttempt.actionAttempt,
+    });
     alignTurnWithResolvedEncounter(itemState, newState, turnResult);
     await StateService.updateSession(sessionId, newState);
     stepStart = logTurnStep(sessionId, 'item-update-session', stepStart);
@@ -361,6 +367,10 @@ export const executeTurnAction = async (
   turnResult = ensureSuccessfulSupportSuggestion(session, actionAttempt, turnResult, effectiveActionIntent, targetCharName);
   stepStart = logTurnStep(sessionId, 'post-llm-guards', stepStart);
   const newState = GameEngine.updateState(session, actionAttempt, turnResult as unknown as Record<string, unknown>);
+  await repairEncounterNameIfNeeded(session, newState, {
+    narration: turnResult.narration,
+    actionAttempt: actionAttempt.actionAttempt,
+  });
   alignTurnWithResolvedEncounter(session, newState, turnResult);
   await StateService.updateSession(sessionId, newState);
   stepStart = logTurnStep(sessionId, 'update-session', stepStart);

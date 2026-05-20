@@ -340,10 +340,43 @@ describe('OpenAINarrationProvider', () => {
     } | undefined;
     expect(callArgs).toMatchObject({
       model: 'gpt-5-mini',
+      max_completion_tokens: 2200,
       reasoning_effort: 'low',
       verbosity: 'low',
       service_tier: 'priority',
     });
+    expect(callArgs?.temperature).toBeUndefined();
+  });
+
+  it('defaults GPT-5 narration to low reasoning effort for latency', async () => {
+    process.env.OPENAI_MODEL_NARRATION = 'gpt-5-mini';
+
+    mockStream({ choices: [{ message: { parsed: output() }, finish_reason: 'stop' }] });
+    await new OpenAINarrationProvider().generateTurn(input);
+
+    const callArgs = mocks.stream.mock.calls[0]?.[0] as { reasoning_effort?: string } | undefined;
+    expect(callArgs?.reasoning_effort).toBe('low');
+  });
+
+  it('keeps custom temperature for current non-GPT-5 narration defaults', async () => {
+    mockStream({ choices: [{ message: { parsed: output() }, finish_reason: 'stop' }] });
+    await new OpenAINarrationProvider().generateTurn(input);
+
+    const callArgs = mocks.stream.mock.calls[0]?.[0] as { temperature?: number } | undefined;
+    expect(callArgs?.temperature).toBe(0.7);
+  });
+
+  it('uses a larger output cap for high-stakes GPT-5 narration turns', async () => {
+    process.env.OPENAI_MODEL_NARRATION = 'gpt-5-mini';
+
+    mockStream({ choices: [{ message: { parsed: output() }, finish_reason: 'stop' }] });
+    await new OpenAINarrationProvider().generateTurn({
+      ...input,
+      encounterState: { id: 'enc-1', name: 'Boss Fight', status: 'active', enemies: [], areas: [], round: 1 },
+    });
+
+    const callArgs = mocks.stream.mock.calls[0]?.[0] as { max_completion_tokens?: number } | undefined;
+    expect(callArgs?.max_completion_tokens).toBe(2600);
   });
 
   it('logs stream timings and reasoning token usage when available', async () => {

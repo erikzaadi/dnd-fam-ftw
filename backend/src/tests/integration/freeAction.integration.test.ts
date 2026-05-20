@@ -119,6 +119,11 @@ describe('executeTurnAction free action integration', () => {
     expect(result.body.turnResult.narration).toContain(`Pip claims ${lootName} from the aftermath`);
     expect(result.body.turnResult.narration).not.toContain('wounded but fierce');
     expect(result.body.turnResult.choices.map(choice => choice.label).join(' ')).not.toContain('Ambusher');
+    expect(result.body.turnResult.choices.map(choice => choice.label)).toEqual([
+      'Push beyond the battlefield',
+      'Search what the foe guarded',
+      'Stabilize the scene with magic',
+    ]);
     expect(result.body.turnResult.inventoryChanges).toContainEqual({
       characterName: 'Pip',
       itemName: lootName,
