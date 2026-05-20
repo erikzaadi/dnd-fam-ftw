@@ -2,18 +2,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NarrationInput, NarrationOutput } from './NarrationProvider.js';
 
 const mocks = vi.hoisted(() => {
-  const parse = vi.fn();
+  const stream = vi.fn();
   const OpenAI = vi.fn(function OpenAIMock() {
     return {
       chat: {
         completions: {
-          parse,
+          stream,
         },
       },
     };
   });
-  return { OpenAI, parse };
+  return { OpenAI, stream };
 });
+
+function mockStream(completionValue: unknown) {
+  mocks.stream.mockReturnValueOnce({
+    on: vi.fn(),
+    finalChatCompletion: vi.fn().mockResolvedValue(completionValue),
+  });
+}
 
 vi.mock('openai', () => ({
   default: mocks.OpenAI,
@@ -81,21 +88,20 @@ describe('OpenAINarrationProvider', () => {
       ],
     });
 
-    mocks.parse
-      .mockResolvedValueOnce({ choices: [{ message: { parsed: malformed } }] })
-      .mockResolvedValueOnce({ choices: [{ message: { parsed: corrected } }] });
+    mockStream({ choices: [{ message: { parsed: malformed } }] });
+    mockStream({ choices: [{ message: { parsed: corrected } }] });
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
     try {
       const result = await new OpenAINarrationProvider().generateTurn(input);
-      const retryRequest = mocks.parse.mock.calls[1]?.[0] as { messages: Array<{ content: string }> } | undefined;
+      const retryRequest = mocks.stream.mock.calls[1]?.[0] as { messages: Array<{ content: string }> } | undefined;
 
       expect(result).toMatchObject(corrected);
       expect(result.narrationRetried).toBe(true);
       expect(result.narrationFailed).toBeUndefined();
-      expect(mocks.parse).toHaveBeenCalledTimes(2);
+      expect(mocks.stream).toHaveBeenCalledTimes(2);
       expect(warn).toHaveBeenCalledWith(
         '[Narration] attempt-1 guard=fail retrying',
         expect.any(String)
@@ -126,9 +132,8 @@ describe('OpenAINarrationProvider', () => {
       ],
     });
 
-    mocks.parse
-      .mockResolvedValueOnce({ choices: [{ message: { parsed: stalledVictory } }] })
-      .mockResolvedValueOnce({ choices: [{ message: { parsed: movedForward } }] });
+    mockStream({ choices: [{ message: { parsed: stalledVictory } }] });
+    mockStream({ choices: [{ message: { parsed: movedForward } }] });
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -148,12 +153,12 @@ describe('OpenAINarrationProvider', () => {
           reason: 'Combat has already had enough successful beats.',
         },
       });
-      const retryRequest = mocks.parse.mock.calls[1]?.[0] as { messages: Array<{ content: string }> } | undefined;
+      const retryRequest = mocks.stream.mock.calls[1]?.[0] as { messages: Array<{ content: string }> } | undefined;
 
       expect(result).toMatchObject(movedForward);
       expect(result.narrationRetried).toBe(true);
       expect(result.narrationValidationError).toContain('Victory exit');
-      expect(mocks.parse).toHaveBeenCalledTimes(2);
+      expect(mocks.stream).toHaveBeenCalledTimes(2);
       expect(retryRequest?.messages[1].content).toContain('Victory exit');
       expect(retryRequest?.messages[1].content).toContain('At least two choices must act inside that new beat');
       expect(error).not.toHaveBeenCalled();
@@ -166,9 +171,8 @@ describe('OpenAINarrationProvider', () => {
   it('uses a contextual fallback when both attempts fail validation', async () => {
     const malformed = { narration: 'Pip charges forward.', choices: 'not-an-array' };
 
-    mocks.parse
-      .mockResolvedValueOnce({ choices: [{ message: { parsed: malformed } }] })
-      .mockResolvedValueOnce({ choices: [{ message: { parsed: malformed } }] });
+    mockStream({ choices: [{ message: { parsed: malformed } }] });
+    mockStream({ choices: [{ message: { parsed: malformed } }] });
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -195,7 +199,7 @@ describe('OpenAINarrationProvider', () => {
       expect(result.choices.map(choice => choice.label)).not.toContain('Use your magic');
       expect(result.narrationRetried).toBe(true);
       expect(result.narrationFailed).toBe(true);
-      expect(mocks.parse).toHaveBeenCalledTimes(2);
+      expect(mocks.stream).toHaveBeenCalledTimes(2);
       expect(error).toHaveBeenCalledWith(
         '[OpenAINarration] Retry also failed, using fallback.',
         expect.any(String),
@@ -218,9 +222,8 @@ describe('OpenAINarrationProvider', () => {
       ],
     });
 
-    mocks.parse
-      .mockResolvedValueOnce({ choices: [{ message: { parsed: stalledVictory } }] })
-      .mockResolvedValueOnce({ choices: [{ message: { parsed: stalledVictory } }] });
+    mockStream({ choices: [{ message: { parsed: stalledVictory } }] });
+    mockStream({ choices: [{ message: { parsed: stalledVictory } }] });
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -256,7 +259,7 @@ describe('OpenAINarrationProvider', () => {
         '[OpenAINarration] Retry also failed, using fallback.',
         expect.any(String),
         'Raw:',
-        JSON.stringify(stalledVictory)
+        JSON.stringify(stalledVictory),
       );
     } finally {
       warn.mockRestore();
@@ -287,29 +290,29 @@ describe('OpenAINarrationProvider', () => {
   });
 
   it('passes 1300 max_completion_tokens on normal turns', async () => {
-    mocks.parse.mockResolvedValueOnce({ choices: [{ message: { parsed: output() }, finish_reason: 'stop' }] });
+    mockStream({ choices: [{ message: { parsed: output() }, finish_reason: 'stop' }] });
     await new OpenAINarrationProvider().generateTurn(input);
-    const callArgs = mocks.parse.mock.calls[0]?.[0] as { max_completion_tokens?: number } | undefined;
+    const callArgs = mocks.stream.mock.calls[0]?.[0] as { max_completion_tokens?: number } | undefined;
     expect(callArgs?.max_completion_tokens).toBe(1300);
   });
 
   it('passes 1500 max_completion_tokens on high-stakes combat turns', async () => {
-    mocks.parse.mockResolvedValueOnce({ choices: [{ message: { parsed: output() }, finish_reason: 'stop' }] });
+    mockStream({ choices: [{ message: { parsed: output() }, finish_reason: 'stop' }] });
     await new OpenAINarrationProvider().generateTurn({
       ...input,
       encounterState: { id: 'enc-1', name: 'Boss Fight', status: 'active', enemies: [], areas: [], round: 1 },
     });
-    const callArgs = mocks.parse.mock.calls[0]?.[0] as { max_completion_tokens?: number } | undefined;
+    const callArgs = mocks.stream.mock.calls[0]?.[0] as { max_completion_tokens?: number } | undefined;
     expect(callArgs?.max_completion_tokens).toBe(1500);
   });
 
   it('throws on content_filter finish reason', async () => {
-    mocks.parse.mockResolvedValueOnce({ choices: [{ message: { parsed: null, refusal: null }, finish_reason: 'content_filter' }] });
+    mockStream({ choices: [{ message: { parsed: null, refusal: null }, finish_reason: 'content_filter' }] });
     await expect(new OpenAINarrationProvider().generateTurn(input)).rejects.toThrow('content_filter');
   });
 
   it('throws with length truncation message when finish_reason is length', async () => {
-    mocks.parse.mockResolvedValueOnce({ choices: [{ message: { parsed: null, refusal: null }, finish_reason: 'length' }] });
+    mockStream({ choices: [{ message: { parsed: null, refusal: null }, finish_reason: 'length' }] });
     await expect(new OpenAINarrationProvider().generateTurn(input)).rejects.toThrow('max_completion_tokens');
   });
 

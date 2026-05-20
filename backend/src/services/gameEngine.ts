@@ -850,4 +850,37 @@ export class GameEngine {
 
     return newState;
   }
+
+  public static computeDeterministicHpChange(
+    session: SessionState,
+    actingCharId: string,
+    actionAttempt: ActionAttempt,
+  ): { characterId: string; characterName: string; change: number; newHp: number; maxHp: number } | null {
+    const { success, statUsed, impact } = actionAttempt.actionResult;
+    if (success || statUsed === 'none') {
+      return null;
+    }
+    const actingChar = session.party.find(c => c.id === actingCharId);
+    if (!actingChar || actingChar.status === 'downed') {
+      return null;
+    }
+    const relevantChoice = (session.lastChoices ?? []).find(c => c.label === actionAttempt.actionAttempt);
+    const difficultyLabel = relevantChoice?.difficulty ?? 'normal';
+    let damage = this.DAMAGE_BY_DIFFICULTY[difficultyLabel as keyof typeof this.DAMAGE_BY_DIFFICULTY] ?? 2;
+    if (impact === 'strong') {
+      damage += 1;
+    } else if (impact === 'extreme') {
+      damage += 2;
+    }
+    if (damage <= 0) {
+      return null;
+    }
+    return {
+      characterId: actingChar.id,
+      characterName: actingChar.name,
+      change: -damage,
+      newHp: Math.max(0, actingChar.hp - damage),
+      maxHp: actingChar.max_hp,
+    };
+  }
 }

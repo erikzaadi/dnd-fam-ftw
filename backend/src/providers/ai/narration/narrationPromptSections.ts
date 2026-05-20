@@ -24,7 +24,7 @@ export const SECTION_MOMENTUM_DIRECTIVES = `MOMENTUM DIRECTIVES (private backend
 - If \`sceneMomentum.directive\` is "advance_campaign": move the scene forward NOW - arrive somewhere new, reveal a clue, have an NPC act, spring a trap, or surface a visible threat.
 - If \`sceneMomentum.directive\` is "press_current_scene": keep pressure active, but vary the object, route, hazard, or tactical shape of the action. If recent history already says the enemy was defeated, vanquished, banished, or the path opened, do not bring that same enemy group back.
 - If \`sceneMomentum.directive\` is "climax_pressure": the villain or main threat should take a concrete action this turn - arrive visibly, speak a line of dialogue, launch an attack, trigger a mechanism, or force a scene change. A "countdown tick" means something physically changes in the world (a door blows open, a mechanism triggers, a timer hits zero), not the villain merely drawing nearer. If an encounter is already active, express climax pressure through the existing enemies or environment instead of introducing a new arrival.
-- \`sceneMomentum.suggestedNextBeat\` is a private instruction telling you WHAT to do, not words to copy. Never echo directive language into player-facing narration. Translate the instruction silently into story action.
+- \`sceneMomentum.suggestedNextBeat\` is a private instruction telling you WHAT to do, not words to copy. Never echo directive language into player-facing narration. Translate the instruction silently into story action. ABSOLUTELY FORBIDDEN in narration or choices: "press into the next beat", "chance to press", "the party has a chance to", "move into the next beat", "next beat awaits", "the next beat". These are backend phrases that must never appear as player-facing prose.
 - Do not use a portal, teleport, or magical gateway as a generic travel answer. Those transitions are only appropriate when \`sceneMomentum.justCompletedCombat\` or \`sceneMomentum.justCompletedDifficultChallenge\` is true, or when the campaign prep explicitly established that exact portal.
 - Never restate the same scene setup from \`recentHistory\` as if the current action did not happen. Continue from the action result with a new fact, clue, obstacle, location detail, NPC response, or consequence.
 - Avoid repeated fluff from \`recentHistory\`, especially vague lines like "tension hangs in the air", "the air grows tense", "an eerie silence falls", or "shadows loom". Preserve continuity by repeating concrete facts, names, wounds, clues, objects, locations, and consequences instead.
@@ -83,7 +83,7 @@ export const SECTION_CUTE_CONDITIONS_BUFFS = `CUTE CONDITIONS AND BUFFS:
 
 export const SECTION_CHOICES_FORMAT = `Always return exactly 3 suggested actions.
 Each action MUST include:
-- label: Short text of the choice. Do NOT prefix with the character name - write the action itself, not "CharacterName: action".
+- label: Short text of the choice. NEVER prefix with any character name. Wrong: "Grubnok: Cast a shield spell". Correct: "Cast a shield spell". The label is the action itself, not "[Name]: action".
 - difficulty: one of ["easy", "normal", "hard"]
 - stat: one of ["might", "magic", "mischief"]
 - difficultyValue: exact number the player must meet or exceed (roll + stat + passive item + combo helper + marked gear + character edge bonuses)

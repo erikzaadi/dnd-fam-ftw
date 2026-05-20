@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { CSSProperties } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import type { Session, Character, TurnResult, HpChange, InventoryChange, EncounterEnemyChange, FreeActionPreview } from '../types';
+import type { Session, Character, TurnResult, FreeActionPreview } from '../types';
 import { apiFetch, imgSrc } from '../lib/api';
 import { useSessionEvents } from '../hooks/useSessionEvents';
 import { PageLoader } from '../components/PageLoader';
@@ -9,13 +8,12 @@ import { CharacterPopup } from '../components/CharacterPopup';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { FullscreenImage } from '../components/FullscreenImage';
 import { Inventory } from '../components/game/Inventory';
-import { RollBreakdown } from '../components/game/RollBreakdown';
-import { D20 } from '../components/game/D20';
 import { SessionHud, GearPopover } from '../components/game/SessionHud';
 import { StoryStage } from '../components/game/StoryStage';
 import { ActionDock } from '../components/game/ActionDock';
 import { FreeActionConfirmDialog } from '../components/game/FreeActionConfirmDialog';
 import { DmDecisionRecapPanel } from '../components/game/DmDecisionRecapPanel';
+import type { RollResult } from '../components/game/DmDecisionRecapPanel';
 import { EncounterPanel } from '../components/game/EncounterPanel';
 import { ChronicleDrawer } from '../components/game/ChronicleDrawer';
 import { audioManager } from '../audio/audioManager';
@@ -29,7 +27,6 @@ import { KeybindingsHelp } from '../components/KeybindingsHelp';
 import { OnboardingOverlay } from '../components/OnboardingOverlay';
 import { useOnboardingTutorial } from '../hooks/useOnboardingTutorial';
 import { OriginView } from '../components/OriginView';
-import { getRollImpactOutcome } from '../lib/rollOutcome';
 import { buildEncounterLookup, countEncounterTurns, getTurnEncounter, patchEncounterEnemyAvatar, patchEncounterAreaImage } from '../lib/encounters';
 
 interface LastSubmittedAction {
@@ -64,6 +61,7 @@ export const SessionPage = () => {
   const { settings: ttsSettings } = useTtsSettings();
   const { capabilities } = useCapabilities();
   const lastSpokenTurnIdRef = useRef<number | null>(null);
+  const hasEarlyRollRef = useRef(false);
   const imageLoadingRef = useRef(false);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -79,8 +77,8 @@ export const SessionPage = () => {
   const [confirmDialog, setConfirmDialog] = useState<{message: string; confirmLabel?: string; onConfirm: () => void} | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
-  const [lastRoll, setLastRoll] = useState<{ roll: number; success: boolean; stat: string; statBonus?: number; itemBonus?: number; helperBonus?: number; helperCharacterName?: string; choiceItemBonus?: number; choiceItemName?: string; choiceItemOwnerName?: string; characterBonus?: number; characterBonusLabel?: string; buffBonus?: number; buffBonusLabel?: string; impact?: 'normal' | 'strong' | 'extreme'; isCritical?: boolean; difficultyTarget?: number; rollNarration?: string; hpChanges?: HpChange[]; inventoryChanges?: InventoryChange[]; encounterEnemyChanges?: EncounterEnemyChange[]; encounterId?: string; encounterName?: string; encounterStatus?: string } | null>(null);
-  const [dieExiting, setDieExiting] = useState(false);
+  const [rollResult, setRollResult] = useState<RollResult | null>(null);
+  const [consequencesPending, setConsequencesPending] = useState(false);
   const [interventionBanner, setInterventionBanner] = useState<string | null>(null);
   const [sanctuaryBanner, setSanctuaryBanner] = useState<string | null>(null);
   const [showFullInventory, setShowFullInventory] = useState(false);
@@ -99,26 +97,16 @@ export const SessionPage = () => {
   const [storyFocusRequest, setStoryFocusRequest] = useState(0);
   const { step: tutorialStep, advance: advanceTutorial } = useOnboardingTutorial({
     isLoading: loading,
-    lastRollVisible: !!lastRoll,
+    lastRollVisible: !!rollResult,
   });
   const historyRef = useRef<TurnResult[]>(history);
   historyRef.current = history;
   const displayTurnRef = useRef<TurnResult | null>(null);
-  const pendingStoryFocusRef = useRef(false);
   const previewPartyBoostActionRef = useRef<() => void>(() => undefined);
 
   const requestStoryFocus = useCallback(() => {
     setStoryFocusRequest(version => version + 1);
   }, []);
-
-  const closeRollPopup = useCallback(() => {
-    setLastRoll(null);
-    setDieExiting(false);
-    if (pendingStoryFocusRef.current) {
-      pendingStoryFocusRef.current = false;
-      requestStoryFocus();
-    }
-  }, [requestStoryFocus]);
 
   const joinSession = useCallback(async (sessionId: string) => {
     const res = await apiFetch(`/session/${sessionId}`);
@@ -185,9 +173,9 @@ export const SessionPage = () => {
     }
   }, [loading]);
 
-  // TTS: auto-speak the latest narration once per new turn.
+  // TTS: auto-speak the latest narration once per new turn (fires after story is visible).
   useEffect(() => {
-    if (loading || lastRoll) {
+    if (loading) {
       return;
     }
     if (!ttsSettings.enabled || !ttsSettings.autoSpeakNarration) {
@@ -204,6 +192,9 @@ export const SessionPage = () => {
       return;
     }
     lastSpokenTurnIdRef.current = latestTurn.id;
+    if (narrationTtsService.isNarrationSpeaking()) {
+      return;
+    }
     narrationTtsService.speakNarration({
       text: latestTurn.narration,
       settings: ttsSettings,
@@ -211,7 +202,7 @@ export const SessionPage = () => {
       turnId: latestTurn.id,
       mainNarration: true,
     });
-  }, [history, loading, lastRoll, ttsSettings, capabilities.hasTts]);
+  }, [history, loading, ttsSettings, capabilities.hasTts]);
 
   // Stop TTS when leaving session
   useEffect(() => {
@@ -219,19 +210,6 @@ export const SessionPage = () => {
       narrationTtsService.stopNarration();
     };
   }, []);
-
-  useEffect(() => {
-    if (!lastRoll) {
-      return;
-    }
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        closeRollPopup();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [closeRollPopup, lastRoll]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -317,17 +295,65 @@ export const SessionPage = () => {
       setLoading(true);
       if (action && statUsed && difficulty && character) {
         setLastSubmittedAction(prev => prev
-	  ? { ...prev, ...preview }
-	  : { label: action, stat: statUsed, difficulty, difficultyValue, char: character, ...preview });
+          ? { ...prev, ...preview }
+          : { label: action, stat: statUsed, difficulty, difficultyValue, char: character, ...preview });
+      }
+    },
+    onRollNarrationDone: (rollNarration, actionResult, hpChanges) => {
+      if (!actionResult || actionResult.statUsed === 'none') {
+        return;
+      }
+      hasEarlyRollRef.current = true;
+      setRollResult({
+        roll: actionResult.roll,
+        success: actionResult.success,
+        stat: actionResult.statUsed,
+        statBonus: actionResult.statBonus,
+        itemBonus: actionResult.itemBonus,
+        helperBonus: actionResult.helperBonus,
+        helperCharacterName: actionResult.helperCharacterName,
+        choiceItemBonus: actionResult.choiceItemBonus,
+        choiceItemName: actionResult.choiceItemName,
+        choiceItemOwnerName: actionResult.choiceItemOwnerName,
+        characterBonus: actionResult.characterBonus,
+        characterBonusLabel: actionResult.characterBonusLabel,
+        buffBonus: actionResult.buffBonus,
+        buffBonusLabel: actionResult.buffBonusLabel,
+        impact: actionResult.impact,
+        isCritical: actionResult.isCritical,
+        difficultyTarget: actionResult.difficultyTarget,
+        rollNarration: rollNarration ?? undefined,
+        hpChanges,
+      });
+      setConsequencesPending(true);
+      audioManager.playSfx('dice-roll');
+      setTimeout(() => {
+        if (actionResult.roll === 20) {
+          audioManager.playSfx('roll-20');
+        } else if (actionResult.success) {
+          audioManager.playSfx('success-roll');
+        } else {
+          audioManager.playSfx('failed-roll');
+        }
+      }, 600);
+    },
+    onNarrationChunkAbort: () => {
+      narrationTtsService.stopNarration();
+      if (hasEarlyRollRef.current) {
+        hasEarlyRollRef.current = false;
+        setRollResult(null);
+        setConsequencesPending(false);
       }
     },
     onTurnError: (_error, message) => {
       setLoading(false);
       setLastSubmittedAction(null);
+      setRollResult(null);
+      setConsequencesPending(false);
+      hasEarlyRollRef.current = false;
       setActionError(message);
     },
     onTurnComplete: (updatedSession, turnResult) => {
-      setLoading(false);
       setLastSubmittedAction(null);
       setCustomAction('');
       if (turnResult?.currentTensionLevel) {
@@ -341,8 +367,37 @@ export const SessionPage = () => {
       const turnEncounter = turnResult
         ? getTurnEncounter(turnResult, buildEncounterLookup(updatedSession?.encounterState, updatedSession?.pastEncounters))
         : null;
-      if (hasRollDetails) {
-        setLastRoll({
+      if (hasRollDetails && turnResult) {
+        setHistory(prev => {
+          if (turnResult.id && prev.some(t => t.id === turnResult.id)) {
+            return prev;
+          }
+          const next = [...prev, turnResult];
+          setViewedTurnIdx(next.length - 1);
+          return next;
+        });
+      }
+      if (hasEarlyRollRef.current) {
+        hasEarlyRollRef.current = false;
+        if (hasRollDetails && turnResult) {
+          setRollResult(prev => prev ? {
+            ...prev,
+            hpChanges: turnResult.hpChanges,
+            inventoryChanges: turnResult.inventoryChanges,
+            encounterEnemyChanges: turnResult.encounterEnemyChanges,
+            encounterId: turnResult.encounterId,
+            encounterName: turnEncounter?.name,
+            encounterStatus: turnEncounter?.status,
+          } : prev);
+        }
+        setConsequencesPending(false);
+        setTimeout(() => {
+          setLoading(false);
+          setRollResult(null);
+          requestStoryFocus();
+        }, 1200);
+      } else if (hasRollDetails && roll) {
+        setRollResult({
           roll: roll.roll,
           success: roll.success,
           stat: roll.statUsed,
@@ -360,37 +415,43 @@ export const SessionPage = () => {
           impact: roll.impact,
           isCritical: roll.isCritical,
           difficultyTarget: roll.difficultyTarget,
-          rollNarration: turnResult?.rollNarration,
-          hpChanges: turnResult?.hpChanges,
-          inventoryChanges: turnResult?.inventoryChanges,
-          encounterEnemyChanges: turnResult?.encounterEnemyChanges,
-          encounterId: turnResult?.encounterId,
+          rollNarration: turnResult.rollNarration,
+          hpChanges: turnResult.hpChanges,
+          inventoryChanges: turnResult.inventoryChanges,
+          encounterEnemyChanges: turnResult.encounterEnemyChanges,
+          encounterId: turnResult.encounterId,
           encounterName: turnEncounter?.name,
           encounterStatus: turnEncounter?.status,
         });
-        setDieExiting(false);
-        setTimeout(() => setDieExiting(true), 4000);
+        setConsequencesPending(false);
+        audioManager.playSfx('dice-roll');
         setTimeout(() => {
-          closeRollPopup();
-        }, 4500);
-      }
-      if (turnResult) {
-        setHistory(prev => {
-          if (turnResult.id && prev.some(t => t.id === turnResult.id)) {
-            if (hasRollDetails) {
-              pendingStoryFocusRef.current = true;
-            }
-            return prev;
-          }
-          const next = [...prev, turnResult];
-          setViewedTurnIdx(next.length - 1);
-          if (hasRollDetails) {
-            pendingStoryFocusRef.current = true;
+          if (roll.roll === 20) {
+            audioManager.playSfx('roll-20');
+          } else if (roll.success) {
+            audioManager.playSfx('success-roll');
           } else {
-            requestStoryFocus();
+            audioManager.playSfx('failed-roll');
           }
-          return next;
-        });
+        }, 600);
+        setTimeout(() => {
+          setLoading(false);
+          setRollResult(null);
+          requestStoryFocus();
+        }, 1200);
+      } else {
+        setLoading(false);
+        if (turnResult) {
+          setHistory(prev => {
+            if (turnResult.id && prev.some(t => t.id === turnResult.id)) {
+              return prev;
+            }
+            const next = [...prev, turnResult];
+            setViewedTurnIdx(next.length - 1);
+            return next;
+          });
+          requestStoryFocus();
+        }
       }
     },
     onImageReady: (event) => {
@@ -774,9 +835,7 @@ export const SessionPage = () => {
   const activeChar = session.party.find(c => c.id === session.activeCharacterId) || null;
   const isDown = activeChar?.status === 'downed';
 
-  const lastRollOutcome = getRollImpactOutcome(lastRoll?.roll, lastRoll?.success, lastRoll?.impact);
-  const animateRollGlow = lastRollOutcome && (lastRoll?.impact === 'extreme' || lastRoll?.roll === 1 || lastRoll?.roll === 20);
-  const showNarrationOnlyLoading = loading && !lastRoll;
+  const showNarrationOnlyLoading = loading;
   const showStoryOnlyMobile = !loading && !mobileActionsOpen && tutorialStep !== 3;
   const showMobileActionsOverlay = !loading && (mobileActionsOpen || tutorialStep === 3);
   const sessionGridRows = showNarrationOnlyLoading
@@ -918,7 +977,7 @@ export const SessionPage = () => {
             {session.encounterState?.status === 'active' && (
               <EncounterPanel
                 encounter={session.encounterState}
-                highlighted={lastRoll?.encounterId === session.encounterState.id}
+                highlighted={rollResult?.encounterId === session.encounterState.id}
                 latestTurnSummary={formatEncounterTurnSummary([...history].reverse().find(t => t.encounterId === session.encounterState?.id))}
                 turnCount={countEncounterTurns(history, session.encounterState.id)}
               />
@@ -1013,13 +1072,13 @@ export const SessionPage = () => {
         {/* Chronicle / Action area: bottom-left on md, center col on xl */}
         <div className={`min-h-0 ${actionAreaClass}`} data-tutorial="action-dock">
           {loading ? (
-            <DmDecisionRecapPanel lastSubmittedAction={lastSubmittedAction} ttsSettings={ttsSettings} />
+            <DmDecisionRecapPanel lastSubmittedAction={lastSubmittedAction} ttsSettings={ttsSettings} rollResult={rollResult} consequencesPending={consequencesPending} />
           ) : (
             <div className="flex h-full min-h-0 flex-col gap-2">
               {session.encounterState?.status === 'active' && (
                 <EncounterPanel
                   encounter={session.encounterState}
-                  highlighted={lastRoll?.encounterId === session.encounterState.id}
+                  highlighted={rollResult?.encounterId === session.encounterState.id}
                   latestTurnSummary={formatEncounterTurnSummary([...history].reverse().find(t => t.encounterId === session.encounterState?.id))}
                   turnCount={countEncounterTurns(history, session.encounterState.id)}
                 />
@@ -1046,102 +1105,6 @@ export const SessionPage = () => {
         </div>
 
       </div>
-
-      {/* Roll popup */}
-      {lastRoll && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in"
-          onClick={closeRollPopup}
-        >
-          <div
-            className={`relative overflow-hidden bg-slate-900 border-2 ${lastRollOutcome?.containerClass ?? 'border-slate-700'} ${animateRollGlow ? 'critical-roll-popup' : ''} p-8 rounded-[40px] shadow-2xl text-center flex flex-col items-center animate-in zoom-in-95 ${dieExiting ? 'animate-out fade-out zoom-out-95' : ''}`}
-            style={lastRollOutcome ? { '--critical-roll-glow': lastRollOutcome.popupGlow } as CSSProperties : undefined}
-          >
-            {lastRollOutcome && (
-              <>
-                <div className={`absolute inset-x-10 -top-20 h-40 blur-3xl ${lastRollOutcome.glowClass}`} />
-                <div className={`relative z-10 mb-3 px-4 py-2 rounded-full border text-xs font-black uppercase tracking-[0.22em] ${lastRollOutcome.badgeClass}`}>
-                  <span>{lastRollOutcome.label}</span>
-                  <span className="mx-2 opacity-50">/</span>
-                  <span className="opacity-80">{lastRollOutcome.detail}</span>
-                </div>
-              </>
-            )}
-            <D20 roll={lastRoll.roll} success={lastRoll.success} size={180} />
-            <RollBreakdown
-              roll={lastRoll.roll}
-              statBonus={lastRoll.statBonus}
-              itemBonus={lastRoll.itemBonus}
-              helperBonus={lastRoll.helperBonus}
-              helperCharacterName={lastRoll.helperCharacterName}
-              choiceItemBonus={lastRoll.choiceItemBonus}
-              choiceItemName={lastRoll.choiceItemName}
-              characterBonus={lastRoll.characterBonus}
-              characterBonusLabel={lastRoll.characterBonusLabel}
-              buffBonus={lastRoll.buffBonus}
-              buffBonusLabel={lastRoll.buffBonusLabel}
-              stat={lastRoll.stat}
-              success={lastRoll.success}
-              difficultyTarget={lastRoll.difficultyTarget}
-              className="text-base"
-            />
-            {lastRoll.rollNarration && (
-              <p className="text-amber-100/90 text-center font-medium italic mt-2 max-w-xs leading-tight animate-in slide-in-from-bottom-2 duration-700">
-                {`🎲 ${lastRoll.rollNarration}`}
-              </p>
-            )}
-            {lastRoll.encounterName && (
-              <div className="mt-3 rounded-full border border-rose-800/50 bg-rose-950/30 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-rose-300">
-                Battle: {lastRoll.encounterName}
-                {lastRoll.encounterStatus && lastRoll.encounterStatus !== 'active' ? ` - ${lastRoll.encounterStatus}` : ''}
-              </div>
-            )}
-            {lastRoll.hpChanges && lastRoll.hpChanges.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 justify-center mt-3">
-                {lastRoll.hpChanges.map(hc => (
-                  <div
-                    key={hc.characterId}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-widest border ${hc.change < 0 ? 'bg-rose-900/40 border-rose-700/50 text-rose-400' : 'bg-emerald-900/40 border-emerald-700/50 text-emerald-400'}`}
-                  >
-                    <span>{hc.change < 0 ? '' : '+'}{hc.change}</span>
-                    <span className="opacity-70 normal-case tracking-normal font-semibold">{hc.characterName.split(' ')[0]}</span>
-                    <span className="opacity-50 text-[10px]">{hc.newHp}/{hc.maxHp}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {lastRoll.inventoryChanges && lastRoll.inventoryChanges.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 justify-center mt-2">
-                {lastRoll.inventoryChanges.map((ic, i) => (
-                  <div
-                    key={i}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black border ${ic.type === 'added' ? 'bg-amber-900/40 border-amber-700/50 text-amber-400' : ic.type === 'updated' ? 'bg-indigo-900/40 border-indigo-700/50 text-indigo-300' : 'bg-slate-800/60 border-slate-700/50 text-slate-400'}`}
-                  >
-                    <span>{ic.type === 'added' ? '＋' : ic.type === 'updated' ? '✦' : '－'}</span>
-                    <span className="normal-case tracking-normal font-semibold">{ic.itemName}</span>
-                    <span className="opacity-60">→ {ic.characterName.split(' ')[0]}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {lastRoll.encounterEnemyChanges && lastRoll.encounterEnemyChanges.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 justify-center mt-2">
-                {lastRoll.encounterEnemyChanges.map((ec, i) => (
-                  <div
-                    key={i}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black border ${ec.newStatus && ec.newStatus !== 'active' ? 'bg-rose-950/60 border-rose-700/70 text-rose-300' : 'bg-orange-900/40 border-orange-700/50 text-orange-300'}`}
-                  >
-                    {ec.hpChange !== 0 && <span>{ec.hpChange < 0 ? '-' : '+'}{Math.abs(ec.hpChange)}</span>}
-                    <span className="normal-case tracking-normal font-semibold">{ec.enemyName.split(' ')[0]}</span>
-                    {ec.newStatus && ec.newStatus !== 'active' && <span className="opacity-70 uppercase">{ec.newStatus}</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-            <span className="text-[10px] uppercase tracking-widest text-slate-600 mt-2">tap to dismiss</span>
-          </div>
-        </div>
-      )}
 
       {/* Full inventory modal */}
       {showFullInventory && (

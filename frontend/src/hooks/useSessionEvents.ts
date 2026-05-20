@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Session, TurnResult, Character, ImageReadyEvent } from '../types';
+import type { Session, TurnResult, Character, ImageReadyEvent, ActionAttempt, HpChange } from '../types';
 import { apiUrl } from '../lib/api';
 import { audioManager } from '../audio/audioManager';
 import { devLog } from '../lib/devLog';
@@ -28,6 +28,10 @@ interface SessionEventHandlers {
   sessionId: string;
   onConnected?: () => void;
   onNarrating: (payload: NarratingPayload) => void;
+  onNarrationChunk?: (text: string, field: 'rollNarration' | 'narration') => void;
+  onRollNarrationDone?: (rollNarration: string | null, actionResult?: ActionAttempt['actionResult'], hpChanges?: HpChange[]) => void;
+  onNarrationStreamingDone?: (narration: string, rollNarration: string | null) => void;
+  onNarrationChunkAbort?: () => void;
   onTurnComplete: (session: Session, turnResult: TurnResult | null) => void;
   onTurnError: (error: string, message: string) => void;
   onImageReady: (event: ImageReadyEvent) => void;
@@ -43,6 +47,10 @@ export const useSessionEvents = ({
   sessionId,
   onConnected,
   onNarrating,
+  onNarrationChunk,
+  onRollNarrationDone,
+  onNarrationStreamingDone,
+  onNarrationChunkAbort,
   onTurnComplete,
   onTurnError,
   onImageReady,
@@ -79,9 +87,19 @@ export const useSessionEvents = ({
         setConnectionStateRef.current('connected');
         lastMessageAt = Date.now();
         const data = JSON.parse(e.data);
-        devLog.log(`[SSE] ${data.type ?? 'message'}`, data);
+        if (data.type !== 'narration_chunk') {
+          devLog.log(`[SSE] ${data.type ?? 'message'}`, data);
+        }
         if (data.type === 'connected') {
           onConnected?.();
+        } else if (data.type === 'narration_chunk') {
+          onNarrationChunk?.(data.text, data.field);
+        } else if (data.type === 'narration_roll_ready') {
+          onRollNarrationDone?.(data.rollNarration ?? null, data.actionResult ?? undefined, data.hpChanges ?? undefined);
+        } else if (data.type === 'narration_streaming_done') {
+          onNarrationStreamingDone?.(data.narration, data.rollNarration ?? null);
+        } else if (data.type === 'narration_chunk_abort') {
+          onNarrationChunkAbort?.();
         } else if (data.type === 'dm_narrating') {
 	  onNarrating({
 	    action: data.action,
@@ -103,19 +121,6 @@ export const useSessionEvents = ({
             audioManager.setTension('high');
           } else if (data.turnResult?.currentTensionLevel) {
             audioManager.setTension(data.turnResult.currentTensionLevel);
-          }
-          const roll = data.turnResult?.lastAction?.actionResult;
-          if (roll && roll.statUsed !== 'none') {
-            audioManager.playSfx('dice-roll');
-            setTimeout(() => {
-              if (roll.roll === 20) {
-                audioManager.playSfx('roll-20');
-              } else if (roll.success) {
-                audioManager.playSfx('success-roll');
-              } else {
-                audioManager.playSfx('failed-roll');
-              }
-            }, 600);
           }
           onTurnComplete(data.session, data.turnResult ?? null);
         } else if (data.type === 'turn_error') {

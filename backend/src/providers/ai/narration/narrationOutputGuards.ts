@@ -82,12 +82,10 @@ const INSTRUCTION_LEAK_FRAGMENTS = [
   'dmprepencounters',
   'scenemomentum',
   'suggestednextbeat',
-  'has the next move',
   'press into the next beat',
   'move into the next beat',
-  'chance to press',
+  'chance to press into',
   'next beat awaits',
-  'the next beat',
 ] as const;
 
 const significantTokens = (text: string): Set<string> => new Set(
@@ -531,14 +529,14 @@ export function parseNarrationOutput(
     return { success: false, error: `schema: ${parsed.error.message}` };
   }
 
+  stripNarrationEmDashes(parsed.data);
+  repairChoiceLabels(input, parsed.data);
   if (enforceGameplayGuards) {
     const leakageError = validateNarrationLeakage(parsed.data);
     if (leakageError) {
       return { success: false, error: `leakage: ${leakageError}` };
     }
   }
-  stripNarrationEmDashes(parsed.data);
-  repairChoiceLabels(input, parsed.data);
   canonicalizeItemChoices(input, parsed.data);
   repairChoiceActors(input, parsed.data);
   repairRepeatedItemChoices(input, parsed.data);

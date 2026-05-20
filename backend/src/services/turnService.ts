@@ -2,6 +2,7 @@ import { broadcastSessionChanged, broadcastUpdate } from '../realtime/sessionEve
 import { devLog } from '../lib/devLog.js';
 import type { ActionAttempt, AIInput, Difficulty, SessionState, Stat } from '../types.js';
 import { AiDmService } from './aiDmService.js';
+import type { NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
 import { GameEngine } from './gameEngine.js';
 import { StateService } from './stateService.js';
 import { queueCompletedTurnSideEffects } from './turnSideEffectService.js';
@@ -111,7 +112,7 @@ const alignTurnWithResolvedEncounter = (
   const status = newState.encounterState.status;
   const resolution = encounterResolutionVerb(status);
   const lootNarration = buildLootNarration(previousSession, newState);
-  turnResult.narration = `${enemyNames} ${resolution}.${lootNarration} The immediate fight is over, and the party has a chance to press into the next beat.`;
+  turnResult.narration = `${enemyNames} ${resolution}.${lootNarration} The immediate fight is over.`;
   turnResult.currentTensionLevel = status === 'defeated' ? 'medium' : turnResult.currentTensionLevel;
   const choices = buildPostEncounterChoices(previousSession, newState);
   turnResult.choices = choices;
@@ -340,7 +341,18 @@ export const executeTurnAction = async (
 
   devLog.log(`[Turn] llm-start session=${sessionId} turn=${session.turn}`);
   const llmStart = Date.now();
-  let turnResult = await AiDmService.generateTurnResult(aiInput);
+  const earlyHpChange = GameEngine.computeDeterministicHpChange(session, actingCharId, actionAttempt);
+  const streamCallbacks: NarrationStreamCallbacks = {
+    onChunk: (text, field) => broadcastUpdate(sessionId, 'narration_chunk', { text, field }),
+    onRollNarrationDone: (rollNarration) => broadcastUpdate(sessionId, 'narration_roll_ready', {
+      rollNarration,
+      actionResult: actionAttempt.actionResult.statUsed !== 'none' ? actionAttempt.actionResult : undefined,
+      hpChanges: earlyHpChange ? [earlyHpChange] : undefined,
+    }),
+    onStreamingDone: (narration, rollNarration) => broadcastUpdate(sessionId, 'narration_streaming_done', { narration, rollNarration }),
+    onAbort: () => broadcastUpdate(sessionId, 'narration_chunk_abort', {}),
+  };
+  let turnResult = await AiDmService.generateTurnResult(aiInput, streamCallbacks);
   const llmMs = Date.now() - llmStart;
   stepStart = logTurnStep(sessionId, 'llm', stepStart, `retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
   devLog.log(`[Turn] llm-done session=${sessionId} retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);

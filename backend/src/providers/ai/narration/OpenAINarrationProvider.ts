@@ -1,5 +1,5 @@
 import { zodResponseFormat } from 'openai/helpers/zod';
-import type { NarrationInput, NarrationOutput, NarrationProvider } from './NarrationProvider.js';
+import type { NarrationInput, NarrationOutput, NarrationProvider, NarrationStreamCallbacks } from './NarrationProvider.js';
 import { buildNarrationFallback } from './narrationFallback.js';
 import { buildNarrationSystemPrompt, buildNarrationUserContent } from './narrationPrompt.js';
 import { parseNarrationOutput } from './narrationOutputGuards.js';
@@ -7,9 +7,20 @@ import { narrationOutputSchema } from './narrationSchemas.js';
 import { createOpenAIClient, getModelForTier } from '../openAiClient.js';
 import { devLog } from '../../../lib/devLog.js';
 
+function extractStreamingFields(snapshot: string): { rollNarration: string | null; narration: string } {
+  const rollMatch = /"rollNarration":"((?:[^"\\]|\\.)*)/.exec(snapshot);
+  const narrationMatch = /"narration":"((?:[^"\\]|\\.)*)/.exec(snapshot);
+  const unescape = (s: string) =>
+    s.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"').replace(/\\\\/g, '\\').replace(/\\r/g, '');
+  return {
+    rollNarration: rollMatch ? unescape(rollMatch[1]) : null,
+    narration: narrationMatch ? unescape(narrationMatch[1]) : '',
+  };
+}
+
 export class OpenAINarrationProvider implements NarrationProvider {
-  async generateTurn(input: NarrationInput): Promise<NarrationOutput> {
-    const raw = await this.callModel(input);
+  async generateTurn(input: NarrationInput, callbacks?: NarrationStreamCallbacks): Promise<NarrationOutput> {
+    const raw = await this.callModel(input, undefined, callbacks);
     const parsed = parseNarrationOutput(input, raw);
     if (parsed.success) {
       devLog.log('[Narration] attempt-1 guard=pass');
@@ -17,6 +28,7 @@ export class OpenAINarrationProvider implements NarrationProvider {
     }
 
     devLog.warn('[Narration] attempt-1 guard=fail retrying', parsed.error);
+    callbacks?.onAbort();
     const retryRaw = await this.callModel(input, parsed.error);
     const retryParsed = parseNarrationOutput(input, retryRaw);
     if (retryParsed.success) {
@@ -37,7 +49,7 @@ export class OpenAINarrationProvider implements NarrationProvider {
     };
   }
 
-  private async callModel(input: NarrationInput, validationError?: string): Promise<unknown> {
+  private async callModel(input: NarrationInput, validationError?: string, callbacks?: NarrationStreamCallbacks): Promise<unknown> {
     const model = getModelForTier('narration');
     const attempt = validationError ? 'retry' : 'attempt-1';
     const start = Date.now();
@@ -79,18 +91,43 @@ export class OpenAINarrationProvider implements NarrationProvider {
       `encounters=${input.dmPrepEncounters?.length ?? 0}`,
       `hasEncounterState=${input.encounterState ? 'true' : 'false'}`,
     ].join(' '));
-    let response;
+
+    const stream = createOpenAIClient().chat.completions.stream({
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userContent },
+      ],
+      response_format: zodResponseFormat(narrationOutputSchema, 'narration_output'),
+      temperature: 0.7,
+      max_completion_tokens: isHighStakesTurn ? 1500 : 1300,
+      stream_options: { include_usage: true },
+    }, { signal: AbortSignal.timeout(timeoutMs) });
+
+    if (callbacks) {
+      let emittedNarration = '';
+      let emittedRollNarration = '';
+      let rollNarrationDoneFired = false;
+      stream.on('content', (_delta: string, snapshot: string) => {
+        const { rollNarration, narration } = extractStreamingFields(snapshot);
+        if (narration.length > emittedNarration.length) {
+          if (!rollNarrationDoneFired) {
+            rollNarrationDoneFired = true;
+            callbacks.onRollNarrationDone?.(rollNarration);
+          }
+          callbacks.onChunk(narration.slice(emittedNarration.length), 'narration');
+          emittedNarration = narration;
+        }
+        if (rollNarration !== null && rollNarration.length > emittedRollNarration.length) {
+          callbacks.onChunk(rollNarration.slice(emittedRollNarration.length), 'rollNarration');
+          emittedRollNarration = rollNarration;
+        }
+      });
+    }
+
+    let response: Awaited<ReturnType<typeof stream.finalChatCompletion>>;
     try {
-      response = await createOpenAIClient().chat.completions.parse({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userContent },
-        ],
-        response_format: zodResponseFormat(narrationOutputSchema, 'narration_output'),
-        temperature: 0.7,
-        max_completion_tokens: isHighStakesTurn ? 1500 : 1300,
-      }, { signal: AbortSignal.timeout(timeoutMs) });
+      response = await stream.finalChatCompletion();
     } catch (error: unknown) {
       const durationMs = Date.now() - start;
       const err = error as { name?: string; status?: number; code?: string; type?: string };
@@ -108,6 +145,7 @@ export class OpenAINarrationProvider implements NarrationProvider {
       ].join(' '));
       throw error;
     }
+
     const durationMs = Date.now() - start;
     const choice = response.choices[0];
     const finishReason = choice.finish_reason ?? 'unknown';
@@ -135,6 +173,11 @@ export class OpenAINarrationProvider implements NarrationProvider {
       const reason = finishReason === 'length' ? 'output truncated by max_completion_tokens' : 'no parsed structured output';
       throw new Error(`OpenAI response failed: ${reason}`);
     }
+
+    if (callbacks) {
+      callbacks.onStreamingDone(message.parsed.narration, message.parsed.rollNarration ?? null);
+    }
+
     return message.parsed;
   }
 }

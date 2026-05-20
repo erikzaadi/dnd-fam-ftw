@@ -1,6 +1,6 @@
 import { AIInput, TurnResult } from '../types.js';
 import { createNarrationProvider } from '../providers/ai/AiProviderFactory.js';
-import type { NarrationInput } from '../providers/ai/narration/NarrationProvider.js';
+import type { NarrationInput, NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
 import { buildNarrationFallback } from '../providers/ai/narration/narrationFallback.js';
 import { resolveEncounterSeed } from './encounterService.js';
 import { devLog } from '../lib/devLog.js';
@@ -208,7 +208,7 @@ export function toNarrationInput(input: AIInput): NarrationInput {
 }
 
 export class AiDmService {
-  public static async generateTurnResult(input: AIInput): Promise<TurnResult> {
+  public static async generateTurnResult(input: AIInput, callbacks?: NarrationStreamCallbacks): Promise<TurnResult> {
     const totalStart = Date.now();
     const narrationInput = toNarrationInput(input);
     devLog.log([
@@ -227,7 +227,7 @@ export class AiDmService {
     ].join(' '));
     try {
       const provider = createNarrationProvider();
-      const output = await provider.generateTurn(narrationInput);
+      const output = await provider.generateTurn(narrationInput, callbacks);
       devLog.log(`[AiDm] provider-done sessionTurn=${input.turn} durationMs=${Date.now() - totalStart}`);
 
       return {

@@ -167,9 +167,9 @@ const buffRemoveSchema = z.object({
 });
 
 export const narrationOutputSchema = z.object({
+  rollNarration: z.string().optional().nullable(),
   narration: z.string().min(1),
   choices: z.array(choiceSchema).length(3),
-  rollNarration: z.string().optional().nullable(),
   currentTensionLevel: z.enum(TENSION_LEVEL_VALUES).default('medium'),
   suggestedInventoryAdd: inventoryAddSchema.nullable(),
   suggestedInventoryRemove: inventoryRemoveSchema.nullable().default(null),

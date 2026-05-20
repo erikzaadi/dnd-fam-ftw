@@ -141,6 +141,13 @@ export type NarrationOutput = {
   narrationRetryValidationError?: string;
 };
 
+export type NarrationStreamCallbacks = {
+  onChunk: (text: string, field: 'rollNarration' | 'narration') => void;
+  onRollNarrationDone?: (rollNarration: string | null) => void;
+  onStreamingDone: (narration: string, rollNarration: string | null) => void;
+  onAbort: () => void;
+};
+
 export interface NarrationProvider {
-  generateTurn(input: NarrationInput): Promise<NarrationOutput>;
+  generateTurn(input: NarrationInput, callbacks?: NarrationStreamCallbacks): Promise<NarrationOutput>;
 }

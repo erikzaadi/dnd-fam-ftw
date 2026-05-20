@@ -56,7 +56,9 @@ export const registerSessionListEventStream = (req: Request, res: Response, name
 };
 
 export const broadcastUpdate = (sessionId: string, type: string, payload: Record<string, unknown>) => {
-  devLog.log(`[Broadcast] ${type} session=${sessionId}`);
+  if (type !== 'narration_chunk') {
+    devLog.log(`[Broadcast] ${type} session=${sessionId}`);
+  }
   eventEmitter.emit('update', { sessionId, type, ...payload });
 };
 
