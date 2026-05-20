@@ -16,6 +16,7 @@ export const getRollImpactOutcome = (roll?: number, success?: boolean, impact: R
       label: 'Critical Failure',
       detail: 'Natural 1',
       containerClass: 'border-rose-500/80 shadow-rose-950/60',
+
       badgeClass: 'border-rose-500/60 bg-rose-950/70 text-rose-200',
       glowClass: 'bg-rose-500/20',
       textClass: 'text-rose-300',
@@ -28,6 +29,7 @@ export const getRollImpactOutcome = (roll?: number, success?: boolean, impact: R
       label: 'Legendary Success',
       detail: 'Natural 20',
       containerClass: 'border-emerald-400/80 shadow-emerald-950/60',
+
       badgeClass: 'border-emerald-400/60 bg-emerald-950/70 text-emerald-200',
       glowClass: 'bg-emerald-400/20',
       textClass: 'text-emerald-300',
@@ -41,6 +43,7 @@ export const getRollImpactOutcome = (roll?: number, success?: boolean, impact: R
         label: 'Legendary Success',
         detail: 'Epic result',
         containerClass: 'border-emerald-400/80 shadow-emerald-950/60',
+  
         badgeClass: 'border-emerald-400/60 bg-emerald-950/70 text-emerald-200',
         glowClass: 'bg-emerald-400/20',
         textClass: 'text-emerald-300',
@@ -51,6 +54,7 @@ export const getRollImpactOutcome = (roll?: number, success?: boolean, impact: R
       label: 'Catastrophic Failure',
       detail: 'Dire consequence',
       containerClass: 'border-rose-500/80 shadow-rose-950/60',
+
       badgeClass: 'border-rose-500/60 bg-rose-950/70 text-rose-200',
       glowClass: 'bg-rose-500/20',
       textClass: 'text-rose-300',
@@ -64,6 +68,7 @@ export const getRollImpactOutcome = (roll?: number, success?: boolean, impact: R
         label: 'Heroic Success',
         detail: 'Powerful result',
         containerClass: 'border-amber-400/80 shadow-amber-950/60',
+  
         badgeClass: 'border-amber-400/60 bg-amber-950/70 text-amber-200',
         glowClass: 'bg-amber-400/16',
         textClass: 'text-amber-300',
@@ -74,6 +79,7 @@ export const getRollImpactOutcome = (roll?: number, success?: boolean, impact: R
       label: 'Major Twist',
       detail: 'Serious consequence',
       containerClass: 'border-orange-500/80 shadow-orange-950/60',
+
       badgeClass: 'border-orange-500/60 bg-orange-950/70 text-orange-200',
       glowClass: 'bg-orange-500/16',
       textClass: 'text-orange-300',

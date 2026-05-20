@@ -341,7 +341,8 @@ export const SessionPage = () => {
       narrationTtsService.stopNarration();
       if (hasEarlyRollRef.current) {
         hasEarlyRollRef.current = false;
-        setRollResult(null);
+        // Keep rollResult visible - the roll is valid, only the narration is retrying.
+        // onTurnComplete will update it with the full data via the non-early path.
         setConsequencesPending(false);
       }
     },

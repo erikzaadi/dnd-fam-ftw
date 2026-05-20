@@ -114,13 +114,18 @@ export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings, rollRes
         alt=""
       />
       <div className="absolute inset-0 bg-slate-950/70" />
+      {/* Outcome border overlay - inset-0 + z-20 keeps it above background but inside overflow-hidden */}
+      <div
+        className="absolute inset-0 rounded-[32px] pointer-events-none z-20"
+        style={{ border: `4px solid ${rollOutcome ? rollOutcome.popupGlow : rollResult && !rollResult.success ? 'rgba(244,63,94,0.55)' : rollResult?.success ? 'rgba(34,197,94,0.45)' : 'rgba(100,116,139,0.25)'}` }}
+      />
 
       {rollResult ? (
         /* Roll result phase */
         <div className="relative z-10 flex flex-col items-center justify-center flex-1 gap-3 p-5 overflow-y-auto scrollbar-hide">
           {rollOutcome && (
-            <div className={`relative overflow-hidden shrink-0 w-full flex flex-col items-center pt-2`}>
-              <div className={`absolute inset-x-0 -top-8 h-24 blur-3xl ${rollOutcome.glowClass} opacity-60`} />
+            <div className={`relative shrink-0 w-full flex flex-col items-center pt-2`}>
+              <div className={`absolute inset-x-0 top-0 h-16 blur-2xl ${rollOutcome.glowClass} opacity-50`} />
               <div className={`relative z-10 px-4 py-1.5 rounded-full border text-xs font-black uppercase tracking-[0.18em] ${rollOutcome.badgeClass}`}>
                 <span>{rollOutcome.label}</span>
                 <span className="mx-2 opacity-50">/</span>
