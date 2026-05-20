@@ -278,6 +278,38 @@ describe('inferOrganicEncounterStart', () => {
 
     expect(proposal).toBeNull();
   });
+
+  it('prefers known NPC name from npcs list if mentioned in the narration', () => {
+    const proposal = inferOrganicEncounterStart({
+      narration: 'Vexilla seizes the moment, preparing a fierce retaliatory strike.',
+      currentTensionLevel: 'high',
+      npcs: ['Vexilla', 'Soris'],
+    }, undefined);
+
+    expect(proposal?.name).toBe('Vexilla');
+    expect(proposal?.enemies[0].name).toBe('Vexilla');
+  });
+
+  it('prefers known NPC name from npcs list if mentioned in the action attempt', () => {
+    const proposal = inferOrganicEncounterStart({
+      narration: 'A dark shadow falls across the area.',
+      actionAttempt: 'We attempt to rescue Vexilla before the vault collapses.',
+      currentTensionLevel: 'high',
+      npcs: ['Vexilla'],
+    }, undefined);
+
+    expect(proposal?.name).toBe('Vexilla');
+    expect(proposal?.enemies[0].name).toBe('Vexilla');
+  });
+
+  it('does not match a noun phrase containing a bare singular action verb as an organic arrival', () => {
+    const proposal = inferOrganicEncounterStart({
+      narration: 'The party prepares a fierce retaliatory strike against the wall.',
+      currentTensionLevel: 'high',
+    }, undefined);
+
+    expect(proposal).toBeNull();
+  });
 });
 
 describe('resolveEnemy', () => {

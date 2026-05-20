@@ -6,16 +6,59 @@ import type { EncounterSeed } from '../types.js';
 
 const SUMMARY_INTERVAL = 5;
 
-export const buildCampaignStateSummaryPrompt = (previousSummary: string | undefined, recentNarrations: string[]): string => {
+export const TITLE_STOPWORDS = new Set([
+  'lord', 'lady', 'baron', 'baroness', 'sir', 'captain', 'king', 'queen',
+  'prince', 'princess', 'count', 'countess', 'duke', 'duchess', 'father',
+  'mother', 'brother', 'sister', 'elder', 'archmage', 'the', 'of', 'and',
+]);
+
+export function getSignificantNameTokens(fullName: string): string[] {
+  return fullName
+    .toLowerCase()
+    .split(/[\s'-]+/)
+    .filter(word => word.length > 3 && !TITLE_STOPWORDS.has(word));
+}
+
+export function villainMentionedInAction(villainName: string, action: string): boolean {
+  const tokens = getSignificantNameTokens(villainName);
+  const lowerAction = action.toLowerCase();
+  return tokens.some(t => lowerAction.includes(t));
+}
+
+export const buildCampaignStateSummaryPrompt = (
+  previousSummary: string | undefined,
+  recentNarrations: string[],
+  frozenVillains: string[] = [],
+  recentActions: string[] = [],
+  currentScene?: string,
+): string => {
   const previous = previousSummary
     ? `Story so far: ${previousSummary}\n\n`
     : '';
-  return `${previous}Recent events:\n${recentNarrations.map((n, i) => `${i + 1}. ${n}`).join('\n')}\n\nWrite a concise campaign state summary that helps the next turn move forward. Use this format exactly:
+  let prompt = `${previous}Recent events:\n${recentNarrations.map((n, i) => `${i + 1}. ${n}`).join('\n')}\n\nWrite a concise campaign state summary that helps the next turn move forward. Use this format exactly:
 STORY SO FAR: 2-4 factual sentences about key events, discoveries, victories, setbacks, and current location.
 CURRENT ARC: Early discovery | Mid escalation | Climax - choose one and add a short reason.
 OPEN THREAD: one unresolved clue, threat, NPC, location, item, or promise the party can act on next.
 NEXT PROMISED BEAT: one concrete next beat the DM should pay off soon.
 RECENTLY RESOLVED: one combat, challenge, clue, or scene that should not be repeated.`;
+
+  if (currentScene) {
+    prompt += `\n\nThe party's current location is: "${currentScene}".
+If the recent narrations show the party has remained in this same location throughout,
+add exactly this line at the end:
+LOCATION STALL: party remains in ${currentScene} - the story needs a reason to move.`;
+  }
+
+  if (frozenVillains.length > 0) {
+    prompt += `\n\nThe following villain(s) have been targeted in multiple player actions but have not become
+an active encounter: ${frozenVillains.join(', ')}.
+If this is confirmed by the recent actions below, add exactly this line at the end:
+FROZEN CONFRONTATION: <villain name> - targeted repeatedly by players but never escalated.
+
+Recent player actions: ${recentActions.join(' | ')}`;
+  }
+
+  return prompt;
 };
 
 const ENCOUNTER_SEEDS_MARKER = 'ENCOUNTER_SEEDS:';
@@ -86,12 +129,40 @@ export class StorySummaryService {
         return;
       }
 
-      const recentNarrations = history.slice(-SUMMARY_INTERVAL).map(h => h.narration);
+      const recentTurns = history.slice(-SUMMARY_INTERVAL);
+      const recentNarrations = recentTurns.map(h => h.narration);
       if (recentNarrations.length === 0) {
         return;
       }
 
-      const prompt = buildCampaignStateSummaryPrompt(session.storySummary, recentNarrations);
+      const recentActions = recentTurns
+        .map(h => h.lastAction?.actionAttempt ?? '')
+        .filter(Boolean);
+
+      const resolvedNames = new Set(
+        (session.pastEncounters ?? [])
+          .flatMap(enc => enc.enemies.map(e => e.name.toLowerCase()))
+      );
+      const hasActiveEncounter = session.encounterState?.status === 'active';
+
+      const frozenVillains = hasActiveEncounter ? [] : (session.dmPrepEncounters ?? [])
+        .flatMap(seed => seed.enemies)
+        .filter(e => (e.role === 'boss' || e.role === 'elite') && e.name.length > 6)
+        .map(e => e.name)
+        .filter(name => {
+          if (resolvedNames.has(name.toLowerCase())) {
+            return false;
+          }
+          return recentActions.filter(a => villainMentionedInAction(name, a)).length >= 2;
+        });
+
+      const prompt = buildCampaignStateSummaryPrompt(
+        session.storySummary,
+        recentNarrations,
+        frozenVillains,
+        recentActions,
+        session.scene,
+      );
 
       const summary = await this.callSummarize(prompt);
       if (summary) {

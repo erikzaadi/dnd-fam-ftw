@@ -1,5 +1,12 @@
-import { describe, it, expect } from 'vitest';
-import { buildCampaignStateSummaryPrompt, parseEncounterSeeds, StorySummaryService } from './storySummaryService.js';
+import { describe, it, expect, vi, beforeEach, type MockInstance } from 'vitest';
+import {
+  buildCampaignStateSummaryPrompt,
+  parseEncounterSeeds,
+  StorySummaryService,
+  villainMentionedInAction,
+} from './storySummaryService.js';
+import { StateService } from './stateService.js';
+import type { SessionState, TurnResult } from '../types.js';
 
 describe('StorySummaryService.shouldUpdate', () => {
   it('returns false at turn 0', () => {
@@ -117,5 +124,159 @@ describe('buildCampaignStateSummaryPrompt', () => {
     expect(prompt).toContain('OPEN THREAD:');
     expect(prompt).toContain('NEXT PROMISED BEAT:');
     expect(prompt).toContain('RECENTLY RESOLVED:');
+  });
+});
+
+describe('villainMentionedInAction', () => {
+  it('correctly matches villain name tokens', () => {
+    const name = 'Soris the Eternal Scribe';
+    expect(villainMentionedInAction(name, 'I strike Soris')).toBe(true);
+    expect(villainMentionedInAction(name, 'I attack the scribe')).toBe(true);
+    expect(villainMentionedInAction(name, 'I use the magic circle')).toBe(false);
+  });
+
+  it('filters out common titles and short tokens', () => {
+    const name = 'Lord Bob';
+    // 'lord' is a stop-word, 'bob' is <= 3 chars.
+    // Significant tokens: []. So it shouldn't match anything.
+    expect(villainMentionedInAction(name, 'I hit the Lord')).toBe(false);
+    expect(villainMentionedInAction(name, 'I attack Bob')).toBe(false);
+  });
+});
+
+describe('buildCampaignStateSummaryPrompt with Location Stall and Frozen Villains', () => {
+  it('appends location stall instructions if currentScene is provided', () => {
+    const prompt = buildCampaignStateSummaryPrompt(
+      'Story so far.',
+      ['Action A'],
+      [],
+      [],
+      'The Whispering Woods'
+    );
+    expect(prompt).toContain('The party\'s current location is: "The Whispering Woods".');
+    expect(prompt).toContain('LOCATION STALL: party remains in The Whispering Woods');
+    expect(prompt).not.toContain('FROZEN CONFRONTATION:');
+  });
+
+  it('appends frozen villain instructions if frozenVillains is non-empty', () => {
+    const prompt = buildCampaignStateSummaryPrompt(
+      'Story so far.',
+      ['Action A'],
+      ['Malakor the Defiler'],
+      ['I search for Malakor', 'I call out to Malakor'],
+      undefined
+    );
+    expect(prompt).not.toContain('LOCATION STALL:');
+    expect(prompt).toContain('The following villain(s) have been targeted in multiple player actions');
+    expect(prompt).toContain('Malakor the Defiler');
+    expect(prompt).toContain('FROZEN CONFRONTATION: <villain name>');
+    expect(prompt).toContain('Recent player actions: I search for Malakor | I call out to Malakor');
+  });
+});
+
+describe('StorySummaryService.maybeUpdate candidate derivation', () => {
+  let getSessionSpy: MockInstance;
+  let getTurnHistorySpy: MockInstance;
+  let updateSummarySpy: MockInstance;
+  let callSummarizeSpy: MockInstance;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    getSessionSpy = vi.spyOn(StateService, 'getSession');
+    getTurnHistorySpy = vi.spyOn(StateService, 'getTurnHistory');
+    updateSummarySpy = vi.spyOn(StateService, 'updateStorySummary').mockResolvedValue(undefined);
+    callSummarizeSpy = vi.spyOn(
+      StorySummaryService as unknown as {
+        callSummarize: (prompt: string, maxTokens?: number, timeoutMs?: number, label?: string) => Promise<string>;
+      },
+      'callSummarize'
+    ).mockResolvedValue('NEW_SUMMARY');
+  });
+
+  it('correctly derives frozen villains and calls summarize', async () => {
+    const session = {
+      id: 'sess-123',
+      scene: 'The Frozen Caves',
+      storySummary: 'Prev summary.',
+      encounterState: { status: 'none' }, // inactive
+      pastEncounters: [
+        { enemies: [{ name: 'Dead Skeleton' }] }
+      ],
+      dmPrepEncounters: [
+        {
+          name: 'Malakor Encounter',
+          enemies: [
+            { name: 'Malakor the Defiler', role: 'boss' }, // role is boss, len > 6
+            { name: 'Mini Imp', role: 'standard' }, // standard role, ignored
+            { name: 'Tiny', role: 'elite' }, // elite, but name length <= 6, ignored
+            { name: 'Dead Skeleton', role: 'boss' }, // already resolved, ignored
+          ]
+        }
+      ]
+    } as unknown as SessionState;
+
+    const history = [
+      { narration: 'Turn 1', lastAction: { actionAttempt: 'We look for Malakor.' } },
+      { narration: 'Turn 2', lastAction: { actionAttempt: 'We search the room.' } },
+      { narration: 'Turn 3', lastAction: { actionAttempt: 'I slash at Malakor.' } },
+      { narration: 'Turn 4', lastAction: { actionAttempt: 'We take a rest.' } },
+      { narration: 'Turn 5', lastAction: { actionAttempt: 'We run away.' } },
+    ] as unknown as TurnResult[];
+
+    getSessionSpy.mockResolvedValue(session);
+    getTurnHistorySpy.mockResolvedValue(history);
+
+    await StorySummaryService.maybeUpdate('sess-123', 5);
+
+    expect(callSummarizeSpy).toHaveBeenCalled();
+    const promptPassed = callSummarizeSpy.mock.calls[0][0];
+
+    // Malakor the Defiler has been mentioned twice (Turn 1, Turn 3)
+    expect(promptPassed).toContain('Malakor the Defiler');
+    // Mini Imp is ignored
+    expect(promptPassed).not.toContain('Mini Imp');
+    // Tiny is ignored (name <= 6 chars)
+    expect(promptPassed).not.toContain('Tiny');
+    // Dead Skeleton is ignored (resolved)
+    expect(promptPassed).not.toContain('Dead Skeleton');
+
+    expect(promptPassed).toContain('The party\'s current location is: "The Frozen Caves"');
+    expect(updateSummarySpy).toHaveBeenCalledWith('sess-123', 'NEW_SUMMARY');
+  });
+
+  it('returns empty frozen villains if encounter is active', async () => {
+    const session = {
+      id: 'sess-123',
+      scene: 'The Frozen Caves',
+      storySummary: 'Prev summary.',
+      encounterState: { status: 'active' }, // active!
+      dmPrepEncounters: [
+        {
+          name: 'Malakor Encounter',
+          enemies: [
+            { name: 'Malakor the Defiler', role: 'boss' }
+          ]
+        }
+      ]
+    } as unknown as SessionState;
+
+    const history = [
+      { narration: 'Turn 1', lastAction: { actionAttempt: 'We look for Malakor.' } },
+      { narration: 'Turn 2', lastAction: { actionAttempt: 'We search the room.' } },
+      { narration: 'Turn 3', lastAction: { actionAttempt: 'I slash at Malakor.' } },
+      { narration: 'Turn 4', lastAction: { actionAttempt: 'We take a rest.' } },
+      { narration: 'Turn 5', lastAction: { actionAttempt: 'We run away.' } },
+    ] as unknown as TurnResult[];
+
+    getSessionSpy.mockResolvedValue(session);
+    getTurnHistorySpy.mockResolvedValue(history);
+
+    await StorySummaryService.maybeUpdate('sess-123', 5);
+
+    expect(callSummarizeSpy).toHaveBeenCalled();
+    const promptPassed = callSummarizeSpy.mock.calls[0][0];
+
+    // Malakor is frozen, but active combat disables frozen villain detection
+    expect(promptPassed).not.toContain('Malakor the Defiler');
   });
 });

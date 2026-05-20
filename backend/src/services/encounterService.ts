@@ -21,7 +21,10 @@ const HP_MAX_BY_ROLE: Record<EncounterEnemy['role'], [number, number]> = {
 
 const LEADING_ARTICLES = /^(a |an |the )/i;
 const STRIP_PUNCT = /[^a-z0-9\s]/g;
-const ORGANIC_ARRIVAL_RE = /\b(?:a|an|the|some|several|two|three|swarm of|pack of|group of)\s+([a-z][a-z -]{2,40}?)\s+(?:appear|appears|emerge|emerges|arrive|arrives|attack|attacks|strike|strikes|slash|slashes|claw|claws|pounce|pounces|lunge|lunges|charge|charges|spring|springs|burst|bursts|descend|descends|surround|surrounds|block|blocks)\b/i;
+const ORGANIC_ARRIVAL_RE = new RegExp([
+  '\\b(?:a|an)\\s+([a-z][a-z -]{2,40}?)\\s+(?:appears|emerges|arrives|attacks|strikes|slashes|claws|pounces|lunges|charges|springs|bursts|descends|surrounds|blocks)\\b',
+  '\\b(?:the|some|several|two|three|swarm of|pack of|group of)\\s+([a-z][a-z -]{2,40}?)\\s+(?:appear|appears|emerge|emerges|arrive|arrives|attack|attacks|strike|strikes|slash|slashes|claw|claws|pounce|pounces|lunge|lunges|charge|charges|spring|springs|burst|bursts|descend|descends|surround|surrounds|block|blocks)\\b',
+].join('|'), 'i');
 const GENERIC_ENEMY_NAME_RE = /\b(?:enemy|enemies|foe|foes|monster|monsters|creature|creatures|danger|threat|attack|ambush|combat|battle|fight|roar|prayer|spell|ritual|focus|oils?)\b/i;
 const GENERIC_ORGANIC_ENEMY_NAMES = new Set([
   'enemy',
@@ -302,7 +305,27 @@ const contextualOrganicEnemyName = (text: string): string => {
   return 'Shadow Ambusher';
 };
 
-const extractOrganicEnemyName = (text: string, actionAttempt?: string | null): string => {
+const extractOrganicEnemyName = (text: string, actionAttempt?: string | null, npcs?: string[]): string | null => {
+  if (npcs && npcs.length > 0) {
+    const lowerAction = actionAttempt?.toLowerCase() ?? '';
+    const actionNpc = npcs.find(npc => {
+      const re = new RegExp(`\\b${npc.toLowerCase()}\\b`, 'i');
+      return re.test(lowerAction);
+    });
+    if (actionNpc) {
+      return actionNpc;
+    }
+
+    const lowerText = text.toLowerCase();
+    const matchedNpc = npcs.find(npc => {
+      const re = new RegExp(`\\b${npc.toLowerCase()}\\b`, 'i');
+      return re.test(lowerText);
+    });
+    if (matchedNpc) {
+      return matchedNpc;
+    }
+  }
+
   const actionTargetMatch = actionAttempt && OFFENSIVE_ACTION_RE.test(actionAttempt)
     ? ACTION_TARGET_RE.exec(actionAttempt)
     : null;
@@ -316,11 +339,16 @@ const extractOrganicEnemyName = (text: string, actionAttempt?: string | null): s
   }
 
   const arrivalMatch = ORGANIC_ARRIVAL_RE.exec(text);
-  if (arrivalMatch?.[1]) {
-    const candidate = titleCaseEnemyName(arrivalMatch[1]);
+  let matchedName = arrivalMatch ? (arrivalMatch[1] || arrivalMatch[2]) : null;
+  if (matchedName && /\b(?:a|an|is|are|was|were|has|have|had|prepares?|casts?|unleashes?|launches?|uses?|wields?|makes?)\b/i.test(matchedName)) {
+    matchedName = null;
+  }
+
+  if (matchedName) {
+    const candidate = titleCaseEnemyName(matchedName);
     return candidate === 'Ambusher' ? contextualOrganicEnemyName(text) : candidate;
   }
-  return contextualOrganicEnemyName(text);
+  return null;
 };
 
 const organicFallbackTraits = (enemyName: string): string[] => {
@@ -402,6 +430,7 @@ export const inferOrganicEncounterStart = (
     actionAttempt?: string | null;
     currentTensionLevel?: TensionLevel | null;
     suggestedDamage?: number | null;
+    npcs?: string[];
   },
   currentEncounter: EncounterState | undefined,
 ): EncounterStartProposal | null => {
@@ -420,12 +449,10 @@ export const inferOrganicEncounterStart = (
     input.actionAttempt ?? '',
   ].join(' ');
 
-  const actionTargetedEnemy = Boolean(input.actionAttempt && OFFENSIVE_ACTION_RE.test(input.actionAttempt) && ACTION_TARGET_RE.test(input.actionAttempt));
-  if (!ORGANIC_ARRIVAL_RE.test(haystack) && !actionTargetedEnemy) {
+  const enemyName = extractOrganicEnemyName(haystack, input.actionAttempt, input.npcs);
+  if (!enemyName) {
     return null;
   }
-
-  const enemyName = extractOrganicEnemyName(haystack, input.actionAttempt);
   const traits = inferOrganicTraits(haystack, enemyName);
   const weakness = inferOrganicWeakness(haystack);
   return {

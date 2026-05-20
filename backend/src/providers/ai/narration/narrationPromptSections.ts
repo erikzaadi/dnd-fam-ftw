@@ -359,3 +359,13 @@ export const SECTION_INVENTORY_TRADE = `PARTY AND NPC ITEM TRANSFERS:
 - For trades with NPCs: set BOTH suggestedInventoryRemove (item given away) AND suggestedInventoryAdd (item received). Use targetCharacterName on suggestedInventoryAdd if the received item goes to a specific character.
 - Otherwise set suggestedInventoryRemove: null.`;
 
+export const SECTION_FROZEN_CONFRONTATION = `
+- If \`storySummary\` contains a FROZEN CONFRONTATION line, treat it as high priority: within ` +
+`the next 1-2 turns surface that character as a real encounter via suggestedEncounterStart, ` +
+`or force a direct confrontation moment. Stop generating proxy enemies.`;
+
+export const SECTION_LOCATION_STALL = `
+- If \`storySummary\` contains a LOCATION STALL line, introduce a narrative hook this turn ` +
+`that makes moving feel urgent or rewarding: a messenger, a door opening, the current ` +
+`location becoming dangerous, or an NPC pointing the way out.`;
+

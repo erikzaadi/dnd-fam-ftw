@@ -784,6 +784,7 @@ export class GameEngine {
           actionAttempt: actionAttempt.actionAttempt,
           currentTensionLevel: typeof aiSuggestedChanges?.currentTensionLevel === 'string' ? aiSuggestedChanges.currentTensionLevel as TensionLevel : null,
           suggestedDamage: typeof aiSuggestedChanges?.suggestedDamage === 'number' ? aiSuggestedChanges.suggestedDamage : null,
+          npcs: newState.npcs,
         };
         const inferredEncounterStart = inferSeededEncounterStart(
           inferenceInput,

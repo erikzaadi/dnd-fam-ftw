@@ -24,6 +24,8 @@ import {
   SECTION_INVENTORY_BASICS,
   SECTION_INVENTORY_COMBAT_LOOT,
   SECTION_INVENTORY_TRADE,
+  SECTION_FROZEN_CONFRONTATION,
+  SECTION_LOCATION_STALL,
 } from './narrationPromptSections.js';
 
 const BUFF_ACTION_INTENTS = ['bless_character', 'aid_character', 'party_boost', 'improve_item'];
@@ -80,6 +82,8 @@ export function buildNarrationSystemPrompt(input: NarrationInput): string {
   const buffTurn = isBuffTurn(input);
   const hasDownedOrHealing = restTurn || input.party.some(c => c.status === 'downed');
   const inventoryRelevant = input.inventory.length > 0 || isLootTurn || tradeEnabled;
+  const hasFrozen = input.storySummary?.includes('FROZEN CONFRONTATION');
+  const hasStall = input.storySummary?.includes('LOCATION STALL');
 
   const sections: string[] = [
     SECTION_PREAMBLE_PACING_TENSION,
@@ -92,6 +96,8 @@ export function buildNarrationSystemPrompt(input: NarrationInput): string {
     ...(hasDramaRoll ? [SECTION_DRAMA_ROLL] : []),
     SECTION_DIFFICULTY_SHORT,
     SECTION_CONTINUITY_SHORT,
+    ...(hasFrozen ? [SECTION_FROZEN_CONFRONTATION] : []),
+    ...(hasStall ? [SECTION_LOCATION_STALL] : []),
     SECTION_ACTING_SHORT,
     SECTION_CHOICE_VARIETY,
     ...(riddleEnabled ? [SECTION_CHOICES_RIDDLE] : []),

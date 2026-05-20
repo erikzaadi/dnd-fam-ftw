@@ -347,3 +347,32 @@ describe('isRiddleTurn', () => {
     expect(isRiddleTurn(makeRiddleInput({ actionAttempt: 'Answer the goblin back with a shout' }))).toBe(false);
   });
 });
+
+describe('buildNarrationSystemPrompt with Frozen Confrontation & Location Stall', () => {
+  it('includes SECTION_FROZEN_CONFRONTATION when storySummary contains FROZEN CONFRONTATION', () => {
+    const input = makeInput({
+      storySummary: 'STORY SO FAR: The party arrived.\nFROZEN CONFRONTATION: Malakor the Defiler - targeted repeatedly but never escalated.'
+    });
+    const prompt = buildNarrationSystemPrompt(input);
+    expect(prompt).toContain('FROZEN CONFRONTATION');
+    expect(prompt).toContain('surface that character as a real encounter');
+  });
+
+  it('includes SECTION_LOCATION_STALL when storySummary contains LOCATION STALL', () => {
+    const input = makeInput({
+      storySummary: 'STORY SO FAR: The party arrived.\nLOCATION STALL: party remains in The Frozen Caves'
+    });
+    const prompt = buildNarrationSystemPrompt(input);
+    expect(prompt).toContain('LOCATION STALL');
+    expect(prompt).toContain('introduce a narrative hook this turn');
+  });
+
+  it('excludes both when storySummary does not contain them', () => {
+    const input = makeInput({
+      storySummary: 'STORY SO FAR: The party arrived.'
+    });
+    const prompt = buildNarrationSystemPrompt(input);
+    expect(prompt).not.toContain('surface that character as a real encounter');
+    expect(prompt).not.toContain('introduce a narrative hook this turn');
+  });
+});
