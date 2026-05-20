@@ -256,8 +256,9 @@ export const createSessionRouter = () => {
     if (!session.savingsMode) {
       if (session.previewImageUrl) {
         await StateService.updateLatestTurnImage(sessionId, session.previewImageUrl, '', '');
-        broadcastUpdate(sessionId, 'image_ready', { target: 'scene', imageUrl: session.previewImageUrl });
+        broadcastUpdate(sessionId, 'image_ready', { target: 'scene', imageUrl: session.previewImageUrl, turnId: initialTurn.id ?? 0 });
       } else {
+        const capturedTurnId = initialTurn.id ?? 0;
         runBackground(`start-image session=${sessionId}`, async () => {
           const result = await ImageService.generateImage(
             initialTurn.imagePrompt || 'A fantasy realm establishing scene',
@@ -275,7 +276,7 @@ export const createSessionRouter = () => {
           );
           if (result) {
             await StateService.updateLatestTurnImage(sessionId, result.url, result.storageKey, result.storageProvider);
-            broadcastUpdate(sessionId, 'image_ready', { target: 'scene', imageUrl: result.url });
+            broadcastUpdate(sessionId, 'image_ready', { target: 'scene', imageUrl: result.url, turnId: capturedTurnId });
           }
         });
       }

@@ -188,7 +188,7 @@ const queueTurnImageGeneration = (
   }).then(async result => {
     if (result) {
       await StateService.updateLatestTurnImage(sessionId, result.url, result.storageKey, result.storageProvider);
-      broadcastUpdate(sessionId, 'image_ready', { target: 'scene', imageUrl: result.url });
+      broadcastUpdate(sessionId, 'image_ready', { target: 'scene', imageUrl: result.url, turnId: turnResult.id ?? 0 });
     }
   }).catch(err => {
     devLog.error('[Action] Background image generation failed:', err);

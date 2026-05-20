@@ -456,18 +456,15 @@ export const SessionPage = () => {
     },
     onImageReady: (event) => {
       if (event.target === 'scene') {
-        const { imageUrl } = event;
+        const { imageUrl, turnId } = event;
         setImageLoading(false);
         setHistory(prev => {
-          if (prev.length === 0) {
-            return prev;
-          }
-          const last = prev[prev.length - 1];
-          if (last.turnType === 'intervention' || last.turnType === 'sanctuary') {
+          const idx = prev.findIndex(t => t.id === turnId);
+          if (idx === -1) {
             return prev;
           }
           const updated = [...prev];
-          updated[updated.length - 1] = { ...last, imageUrl };
+          updated[idx] = { ...updated[idx], imageUrl };
           return updated;
         });
       } else if (event.target === 'encounter_enemy') {

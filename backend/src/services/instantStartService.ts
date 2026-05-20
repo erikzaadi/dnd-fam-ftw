@@ -141,7 +141,7 @@ export async function runInstantStartBackground(
       );
       if (imageResult) {
         await StateService.updateLatestTurnImage(sessionId, imageResult.url, imageResult.storageKey, imageResult.storageProvider);
-        broadcastUpdate(sessionId, 'image_ready', { target: 'scene', imageUrl: imageResult.url });
+        broadcastUpdate(sessionId, 'image_ready', { target: 'scene', imageUrl: imageResult.url, turnId: initialTurn.id ?? 0 });
       }
     } catch (err) {
       console.error('[InstantStart] Scene image generation failed:', err);

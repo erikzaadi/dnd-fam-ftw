@@ -45,7 +45,7 @@ describe('useSessionEvents image_ready delivery', () => {
     const handlers = makeHandlers();
     renderHook(() => useSessionEvents(handlers));
 
-    fakeEs.fire({ type: 'image_ready', target: 'scene', imageUrl: 'http://example.com/scene.png' });
+    fakeEs.fire({ type: 'image_ready', target: 'scene', imageUrl: 'http://example.com/scene.png', turnId: 42 });
 
     expect(handlers.onImageReady).toHaveBeenCalledOnce();
     const event = handlers.onImageReady.mock.calls[0][0] as ImageReadyEvent;
@@ -53,6 +53,7 @@ describe('useSessionEvents image_ready delivery', () => {
     expect(event.target).toBe('scene');
     if (event.target === 'scene') {
       expect(event.imageUrl).toBe('http://example.com/scene.png');
+      expect(event.turnId).toBe(42);
     }
   });
 

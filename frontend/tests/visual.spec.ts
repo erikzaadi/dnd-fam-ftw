@@ -900,3 +900,200 @@ test('session chronicle - encounter enemy changes in turn detail', async ({ page
 
   await screenshotViewports(page, 'session-chronicle-encounter-enemy-changes');
 });
+
+// ---------------------------------------------------------------------------
+// DmDecisionRecapPanel visual tests
+// Injects fake SSE events via a mocked EventSource to drive the panel into
+// each phase without a real backend turn.
+// ---------------------------------------------------------------------------
+
+async function injectSseEvents(page: Page, events: unknown[]): Promise<void> {
+  await page.addInitScript((evts: unknown[]) => {
+    class FakeEventSource extends EventTarget {
+      onmessage: ((e: MessageEvent) => void) | null = null;
+      onerror: ((e: Event) => void) | null = null;
+      constructor(url: string) {
+        super();
+        if (url.includes('/events')) {
+          evts.forEach((evt: unknown, i: number) => {
+            setTimeout(() => {
+              const msg = new MessageEvent('message', { data: JSON.stringify(evt) });
+              this.dispatchEvent(msg);
+              if (this.onmessage) {
+                this.onmessage(msg);
+              }
+            }, i * 60);
+          });
+        }
+      }
+      close(): void {}
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).EventSource = FakeEventSource;
+  }, events);
+}
+
+const RECAP_CHAR = {
+  id: 'char-1',
+  name: 'Barnabas Strongarm',
+  class: 'Fighter',
+  species: 'Human',
+  quirk: 'Never backs down from a fight',
+  hp: 8,
+  max_hp: 10,
+  status: 'active',
+  avatarUrl: '/images/default_scene.png',
+  stats: { might: 4, magic: 1, mischief: 2 },
+  inventory: [{ id: 'item-1', name: '🪓 Battle Axe +1', statBonuses: { might: 1 } }],
+  buffs: [],
+  history: null,
+};
+
+const DM_NARRATING_EVENT = {
+  type: 'dm_narrating',
+  action: 'Smash through the rusted iron gate with your axe',
+  statUsed: 'might',
+  difficulty: 'hard',
+  difficultyValue: 15,
+  character: RECAP_CHAR,
+};
+
+async function setupDmRecapRoutes(page: Page, sessionId: string): Promise<void> {
+  const fakeSession = {
+    id: sessionId,
+    displayName: 'The Ember Wastes',
+    scene: 'Ancient Ruins',
+    sceneId: 'ancient-ruins',
+    turn: 5,
+    savingsMode: true,
+    gameMode: 'classic',
+    difficulty: 'normal',
+    tone: 'thrilling',
+    storySummary: '',
+    npcs: [],
+    quests: [],
+    recentHistory: ['The party pushes deeper into the ruins.'],
+    lastChoices: [
+      { label: 'Smash through the rusted gate', difficulty: 'hard', stat: 'might', flavor: 'standard' },
+      { label: 'Find a secret way in', difficulty: 'normal', stat: 'mischief', flavor: 'standard' },
+    ],
+    activeCharacterId: 'char-1',
+    party: [RECAP_CHAR],
+    interventionState: { rescuesUsed: 0 },
+  };
+  const fakeTurnBase = {
+    choices: fakeSession.lastChoices,
+    imagePrompt: null,
+    imageSuggested: false,
+    imageUrl: null,
+  };
+  await page.route(`**/api/session/${sessionId}`, route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify(fakeSession),
+  }));
+  await page.route(`**/api/session/${sessionId}/history`, route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([
+      { ...fakeTurnBase, id: 1, narration: 'The party discovers a crumbling entrance to the ruins.' },
+      { ...fakeTurnBase, id: 2, narration: 'The party pushes deeper into the ruins, torches flickering in the damp air.' },
+    ]),
+  }));
+  await page.route('**/api/capabilities', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ hasCloudAI: false, hasTts: false }),
+  }));
+}
+
+test('session dm-recap panel - narrating phase', async ({ page }) => {
+  test.setTimeout(30_000);
+  const sessionId = 'visual-dm-recap-narrating';
+  await suppressFirstRunOverlays(page);
+  await injectSseEvents(page, [
+    { type: 'connected' },
+    DM_NARRATING_EVENT,
+  ]);
+  await setupDmRecapRoutes(page, sessionId);
+  await page.goto(`/session/${sessionId}`);
+  await dismissAudioOverlay(page);
+  // Wait for the spinning dice that marks the narrating phase
+  await expect(page.locator('img[class*="animate-dice-spin"]')).toBeVisible({ timeout: 5_000 });
+  // Freeze the animated flavor text to a stable value for the snapshot
+  await page.evaluate(() => {
+    const el = Array.from(document.querySelectorAll('div')).find(
+      d => d.classList.contains('animate-pulse') && d.textContent?.includes('...')
+    );
+    if (el) {
+      el.textContent = 'The DM is narrating...';
+    }
+  });
+  await screenshotViewports(page, 'session-dm-recap-narrating');
+});
+
+test('session dm-recap panel - roll result success', async ({ page }) => {
+  test.setTimeout(30_000);
+  const sessionId = 'visual-dm-recap-roll-success';
+  await suppressFirstRunOverlays(page);
+  await injectSseEvents(page, [
+    { type: 'connected' },
+    DM_NARRATING_EVENT,
+    {
+      type: 'narration_roll_ready',
+      rollNarration: 'The axe crashes through the gate with a deafening boom!',
+      actionResult: {
+        roll: 18,
+        success: true,
+        statUsed: 'might',
+        statBonus: 4,
+        itemBonus: 1,
+        impact: 'strong',
+        isCritical: false,
+        difficultyTarget: 15,
+      },
+      hpChanges: [],
+    },
+  ]);
+  await setupDmRecapRoutes(page, sessionId);
+  await page.goto(`/session/${sessionId}`);
+  await dismissAudioOverlay(page);
+  await expect(page.getByText('The realm responds...')).toBeVisible({ timeout: 5_000 });
+  await screenshotViewports(page, 'session-dm-recap-roll-success');
+});
+
+test('session dm-recap panel - roll result failure with HP loss', async ({ page }) => {
+  test.setTimeout(30_000);
+  const sessionId = 'visual-dm-recap-roll-failure';
+  await suppressFirstRunOverlays(page);
+  await injectSseEvents(page, [
+    { type: 'connected' },
+    DM_NARRATING_EVENT,
+    {
+      type: 'narration_roll_ready',
+      rollNarration: 'The strike goes wide and Barnabas stumbles, leaving himself exposed.',
+      actionResult: {
+        roll: 5,
+        success: false,
+        statUsed: 'might',
+        statBonus: 4,
+        itemBonus: 1,
+        impact: 'normal',
+        isCritical: false,
+        difficultyTarget: 15,
+      },
+      hpChanges: [{
+        characterId: 'char-1',
+        characterName: 'Barnabas Strongarm',
+        change: -2,
+        newHp: 6,
+        maxHp: 10,
+      }],
+    },
+  ]);
+  await setupDmRecapRoutes(page, sessionId);
+  await page.goto(`/session/${sessionId}`);
+  await dismissAudioOverlay(page);
+  await expect(page.getByText('The realm responds...')).toBeVisible({ timeout: 5_000 });
+  await screenshotViewports(page, 'session-dm-recap-roll-failure');
+});

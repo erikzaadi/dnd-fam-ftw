@@ -117,7 +117,7 @@ export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings, rollRes
 
       {rollResult ? (
         /* Roll result phase */
-        <div className="relative z-10 flex flex-col items-center justify-start flex-1 gap-3 p-5 overflow-y-auto scrollbar-hide">
+        <div className="relative z-10 flex flex-col items-center justify-center flex-1 gap-3 p-5 overflow-y-auto scrollbar-hide">
           {rollOutcome && (
             <div className={`relative overflow-hidden shrink-0 w-full flex flex-col items-center pt-2`}>
               <div className={`absolute inset-x-0 -top-8 h-24 blur-3xl ${rollOutcome.glowClass} opacity-60`} />
@@ -202,7 +202,7 @@ export const DmDecisionRecapPanel = ({ lastSubmittedAction, ttsSettings, rollRes
           {consequencesPending && (
             <div className="flex items-center gap-2 text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1 shrink-0">
               <div className="w-3 h-3 border-2 border-slate-600 border-t-amber-500 rounded-full animate-spin shrink-0" />
-              Loading consequences...
+              The realm responds...
             </div>
           )}
         </div>

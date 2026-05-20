@@ -165,7 +165,7 @@ export interface EncounterStartProposal {
 }
 
 export type ImageReadyPayload =
-  | { target: 'scene'; imageUrl: string }
+  | { target: 'scene'; imageUrl: string; turnId: number }
   | { target: 'encounter_enemy'; encounterId: string; enemyId: string; imageUrl: string }
   | { target: 'encounter_area'; encounterId: string; areaId: string; imageUrl: string }
   | { target: 'character_avatar'; characterId: string; imageUrl: string }
