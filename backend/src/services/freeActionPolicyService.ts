@@ -1,24 +1,12 @@
 import type { ActionAttempt, Character, Difficulty, SessionState, TurnResult } from '../types.js';
+import { HEALING_ACTION_RE, searchable, containsSearchable } from '../lib/textUtils.js';
 
-const HEALING_ACTION_RE = /\b(heal|healing|restore|restoring|revive|reviving|mend|mending|soothe|soothing|recover|recovery|rest|resting|sleep|sleeping|eat|eating|meal|care|treat|treating|medicine|potion|bandage|sanctuary)\b/i;
 const ENCHANT_ACTION_RE = /\b(enchant|enchanting|bless|blessing|empower|empowering|infuse|infusing|imbue|imbuing|charge|charging|strengthen|strengthening|upgrade|upgrading)\b/i;
 const PARTY_WIDE_RE = /\b(party|everyone|everybody|all|whole group|the group|the team|teammates|friends|allies|share|shared|together|feast|meal)\b/i;
 const BLESS_AID_ACTION_RE = /\b(bless|blessing|aid|assist|inspire|encourage|embolden|bolster|invigorate|uplift|fortify|courage|rally|hymn|melody|song|tune|chant|shield|ward|channel|weave|strengthen|empower|boost|pray|prayer|invoke|invocation|petition|beseech|consecrate|dedicate|devotion|exalt|sanctify)\b/i;
 const BLESS_RE = /\b(bless|blessing)\b/i;
 const AID_RE = /\b(aid|assist)\b/i;
 const SIMPLE_PATH_ACTION_RE = /\b(follow|take|walk|go|move|head|continue|proceed)\b.*\b(path|paths|trail|route|road|track|tracks|passage|tunnel|corridor|hallway)\b/i;
-
-const searchable = (text: string | undefined): string => (text ?? '')
-  .toLowerCase()
-  .normalize('NFKD')
-  .replace(/[^\p{Letter}\p{Number}]+/gu, ' ')
-  .replace(/\s+/g, ' ')
-  .trim();
-
-const containsSearchable = (haystack: string, needle: string | undefined): boolean => {
-  const normalizedNeedle = searchable(needle);
-  return normalizedNeedle.length > 1 && haystack.includes(normalizedNeedle);
-};
 
 function actionReferencesItem(action: string, itemName: string): boolean {
   const normalizedName = searchable(itemName);

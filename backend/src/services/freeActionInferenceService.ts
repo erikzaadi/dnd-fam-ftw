@@ -1,4 +1,5 @@
 import type { Character, ChoiceFlavor, InventoryItem, SessionState } from '../types.js';
+import { searchable, containsSearchable } from '../lib/textUtils.js';
 
 export const COMBO_HELPER_BONUS = 2;
 export const CHOICE_ITEM_BONUS = 2;
@@ -24,18 +25,6 @@ export type FreeActionBonusPreview = {
   characterBonus?: number;
   characterBonusLabel?: string;
   flavor?: Extract<ChoiceFlavor, 'social' | 'spotlight'>;
-};
-
-const searchable = (text: string | undefined): string => (text ?? '')
-  .toLowerCase()
-  .normalize('NFKD')
-  .replace(/[^\p{Letter}\p{Number}]+/gu, ' ')
-  .replace(/\s+/g, ' ')
-  .trim();
-
-const containsSearchable = (haystack: string, needle: string | undefined): boolean => {
-  const normalizedNeedle = searchable(needle);
-  return normalizedNeedle.length > 1 && haystack.includes(normalizedNeedle);
 };
 
 const firstName = (name: string): string => name.split(/\s+/)[0] ?? name;

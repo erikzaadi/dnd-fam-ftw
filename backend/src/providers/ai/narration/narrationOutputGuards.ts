@@ -1,8 +1,8 @@
 import type { NarrationInput, NarrationOutput } from './NarrationProvider.js';
 import { narrationOutputSchema, type ValidNarrationOutput } from './narrationSchemas.js';
 import { devLog } from '../../../lib/devLog.js';
+import { HEALING_ACTION_RE } from '../../../lib/textUtils.js';
 
-const HEALING_ACTION_RE = /\b(heal|healing|restore|restoring|revive|reviving|mend|mending|soothe|soothing|recover|recovery|rest|resting|sleep|sleeping|eat|eating|meal|care|treat|treating|medicine|potion|bandage|sanctuary)\b/i;
 const LOW_MOTION_RE = /\b(inspect|wait|look around|look|listen|rest|discuss|search)\b/i;
 const GENERIC_LABEL_RE = /\b(attack|strike|search|inspect|look|wait|listen|rest|discuss)\b/i;
 const CONCRETE_TRANSITION_RE = /\b(stair|stairs|door|gate|path|paths|pathway|pathways|trail|route|bridge|ferry|passage|tunnel|portal|shortcut|chamber|room|cave|cavern|tower|hall|halls|corridor|corridors|crypt|dungeon|sanctum|map|key|clue|clues|symbol|symbols|hazard|hazards|danger|dangers|guide|track|tracks|smoke|light|opens?|deeper|beyond|toward|descend|descends?|enters?|entered|entering|entrance|arrive|follow|inspect|examine|investigate|study|explore|search|speak|listen|offer|share|discover|reveal|relic|artifact|shrine|ruins?|alcove|gather|ancient|glade|clearing|grove|merchant|npc|village|camp|campfire|library|tavern|market|forge|vault|altar|chest|treasure|reward|loot|bounty|signal|beacon|seal|shard|fragment|crystal|gem|stone|scroll|tome|journal|note|letter|message|riddle|puzzle|trap|mechanism|lever|rune|ward|barrier|seal|bless|blessing)\b/i;
