@@ -2,6 +2,7 @@ import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
 import { runBackground } from '../middleware/runBackground.js';
 import { StateService } from './stateService.js';
 import { ImageService } from './imageService.js';
+import { compileDmPrepPremise } from './dmPrepCompilationService.js';
 import type { EncounterSeed } from '../types.js';
 
 const SUMMARY_INTERVAL = 5;
@@ -264,6 +265,11 @@ The JSON block must be a valid JSON array with no extra text or prose inside it.
       if (raw) {
         const { brief, seeds } = parseEncounterSeeds(raw);
         await StateService.patchSession(sessionId, { dmPrep: brief });
+        const compiled = await compileDmPrepPremise(brief);
+        if (compiled) {
+          await StateService.patchSession(sessionId, { compiledDmPrep: compiled });
+          console.log(`[Campaign] Compiled dmPrep premise for session ${sessionId} chars=${compiled.length}`);
+        }
         const generateMedia = async () => {
           const [imageBrief, seededWithMedia] = await Promise.all([
             this.generateDmPrepImageBrief(brief, sessionId),

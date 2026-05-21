@@ -877,3 +877,81 @@ describe('parseNarrationOutput - encounter guards', () => {
     }
   });
 });
+
+describe('repairNarrationLeakage (via parseNarrationOutput)', () => {
+  it('strips a leaked fragment from narration when coherent text remains', () => {
+    const result = parseNarrationOutput(input, output({
+      narration: 'Pip leaps over the barrel. connect this turn to the main threat The crowd cheers.',
+    }));
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.narration).toBe('Pip leaps over the barrel. The crowd cheers.');
+      expect(result.data.narration).not.toContain('connect this turn to the main threat');
+    }
+  });
+
+  it('fails when stripped narration would be too short to be coherent', () => {
+    const result = parseNarrationOutput(input, output({
+      narration: 'connect this turn to the main threat',
+    }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('connect this turn to the main threat');
+    }
+  });
+
+  it('strips a leaked fragment from rollNarration when coherent text remains', () => {
+    const result = parseNarrationOutput(input, output({
+      rollNarration: 'The dice clatter across the table. introduce a concrete new beat Pip holds her breath.',
+    }));
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.rollNarration).toBe('The dice clatter across the table. Pip holds her breath.');
+      expect(result.data.rollNarration).not.toContain('introduce a concrete new beat');
+    }
+  });
+
+  it('fails immediately when a leaked fragment appears in a choice label', () => {
+    const result = parseNarrationOutput(input, output({
+      choices: [
+        { label: 'start a concrete scene beat with a clear object', difficulty: 'easy', stat: 'mischief', difficultyValue: 8 },
+        { label: 'Check for traps', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+        { label: 'Call for help', difficulty: 'easy', stat: 'magic', difficultyValue: 7 },
+      ],
+    }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('start a concrete scene beat with a clear object');
+    }
+  });
+
+  it('fails immediately when a leaked fragment appears in choice narration', () => {
+    const result = parseNarrationOutput(input, output({
+      choices: [
+        { label: 'Look around', difficulty: 'easy', stat: 'mischief', difficultyValue: 8, narration: 'Pip scans the room. push toward a climactic confrontation' },
+        { label: 'Check for traps', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+        { label: 'Call for help', difficulty: 'easy', stat: 'magic', difficultyValue: 7 },
+      ],
+    }));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('push toward a climactic confrontation');
+    }
+  });
+
+  it('is bypassed when enforceGameplayGuards is false', () => {
+    const result = parseNarrationOutput(input, output({
+      narration: 'connect this turn to the main threat',
+    }), { enforceGameplayGuards: false });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.narration).toBe('connect this turn to the main threat');
+    }
+  });
+});

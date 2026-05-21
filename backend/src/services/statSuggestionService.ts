@@ -106,24 +106,72 @@ function parseEncounterFields(parsed: Record<string, unknown>, ctx: EncounterPre
 
 export async function previewFreeAction(
   sessionId: string,
-  input: { action: string; encounterContext?: EncounterPreviewContext | null },
-): Promise<SessionActionStatSuggestion & { narration?: string; interpretedAction?: string } & PreviewEncounterFields> {
-  const { action, encounterContext } = input;
+  input: { action?: string; context?: PreviewActionContext; encounterContext?: EncounterPreviewContext | null },
+): Promise<SessionActionStatSuggestion & { narration?: string; interpretedAction?: string; generatedAction?: string } & PreviewEncounterFields> {
+  const { action, context, encounterContext } = input;
   const session = await StateService.getSession(sessionId);
   if (!session) {
     return { stat: 'mischief' };
   }
   const character = session.party.find(c => c.id === session.activeCharacterId) ?? session.party[0] ?? null;
-  const bonusPreview = character
+
+  // Bonuses for caller-supplied action are computed before the LLM call.
+  // For generated action they are computed after, once we have the text.
+  let bonusPreview = action && character
     ? toFreeActionBonusPreview(inferFreeActionBonuses(action, character, session))
     : {};
+
   const storyContext = await buildFreeActionStoryContext(sessionId);
   const ctx = encounterContext ?? null;
   const encounterSection = ctx ? buildEncounterPromptSection(ctx) : '';
   const hasEncounter = !!encounterSection;
+  const needsGeneratedAction = !action && !!context;
 
-  const { client, model } = createChatClientForTier('preview');
-  const prompt = `${describeActiveCharacter(character)} wants to: "${action}".
+  let prompt: string;
+  if (needsGeneratedAction) {
+    const target = context.targetCharacterId
+      ? session.party.find(c => c.id === context.targetCharacterId)
+      : null;
+    const itemOwner = context.itemOwnerCharacterId
+      ? session.party.find(c => c.id === context.itemOwnerCharacterId)
+      : character;
+    const item = context.itemId
+      ? itemOwner?.inventory.find(i => i.id === context.itemId)
+      : null;
+    const targetLine = target && context.intent !== 'party_boost'
+      ? `Target ally: ${target.name}, ${target.species} ${target.class}, stats might ${target.stats.might}, magic ${target.stats.magic}, mischief ${target.stats.mischief}.`
+      : '';
+    const itemLine = item && itemOwner
+      ? `Target gear: ${itemOwner.name}'s ${item.name}. Description: ${item.description}. Effect: ${item.effect ?? 'none'}. Tags: ${(item.tags ?? []).join(', ') || 'none'}.`
+      : '';
+    const targetInstruction = context.intent === 'party_boost'
+      ? ' Address the whole group (everyone, all allies) - never name a single character.'
+      : target ? ` Name ${target.name} as the target.` : '';
+    const itemInstruction = item ? ` Reference ${item.name}.` : '';
+
+    prompt = `${describeActiveCharacter(character)}
+Intent: ${context.intent ?? 'custom'}
+Method: ${context.method ?? 'none'}
+${targetLine}
+${itemLine}
+${storyContext ? `\nCurrent story context:\n${storyContext}\n` : ''}
+${encounterSection}
+Write a short action sentence (8-18 words) that fits the intent and the current scene.${targetInstruction}${itemInstruction} Avoid promising success. Then analyze it.
+Stat guide: might = physical/combat/force, magic = spells/arcane/healing/divine, mischief = stealth/trickery/charm/persuasion.${hasEncounter ? '\nWeakness labels are flavorful display text. Keep the exact label from the encounter data. Only set weakPointMatch when a revealed, non-broken weakness clearly matches this action\'s school or tags. Use "may exploit" wording when confidence is low.' : ''}
+
+Reply with JSON:
+{
+  "generatedAction": "<action sentence, 8-18 words>",
+  "stat": "might" | "magic" | "mischief",
+  "narration": "<one short evocative sentence, 8-14 words>"${hasEncounter ? `,
+  "school": "<magic school: fire|frost|light|shadow|nature|storm|mind|force|holy|mechanical|null>",
+  "actionTags": ["<optional descriptive tags>"],
+  "likelyEnemyId": "<id of likely targeted enemy, or null>",
+  "likelyEnemyName": "<name of likely target enemy, or null>",
+  "weakPointMatch": {"label": "<exact weakness label>", "description": "<'exploits X' or 'may exploit X' if uncertain>"} | null` : ''}
+}`;
+  } else {
+    prompt = `${describeActiveCharacter(character)} wants to: "${action}".
 ${storyContext ? `\nUse this story context so the preview fits the current scene without spoiling the result:\n${storyContext}\n` : ''}
 ${encounterSection}
 Stat guide: might = physical/combat/force, magic = spells/arcane/healing/divine, mischief = stealth/trickery/charm/persuasion.${hasEncounter ? '\nWeakness labels are flavorful display text. Keep the exact label from the encounter data; do not rewrite it to a generic school. Only set weakPointMatch when a revealed, non-broken weakness on the likely target clearly matches this action\'s school or tags. Use "may exploit" wording when confidence is low.' : ''}
@@ -139,34 +187,59 @@ Reply with JSON:
   "likelyEnemyName": "<name of likely target enemy, or null>",
   "weakPointMatch": {"label": "<exact free-form weakness label from encounter data>", "description": "<'exploits X weakness' or 'may exploit X weakness' if uncertain>"} | null` : ''}
 }`;
+  }
+
+  const { client, model } = createChatClientForTier('preview');
   const start = Date.now();
   try {
-    devLog.log(`[PreviewAction] llm-start session=${sessionId} model=${model} promptChars=${prompt.length} hasEncounter=${hasEncounter}`);
+    devLog.log(`[PreviewAction] llm-start session=${sessionId} model=${model} promptChars=${prompt.length} hasEncounter=${hasEncounter} needsGeneratedAction=${needsGeneratedAction}`);
     const response = await client.chat.completions.create({
       model,
-      messages: [{
-        role: 'user',
-        content: prompt,
-      }],
+      messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
-      max_tokens: hasEncounter ? 160 : 80,
+      max_tokens: needsGeneratedAction ? (hasEncounter ? 220 : 120) : (hasEncounter ? 160 : 80),
     }, { signal: AbortSignal.timeout(8_000) });
     devLog.log(`[PreviewAction] llm-done session=${sessionId} model=${model} durationMs=${Date.now() - start}`);
     const raw = (response.choices[0].message.content ?? '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
-      const interpretedAction = typeof parsed.action === 'string' ? parsed.action.trim() : undefined;
       const stat = (['might', 'magic', 'mischief'] as const).find(s => parsed.stat === s) ?? 'mischief';
       const narration = typeof parsed.narration === 'string' ? parsed.narration.trim() : undefined;
       const encounterFields = parseEncounterFields(parsed, ctx);
+
+      if (needsGeneratedAction) {
+        const generatedAction = typeof parsed.generatedAction === 'string' && parsed.generatedAction.trim()
+          ? parsed.generatedAction.trim()
+          : fallbackActionForIntent(character, context);
+        if (character) {
+          bonusPreview = toFreeActionBonusPreview(inferFreeActionBonuses(generatedAction, character, session));
+        }
+        return { stat, generatedAction, narration, ...bonusPreview, ...encounterFields };
+      }
+
+      const interpretedAction = typeof parsed.action === 'string' ? parsed.action.trim() : undefined;
       return { stat, ...(interpretedAction && { interpretedAction }), narration, ...bonusPreview, ...encounterFields };
     }
     const stat = (['might', 'magic', 'mischief'] as const).find(s => raw.includes(s)) ?? 'mischief';
+    if (needsGeneratedAction) {
+      const generatedAction = fallbackActionForIntent(character, context);
+      if (character) {
+        bonusPreview = toFreeActionBonusPreview(inferFreeActionBonuses(generatedAction, character, session));
+      }
+      return { stat, generatedAction, ...bonusPreview };
+    }
     return { stat, ...bonusPreview };
   } catch (error: unknown) {
     const err = error as { name?: string; status?: number; code?: string; type?: string };
     devLog.log(`[PreviewAction] llm-error session=${sessionId} model=${model} durationMs=${Date.now() - start} name=${err.name ?? 'unknown'} status=${err.status ?? 'n/a'} code=${err.code ?? 'n/a'} type=${err.type ?? 'n/a'}`);
+    if (needsGeneratedAction) {
+      const generatedAction = fallbackActionForIntent(character, context);
+      if (character) {
+        bonusPreview = toFreeActionBonusPreview(inferFreeActionBonuses(generatedAction, character, session));
+      }
+      return { stat: 'mischief', generatedAction, ...bonusPreview };
+    }
     return { stat: 'mischief', ...bonusPreview };
   }
 }
@@ -206,79 +279,6 @@ function fallbackActionForIntent(character: Character | null, context: PreviewAc
     return `${actorName} improves a piece of gear for the current danger`;
   }
   return `${actorName} uses carried gear to help with the current situation`;
-}
-
-export async function suggestPreviewActionText(
-  sessionId: string,
-  context: PreviewActionContext,
-): Promise<string> {
-  const session = await StateService.getSession(sessionId);
-  if (!session) {
-    return fallbackActionForIntent(null, context);
-  }
-  const actor = session.party.find(c => c.id === session.activeCharacterId) ?? session.party[0] ?? null;
-  const target = context.targetCharacterId
-    ? session.party.find(c => c.id === context.targetCharacterId)
-    : null;
-  const itemOwner = context.itemOwnerCharacterId
-    ? session.party.find(c => c.id === context.itemOwnerCharacterId)
-    : actor;
-  const item = context.itemId
-    ? itemOwner?.inventory.find(i => i.id === context.itemId)
-    : null;
-  const storyContext = await buildFreeActionStoryContext(sessionId);
-
-  const targetLine = target && context.intent !== 'party_boost'
-    ? `Target ally: ${target.name}, ${target.species} ${target.class}, stats might ${target.stats.might}, magic ${target.stats.magic}, mischief ${target.stats.mischief}.`
-    : '';
-  const itemLine = item && itemOwner
-    ? `Target gear: ${itemOwner.name}'s ${item.name}. Description: ${item.description}. Effect: ${item.effect ?? 'none'}. Tags: ${(item.tags ?? []).join(', ') || 'none'}.`
-    : '';
-
-  const { client, model } = createChatClientForTier('preview');
-  const prompt = `${describeActiveCharacter(actor)}
-Intent: ${context.intent ?? 'custom'}
-Method: ${context.method ?? 'none'}
-${targetLine}
-${itemLine}
-${storyContext ? `\nCurrent story context:\n${storyContext}\n` : ''}
-
-Write the exact player action to preview for this intent. It must:
-- fit the current scene and the acting character's class, stats, and quirk
-- be one sentence, 8-18 words
-- name the target ally or gear when provided
-- for party_boost intent: address the whole group (everyone, the party, all allies) - never name a single character
-- avoid promising success or final results
-
-Reply with JSON: {"action":"..."}`;
-  const start = Date.now();
-  try {
-    devLog.log(`[PreviewActionText] llm-start session=${sessionId} model=${model} promptChars=${prompt.length} intent=${context.intent ?? 'custom'}`);
-    const response = await client.chat.completions.create({
-      model,
-      messages: [{
-        role: 'user',
-        content: prompt,
-      }],
-      response_format: { type: 'json_object' },
-      max_tokens: 90,
-    }, { signal: AbortSignal.timeout(8_000) });
-    devLog.log(`[PreviewActionText] llm-done session=${sessionId} model=${model} durationMs=${Date.now() - start}`);
-    const raw = (response.choices[0].message.content ?? '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]) as { action?: string };
-      if (typeof parsed.action === 'string' && parsed.action.trim()) {
-        return parsed.action.trim();
-      }
-    }
-  } catch (error: unknown) {
-    const err = error as { name?: string; status?: number; code?: string; type?: string };
-    devLog.log(`[PreviewActionText] llm-error session=${sessionId} model=${model} durationMs=${Date.now() - start} name=${err.name ?? 'unknown'} status=${err.status ?? 'n/a'} code=${err.code ?? 'n/a'} type=${err.type ?? 'n/a'}`);
-    // Fall through to deterministic fallback.
-  }
-
-  return fallbackActionForIntent(actor, context);
 }
 
 export async function suggestStatForSessionAction(

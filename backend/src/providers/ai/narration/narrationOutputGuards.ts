@@ -465,16 +465,35 @@ function normalizeEncounterOutput(input: NarrationInput, output: ValidNarrationO
   }
 }
 
-function validateNarrationLeakage(output: ValidNarrationOutput): string | null {
-  const allText = [
-    output.narration,
-    output.rollNarration,
-    ...(output.choices ?? []).map(c => `${c.label} ${c.narration ?? ''}`),
-  ].filter(Boolean).join(' ').toLowerCase();
+function repairNarrationLeakage(output: ValidNarrationOutput): string | null {
+  const LEAK_ERROR = (fragment: string) =>
+    `The narration contains a system instruction fragment: "${fragment}". Do not copy sceneMomentum guidance or any backend directive into story prose. Write in-game narrative only.`;
 
   for (const fragment of INSTRUCTION_LEAK_FRAGMENTS) {
-    if (allText.includes(fragment)) {
-      return `The narration contains a system instruction fragment: "${fragment}". Do not copy sceneMomentum guidance or any backend directive into story prose. Write in-game narrative only.`;
+    // Choices cannot be safely repaired - fail immediately if a fragment appears there.
+    for (const choice of output.choices ?? []) {
+      const choiceText = `${choice.label} ${choice.narration ?? ''}`.toLowerCase();
+      if (choiceText.includes(fragment)) {
+        return LEAK_ERROR(fragment);
+      }
+    }
+
+    // For narration and rollNarration, attempt surgical removal.
+    const escapedFragment = fragment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const fragmentRe = new RegExp(escapedFragment, 'gi');
+
+    for (const field of ['narration', 'rollNarration'] as const) {
+      const value = output[field];
+      if (typeof value !== 'string' || !value.toLowerCase().includes(fragment)) {
+        continue;
+      }
+      const repaired = value.replace(fragmentRe, '').replace(/\s+/g, ' ').trim();
+      if (repaired.length >= 25 && /[a-z]/i.test(repaired)) {
+        devLog.warn(`[Guard] repaired instruction leakage in ${field}`, { fragment, repaired });
+        (output as Record<string, unknown>)[field] = repaired;
+      } else {
+        return LEAK_ERROR(fragment);
+      }
     }
   }
   return null;
@@ -542,7 +561,7 @@ export function parseNarrationOutput(
   stripNarrationEmDashes(parsed.data);
   repairChoiceLabels(input, parsed.data);
   if (enforceGameplayGuards) {
-    const leakageError = validateNarrationLeakage(parsed.data);
+    const leakageError = repairNarrationLeakage(parsed.data);
     if (leakageError) {
       return { success: false, error: `leakage: ${leakageError}` };
     }

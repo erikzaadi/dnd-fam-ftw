@@ -114,6 +114,55 @@ describe('suggest-stat integration', () => {
     expect(mockCreateCompletion).toHaveBeenCalledTimes(1);
   });
 
+  it('generates action text when no action is supplied and a support intent is provided', async () => {
+    await insertSessionState(makeTestSession({ id: 'preview-generated-action-session' }));
+    mockCreateCompletion.mockResolvedValueOnce({
+      choices: [{ message: { content: '{"generatedAction":"Pip blesses Zara with a flicker of divine light.","stat":"magic","narration":"A warm glow settles over Zara."}' } }],
+    });
+
+    const preview = await previewFreeAction('preview-generated-action-session', {
+      context: { intent: 'bless_character', targetCharacterId: 'char-zara' },
+    });
+
+    expect(preview.generatedAction).toBe('Pip blesses Zara with a flicker of divine light.');
+    expect(preview.stat).toBe('magic');
+    expect(preview.narration).toBe('A warm glow settles over Zara.');
+    expect(mockCreateCompletion).toHaveBeenCalledTimes(1);
+    const prompt = mockCreateCompletion.mock.calls[0][0].messages[0].content;
+    expect(prompt).toContain('bless_character');
+    expect(prompt).toContain('generatedAction');
+  });
+
+  it('prompts for combined generation+analysis for party_boost intent', async () => {
+    await insertSessionState(makeTestSession({ id: 'preview-party-boost-session' }));
+    mockCreateCompletion.mockResolvedValueOnce({
+      choices: [{ message: { content: '{"generatedAction":"Pip rallies everyone with a battle cry.","stat":"mischief","narration":"The party stands taller."}' } }],
+    });
+
+    const preview = await previewFreeAction('preview-party-boost-session', {
+      context: { intent: 'party_boost' },
+    });
+
+    expect(preview.generatedAction).toContain('Pip');
+    const prompt = mockCreateCompletion.mock.calls[0][0].messages[0].content;
+    expect(prompt).toContain('everyone');
+    expect(prompt).toContain('party_boost');
+  });
+
+  it('falls back gracefully when model returns no generatedAction', async () => {
+    await insertSessionState(makeTestSession({ id: 'preview-fallback-session' }));
+    mockCreateCompletion.mockResolvedValueOnce({
+      choices: [{ message: { content: '{"stat":"magic"}' } }],
+    });
+
+    const preview = await previewFreeAction('preview-fallback-session', {
+      context: { intent: 'aid_character', targetCharacterId: 'char-zara' },
+    });
+
+    expect(preview.generatedAction).toBeTruthy();
+    expect(preview.stat).toBe('magic');
+  });
+
   it('includes story summary and recent narration in free-text previews', async () => {
     await insertSessionState(makeTestSession({
       id: 'preview-action-context-session',

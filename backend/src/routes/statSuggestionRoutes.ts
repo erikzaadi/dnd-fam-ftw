@@ -2,7 +2,7 @@ import { Router } from 'express';
 import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
-import { buildEncounterContextFromEnemies, parseSuggestedStats, previewFreeAction, STAT_FALLBACK, suggestPreviewActionText, suggestStatForSessionAction } from '../services/statSuggestionService.js';
+import { buildEncounterContextFromEnemies, parseSuggestedStats, previewFreeAction, STAT_FALLBACK, suggestStatForSessionAction } from '../services/statSuggestionService.js';
 import { parseBody } from './routeValidation.js';
 import type { FreeActionPreview } from '@dnd-fam-ftw/shared';
 import { buildFreeActionWarnings, getFreeActionDifficulty } from '../services/freeActionPolicyService.js';
@@ -52,25 +52,27 @@ export const createStatSuggestionRouter = () => {
     let stepStart = Date.now();
     const session = req.session!;
     devLog.log(`[PreviewAction] start session=${sessionId} hasAction=${body.action ? 'true' : 'false'} intent=${body.intent ?? 'custom'} encounter=${session.encounterState?.status ?? 'none'}`);
-    const action = body.action?.trim() || await suggestPreviewActionText(sessionId, body);
-    devLog.log(`[PreviewAction] action-text session=${sessionId} durationMs=${Date.now() - stepStart} chars=${action.length}`);
-    stepStart = Date.now();
     const encounterContext = session.encounterState?.status === 'active'
       ? buildEncounterContextFromEnemies(session.encounterState.enemies)
       : null;
     devLog.log(`[PreviewAction] encounter-context session=${sessionId} durationMs=${Date.now() - stepStart} enemies=${encounterContext?.activeEnemies.length ?? 0}`);
     stepStart = Date.now();
-    const suggestion = await previewFreeAction(sessionId, { action, encounterContext });
-    devLog.log(`[PreviewAction] preview-free-action session=${sessionId} durationMs=${Date.now() - stepStart} stat=${suggestion.stat} interpreted=${suggestion.interpretedAction ? 'true' : 'false'}`);
+    const suggestion = await previewFreeAction(sessionId, {
+      action: body.action?.trim(),
+      context: body,
+      encounterContext,
+    });
+    devLog.log(`[PreviewAction] preview-free-action session=${sessionId} durationMs=${Date.now() - stepStart} stat=${suggestion.stat} generated=${suggestion.generatedAction ? 'true' : 'false'} interpreted=${suggestion.interpretedAction ? 'true' : 'false'}`);
     stepStart = Date.now();
-    const interpretedAction = suggestion.interpretedAction ?? action;
+    const resolvedAction = body.action?.trim() ?? suggestion.generatedAction ?? '';
+    const interpretedAction = suggestion.interpretedAction ?? resolvedAction;
     const SUPPORT_INTENTS = new Set(['bless_character', 'aid_character', 'improve_item', 'party_boost']);
     const isSupportIntent = !!body.intent && SUPPORT_INTENTS.has(body.intent);
     const { difficulty, difficultyValue } = isSupportIntent
       ? { difficulty: 'easy' as const, difficultyValue: 8 }
       : getFreeActionDifficulty(interpretedAction);
     const preview: FreeActionPreview = {
-      originalAction: body.action?.trim() ?? action,
+      originalAction: resolvedAction,
       interpretedAction,
       stat: suggestion.stat,
       difficulty,

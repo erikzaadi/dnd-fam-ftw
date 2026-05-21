@@ -6,6 +6,7 @@ import {
   villainMentionedInAction,
 } from './storySummaryService.js';
 import { StateService } from './stateService.js';
+import * as dmPrepCompilationService from './dmPrepCompilationService.js';
 import type { SessionState, TurnResult } from '../types.js';
 
 describe('StorySummaryService.shouldUpdate', () => {
@@ -278,5 +279,61 @@ describe('StorySummaryService.maybeUpdate candidate derivation', () => {
 
     // Malakor is frozen, but active combat disables frozen villain detection
     expect(promptPassed).not.toContain('Malakor the Defiler');
+  });
+});
+
+describe('StorySummaryService.generateCampaignBrief - compiledDmPrep', () => {
+  let patchSessionSpy: MockInstance;
+  let compileSpy: MockInstance;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+
+    vi.spyOn(
+      StorySummaryService as unknown as {
+        callSummarize: (prompt: string, maxTokens?: number, timeoutMs?: number, label?: string) => Promise<string>;
+      },
+      'callSummarize'
+    ).mockResolvedValue('PREMISE: A dark forest threatens the realm.\nENCOUNTER_SEEDS:\n[]');
+
+    patchSessionSpy = vi.spyOn(StateService, 'patchSession').mockResolvedValue(undefined);
+    compileSpy = vi.spyOn(dmPrepCompilationService, 'compileDmPrepPremise').mockResolvedValue('compiled-dm-prep');
+  });
+
+  it('compiles dmPrep synchronously and patches compiledDmPrep before returning', async () => {
+    const result = await StorySummaryService.generateCampaignBrief(
+      'sess-brief',
+      'A world of magic and peril',
+      'The Realm',
+      'normal',
+      'balanced',
+      { mediaMode: 'background' },
+    );
+
+    expect(result).not.toBeNull();
+    expect(compileSpy).toHaveBeenCalledOnce();
+    expect(compileSpy).toHaveBeenCalledWith('PREMISE: A dark forest threatens the realm.');
+
+    const patchCalls = patchSessionSpy.mock.calls as Array<[string, Record<string, unknown>]>;
+    const compiledPatch = patchCalls.find(call => call[1].compiledDmPrep !== undefined);
+    expect(compiledPatch).toBeDefined();
+    expect(compiledPatch![1].compiledDmPrep).toBe('compiled-dm-prep');
+  });
+
+  it('skips compiledDmPrep patch when compileDmPrepPremise returns null', async () => {
+    compileSpy.mockResolvedValue(null);
+
+    await StorySummaryService.generateCampaignBrief(
+      'sess-brief-null',
+      'A world of magic',
+      undefined,
+      undefined,
+      undefined,
+      { mediaMode: 'background' },
+    );
+
+    const patchCalls = patchSessionSpy.mock.calls as Array<[string, Record<string, unknown>]>;
+    const compiledPatch = patchCalls.find(call => call[1].compiledDmPrep !== undefined);
+    expect(compiledPatch).toBeUndefined();
   });
 });
