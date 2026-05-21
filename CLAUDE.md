@@ -96,6 +96,7 @@ terraform/                         # AWS infrastructure
 - **Tooltips**: always use `frontend/src/components/Tooltip.tsx`. Reference pattern: `frontend/src/components/game/ActionDock.tsx`. Use `portal` tooltips inside overflow/scroll containers. Never use the native `title` attribute.
 - TypeScript strict mode on in all three packages (backend, frontend, packages/shared).
 - **Shared types**: types that cross the API boundary belong in `packages/shared/src/types.ts`. Both `backend/src/types.ts` and `frontend/src/types/index.ts` re-export from there - existing imports in components and services need no changes.
+- **Logging**: use `devLog` (`backend/src/lib/devLog.ts`, `frontend/src/lib/devLog.ts`) for debug/trace logs that should be silent in production. Use `console.log` only for operational events that are useful in production (e.g. campaign brief ready, session seeded, summary updated). Use `console.warn`/`console.error` for unexpected failures at any level.
 
 ## Auth
 
