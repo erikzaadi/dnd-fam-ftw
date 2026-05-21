@@ -12,7 +12,7 @@ import { CharacterPopup } from '../components/CharacterPopup';
 import { apiFetch, apiUrl, imgSrc } from '../lib/api';
 import { useFirstRunWizard } from '../firstRun/useFirstRunWizard';
 import { HOME_TUTORIAL_KEY, HOME_TUTORIAL_PENDING_KEY, type SetupTutorialStep, useSetupTutorial } from '../hooks/useSetupTutorial';
-import { getSessionEntryPath } from '../lib/sessionRoute';
+import { getSessionEntryPath, getCarModePath } from '../lib/sessionRoute';
 import type { SessionPreview } from '../types';
 
 const DIFFICULTY_INFO: Record<string, { color: string; label: string }> = {
@@ -296,6 +296,7 @@ const EditSessionModal = ({
 const WorldCard = ({
   session,
   onEnter,
+  onCarMode,
   onDelete,
   onEdit,
   onAssemble,
@@ -304,6 +305,7 @@ const WorldCard = ({
 }: {
   session: SessionPreview;
   onEnter: () => void;
+  onCarMode: () => void;
   onDelete: () => void;
   onEdit: () => void;
   onAssemble: () => void;
@@ -353,6 +355,20 @@ const WorldCard = ({
               aria-label={expanded ? 'Collapse' : 'Info'}
             >
               {expanded ? '▲' : '▼'}
+            </button>
+          </Tooltip>
+        )}
+        {/* Drive mode */}
+        {!session.gameOver && (
+          <Tooltip content="Drive mode" as="div" wrapperClassName="flex-shrink-0">
+            <button
+              onClick={e => {
+                e.stopPropagation(); onCarMode();
+              }}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-amber-400 hover:bg-amber-500/10 text-sm transition-colors"
+              aria-label="Drive mode"
+            >
+              &#128663;
             </button>
           </Tooltip>
         )}
@@ -861,6 +877,7 @@ export const Home = () => {
                   onDelete={() => deleteSession(sess.id, sess.displayName)}
                   onEdit={() => setEditSession({ id: sess.id, displayName: sess.displayName, difficulty: sess.difficulty, gameMode: sess.gameMode, dmPrep: sess.dmPrep, worldDescription: sess.worldDescription, readOnly: sess.gameOver })}
                   onAssemble={() => navigate(`/session/${sess.id}/assembly`)}
+                  onCarMode={() => navigate(getCarModePath(sess.id))}
                   onCharacterClick={setViewingChar}
                 />
               ))}

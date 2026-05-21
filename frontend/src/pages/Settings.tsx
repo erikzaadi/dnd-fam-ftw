@@ -86,7 +86,7 @@ export const Settings = () => {
     setRate,
     setPitch,
     setPreferredVoice,
-    setPreferredGenderHint,
+    setOpenAiVoice,
   } = useTtsSettings();
   const {
     settings: sttSettings,
@@ -348,7 +348,7 @@ export const Settings = () => {
                                 narrationTtsService.stopNarration();
                                 staticTtsSampleService.stop();
                               } else if (activeTtsProvider === 'openai') {
-                                staticTtsSampleService.play(ttsSettings);
+                                void staticTtsSampleService.play(ttsSettings.openAiVoice, ttsSettings.volume);
                               } else {
                                 narrationTtsService.speakNarration({
                                   text: TEST_VOICE_SAMPLE,
@@ -423,17 +423,21 @@ export const Settings = () => {
                               )}
                               {activeTtsProvider === 'openai' && (
                                 <div className="flex flex-col gap-2 p-5 bg-amber-950/20 rounded-[20px] border-2 border-slate-800">
-                                  <span className="font-black uppercase tracking-tighter text-white">Voice Preference</span>
-                                  <p className="text-xs text-slate-500">AI narrator voice selection.</p>
+                                  <span className="font-black uppercase tracking-tighter text-white">Voice</span>
+                                  <p className="text-xs text-slate-500">AI narrator voice. Full picker coming in a future update.</p>
                                   <div className="relative">
                                     <select
-                                      value={ttsSettings.preferredGenderHint}
-                                      onChange={e => setPreferredGenderHint(e.target.value as typeof ttsSettings.preferredGenderHint)}
+                                      value={ttsSettings.openAiVoice}
+                                      onChange={e => setOpenAiVoice(e.target.value as typeof ttsSettings.openAiVoice)}
                                       className="w-full appearance-none bg-slate-800 text-white rounded-xl px-3 py-2 pr-8 border border-slate-700 text-sm"
                                     >
-                                      <option value="any">Default voice</option>
-                                      <option value="female">Female voice</option>
-                                      <option value="male">Male voice</option>
+                                      <option value="cedar">Cedar (warm narrator)</option>
+                                      <option value="marin">Marin (clear narrator)</option>
+                                      <option value="fable">Fable (storybook)</option>
+                                      <option value="onyx">Onyx (deep)</option>
+                                      <option value="nova">Nova (bright)</option>
+                                      <option value="sage">Sage (calm)</option>
+                                      <option value="shimmer">Shimmer (light)</option>
                                     </select>
                                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">▾</span>
                                   </div>

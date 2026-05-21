@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { TtsSettings } from './ttsTypes';
+import { OPENAI_TTS_DEFAULT_VOICE } from './ttsTypes';
 import { browserTtsService } from './browserTtsService';
 
 const STORAGE_KEY = 'dnd-tts-settings';
@@ -15,7 +16,8 @@ const DEFAULT_SETTINGS: TtsSettings = {
   preferredVoiceName: null,
   preferredLang: null,
   preferredStyle: 'neutral',
-  preferredGenderHint: 'any',
+  browserGenderHint: 'any',
+  openAiVoice: OPENAI_TTS_DEFAULT_VOICE,
 };
 
 export function useTtsSettings() {
@@ -23,7 +25,13 @@ export function useTtsSettings() {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       try {
-        return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
+        const parsed = JSON.parse(stored);
+        // Migrate: rename preferredGenderHint -> browserGenderHint
+        if (parsed.preferredGenderHint !== undefined && parsed.browserGenderHint === undefined) {
+          parsed.browserGenderHint = parsed.preferredGenderHint;
+          delete parsed.preferredGenderHint;
+        }
+        return { ...DEFAULT_SETTINGS, ...parsed };
       } catch (e) {
         console.error('Failed to parse TTS settings', e);
       }
@@ -70,8 +78,12 @@ export function useTtsSettings() {
     setSettings(prev => ({ ...prev, preferredStyle: value }));
   }, []);
 
-  const setPreferredGenderHint = useCallback((value: TtsSettings['preferredGenderHint']) => {
-    setSettings(prev => ({ ...prev, preferredGenderHint: value }));
+  const setBrowserGenderHint = useCallback((value: TtsSettings['browserGenderHint']) => {
+    setSettings(prev => ({ ...prev, browserGenderHint: value }));
+  }, []);
+
+  const setOpenAiVoice = useCallback((value: TtsSettings['openAiVoice']) => {
+    setSettings(prev => ({ ...prev, openAiVoice: value }));
   }, []);
 
   return {
@@ -84,6 +96,7 @@ export function useTtsSettings() {
     setPitch,
     setPreferredVoice,
     setPreferredStyle,
-    setPreferredGenderHint,
+    setBrowserGenderHint,
+    setOpenAiVoice,
   };
 }

@@ -348,7 +348,26 @@ export interface AppSettings {
 export interface Capabilities {
   hasCloudAI: boolean;
   hasTts: boolean;
+  ttsLegacyModel: boolean;
 }
+
+export const OPENAI_TTS_VOICES = ['cedar', 'marin', 'fable', 'onyx', 'nova', 'sage', 'shimmer'] as const;
+export type OpenAiTtsVoice = typeof OPENAI_TTS_VOICES[number];
+
+export const OPENAI_TTS_VOICE_LABELS: Record<OpenAiTtsVoice, string> = {
+  cedar:   'Cedar (warm narrator)',
+  marin:   'Marin (clear narrator)',
+  fable:   'Fable (storybook)',
+  onyx:    'Onyx (deep)',
+  nova:    'Nova (bright)',
+  sage:    'Sage (calm)',
+  shimmer: 'Shimmer (light)',
+};
+
+// cedar and marin require gpt-4o-mini-tts; not available on tts-1 / tts-1-hd
+export const OPENAI_TTS_VOICES_GPT4O_ONLY = new Set<OpenAiTtsVoice>(['cedar', 'marin']);
+
+export const OPENAI_TTS_DEFAULT_VOICE: OpenAiTtsVoice = 'cedar';
 
 export type SessionListEventType = 'connected' | 'heartbeat' | 'session_changed' | 'preview_image_available' | 'instant_start_ready';
 

@@ -9,3 +9,7 @@ export function getSessionEntryPath(session: Pick<SessionPreview, 'id' | 'party'
   }
   return `/session/${session.id}/recap`;
 }
+
+export function getCarModePath(sessionId: string): string {
+  return `/session/${sessionId}/car`;
+}

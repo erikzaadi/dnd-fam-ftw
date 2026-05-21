@@ -1,12 +1,18 @@
+import { OPENAI_TTS_VOICES_GPT4O_ONLY, OPENAI_TTS_DEFAULT_VOICE, type OpenAiTtsVoice } from '@dnd-fam-ftw/shared';
 import { createOpenAIClient } from '../providers/ai/openAiClient.js';
 
 const TTS_MODEL = process.env.OPENAI_MODEL_TTS ?? 'gpt-4o-mini-tts';
-const TTS_VOICE_MALE = 'fable';
-const TTS_VOICE_FEMALE = 'sage';
 const TTS_INSTRUCTIONS = 'Speak as a refined British fantasy audiobook narrator. Calm, immersive, measured, and elegant. Use clear pronunciation, restrained drama, and natural pauses. Do not sound like an assistant or announcer.';
 export const TTS_MAX_INPUT_CHARS = 4096;
 
-export type TtsGender = 'male' | 'female';
+export function resolveEffectiveTtsVoice(requested: OpenAiTtsVoice): OpenAiTtsVoice {
+  const isLegacyModel = TTS_MODEL === 'tts-1' || TTS_MODEL === 'tts-1-hd';
+  if (isLegacyModel && OPENAI_TTS_VOICES_GPT4O_ONLY.has(requested)) {
+    console.warn(`[TTS] Voice "${requested}" not supported by ${TTS_MODEL}, falling back to fable`);
+    return 'fable';
+  }
+  return requested;
+}
 
 export function normalizeTextForSpeech(text: string): string {
   return text
@@ -20,7 +26,7 @@ export function normalizeTextForSpeech(text: string): string {
     .trim();
 }
 
-export async function generateSpeech(text: string, gender?: TtsGender): Promise<Buffer> {
+export async function generateSpeech(text: string, voice: OpenAiTtsVoice = OPENAI_TTS_DEFAULT_VOICE): Promise<Buffer> {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error('OpenAI TTS is not configured');
   }
@@ -35,7 +41,7 @@ export async function generateSpeech(text: string, gender?: TtsGender): Promise<
 
   const response = await createOpenAIClient().audio.speech.create({
     model: TTS_MODEL,
-    voice: gender === 'female' ? TTS_VOICE_FEMALE : TTS_VOICE_MALE,
+    voice,
     input,
     instructions: TTS_INSTRUCTIONS,
     response_format: 'mp3',

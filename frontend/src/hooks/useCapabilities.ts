@@ -7,6 +7,7 @@ export type { Capabilities };
 const DEFAULT_CAPABILITIES: Capabilities = {
   hasCloudAI: false,
   hasTts: false,
+  ttsLegacyModel: false,
 };
 
 export function useCapabilities() {
@@ -25,6 +26,7 @@ export function useCapabilities() {
         setCapabilities({
           hasCloudAI: !!data.hasCloudAI,
           hasTts: !!data.hasTts,
+          ttsLegacyModel: !!data.ttsLegacyModel,
         });
       })
       .catch(() => {

@@ -1,3 +1,6 @@
+import type { OpenAiTtsVoice } from '../types';
+import { OPENAI_TTS_DEFAULT_VOICE } from '../types';
+
 export type TtsStyle = 'neutral' | 'heroic' | 'mysterious' | 'playful';
 export type TtsGenderHint = 'any' | 'female' | 'male';
 export type TtsProvider = 'browser' | 'openai';
@@ -13,8 +16,12 @@ export type TtsSettings = {
   preferredVoiceName: string | null;
   preferredLang: string | null;
   preferredStyle: TtsStyle;
-  preferredGenderHint: TtsGenderHint;
+  browserGenderHint: TtsGenderHint;
+  openAiVoice: OpenAiTtsVoice;
 };
+
+export { OPENAI_TTS_DEFAULT_VOICE };
+export type { OpenAiTtsVoice };
 
 export type BrowserVoiceInfo = {
   name: string;

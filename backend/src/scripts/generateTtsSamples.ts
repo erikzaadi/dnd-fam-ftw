@@ -1,18 +1,20 @@
 /**
- * Temporary script to compare OpenAI TTS voices for game narration.
+ * Script to compare OpenAI TTS voices for game narration.
  *
- * Run from repo root:
+ * Run from backend/:
  *   cd backend && npx tsx --env-file=../.env src/scripts/generateTtsSamples.ts
  *
- * Output: tts-samples/ directory with 6 MP3 files (3 turns x 2 voices).
- * Delete this script once you've picked a voice.
+ * Output: tts-samples/ directory. Skips files that already exist.
+ *
+ * Models used:
+ *   gpt-4o-mini-tts - all voices (supports instructions, newer voices)
+ *   tts-1 / tts-1-hd - legacy voices only (alloy, echo, fable, nova, onyx, shimmer)
  */
 
 import fs from 'fs';
 import path from 'path';
 import OpenAI from 'openai';
 
-// Three sample narrations at different tension levels.
 const SAMPLE_TURNS: Array<{ label: string; narration: string }> = [
   {
     label: 'low-tension',
@@ -37,15 +39,26 @@ const SAMPLE_TURNS: Array<{ label: string; narration: string }> = [
   },
 ];
 
-// Two voice configurations to compare.
-const VOICE_CONFIGS: Array<{ voice: OpenAI.Audio.Speech.SpeechCreateParams['voice']; gender: string, speed?: number }> = [
-  { voice: 'nova', gender: 'male' },
-  { voice: 'alloy', gender: 'male' },
-  { voice: 'onyx', gender: 'male', speed: 0.92 },
-  { voice: 'sage', gender: 'female', speed: 0.94 },
-  { voice: 'echo', gender: 'male' },
-  { voice: 'coral', gender: 'male' },
-  { voice: 'ash', gender: 'male' },
+// All current OpenAI TTS voices.
+// models: which model(s) to test. Newer voices only work with gpt-4o-mini-tts.
+const VOICE_CONFIGS: Array<{
+  voice: OpenAI.Audio.Speech.SpeechCreateParams['voice'];
+  speed?: number;
+  models: string[];
+}> = [
+  { voice: 'cedar',   models: ['gpt-4o-mini-tts'] },
+  { voice: 'marin',   models: ['gpt-4o-mini-tts'] },
+  { voice: 'fable',   models: ['gpt-4o-mini-tts', 'tts-1', 'tts-1-hd'] },
+  { voice: 'onyx',    models: ['gpt-4o-mini-tts', 'tts-1', 'tts-1-hd'], speed: 0.92 },
+  { voice: 'nova',    models: ['gpt-4o-mini-tts', 'tts-1', 'tts-1-hd'] },
+  { voice: 'sage',    models: ['gpt-4o-mini-tts', 'tts-1', 'tts-1-hd'], speed: 0.94 },
+  { voice: 'shimmer', models: ['gpt-4o-mini-tts', 'tts-1', 'tts-1-hd'] }, // shimmer is tts-1 compatible
+  { voice: 'alloy',   models: ['gpt-4o-mini-tts', 'tts-1', 'tts-1-hd'] },
+  { voice: 'echo',    models: ['gpt-4o-mini-tts', 'tts-1', 'tts-1-hd'] },
+  { voice: 'ash',     models: ['gpt-4o-mini-tts'] },
+  { voice: 'ballad',  models: ['gpt-4o-mini-tts'] },
+  { voice: 'coral',   models: ['gpt-4o-mini-tts'] },
+  { voice: 'verse',   models: ['gpt-4o-mini-tts'] },
 ];
 
 async function main() {
@@ -61,13 +74,18 @@ async function main() {
     fs.mkdirSync(outDir, { recursive: true });
   }
 
+  let generated = 0;
+  let skipped = 0;
+
   for (const voiceCfg of VOICE_CONFIGS) {
     for (const turn of SAMPLE_TURNS) {
-      for (const model of ['tts-1', 'tts-1-hd']) {
+      for (const model of voiceCfg.models) {
         const filename = `${turn.label}__${voiceCfg.voice}-${model}.mp3`;
         const outPath = path.join(outDir, filename);
         if (fs.existsSync(outPath)) {
-          console.log(`Skipping: ${filename} since it exists...`);
+          console.log(`Skipping: ${filename}`);
+          skipped++;
+          continue;
         }
         console.log(`Generating: ${filename} ...`);
         const response = await client.audio.speech.create({
@@ -80,11 +98,12 @@ async function main() {
         const buffer = Buffer.from(await response.arrayBuffer());
         fs.writeFileSync(outPath, buffer);
         console.log(`  -> saved ${outPath} (${(buffer.length / 1024).toFixed(1)} KB)`);
+        generated++;
       }
     }
   }
 
-  console.log(`\nDone. ${SAMPLE_TURNS.length * VOICE_CONFIGS.length} files in ${outDir}`);
+  console.log(`\nDone. Generated ${generated}, skipped ${skipped}. Output: ${outDir}`);
 }
 
 main().catch(err => {

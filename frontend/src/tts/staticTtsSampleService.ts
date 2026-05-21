@@ -1,10 +1,16 @@
 import { publicAssetUrl } from '../lib/api';
-import type { TtsSettings } from './ttsTypes';
+import type { OpenAiTtsVoice } from './ttsTypes';
 
-const SAMPLE_BY_GENDER = {
-  male: '/sound/tts/openai-narrator-male.mp3',
-  female: '/sound/tts/openai-narrator-female.mp3',
-} as const;
+// Maps voices to the existing male/female sample files until per-voice samples are generated in Bundle B
+const SAMPLE_BY_VOICE: Record<OpenAiTtsVoice, string> = {
+  cedar:   '/sound/tts/openai-narrator-male.mp3',
+  marin:   '/sound/tts/openai-narrator-male.mp3',
+  fable:   '/sound/tts/openai-narrator-male.mp3',
+  onyx:    '/sound/tts/openai-narrator-male.mp3',
+  nova:    '/sound/tts/openai-narrator-male.mp3',
+  sage:    '/sound/tts/openai-narrator-female.mp3',
+  shimmer: '/sound/tts/openai-narrator-female.mp3',
+};
 
 class StaticTtsSampleService {
   private currentAudio: HTMLAudioElement | null = null;
@@ -18,20 +24,19 @@ class StaticTtsSampleService {
     return this._speaking;
   }
 
-  public async play(settings: TtsSettings): Promise<void> {
+  public async play(voice: OpenAiTtsVoice, volume: number): Promise<void> {
     if (!this.isSupported()) {
       return;
     }
 
     this.stop();
-    const gender = settings.preferredGenderHint === 'female' ? 'female' : 'male';
-    const url = publicAssetUrl(SAMPLE_BY_GENDER[gender]);
+    const url = publicAssetUrl(SAMPLE_BY_VOICE[voice]);
 
     await new Promise<void>(resolve => {
       const audio = new Audio(url);
       this.currentAudio = audio;
       this._speaking = true;
-      audio.volume = Math.max(0, Math.min(1, settings.volume));
+      audio.volume = Math.max(0, Math.min(1, volume));
 
       const finish = () => {
         if (this.currentAudio === audio) {

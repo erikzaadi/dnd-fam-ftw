@@ -1,11 +1,13 @@
 import { apiFetch } from '../lib/api';
+import type { OpenAiTtsVoice } from './ttsTypes';
+import { OPENAI_TTS_DEFAULT_VOICE } from './ttsTypes';
 
 const TTS_CACHE_MAX_BYTES = 10 * 1024 * 1024;
 const TTS_REQUEST_TIMEOUT_MS = 15000;
 
 type OpenAiTtsInput = {
   text: string;
-  gender?: 'male' | 'female';
+  voice?: OpenAiTtsVoice;
   turnId?: number | string;
   cacheKey?: string;
   volume?: number;
@@ -16,8 +18,8 @@ type CacheEntry = {
   bytes: number;
 };
 
-function cacheKey(turnId: number | string, gender?: 'male' | 'female') {
-  return `${turnId}:${gender ?? 'male'}`;
+function cacheKey(turnId: number | string, voice: OpenAiTtsVoice) {
+  return `${turnId}:${voice}`;
 }
 
 class OpenAiTtsService {
@@ -37,7 +39,7 @@ class OpenAiTtsService {
     return this._speaking;
   }
 
-  public async speakNarration({ text, gender, turnId, cacheKey: explicitCacheKey, volume = 1 }: OpenAiTtsInput): Promise<void> {
+  public async speakNarration({ text, voice = OPENAI_TTS_DEFAULT_VOICE, turnId, cacheKey: explicitCacheKey, volume = 1 }: OpenAiTtsInput): Promise<void> {
     if (!this.isSupported()) {
       return;
     }
@@ -46,8 +48,8 @@ class OpenAiTtsService {
     const generation = this.playbackGeneration;
 
     const key = explicitCacheKey
-      ? `${explicitCacheKey}:${gender ?? 'male'}`
-      : (turnId === undefined ? null : cacheKey(turnId, gender));
+      ? `${explicitCacheKey}:${voice}`
+      : (turnId === undefined ? null : cacheKey(turnId, voice));
     const cached = key ? this.cache.get(key) : null;
     if (cached && key) {
       this.cache.delete(key);
@@ -63,7 +65,7 @@ class OpenAiTtsService {
       const response = await apiFetch('/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, gender }),
+        body: JSON.stringify({ text, voice }),
         signal: controller.signal,
       });
       if (!response.ok) {

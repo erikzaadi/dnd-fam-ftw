@@ -52,13 +52,13 @@ function selectBestVoice(
   const pool = langPool.length > 0 ? langPool : voices;
 
   // 4. Gender hint match within pool
-  if (settings.preferredGenderHint !== 'any') {
-    const hints = genderNameHints[settings.preferredGenderHint];
+  if (settings.browserGenderHint !== 'any') {
+    const hints = genderNameHints[settings.browserGenderHint];
     const byGender = pool.find(v =>
       hints.some(h => v.name.toLowerCase().includes(h.toLowerCase()))
     );
     if (byGender) {
-      log('Using gender-hinted voice:', byGender.name, `(hint: ${settings.preferredGenderHint})`);
+      log('Using gender-hinted voice:', byGender.name, `(hint: ${settings.browserGenderHint})`);
       return byGender;
     }
   }

@@ -53,26 +53,26 @@ describe('generateSpeech', () => {
 
     expect(result).toEqual(Buffer.from(mp3Bytes));
     expect(mocks.OpenAI).toHaveBeenCalledWith({ apiKey: 'test-openai-key' });
-    expect(mocks.speechCreate).toHaveBeenCalledWith({
+    expect(mocks.speechCreate).toHaveBeenCalledWith(expect.objectContaining({
       model: 'gpt-4o-mini-tts',
-      voice: 'fable',
+      voice: 'cedar',
       input: 'The door opens.',
       instructions: expect.stringContaining('British fantasy audiobook narrator'),
       response_format: 'mp3',
-    });
+    }));
   });
 
 
-  it('uses sage for female narration', async () => {
-    await generateSpeech('The lantern glows.', 'female');
+  it('uses sage voice', async () => {
+    await generateSpeech('The lantern glows.', 'sage');
 
     expect(mocks.speechCreate).toHaveBeenCalledWith(expect.objectContaining({
       voice: 'sage',
     }));
   });
 
-  it('uses fable for male narration', async () => {
-    await generateSpeech('The lantern glows.', 'male');
+  it('uses fable voice', async () => {
+    await generateSpeech('The lantern glows.', 'fable');
 
     expect(mocks.speechCreate).toHaveBeenCalledWith(expect.objectContaining({
       voice: 'fable',

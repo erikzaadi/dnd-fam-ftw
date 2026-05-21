@@ -1,6 +1,17 @@
 export { RANDOM_NAMES, RANDOM_SPECIES, RANDOM_CLASSES, RANDOM_QUIRKS, pickRandom } from './data/characterRandomizers.js';
 
 export type { SessionListEventType } from './types.js';
+export {
+  OPENAI_TTS_VOICES,
+  OPENAI_TTS_VOICE_LABELS,
+  OPENAI_TTS_VOICES_GPT4O_ONLY,
+  OPENAI_TTS_DEFAULT_VOICE,
+} from './types.js';
+
+export type {
+  OpenAiTtsVoice,
+} from './types.js';
+
 export type {
   CharacterStatus,
   GameMode,

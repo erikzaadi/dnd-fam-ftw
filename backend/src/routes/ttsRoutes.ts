@@ -1,14 +1,15 @@
 import { Router } from 'express';
 import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
+import { OPENAI_TTS_VOICES, OPENAI_TTS_DEFAULT_VOICE } from '@dnd-fam-ftw/shared';
 import { authMiddleware } from '../middleware/auth.js';
 import { StateService } from '../services/stateService.js';
-import { generateSpeech, normalizeTextForSpeech, TTS_MAX_INPUT_CHARS, type TtsGender } from '../services/ttsService.js';
+import { generateSpeech, normalizeTextForSpeech, resolveEffectiveTtsVoice, TTS_MAX_INPUT_CHARS } from '../services/ttsService.js';
 import { parseBody } from './routeValidation.js';
 
 const ttsBodySchema = z.object({
   text: z.string(),
-  gender: z.enum(['male', 'female']).optional(),
+  voice: z.enum(OPENAI_TTS_VOICES).optional(),
 });
 
 export const createTtsRouter = () => {
@@ -24,7 +25,7 @@ export const createTtsRouter = () => {
     if (!body) {
       return;
     }
-    const { text, gender } = body;
+    const { text, voice: requestedVoice } = body;
 
     const normalized = normalizeTextForSpeech(text);
     if (!normalized) {
@@ -36,13 +37,12 @@ export const createTtsRouter = () => {
       return;
     }
 
-    const ttsGender = gender as TtsGender | undefined;
-    const audio = await generateSpeech(normalized, ttsGender);
+    const effectiveVoice = resolveEffectiveTtsVoice(requestedVoice ?? OPENAI_TTS_DEFAULT_VOICE);
+    const audio = await generateSpeech(normalized, effectiveVoice);
     const namespaceId = req.namespaceId;
-    const voice = ttsGender === 'female' ? 'sage' : 'fable';
     setImmediate(() => {
       try {
-        StateService.recordTtsUsage(namespaceId, voice, normalized.length);
+        StateService.recordTtsUsage(namespaceId, effectiveVoice, normalized.length);
       } catch (error) {
         console.warn('[TTS] Failed to record usage:', error);
       }

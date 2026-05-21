@@ -1,6 +1,6 @@
 import { browserTtsService } from './browserTtsService';
 import { openAiTtsService } from './openaiTtsService';
-import type { TtsSettings } from './ttsTypes';
+import type { TtsSettings, OpenAiTtsVoice } from './ttsTypes';
 import { devLog } from '../lib/devLog';
 
 type SpeakNarrationInput = {
@@ -12,8 +12,8 @@ type SpeakNarrationInput = {
   mainNarration?: boolean;
 };
 
-function genderFromSettings(settings: TtsSettings): 'male' | 'female' | undefined {
-  return settings.preferredGenderHint === 'female' ? 'female' : undefined;
+function voiceFromSettings(settings: TtsSettings): OpenAiTtsVoice {
+  return settings.openAiVoice;
 }
 
 class NarrationTtsService {
@@ -55,7 +55,7 @@ class NarrationTtsService {
       try {
         await openAiTtsService.speakNarration({
           text,
-          gender: genderFromSettings(settings),
+          voice: voiceFromSettings(settings),
           turnId,
           cacheKey,
           volume: settings.volume,

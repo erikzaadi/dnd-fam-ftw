@@ -14,7 +14,12 @@ export const createSystemRouter = ({ config, hasCloudAI }: SystemRoutesOptions) 
   });
 
   router.get('/capabilities', (_req, res) => {
-    res.json({ hasCloudAI, hasTts: !!process.env.OPENAI_API_KEY });
+    const ttsModel = process.env.OPENAI_MODEL_TTS ?? 'gpt-4o-mini-tts';
+    res.json({
+      hasCloudAI,
+      hasTts: !!process.env.OPENAI_API_KEY,
+      ttsLegacyModel: ttsModel === 'tts-1' || ttsModel === 'tts-1-hd',
+    });
   });
 
   return router;

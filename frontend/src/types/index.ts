@@ -33,4 +33,12 @@ export type {
   AppSettings,
   Capabilities,
   FreeActionPreview,
+  OpenAiTtsVoice,
+} from '@dnd-fam-ftw/shared';
+
+export {
+  OPENAI_TTS_VOICES,
+  OPENAI_TTS_VOICE_LABELS,
+  OPENAI_TTS_VOICES_GPT4O_ONLY,
+  OPENAI_TTS_DEFAULT_VOICE,
 } from '@dnd-fam-ftw/shared';
