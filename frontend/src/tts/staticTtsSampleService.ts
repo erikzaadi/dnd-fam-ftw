@@ -1,15 +1,14 @@
 import { publicAssetUrl } from '../lib/api';
 import type { OpenAiTtsVoice } from './ttsTypes';
 
-// Maps voices to the existing male/female sample files until per-voice samples are generated in Bundle B
 const SAMPLE_BY_VOICE: Record<OpenAiTtsVoice, string> = {
-  cedar:   '/sound/tts/openai-narrator-male.mp3',
-  marin:   '/sound/tts/openai-narrator-male.mp3',
-  fable:   '/sound/tts/openai-narrator-male.mp3',
-  onyx:    '/sound/tts/openai-narrator-male.mp3',
-  nova:    '/sound/tts/openai-narrator-male.mp3',
-  sage:    '/sound/tts/openai-narrator-female.mp3',
-  shimmer: '/sound/tts/openai-narrator-female.mp3',
+  cedar:   '/sound/tts/cedar-sample.mp3',
+  marin:   '/sound/tts/marin-sample.mp3',
+  fable:   '/sound/tts/fable-sample.mp3',
+  onyx:    '/sound/tts/onyx-sample.mp3',
+  nova:    '/sound/tts/nova-sample.mp3',
+  sage:    '/sound/tts/sage-sample.mp3',
+  shimmer: '/sound/tts/shimmer-sample.mp3',
 };
 
 class StaticTtsSampleService {

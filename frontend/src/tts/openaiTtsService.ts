@@ -1,6 +1,7 @@
 import { apiFetch } from '../lib/api';
 import type { OpenAiTtsVoice } from './ttsTypes';
 import { OPENAI_TTS_DEFAULT_VOICE } from './ttsTypes';
+import { getStaticPhrasePath } from './staticTtsPhrasesService';
 
 const TTS_CACHE_MAX_BYTES = 10 * 1024 * 1024;
 const TTS_REQUEST_TIMEOUT_MS = 15000;
@@ -46,6 +47,15 @@ class OpenAiTtsService {
 
     this.stop();
     const generation = this.playbackGeneration;
+
+    // Serve static phrase directly if available - zero latency, zero API cost
+    if (explicitCacheKey) {
+      const staticPath = getStaticPhrasePath(explicitCacheKey, voice);
+      if (staticPath) {
+        await this.playUrl(staticPath, volume, generation);
+        return;
+      }
+    }
 
     const key = explicitCacheKey
       ? `${explicitCacheKey}:${voice}`

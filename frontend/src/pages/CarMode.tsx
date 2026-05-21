@@ -17,6 +17,7 @@ export const CarMode = () => {
 
   // If either narration voice or voice actions is disabled, we render setup view.
   const needsSetup = !ttsSettings.enabled || !sttSettings.enabled;
+  const noAiTts = !capabilities.hasTts;
 
   const speakRollNarrationRef = useRef<((text: string) => Promise<void>) | null>(null);
 
@@ -57,7 +58,7 @@ export const CarMode = () => {
   } = useCarConductor({
     session,
     history,
-    loading: loading || needsSetup,
+    loading: loading || needsSetup || noAiTts,
     connectionState,
     prevEncounterStatus,
     actionPreview,
@@ -80,6 +81,30 @@ export const CarMode = () => {
   const handleExit = () => {
     navigate(`/session/${id}`);
   };
+
+  // Blocking no-AI-TTS error
+  if (noAiTts) {
+    return (
+      <div className="h-screen bg-slate-950 text-white flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto space-y-8">
+          <div>
+            <h2 className="text-3xl font-display font-black text-rose-400 italic tracking-tighter uppercase">
+              AI Voice Not Available
+            </h2>
+            <p className="text-slate-400 text-sm mt-3 leading-relaxed">
+              Car Mode requires AI-powered narration, which is not configured on this server. Ask your host to set up an OpenAI API key.
+            </p>
+          </div>
+          <button
+            onClick={handleExit}
+            className="w-full py-4 bg-slate-800 hover:bg-slate-700 rounded-2xl font-bold tracking-tight cursor-pointer text-slate-200 transition-colors"
+          >
+            Exit to Standard Mode
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Blocking Setup View
   if (needsSetup) {

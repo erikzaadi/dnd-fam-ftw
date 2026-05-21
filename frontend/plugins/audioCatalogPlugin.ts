@@ -58,7 +58,21 @@ function generateModule(publicDir: string, base: string): string {
     sfx[key] = { normal, silly };
   }
 
-  return `export const audioCatalog = ${JSON.stringify({ music, sfx }, null, 2)};`;
+  // TTS phrases: sound/tts-phrases/{voice}/{slug}.mp3
+  const ttsPhrasesCatalog: Record<string, Record<string, string>> = {};
+  const ttsPhrasesDir = join(soundDir, 'tts-phrases');
+  for (const voice of listDirs(ttsPhrasesDir)) {
+    ttsPhrasesCatalog[voice] = {};
+    for (const file of listFiles(join(ttsPhrasesDir, voice))) {
+      const slug = file.replace('.mp3', '');
+      ttsPhrasesCatalog[voice][slug] = `${base}sound/tts-phrases/${voice}/${file}`;
+    }
+  }
+
+  return [
+    `export const audioCatalog = ${JSON.stringify({ music, sfx }, null, 2)};`,
+    `export const ttsPhrasesCatalog = ${JSON.stringify(ttsPhrasesCatalog, null, 2)};`,
+  ].join('\n');
 }
 
 export function audioCatalogPlugin(publicDir: string, base = '/'): Plugin {

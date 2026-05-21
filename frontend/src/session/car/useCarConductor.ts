@@ -10,6 +10,7 @@ import {
   buildEncounterBoundarySegment,
   buildActiveCharacterSegment,
   buildChoicesSegment,
+  buildEncounterSegment,
   buildGearSegment,
   buildStatusSegment,
   buildPartySegment,
@@ -17,6 +18,7 @@ import {
   CHOOSE_ACTION_PROMPT,
   CONFIRM_ACTION_PROMPT,
   HELP_TEXT,
+  ORIENTATION_PROMPT,
 } from './carSpeechSegment';
 
 export type ConductorState =
@@ -88,6 +90,7 @@ export function useCarConductor({
   const listeningTimeoutRef = useRef<number | undefined>(undefined);
   const spokenReconnectingRef = useRef(false);
   const lastSttStatusRef = useRef<string>('idle');
+  const hasSpokenOrientationRef = useRef(false);
 
   const startListeningRef = useRef<() => Promise<void> | void>(() => {});
   const cancelSpeechRecRef = useRef<() => void>(() => {});
@@ -149,6 +152,7 @@ export function useCarConductor({
         settings: ttsSettings,
         hasTts,
         cacheKey,
+        carMode: true,
       });
     } catch (err) {
       console.error('[CarConductor] speakTempText failed:', err);
@@ -173,6 +177,7 @@ export function useCarConductor({
         text,
         settings: ttsSettings,
         hasTts,
+        carMode: true,
       });
     } catch (err) {
       console.error('[CarConductor] speakAlert failed:', err);
@@ -192,6 +197,7 @@ export function useCarConductor({
         text,
         settings: ttsSettings,
         hasTts,
+        carMode: true,
       });
       // Mark that we spoke a roll result for the currently incoming turn
       // Note: we'll match it with the NEXT turnId that appears in history
@@ -227,6 +233,7 @@ export function useCarConductor({
           hasTts,
           cacheKey: seq[i].cacheKey,
           mainNarration: seq[i].type === 'narration',
+          carMode: true,
         });
       } catch (err) {
         console.error('[CarConductor] TTS sequence play failed:', err);
@@ -319,6 +326,10 @@ export function useCarConductor({
     const chimeKey = activeChar ? `car:v1:chime:${activeChar.id}` : 'car:v1:chime:your-move';
 
     seq.push({ type: 'other', text: chimeMarker, cacheKey: chimeKey });
+    if (!hasSpokenOrientationRef.current) {
+      hasSpokenOrientationRef.current = true;
+      seq.push({ type: 'prompt', text: ORIENTATION_PROMPT, cacheKey: 'car:v1:orientation' });
+    }
     seq.push({ type: 'prompt', text: CHOOSE_ACTION_PROMPT, cacheKey: 'car:v1:prompt:choose-action' });
 
     void playSequence(seq);
@@ -447,6 +458,14 @@ export function useCarConductor({
       return;
     }
 
+    if (intent.type === 'encounter') {
+      if (session) {
+        const encText = buildEncounterSegment(session);
+        await speakInfo(encText);
+      }
+      return;
+    }
+
     if (intent.type === 'where-are-we') {
       if (session) {
         const latestTurn = history[history.length - 1];
@@ -556,6 +575,7 @@ export function useCarConductor({
           settings: ttsSettings,
           hasTts,
           cacheKey: 'car:v1:status:reconnecting',
+          carMode: true,
         });
       }
     } else if (connectionState === 'connected') {

@@ -10,6 +10,7 @@ type SpeakNarrationInput = {
   turnId?: number | string;
   cacheKey?: string;
   mainNarration?: boolean;
+  carMode?: boolean;
 };
 
 function voiceFromSettings(settings: TtsSettings): OpenAiTtsVoice {
@@ -43,6 +44,7 @@ class NarrationTtsService {
     turnId,
     cacheKey,
     mainNarration = true,
+    carMode = false,
   }: SpeakNarrationInput): Promise<void> {
     if (!settings.enabled) {
       return;
@@ -51,7 +53,7 @@ class NarrationTtsService {
     this.stopNarration();
 
     const shouldUseOpenAi = mainNarration && settings.provider === 'openai' && hasTts && openAiTtsService.isSupported();
-    if (shouldUseOpenAi) {
+    if (shouldUseOpenAi || carMode) {
       try {
         await openAiTtsService.speakNarration({
           text,

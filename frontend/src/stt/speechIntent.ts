@@ -12,6 +12,7 @@ export type SpeechIntent =
   | { type: 'status'; transcript: string }
   | { type: 'party'; transcript: string }
   | { type: 'gear'; transcript: string }
+  | { type: 'encounter'; transcript: string }
   | { type: 'where-are-we'; transcript: string }
   | { type: 'custom'; text: string; transcript: string };
 
@@ -35,6 +36,7 @@ const COMMAND_PHRASES: Record<Exclude<SpeechIntent['type'], 'choice' | 'custom'>
   status: ['status', 'info', 'state', 'how is it going', 'game status', 'current status'],
   party: ['party', 'party status', 'members', 'party health', 'party members'],
   gear: ['gear', 'inventory', 'items', 'bag', 'my gear', 'show items'],
+  encounter: ['encounter', 'enemies', 'monsters', 'who are we fighting', 'enemy status', 'encounter info'],
   'where-are-we': ['where are we', 'location', 'scene', 'where am i', 'current location', 'recap location'],
 };
 

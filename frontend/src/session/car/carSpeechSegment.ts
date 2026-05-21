@@ -171,14 +171,53 @@ export function buildStatusSegment(session: Session, expectedInput: string): str
 }
 
 /**
- * Builds party HP/status readout.
+ * Builds party HP/status readout including active buffs and curses.
  */
 export function buildPartySegment(session: Session): string {
   const partyLines = session.party.map(c => {
     const statusText = c.status === 'downed' ? 'is downed' : 'is active';
-    return `${c.name}, ${c.class}, has ${c.hp} of ${c.max_hp} H P and ${statusText}.`;
+    const buffLines = (c.buffs ?? []).map(b =>
+      b.kind === 'curse' ? `cursed with ${b.name}` : `buffed with ${b.name}`
+    );
+    const buffText = buffLines.length > 0 ? `. ${buffLines.join(', ')}` : '';
+    return `${c.name}, ${c.class}, has ${c.hp} of ${c.max_hp} H P and ${statusText}${buffText}.`;
   });
   return sanitizeText(`Party status: ${partyLines.join(' ')}`);
+}
+
+/**
+ * Builds active encounter readout with enemies, traits, revealed weaknesses, active effects, and intent.
+ */
+export function buildEncounterSegment(session: Session): string {
+  const enc = session.encounterState;
+  if (!enc || enc.status !== 'active') {
+    return 'No active encounter.';
+  }
+  const parts: string[] = [`Encounter: ${enc.name}. Round ${enc.round}.`];
+  if (enc.objective) {
+    parts.push(`Objective: ${enc.objective}.`);
+  }
+  for (const enemy of enc.enemies.filter(e => e.status === 'active')) {
+    const hpText = `${enemy.hp} of ${enemy.maxHp} H P`;
+    const traitsText = enemy.traits?.length ? `Traits: ${enemy.traits.join(', ')}.` : '';
+    const revealedWeaknesses = (enemy.weaknesses ?? []).filter(w => w.revealed && !w.broken);
+    const weakText = revealedWeaknesses.length
+      ? `Weaknesses: ${revealedWeaknesses.map(w => w.label).join(', ')}.`
+      : '';
+    const activeEffects = (enemy.effects ?? []).filter(
+      e => e.kind === 'curse' || e.kind === 'control' || e.kind === 'marked' || e.kind === 'damage_over_time'
+    );
+    const effectText = activeEffects.length
+      ? `Effects: ${activeEffects.map(e => e.name).join(', ')}.`
+      : '';
+    const intentText = enemy.intent ? `Intent: ${enemy.intent}.` : '';
+    parts.push(
+      `${enemy.name} (${enemy.role}), ${hpText}. ${traitsText} ${weakText} ${effectText} ${intentText}`
+        .replace(/\s+/g, ' ')
+        .trim()
+    );
+  }
+  return sanitizeText(parts.join(' '));
 }
 
 /**
@@ -193,4 +232,5 @@ export function buildLocationSegment(session: Session, latestTurn?: TurnResult):
 // Cachable static prompts
 export const CHOOSE_ACTION_PROMPT = "What do you do? Say option one, two, three, or say a custom action.";
 export const CONFIRM_ACTION_PROMPT = "Say confirm, cancel, or try again.";
-export const HELP_TEXT = "Voice commands: options, repeat story, status, party, gear, where are we, pause, resume, cancel, confirm, or say an option number.";
+export const HELP_TEXT = "Voice commands: options, repeat story, status, party, gear, encounter, where are we, pause, resume, cancel, confirm, or say an option number.";
+export const ORIENTATION_PROMPT = "Say one, two, or three for the main options, or speak freely for a custom action. Say help at any time for voice commands.";
