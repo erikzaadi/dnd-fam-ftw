@@ -25,7 +25,7 @@ interface InventoryProps {
 type PendingAction = { itemId: string; ownerCharId: string; action: 'use' | 'give' };
 
 const isUsable = (item: InventoryItem) => !!((item.healValue ?? 0) > 0);
-const isGiveable = (item: InventoryItem) => item.transferable !== false;
+const isGiveable = (item: InventoryItem) => item.transferable === true;
 
 interface InventoryItemCardProps {
   item: InventoryItem;
