@@ -104,6 +104,9 @@ jobs:
         with:
           node-version: 24
 
+      - name: Install and build shared
+        run: cd packages/shared && npm ci && npm run build
+
       - name: Install deps
         run: cd frontend && npm ci
 
