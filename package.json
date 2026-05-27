@@ -12,6 +12,7 @@
         "build": "npm run build --prefix frontend",
         "build:shared": "npm run build --prefix packages/shared",
         "build:backend": "npm run build:shared && npm run build --prefix backend",
+        "bump-version": "./scripts/bump-version.sh",
         "install:all": "npm install && npm install --prefix packages/shared && npm install --prefix backend && npm install --prefix frontend",
         "ci:all": "npm ci --prefix packages/shared && npm ci --prefix backend && npm ci --prefix frontend",
         "setup:lint": "python3 -m venv .venv-lint && .venv-lint/bin/pip install --quiet yamllint",
