@@ -333,6 +333,40 @@ describe('OpenAINarrationProvider', () => {
     }
   });
 
+  it('retries and succeeds when callModel throws a transient error on the first attempt', async () => {
+    mocks.stream.mockReturnValueOnce({
+      on: vi.fn(),
+      finalChatCompletion: vi.fn().mockRejectedValue(new Error('missing finish_reason for choice 0')),
+    });
+    const goodOutput = output();
+    mockStream({ choices: [{ message: { parsed: goodOutput }, finish_reason: 'stop' }] });
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const result = await new OpenAINarrationProvider().generateTurn(input);
+      expect(result.narration).toBe(goodOutput.narration);
+      expect(result.narrationFailed).toBeFalsy();
+      expect(mocks.stream).toHaveBeenCalledTimes(2);
+      expect(warn).toHaveBeenCalledWith(
+        '[Narration] attempt-1 threw retryable error, retrying',
+        'missing finish_reason for choice 0',
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('does not retry and rethrows when callModel throws a 429', async () => {
+    const rateLimit = Object.assign(new Error('Rate limited'), { status: 429 });
+    mocks.stream.mockReturnValueOnce({
+      on: vi.fn(),
+      finalChatCompletion: vi.fn().mockRejectedValue(rateLimit),
+    });
+
+    await expect(new OpenAINarrationProvider().generateTurn(input)).rejects.toThrow('Rate limited');
+    expect(mocks.stream).toHaveBeenCalledTimes(1);
+  });
+
   it('does not leak scene momentum instructions into fallback narration', async () => {
     const result = buildNarrationFallback({
       ...input,

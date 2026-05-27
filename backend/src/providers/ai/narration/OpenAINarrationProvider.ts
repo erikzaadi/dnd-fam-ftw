@@ -51,9 +51,40 @@ function isYellowCardValidationError(error: string): boolean {
   );
 }
 
+function isRetryableCallError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  const status = (error as { status?: number }).status;
+  if (status === 429) {
+    return false;
+  }
+  // Deterministic or intentional errors - not transient
+  if (
+    error.message.includes('content_filter') ||
+    error.message.includes('OpenAI refused') ||
+    error.message.includes('output truncated') ||
+    error.message.includes('no parsed structured output')
+  ) {
+    return false;
+  }
+  return true;
+}
+
 export class OpenAINarrationProvider implements NarrationProvider {
   async generateTurn(input: NarrationInput, callbacks?: NarrationStreamCallbacks): Promise<NarrationOutput> {
-    const raw = await this.callModel(input, undefined, callbacks);
+    let raw: unknown;
+    try {
+      raw = await this.callModel(input, undefined, callbacks);
+    } catch (callError: unknown) {
+      if (!isRetryableCallError(callError)) {
+        throw callError;
+      }
+      const errorMsg = callError instanceof Error ? callError.message : String(callError);
+      devLog.warn('[Narration] attempt-1 threw retryable error, retrying', errorMsg);
+      callbacks?.onAbort();
+      raw = await this.callModel(input, undefined);
+    }
     const parsed = parseNarrationOutput(input, raw);
     if (parsed.success) {
       devLog.log('[Narration] attempt-1 guard=pass');

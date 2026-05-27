@@ -515,6 +515,31 @@ describe('parseNarrationOutput', () => {
     }
   });
 
+  it('allows gateway-opens-but-blocks narration without a completed major beat', () => {
+    const result = parseNarrationOutput({
+      ...input,
+      sceneMomentum: {
+        directive: 'advance_campaign',
+        staleChoiceCount: 0,
+        turnsSinceSceneChange: 2,
+        turnsSinceCombat: 3,
+        justCompletedCombat: false,
+        justCompletedDifficultChallenge: false,
+        suggestedNextBeat: 'Introduce a concrete new beat.',
+        reason: 'The scene needs motion.',
+      },
+    }, output({
+      narration: 'The rune-carved gateway swings open, revealing a shadowed corridor within. A spectral guardian materializes, blocking the path forward.',
+      choices: [
+        { label: 'Charge the spectral guardian with a mighty blow', difficulty: 'normal', stat: 'might', difficultyValue: 12 },
+        { label: 'Search the corridor for a hidden side passage', difficulty: 'normal', stat: 'mischief', difficultyValue: 11 },
+        { label: 'Cast a protective ward against the guardian', difficulty: 'normal', stat: 'magic', difficultyValue: 12 },
+      ],
+    }));
+
+    expect(result.success).toBe(true);
+  });
+
   it('allows portal transitions after a completed difficult challenge', () => {
     const result = parseNarrationOutput({
       ...input,
