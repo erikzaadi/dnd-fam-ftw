@@ -53,56 +53,7 @@ type PostEncounterLoot = {
   itemName: string;
 };
 
-const buildPostEncounterChoices = (session: SessionState, newState: SessionState, addedLoot: PostEncounterLoot[]): SessionState['lastChoices'] => {
-  const environmentFeature = /^(a new realm|new realm|unknown realm)$/i.test(session.scene.trim())
-    ? 'unstable magic'
-    : session.scene;
-  const loot = addedLoot[0];
-  const nextActor = newState.party.find(c => c.id === newState.activeCharacterId);
-  const nextActorOwnsLoot = Boolean(loot && nextActor?.name === loot.characterName);
-  const middleChoice = loot
-    ? {
-      label: `Empower ${loot.itemName}`,
-      difficulty: 'normal' as const,
-      stat: 'magic' as const,
-      difficultyValue: 12,
-      narration: `Tinker with ${loot.characterName}'s new find and try to awaken its magic.`,
-      flavor: nextActorOwnsLoot ? 'item' as const : 'standard' as const,
-      ...(nextActorOwnsLoot && {
-        itemOwnerName: loot.characterName,
-        itemName: loot.itemName,
-      }),
-    }
-    : {
-      label: 'Search what the foe guarded',
-      difficulty: 'normal' as const,
-      stat: 'mischief' as const,
-      difficultyValue: 11,
-      narration: 'Look for clues, loot, or a safer route forward.',
-      flavor: 'standard' as const,
-    };
 
-  return [
-    {
-      label: 'Push beyond the battlefield',
-      difficulty: 'normal',
-      stat: 'might',
-      difficultyValue: 11,
-      narration: 'Move the party into whatever waits beyond the broken fight.',
-      flavor: 'standard',
-    },
-    middleChoice,
-    {
-      label: 'Stabilize the scene with magic',
-      difficulty: 'normal',
-      stat: 'magic',
-      difficultyValue: 12,
-      narration: 'Calm the dangerous magic before it sparks again.',
-      flavor: 'environment',
-      environmentFeature,
-    },
-  ];
-};
 
 const sentenceCase = (text: string): string => {
   const trimmed = text.trim();
@@ -176,9 +127,57 @@ const alignTurnWithResolvedEncounter = (
   const followThrough = buildPostEncounterFollowThrough(previousSession);
   turnResult.narration = `${enemyNames} ${resolution}.${lootNarration} The immediate fight is over.${followThrough}`;
   turnResult.currentTensionLevel = status === 'defeated' ? 'medium' : turnResult.currentTensionLevel;
-  const choices = buildPostEncounterChoices(previousSession, newState, addedLoot);
-  turnResult.choices = choices;
-  newState.lastChoices = choices;
+  // AI choices for this turn already point forward - let stripChoicesTargetingDefeatedEnemies
+  // clean up any stale enemy references rather than replacing with generic fallbacks.
+  newState.lastChoices = turnResult.choices;
+};
+
+const stripChoicesTargetingDefeatedEnemies = (
+  newState: SessionState,
+  turnResult: Awaited<ReturnType<typeof AiDmService.generateTurnResult>>,
+): void => {
+  // Run for active encounters and for just-resolved encounters - newState.encounterState.enemies
+  // always has updated statuses, so defeated enemies are visible in both cases.
+  if (!newState.encounterState) {
+    return;
+  }
+  const defeatedTerms = new Set(
+    newState.encounterState.enemies
+      .filter(e => e.status !== 'active')
+      .flatMap(e => [e.name, ...(e.aliases ?? [])].map(t => t.toLowerCase())),
+  );
+  if (defeatedTerms.size === 0) {
+    return;
+  }
+  const activeEnemies = newState.encounterState.enemies.filter(e => e.status === 'active');
+  let changed = false;
+  const fixedChoices = turnResult.choices.map(choice => {
+    const lower = choice.label.toLowerCase();
+    if (![...defeatedTerms].some(term => lower.includes(term))) {
+      return choice;
+    }
+    changed = true;
+    const target = activeEnemies[0];
+    const replacement = target
+      ? `Press the attack on the ${target.name}`
+      : 'Hold position and stay ready';
+    const replacementNarration = target
+      ? `Keep the pressure on the ${target.name} while the moment allows.`
+      : 'Brace and stay alert for what comes next.';
+    devLog.warn(`[Guard] choice targets defeated enemy - replacing. original="${choice.label}" new="${replacement}"`);
+    return {
+      label: replacement,
+      difficulty: choice.difficulty,
+      stat: choice.stat,
+      difficultyValue: choice.difficultyValue,
+      narration: replacementNarration,
+      flavor: 'standard' as const,
+    };
+  });
+  if (changed) {
+    turnResult.choices = fixedChoices;
+    newState.lastChoices = fixedChoices;
+  }
 };
 
 export interface TurnActionRequest {
@@ -285,7 +284,8 @@ export const executeTurnAction = async (
     stepStart = logTurnStep(sessionId, 'item-history', stepStart, `history=${itemHistory.length}`);
     const scenePressure = buildScenePressure(itemHistory, itemAttempt, itemState.scene);
     const sceneMomentum = buildSceneMomentum(itemHistory, itemAttempt, itemState, scenePressure);
-    const aiInput: AIInput = { ...itemState, ...itemAttempt, activeCharacterId: nextCharIdForItem, characterId: actingCharId, scenePressure, sceneMomentum };
+    const itemLatestChoices = itemHistory[itemHistory.length - 1]?.choices ?? itemState.lastChoices;
+    const aiInput: AIInput = { ...itemState, ...itemAttempt, activeCharacterId: nextCharIdForItem, characterId: actingCharId, scenePressure, sceneMomentum, lastChoices: itemLatestChoices };
     broadcastUpdate(sessionId, 'dm_narrating', { action, statUsed, difficulty, difficultyValue, character });
     stepStart = logTurnStep(sessionId, 'item-pre-llm', stepStart);
     const itemLlmStart = Date.now();
@@ -299,6 +299,7 @@ export const executeTurnAction = async (
       actionAttempt: itemAttempt.actionAttempt,
     });
     alignTurnWithResolvedEncounter(itemState, newState, turnResult);
+    stripChoicesTargetingDefeatedEnemies(newState, turnResult);
     await StateService.updateSession(sessionId, newState);
     stepStart = logTurnStep(sessionId, 'item-update-session', stepStart);
     turnResult.lastAction = itemAttempt;
@@ -396,7 +397,7 @@ export const executeTurnAction = async (
   const scenePressure = buildScenePressure(history, actionAttempt, session.scene);
   const sceneMomentum = buildSceneMomentum(history, actionAttempt, session, scenePressure);
   const effectiveActionIntent = actionIntent ?? inferActionIntent(action, session);
-  const aiInput: AIInput = { ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId, scenePressure, sceneMomentum, ...(effectiveActionIntent && { actionIntent: effectiveActionIntent }) };
+  const aiInput: AIInput = { ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId, scenePressure, sceneMomentum, ...(effectiveActionIntent && { actionIntent: effectiveActionIntent }), lastChoices: latestChoices };
   const targetCharName = targetCharacterId ? session.party.find(c => c.id === targetCharacterId)?.name : undefined;
   stepStart = logTurnStep(
     sessionId,
@@ -434,6 +435,7 @@ export const executeTurnAction = async (
     actionAttempt: actionAttempt.actionAttempt,
   });
   alignTurnWithResolvedEncounter(session, newState, turnResult);
+  stripChoicesTargetingDefeatedEnemies(newState, turnResult);
   await StateService.updateSession(sessionId, newState);
   stepStart = logTurnStep(sessionId, 'update-session', stepStart);
 

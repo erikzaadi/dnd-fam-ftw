@@ -26,7 +26,7 @@ describe('buildRollNarration', () => {
   it('returns a nat-20 phrase on roll=20 regardless of stat', () => {
     const r = buildRollNarration(makeResult({ roll: 20, statUsed: 'mischief', success: true }));
     expect(r.length).toBeGreaterThan(0);
-    expect(r).toMatch(/twenty|twenty|twenty/i);
+    expect(r).toMatch(/twenty|perfect roll|legendary/i);
   });
 
   describe('all stat + outcome + impact combinations return a non-empty string', () => {

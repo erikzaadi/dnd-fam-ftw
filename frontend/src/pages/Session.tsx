@@ -442,7 +442,7 @@ export const SessionPage = () => {
           setRollResult(null);
           requestStoryFocus();
           recordTimingEvent('unlock');
-        }, 1200);
+        }, 600);
       } else if (hasRollDetails && roll) {
         setRollResult({
           roll: roll.roll,
@@ -486,7 +486,7 @@ export const SessionPage = () => {
           setRollResult(null);
           requestStoryFocus();
           recordTimingEvent('unlock');
-        }, 1200);
+        }, 600);
       } else {
         setLoading(false);
         recordTimingEvent('unlock');

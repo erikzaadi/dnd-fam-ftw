@@ -45,10 +45,17 @@ function isRestTurn(input: NarrationInput): boolean {
 const TRADE_RE = /\b(vendor|merchant|trade|shop|barter|buy|sell|purchase|dealer|stall|give|pass|hand over|transfer)\b/i;
 
 export function isTradeTurn(input: NarrationInput): boolean {
+  const isActiveCombat = input.encounterState?.status === 'active';
+  // Action text always counts, even mid-combat (explicit give/trade during combat is valid)
   if (TRADE_RE.test(input.actionAttempt)) {
     return true;
   }
-  if (input.recentHistory.some(h => TRADE_RE.test(h))) {
+  // During active combat, scene and history signals are stale context - skip them
+  if (isActiveCombat) {
+    return false;
+  }
+  // Outside combat: only look at the last 2 history entries to avoid stale vendor activation
+  if (input.recentHistory.slice(-2).some(h => TRADE_RE.test(h))) {
     return true;
   }
   if (input.scene && TRADE_RE.test(input.scene)) {
@@ -60,16 +67,21 @@ export function isTradeTurn(input: NarrationInput): boolean {
 const RIDDLE_RE = /\b(riddle|puzzle|pun|password|cipher|code|answer-based)\b/i;
 
 export function isRiddleTurn(input: NarrationInput): boolean {
-  if (input.dmPrep && RIDDLE_RE.test(input.dmPrep)) {
-    return true;
-  }
+  // Scene and action are authoritative current-turn signals
   if (RIDDLE_RE.test(input.scene)) {
     return true;
   }
   if (RIDDLE_RE.test(input.actionAttempt)) {
     return true;
   }
-  return input.recentHistory.some(h => RIDDLE_RE.test(h));
+  // Only the last 2 history entries - avoids reactivating riddle rules from a
+  // puzzle that was solved several turns ago
+  if (input.recentHistory.slice(-2).some(h => RIDDLE_RE.test(h))) {
+    return true;
+  }
+  // dmPrep alone is not enough - it covers the full campaign brief and may mention
+  // riddles that are long resolved. Require a current-turn signal instead.
+  return false;
 }
 
 export function buildNarrationSystemPrompt(input: NarrationInput): string {

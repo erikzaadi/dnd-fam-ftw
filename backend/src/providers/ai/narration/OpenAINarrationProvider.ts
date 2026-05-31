@@ -31,9 +31,9 @@ function supportsCustomTemperature(model: string): boolean {
 
 function narrationMaxCompletionTokens(model: string, isHighStakesTurn: boolean): number {
   if (/^gpt-5(?:[.-]|$)/i.test(model)) {
-    return isHighStakesTurn ? 2600 : 2200;
+    return isHighStakesTurn ? 2000 : 1600;
   }
-  return isHighStakesTurn ? 1500 : 1300;
+  return isHighStakesTurn ? 1100 : 900;
 }
 
 function effectiveReasoningEffort(model: string, configured: ReturnType<typeof getNarrationReasoningEffort>): ReturnType<typeof getNarrationReasoningEffort> {

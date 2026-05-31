@@ -209,9 +209,9 @@ describe('buildNarrationSystemPrompt', () => {
     expect(prompt).not.toContain('PARTY AND NPC ITEM TRANSFERS');
   });
 
-  it('dmPrep with riddle keyword includes riddle section', () => {
+  it('dmPrep with riddle keyword does not include riddle section (stale campaign brief, no current-turn signal)', () => {
     const prompt = buildNarrationSystemPrompt(makeInput({ dmPrep: 'The sphinx poses a riddle to the party.' }));
-    expect(prompt).toContain('RIDDLES AND PUZZLES');
+    expect(prompt).not.toContain('RIDDLES AND PUZZLES');
   });
 
   it('recent history with riddle mention includes riddle section', () => {
@@ -309,6 +309,33 @@ describe('isTradeTurn', () => {
       inventory: [{ name: 'Iron Shield', description: 'A shield', ownerName: 'Pip', statBonuses: {}, transferable: true, consumable: false }],
     }))).toBe(false);
   });
+
+  it('returns false when trade was mentioned more than 2 turns ago', () => {
+    expect(isTradeTurn(makeTradeInput({
+      recentHistory: ['A merchant appeared.', 'You moved on.', 'You entered a cave.', 'You fought a goblin.'],
+    }))).toBe(false);
+  });
+
+  it('returns false during active combat when only history has trade signal', () => {
+    expect(isTradeTurn(makeTradeInput({
+      encounterState: { id: 'enc-1', status: 'active', name: 'Goblin Fight', enemies: [], areas: [], round: 1 },
+      recentHistory: ['A merchant called out from a stall.'],
+    }))).toBe(false);
+  });
+
+  it('returns false during active combat when only scene has trade signal', () => {
+    expect(isTradeTurn(makeTradeInput({
+      encounterState: { id: 'enc-1', status: 'active', name: 'Goblin Fight', enemies: [], areas: [], round: 1 },
+      scene: 'A shop filled with exotic goods',
+    }))).toBe(false);
+  });
+
+  it('returns true during active combat when action explicitly has trade keyword', () => {
+    expect(isTradeTurn(makeTradeInput({
+      encounterState: { id: 'enc-1', status: 'active', name: 'Goblin Fight', enemies: [], areas: [], round: 1 },
+      actionAttempt: 'Give the healing potion to Zara',
+    }))).toBe(true);
+  });
 });
 
 describe('isRiddleTurn', () => {
@@ -323,8 +350,8 @@ describe('isRiddleTurn', () => {
     ...overrides,
   });
 
-  it('returns true when dmPrep mentions riddle', () => {
-    expect(isRiddleTurn(makeRiddleInput({ dmPrep: 'The gate guardian poses a riddle.' }))).toBe(true);
+  it('returns false when only dmPrep mentions riddle (stale campaign brief, no current-turn signal)', () => {
+    expect(isRiddleTurn(makeRiddleInput({ dmPrep: 'The gate guardian poses a riddle.' }))).toBe(false);
   });
 
   it('returns true when scene mentions puzzle', () => {
@@ -345,6 +372,18 @@ describe('isRiddleTurn', () => {
 
   it('returns false when answer appears without riddle context', () => {
     expect(isRiddleTurn(makeRiddleInput({ actionAttempt: 'Answer the goblin back with a shout' }))).toBe(false);
+  });
+
+  it('returns false when riddle was in history more than 2 turns ago', () => {
+    expect(isRiddleTurn(makeRiddleInput({
+      recentHistory: ['The sphinx posed a riddle.', 'You answered.', 'The door opened.', 'You entered the vault.'],
+    }))).toBe(false);
+  });
+
+  it('returns true when riddle is in one of the last 2 history entries', () => {
+    expect(isRiddleTurn(makeRiddleInput({
+      recentHistory: ['You entered the vault.', 'The sphinx posed a new puzzle.'],
+    }))).toBe(true);
   });
 });
 

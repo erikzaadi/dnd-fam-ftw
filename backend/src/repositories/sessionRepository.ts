@@ -1,7 +1,7 @@
 import { createId } from '../lib/ids.js';
 import { getDb } from '../persistence/database.js';
 import { generateSessionDisplayName } from '../services/sessionNameService.js';
-import { SessionState, InventoryItem, type GameMode, type EncounterState, type EncounterSeed } from '../types.js';
+import { SessionState, InventoryItem, type Choice, type GameMode, type EncounterState, type EncounterSeed } from '../types.js';
 
 export type SessionListItem = {
   id: string;
@@ -206,7 +206,35 @@ export const sessionRepository = {
       activeCharacterId: row.activeCharacterId || "",
       npcs: [],
       quests: [],
-      lastChoices: [],
+      lastChoices: (() => {
+        const lastTurn = db.prepare('SELECT id FROM turn_history WHERE sessionId = ? ORDER BY id DESC LIMIT 1').get(id) as { id: number } | undefined;
+        if (!lastTurn) {
+          return [];
+        }
+        const choiceRows = db.prepare(
+          'SELECT label, difficulty, stat, difficultyValue, narration, riddleAnswer, riddleCorrect, flavor, helperCharacterName, itemOwnerName, itemName, environmentFeature FROM turn_choices WHERE turnId = ? ORDER BY rowid'
+        ).all(lastTurn.id) as {
+          label: string; difficulty: string; stat: string;
+          difficultyValue: number | null; narration: string | null;
+          riddleAnswer: string | null; riddleCorrect: number | null;
+          flavor: string | null; helperCharacterName: string | null;
+          itemOwnerName: string | null; itemName: string | null; environmentFeature: string | null;
+        }[];
+        return choiceRows.map(c => ({
+          label: c.label,
+          difficulty: c.difficulty as Choice['difficulty'],
+          stat: c.stat as Choice['stat'],
+          ...(c.difficultyValue !== null && { difficultyValue: c.difficultyValue }),
+          ...(c.narration !== null && { narration: c.narration }),
+          ...(c.riddleAnswer !== null && { riddleAnswer: c.riddleAnswer }),
+          ...(c.riddleCorrect !== null && { riddleCorrect: !!c.riddleCorrect }),
+          ...(c.flavor !== null && { flavor: c.flavor as Choice['flavor'] }),
+          ...(c.helperCharacterName !== null && { helperCharacterName: c.helperCharacterName }),
+          ...(c.itemOwnerName !== null && { itemOwnerName: c.itemOwnerName }),
+          ...(c.itemName !== null && { itemName: c.itemName }),
+          ...(c.environmentFeature !== null && { environmentFeature: c.environmentFeature }),
+        }));
+      })(),
       tone: row.tone,
       recentHistory: (() => {
         const rows = db.prepare('SELECT narration FROM turn_history WHERE sessionId = ? ORDER BY id DESC LIMIT 3').all(id) as { narration: string }[];

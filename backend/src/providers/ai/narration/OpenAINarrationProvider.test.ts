@@ -389,21 +389,21 @@ describe('OpenAINarrationProvider', () => {
     expect(result.narration).not.toContain('push toward a climactic confrontation');
   });
 
-  it('passes 1300 max_completion_tokens on normal turns', async () => {
+  it('passes 900 max_completion_tokens on normal turns', async () => {
     mockStream({ choices: [{ message: { parsed: output() }, finish_reason: 'stop' }] });
     await new OpenAINarrationProvider().generateTurn(input);
     const callArgs = mocks.stream.mock.calls[0]?.[0] as { max_completion_tokens?: number } | undefined;
-    expect(callArgs?.max_completion_tokens).toBe(1300);
+    expect(callArgs?.max_completion_tokens).toBe(900);
   });
 
-  it('passes 1500 max_completion_tokens on high-stakes combat turns', async () => {
+  it('passes 1100 max_completion_tokens on high-stakes combat turns', async () => {
     mockStream({ choices: [{ message: { parsed: output() }, finish_reason: 'stop' }] });
     await new OpenAINarrationProvider().generateTurn({
       ...input,
       encounterState: { id: 'enc-1', name: 'Boss Fight', status: 'active', enemies: [], areas: [], round: 1 },
     });
     const callArgs = mocks.stream.mock.calls[0]?.[0] as { max_completion_tokens?: number } | undefined;
-    expect(callArgs?.max_completion_tokens).toBe(1500);
+    expect(callArgs?.max_completion_tokens).toBe(1100);
   });
 
   it('passes configured narration eval parameters to Chat Completions', async () => {
@@ -425,7 +425,7 @@ describe('OpenAINarrationProvider', () => {
     } | undefined;
     expect(callArgs).toMatchObject({
       model: 'gpt-5-mini',
-      max_completion_tokens: 2200,
+      max_completion_tokens: 1600,
       reasoning_effort: 'low',
       verbosity: 'low',
       service_tier: 'priority',
@@ -451,7 +451,7 @@ describe('OpenAINarrationProvider', () => {
     expect(callArgs?.temperature).toBe(0.7);
   });
 
-  it('uses a larger output cap for high-stakes GPT-5 narration turns', async () => {
+  it('passes 2000 max_completion_tokens on high-stakes GPT-5 narration turns', async () => {
     process.env.OPENAI_MODEL_NARRATION = 'gpt-5-mini';
 
     mockStream({ choices: [{ message: { parsed: output() }, finish_reason: 'stop' }] });
@@ -461,7 +461,7 @@ describe('OpenAINarrationProvider', () => {
     });
 
     const callArgs = mocks.stream.mock.calls[0]?.[0] as { max_completion_tokens?: number } | undefined;
-    expect(callArgs?.max_completion_tokens).toBe(2600);
+    expect(callArgs?.max_completion_tokens).toBe(2000);
   });
 
   it('logs stream timings and reasoning token usage when available', async () => {

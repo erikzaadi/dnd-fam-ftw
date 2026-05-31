@@ -41,10 +41,17 @@ const STATUS_SUFFIX: Partial<Record<EncounterEnemy['status'], string>> = {
 };
 
 function getHpLabel(enemy: EncounterEnemy): HpLabel {
-  if (enemy.status !== 'active' || enemy.hp === 0) {
+  if (enemy.status !== 'active') {
     return 'defeated';
   }
-  const ratio = enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 0;
+  // Hazards have maxHp === 0 and are tracked by status only, not HP
+  if (enemy.maxHp === 0) {
+    return 'fresh';
+  }
+  if (enemy.hp === 0) {
+    return 'defeated';
+  }
+  const ratio = enemy.hp / enemy.maxHp;
   if (ratio > 0.75) {
     return 'fresh';
   }
