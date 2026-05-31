@@ -73,6 +73,15 @@ function isRetryableCallError(error: unknown): boolean {
 
 export class OpenAINarrationProvider implements NarrationProvider {
   async generateTurn(input: NarrationInput, callbacks?: NarrationStreamCallbacks): Promise<NarrationOutput> {
+    const generateStart = Date.now();
+    let callErrorRetried = false;
+
+    const logOutcome = (guardOutcome: string, result: NarrationOutput): NarrationOutput => {
+      const outcome = callErrorRetried ? `call-error-retry+${guardOutcome}` : guardOutcome;
+      devLog.log(`[Metrics] narration outcome=${outcome} durationMs=${Date.now() - generateStart} retried=${result.narrationRetried ?? false} failed=${result.narrationFailed ?? false}`);
+      return result;
+    };
+
     let raw: unknown;
     try {
       raw = await this.callModel(input, undefined, callbacks);
@@ -80,6 +89,7 @@ export class OpenAINarrationProvider implements NarrationProvider {
       if (!isRetryableCallError(callError)) {
         throw callError;
       }
+      callErrorRetried = true;
       const errorMsg = callError instanceof Error ? callError.message : String(callError);
       devLog.warn('[Narration] attempt-1 threw retryable error, retrying', errorMsg);
       callbacks?.onAbort();
@@ -88,17 +98,17 @@ export class OpenAINarrationProvider implements NarrationProvider {
     const parsed = parseNarrationOutput(input, raw);
     if (parsed.success) {
       devLog.log('[Narration] attempt-1 guard=pass');
-      return parsed.data;
+      return logOutcome('pass', parsed.data);
     }
 
     if (isYellowCardValidationError(parsed.error)) {
       const relaxed = parseNarrationOutput(input, raw, { enforceGameplayGuards: false });
       if (relaxed.success) {
         devLog.warn('[Narration] attempt-1 guard=yellow-card accepting', parsed.error);
-        return {
+        return logOutcome('yellow-card', {
           ...relaxed.data,
           narrationValidationError: parsed.error,
-        };
+        });
       }
     }
 
@@ -107,34 +117,34 @@ export class OpenAINarrationProvider implements NarrationProvider {
     const retryRaw = await this.callModel(input, parsed.error);
     const retryParsed = parseNarrationOutput(input, retryRaw);
     if (retryParsed.success) {
-      return {
+      return logOutcome('guard-retry+pass', {
         ...retryParsed.data,
         narrationRetried: true,
         narrationValidationError: parsed.error,
-      };
+      });
     }
 
     if (isYellowCardValidationError(retryParsed.error)) {
       const relaxedRetry = parseNarrationOutput(input, retryRaw, { enforceGameplayGuards: false });
       if (relaxedRetry.success) {
         devLog.warn('[Narration] retry guard=yellow-card accepting', retryParsed.error);
-        return {
+        return logOutcome('guard-retry+yellow-card', {
           ...relaxedRetry.data,
           narrationRetried: true,
           narrationValidationError: parsed.error,
           narrationRetryValidationError: retryParsed.error,
-        };
+        });
       }
     }
 
     devLog.error('[OpenAINarration] Retry also failed, using fallback.', retryParsed.error, 'Raw:', JSON.stringify(retryRaw));
-    return {
+    return logOutcome('fallback', {
       ...buildNarrationFallback(input),
       narrationRetried: true,
       narrationFailed: true,
       narrationValidationError: parsed.error,
       narrationRetryValidationError: retryParsed.error,
-    };
+    });
   }
 
   private async callModel(input: NarrationInput, validationError?: string, callbacks?: NarrationStreamCallbacks): Promise<unknown> {

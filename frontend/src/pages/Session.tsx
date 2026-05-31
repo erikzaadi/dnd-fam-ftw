@@ -28,6 +28,7 @@ import { OnboardingOverlay } from '../components/OnboardingOverlay';
 import { useOnboardingTutorial } from '../hooks/useOnboardingTutorial';
 import { OriginView } from '../components/OriginView';
 import { buildEncounterLookup, countEncounterTurns, getTurnEncounter, patchEncounterEnemyAvatar, patchEncounterAreaImage } from '../lib/encounters';
+import { devLog } from '../lib/devLog';
 
 interface LastSubmittedAction {
   label: string;
@@ -106,6 +107,40 @@ export const SessionPage = () => {
 
   const requestStoryFocus = useCallback(() => {
     setStoryFocusRequest(version => version + 1);
+  }, []);
+
+  const submitTimeRef = useRef<number | null>(null);
+  const timingEventsRef = useRef<Record<string, number>>({});
+
+  const recordTimingEvent = useCallback((eventName: string) => {
+    const now = Date.now();
+    timingEventsRef.current[eventName] = now;
+
+    if (eventName === 'submit') {
+      submitTimeRef.current = now;
+      timingEventsRef.current = { submit: now };
+    } else if (submitTimeRef.current) {
+      const elapsed = now - submitTimeRef.current;
+      devLog.log(`[Timing] Event: ${eventName} elapsedMs=${elapsed}`);
+
+      if (eventName === 'unlock') {
+        const events = timingEventsRef.current;
+        const submitToRoll = events.roll_ready ? events.roll_ready - events.submit : null;
+        const submitToFirstNarration = events.first_chunk ? events.first_chunk - events.submit : null;
+        const submitToStreamingDone = events.streaming_done ? events.streaming_done - events.submit : null;
+        const submitToComplete = events.turn_complete ? events.turn_complete - events.submit : null;
+        const submitToSubmittable = events.unlock ? events.unlock - events.submit : null;
+
+        devLog.log(`[Timing] Submit-to-Submittable Breakdown:
+- Submit to Roll Ready: ${submitToRoll !== null ? `${submitToRoll}ms` : 'n/a'}
+- Submit to First Narration Chunk: ${submitToFirstNarration !== null ? `${submitToFirstNarration}ms` : 'n/a'}
+- Submit to Narration Streaming Done: ${submitToStreamingDone !== null ? `${submitToStreamingDone}ms` : 'n/a'}
+- Submit to Turn Complete (Persisted): ${submitToComplete !== null ? `${submitToComplete}ms` : 'n/a'}
+- Submit to Submittable (UI Unlocked): ${submitToSubmittable !== null ? `${submitToSubmittable}ms` : 'n/a'}
+        `);
+        submitTimeRef.current = null;
+      }
+    }
   }, []);
 
   const joinSession = useCallback(async (sessionId: string) => {
@@ -298,8 +333,17 @@ export const SessionPage = () => {
           ? { ...prev, ...preview }
           : { label: action, stat: statUsed, difficulty, difficultyValue, char: character, ...preview });
       }
+      recordTimingEvent('dm_narrating');
+    },
+    onNarrationChunk: (_text, field) => {
+      if (field === 'narration') {
+        if (!timingEventsRef.current['first_chunk']) {
+          recordTimingEvent('first_chunk');
+        }
+      }
     },
     onRollNarrationDone: (rollNarration, actionResult, hpChanges) => {
+      recordTimingEvent('roll_ready');
       if (!actionResult || actionResult.statUsed === 'none') {
         return;
       }
@@ -337,6 +381,9 @@ export const SessionPage = () => {
         }
       }, 600);
     },
+    onNarrationStreamingDone: (_narration, _rollNarration) => {
+      recordTimingEvent('streaming_done');
+    },
     onNarrationChunkAbort: () => {
       narrationTtsService.stopNarration();
       // Roll result and consequencesPending stay as-is - the roll is valid, only the narration is retrying.
@@ -349,8 +396,10 @@ export const SessionPage = () => {
       setConsequencesPending(false);
       hasEarlyRollRef.current = false;
       setActionError(message);
+      recordTimingEvent('unlock');
     },
     onTurnComplete: (updatedSession, turnResult) => {
+      recordTimingEvent('turn_complete');
       setLastSubmittedAction(null);
       setCustomAction('');
       if (turnResult?.currentTensionLevel) {
@@ -392,6 +441,7 @@ export const SessionPage = () => {
           setLoading(false);
           setRollResult(null);
           requestStoryFocus();
+          recordTimingEvent('unlock');
         }, 1200);
       } else if (hasRollDetails && roll) {
         setRollResult({
@@ -435,9 +485,11 @@ export const SessionPage = () => {
           setLoading(false);
           setRollResult(null);
           requestStoryFocus();
+          recordTimingEvent('unlock');
         }, 1200);
       } else {
         setLoading(false);
+        recordTimingEvent('unlock');
         if (turnResult) {
           setHistory(prev => {
             if (turnResult.id && prev.some(t => t.id === turnResult.id)) {
@@ -549,6 +601,7 @@ export const SessionPage = () => {
         ? `${itemOwner?.name ?? 'Someone'} used ${item.name} on ${itemTarget.name}`
         : action;
     setLastSubmittedAction({ label: displayAction, stat: statUsed, char: itemOwner, difficulty, difficultyValue: difficultyValue ?? undefined, ...preview });
+    recordTimingEvent('submit');
     setLoading(true);
     setMobileActionsOpen(false);
     audioManager.stopNarrating();

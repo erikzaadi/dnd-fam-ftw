@@ -1,4 +1,5 @@
 import type { NarrationInput } from './NarrationProvider.js';
+import { devLog } from '../../../lib/devLog.js';
 import {
   SECTION_PREAMBLE_PACING_TENSION,
   SECTION_MOMENTUM_DIRECTIVES,
@@ -110,6 +111,33 @@ export function buildNarrationSystemPrompt(input: NarrationInput): string {
     ...(isLootTurn ? [SECTION_INVENTORY_COMBAT_LOOT] : []),
     ...(tradeEnabled ? [SECTION_INVENTORY_TRADE] : []),
   ];
+
+  const includedKeys = [
+    'PREAMBLE_PACING_TENSION',
+    ...(hasMomentum ? ['MOMENTUM_DIRECTIVES'] : []),
+    ...(isActiveCombat ? ['COMBAT_PACING', 'ACTIVE_ENCOUNTER'] : []),
+    'FAIL_FORWARD',
+    ...(restTurn ? ['REST_RECOVERY'] : []),
+    ...(buffTurn ? ['CUTE_CONDITIONS_BUFFS'] : []),
+    'CHOICES_FORMAT',
+    ...(hasDramaRoll ? ['DRAMA_ROLL'] : []),
+    'DIFFICULTY_SHORT',
+    'CONTINUITY_SHORT',
+    ...(hasFrozen ? ['FROZEN_CONFRONTATION'] : []),
+    ...(hasStall ? ['LOCATION_STALL'] : []),
+    'ACTING_SHORT',
+    'CHOICE_VARIETY',
+    ...(riddleEnabled ? ['CHOICES_RIDDLE'] : []),
+    ...(tradeEnabled ? ['CHOICES_VENDOR'] : []),
+    'PARTY_STATUS',
+    ...(hasDramaRoll || isActiveCombat ? ['DAMAGE_FAILURE'] : []),
+    ...(hasDownedOrHealing ? ['REVIVAL_HEALING'] : []),
+    ...(buffTurn ? ['BUFFS_CURSES_FORMAT', 'SUPPORT_ACTION_PAYOFF', 'ACTION_INTENT'] : []),
+    ...(inventoryRelevant ? ['INVENTORY_BASICS'] : []),
+    ...(isLootTurn ? ['INVENTORY_COMBAT_LOOT'] : []),
+    ...(tradeEnabled ? ['INVENTORY_TRADE'] : []),
+  ];
+  devLog.log(`[Narration] prompt-sections count=${includedKeys.length} keys=${includedKeys.join(',')}`);
 
   return sections.join('\n\n');
 }

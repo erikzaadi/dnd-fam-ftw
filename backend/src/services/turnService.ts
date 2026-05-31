@@ -20,6 +20,7 @@ import {
 import { buildSceneMomentum, buildScenePressure } from './sceneMomentumService.js';
 import { ensureSuccessfulEnchantmentSuggestion, ensureSuccessfulHealingSuggestion, ensureSuccessfulSupportSuggestion, inferActionIntent } from './freeActionPolicyService.js';
 import { repairEncounterNameIfNeeded } from './encounterNameRepairService.js';
+import { buildRollNarration } from './rollNarrationService.js';
 
 const logTurnStep = (sessionId: string, step: string, start: number, details = ''): number => {
   const now = Date.now();
@@ -404,16 +405,18 @@ export const executeTurnAction = async (
     `scenePressure=${scenePressure.kind} momentum=${sceneMomentum.directive}`,
   );
 
+  const earlyHpChange = GameEngine.computeDeterministicHpChange(session, actingCharId, actionAttempt);
+  if (actionAttempt.actionResult.statUsed !== 'none') {
+    broadcastUpdate(sessionId, 'narration_roll_ready', {
+      rollNarration: buildRollNarration(actionAttempt.actionResult) || null,
+      actionResult: actionAttempt.actionResult,
+      hpChanges: earlyHpChange ? [earlyHpChange] : undefined,
+    });
+  }
   devLog.log(`[Turn] llm-start session=${sessionId} turn=${session.turn}`);
   const llmStart = Date.now();
-  const earlyHpChange = GameEngine.computeDeterministicHpChange(session, actingCharId, actionAttempt);
   const streamCallbacks: NarrationStreamCallbacks = {
     onChunk: (text, field) => broadcastUpdate(sessionId, 'narration_chunk', { text, field }),
-    onRollNarrationDone: (rollNarration) => broadcastUpdate(sessionId, 'narration_roll_ready', {
-      rollNarration,
-      actionResult: actionAttempt.actionResult.statUsed !== 'none' ? actionAttempt.actionResult : undefined,
-      hpChanges: earlyHpChange ? [earlyHpChange] : undefined,
-    }),
     onStreamingDone: (narration, rollNarration) => broadcastUpdate(sessionId, 'narration_streaming_done', { narration, rollNarration }),
     onAbort: () => broadcastUpdate(sessionId, 'narration_chunk_abort', {}),
   };

@@ -114,6 +114,8 @@ export function toNarrationInput(input: AIInput): NarrationInput {
         : input.dmPrep;
     }
   }
+  const dmPrepSource = !input.dmPrep || isActiveEncounter ? 'omitted' : input.compiledDmPrep ? 'compiled' : 'raw';
+  devLog.log(`[AiDm] dmPrep-source=${dmPrepSource} chars=${compactedDmPrep?.length ?? 0}`);
 
   // Stable party/inventory snippets are cached per session and rebuilt only when stable sources change.
   const partyVersion = computePartyVersion(input.party);
