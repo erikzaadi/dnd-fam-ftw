@@ -37,6 +37,7 @@ type TurnHistoryRow = {
   inventoryChanges: string | null;
   narrationRetried: number | null;
   narrationFailed: number | null;
+  choicesFailed: number | null;
   narrationValidationError: string | null;
   narrationRetryValidationError: string | null;
   encounterEnemyChanges: string | null;
@@ -127,6 +128,7 @@ const mapTurnHistoryRow = (row: TurnHistoryRow): TurnResult => {
     ...(row.inventoryChanges && { inventoryChanges: JSON.parse(row.inventoryChanges) }),
     ...(row.narrationRetried != null && { narrationRetried: !!row.narrationRetried }),
     ...(row.narrationFailed != null && { narrationFailed: !!row.narrationFailed }),
+    ...(row.choicesFailed != null && { choicesFailed: !!row.choicesFailed }),
     ...(row.narrationValidationError && { narrationValidationError: row.narrationValidationError }),
     ...(row.narrationRetryValidationError && { narrationRetryValidationError: row.narrationRetryValidationError }),
     ...(row.encounterEnemyChanges && { encounterEnemyChanges: JSON.parse(row.encounterEnemyChanges) }),
@@ -150,7 +152,7 @@ export const turnHistoryRepository = {
   async addTurnResult(sessionId: string, turn: TurnResult, characterId: string | null): Promise<number> {
     const db = getDb();
     const action = turn.lastAction ?? null;
-    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, encounterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionChoiceItemBonus, actionChoiceItemName, actionChoiceItemOwnerName, actionCharacterBonus, actionCharacterBonusLabel, actionBuffBonus, actionBuffBonusLabel, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges, narrationRetried, narrationFailed, narrationValidationError, narrationRetryValidationError, encounterEnemyChanges, buffChanges) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, encounterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionChoiceItemBonus, actionChoiceItemName, actionChoiceItemOwnerName, actionCharacterBonus, actionCharacterBonusLabel, actionBuffBonus, actionBuffBonusLabel, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges, narrationRetried, narrationFailed, narrationValidationError, narrationRetryValidationError, encounterEnemyChanges, buffChanges, choicesFailed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(sessionId, characterId || null, turn.encounterId ?? null, turn.narration, turn.rollNarration || null, turn.imagePrompt, turn.imageSuggested ? 1 : 0, turn.imageUrl || null,
         action?.actionAttempt ?? null,
         action?.actionResult?.statUsed ?? null,
@@ -180,6 +182,7 @@ export const turnHistoryRepository = {
         turn.narrationRetryValidationError ?? null,
         turn.encounterEnemyChanges && turn.encounterEnemyChanges.length > 0 ? JSON.stringify(turn.encounterEnemyChanges) : null,
         turn.buffChanges && turn.buffChanges.length > 0 ? JSON.stringify(turn.buffChanges) : null,
+        turn.choicesFailed ? 1 : 0,
       );
 
     const turnId = info.lastInsertRowid;

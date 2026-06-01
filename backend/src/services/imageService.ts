@@ -146,19 +146,43 @@ export class ImageService {
       return { url: storage.getPublicUrl(existingKey), prompt, storageKey: existingKey, storageProvider: config.IMAGE_STORAGE_PROVIDER };
     }
 
-    try {
-      console.log(`[ImageService] Generating avatar for ${char.name}`);
-      const avatarStart = Date.now();
-      const imageProvider = overrideImageProvider ?? createImageProvider();
-      const result = await imageProvider.generateImage({ prompt, ...outputOptions });
-      console.log(`[ImageService] Avatar for ${char.name} received in ${Date.now() - avatarStart}ms`);
-
+    const imageProvider = overrideImageProvider ?? createImageProvider();
+    const attemptGenerate = async (attemptPrompt: string): Promise<{ url: string; storageKey: string }> => {
+      const result = await imageProvider.generateImage({ prompt: attemptPrompt, ...outputOptions });
       const buffer = await this.fetchImageBuffer(result.url);
       const outputDetails = this.providerOutputDetails(result, outputOptions);
       const stored = await storage.putImage({ key: this.imageFileNameWithExtension(fileBaseName, outputDetails.extension), contentType: outputDetails.contentType, body: buffer, cacheControl: 'public, max-age=31536000, immutable' });
-      return { url: stored.publicUrl, prompt, storageKey: stored.key, storageProvider: config.IMAGE_STORAGE_PROVIDER };
+      return { url: stored.publicUrl, storageKey: stored.key };
+    };
+
+    try {
+      console.log(`[ImageService] Generating avatar for ${char.name}`);
+      const avatarStart = Date.now();
+      let stored: { url: string; storageKey: string };
+      try {
+        stored = await attemptGenerate(prompt);
+      } catch (firstError) {
+        const code = (firstError as { code?: string })?.code;
+        if (code === 'moderation_blocked') {
+          console.warn(`[ImageService] Avatar for ${char.name} blocked by moderation, retrying with generic prompt`);
+          const genericPrompt = buildImagePrompt(
+            `Fantasy adventurer portrait, close-up face and shoulders, dark atmospheric background, dramatic rim lighting.`,
+            IMAGE_PROMPT_STYLE.avatar,
+          );
+          stored = await attemptGenerate(genericPrompt);
+        } else {
+          throw firstError;
+        }
+      }
+      console.log(`[ImageService] Avatar for ${char.name} received in ${Date.now() - avatarStart}ms`);
+      return { url: stored.url, prompt, storageKey: stored.storageKey, storageProvider: config.IMAGE_STORAGE_PROVIDER };
     } catch (error) {
-      console.error('[ImageService] Avatar generation failed, using initials SVG:', error);
+      const code = (error as { code?: string })?.code;
+      if (code === 'moderation_blocked') {
+        console.warn(`[ImageService] Avatar for ${char.name} blocked by moderation (retry also blocked), using initials SVG`);
+      } else {
+        console.error('[ImageService] Avatar generation failed, using initials SVG:', error);
+      }
       const svgUrl = this.generateInitialsSvg(char.name, sessionId);
       return { url: svgUrl, prompt, storageKey: '', storageProvider: 'local' };
     }

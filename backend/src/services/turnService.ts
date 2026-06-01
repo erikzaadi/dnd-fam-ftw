@@ -1,7 +1,9 @@
 import { broadcastSessionChanged, broadcastUpdate } from '../realtime/sessionEvents.js';
 import { devLog } from '../lib/devLog.js';
 import type { ActionAttempt, AIInput, Difficulty, SessionState, Stat } from '../types.js';
-import { AiDmService } from './aiDmService.js';
+import { AiDmService, toNarrationInput } from './aiDmService.js';
+import { DmTurnOrchestrator } from './dmTurnOrchestrator.js';
+import { getConfig } from '../config/env.js';
 import type { NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
 import { GameEngine } from './gameEngine.js';
 import { StateService } from './stateService.js';
@@ -135,11 +137,11 @@ const alignTurnWithResolvedEncounter = (
 const stripChoicesTargetingDefeatedEnemies = (
   newState: SessionState,
   turnResult: Awaited<ReturnType<typeof AiDmService.generateTurnResult>>,
-): void => {
+): boolean => {
   // Run for active encounters and for just-resolved encounters - newState.encounterState.enemies
   // always has updated statuses, so defeated enemies are visible in both cases.
   if (!newState.encounterState) {
-    return;
+    return false;
   }
   const defeatedTerms = new Set(
     newState.encounterState.enemies
@@ -147,7 +149,7 @@ const stripChoicesTargetingDefeatedEnemies = (
       .flatMap(e => [e.name, ...(e.aliases ?? [])].map(t => t.toLowerCase())),
   );
   if (defeatedTerms.size === 0) {
-    return;
+    return false;
   }
   const activeEnemies = newState.encounterState.enemies.filter(e => e.status === 'active');
   let changed = false;
@@ -178,6 +180,7 @@ const stripChoicesTargetingDefeatedEnemies = (
     turnResult.choices = fixedChoices;
     newState.lastChoices = fixedChoices;
   }
+  return changed;
 };
 
 export interface TurnActionRequest {
@@ -314,7 +317,7 @@ export const executeTurnAction = async (
     broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
     broadcastSessionChanged(namespaceId, sessionId, 'updated');
     logTurnStep(sessionId, 'item-total', turnStart, `turnId=${turnResult.id}`);
-    devLog.log(`[Metrics] turn_complete session=${sessionId} turn=${itemState.turn} totalMs=${Date.now() - turnStart} llmMs=${itemLlmMs} retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
+    console.log(`[Metrics] turn_complete session=${sessionId} turn=${itemState.turn} workflow=${getConfig().NARRATION_WORKFLOW} totalMs=${Date.now() - turnStart} llmMs=${itemLlmMs} retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false} choicesFailed=${turnResult.choicesFailed ?? false}`);
     return { ok: true, body: { actionAttempt: itemAttempt, turnResult, session: newState } };
   }
 
@@ -435,7 +438,17 @@ export const executeTurnAction = async (
     actionAttempt: actionAttempt.actionAttempt,
   });
   alignTurnWithResolvedEncounter(session, newState, turnResult);
-  stripChoicesTargetingDefeatedEnemies(newState, turnResult);
+  const choicesHadDefeatedRefs = stripChoicesTargetingDefeatedEnemies(newState, turnResult);
+  if (choicesHadDefeatedRefs && !turnResult.choicesFailed && getConfig().NARRATION_WORKFLOW === 'agentic') {
+    devLog.log(`[Guard] choices-rerun start session=${sessionId}`);
+    const updatedNarrationInput = toNarrationInput({ ...aiInput, encounterState: newState.encounterState ?? undefined });
+    const rerunChoices = await new DmTurnOrchestrator().rerunChoices(updatedNarrationInput);
+    if (rerunChoices !== null) {
+      turnResult.choices = rerunChoices;
+      newState.lastChoices = rerunChoices;
+      devLog.log(`[Guard] choices-rerun done session=${sessionId}`);
+    }
+  }
   await StateService.updateSession(sessionId, newState);
   stepStart = logTurnStep(sessionId, 'update-session', stepStart);
 
@@ -454,7 +467,7 @@ export const executeTurnAction = async (
   broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
   broadcastSessionChanged(namespaceId, sessionId, 'updated');
   logTurnStep(sessionId, 'total', turnStart, `turnId=${turnResult.id}`);
-  devLog.log(`[Metrics] turn_complete session=${sessionId} turn=${session.turn} totalMs=${Date.now() - turnStart} llmMs=${llmMs} retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
+  console.log(`[Metrics] turn_complete session=${sessionId} turn=${session.turn} workflow=${getConfig().NARRATION_WORKFLOW} totalMs=${Date.now() - turnStart} llmMs=${llmMs} retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false} choicesFailed=${turnResult.choicesFailed ?? false}`);
 
   return {
     ok: true,

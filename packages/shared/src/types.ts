@@ -304,6 +304,7 @@ export interface TurnResult {
   encounterEnemyChanges?: EncounterEnemyChange[];
   narrationRetried?: boolean;
   narrationFailed?: boolean;
+  choicesFailed?: boolean;
   narrationValidationError?: string;
   narrationRetryValidationError?: string;
   suggestedEncounterStart?: EncounterStartProposal | null;

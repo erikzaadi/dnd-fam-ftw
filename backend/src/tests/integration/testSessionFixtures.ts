@@ -23,6 +23,8 @@ export const setupIntegrationEnvironment = (name: string): IntegrationTestPaths 
   process.env.IMAGE_STORAGE_PROVIDER = 'local';
   process.env.OPENAI_BASE_URL = 'http://127.0.0.1:1';
   process.env.OPENAI_API_KEY = 'test-invalid-key';
+  // Integration tests mock createNarrationProvider (monolith path); force monolith so the mock is exercised
+  process.env.NARRATION_WORKFLOW = 'monolith';
   StateService.initialize();
 
   return paths;

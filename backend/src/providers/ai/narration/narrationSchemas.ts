@@ -80,7 +80,7 @@ export const suggestedEncounterUpdateSchema = z.object({
   })).max(4).optional().nullable(),
 }).optional().nullable();
 
-const choiceSchema = z.object({
+export const choiceSchema = z.object({
   label: z.string().min(1),
   difficulty: z.enum(DIFFICULTY_VALUES),
   stat: z.enum(STAT_VALUES),
@@ -95,7 +95,7 @@ const choiceSchema = z.object({
   environmentFeature: z.string().min(1).optional().nullable(),
 });
 
-const inventoryAddSchema = z.object({
+export const inventoryAddSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
   targetCharacterName: z.string().optional().nullable(),
@@ -114,12 +114,12 @@ const inventoryAddSchema = z.object({
   boundToCharacterName: z.string().optional().nullable(),
 });
 
-const inventoryRemoveSchema = z.object({
+export const inventoryRemoveSchema = z.object({
   characterName: z.string().min(1),
   itemName: z.string().min(1),
 });
 
-const inventoryUpdateSchema = z.object({
+export const inventoryUpdateSchema = z.object({
   characterName: z.string().min(1),
   itemName: z.string().min(1),
   name: z.string().min(1).optional().nullable(),
@@ -139,7 +139,7 @@ const inventoryUpdateSchema = z.object({
   boundToCharacterName: z.string().optional().nullable(),
 });
 
-const reviveSchema = z.object({
+export const reviveSchema = z.object({
   characterName: z.string().min(1),
   hp: z.number().int().min(1).max(999),
 });
@@ -150,7 +150,7 @@ const buffStatBonusesSchema = z.object({
   mischief: z.number().optional().nullable(),
 }).optional().nullable();
 
-const buffAddSchema = z.object({
+export const buffAddSchema = z.object({
   characterName: z.string().min(1),
   name: z.string().min(1),
   description: z.string().min(1),
@@ -161,7 +161,7 @@ const buffAddSchema = z.object({
   sourceCharacterName: z.string().min(1).optional().nullable(),
 });
 
-const buffRemoveSchema = z.object({
+export const buffRemoveSchema = z.object({
   characterName: z.string().min(1),
   buffName: z.string().min(1),
 });

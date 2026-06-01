@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildNarrationSystemPrompt, isTradeTurn, isRiddleTurn } from './narrationPrompt.js';
+import { buildChoicesAgentSystemPrompt } from './agentPrompts.js';
 import type { NarrationInput } from './NarrationProvider.js';
 
 const makeInput = (overrides: Partial<NarrationInput> = {}): NarrationInput => ({
@@ -413,5 +414,29 @@ describe('buildNarrationSystemPrompt with Frozen Confrontation & Location Stall'
     const prompt = buildNarrationSystemPrompt(input);
     expect(prompt).not.toContain('surface that character as a real encounter');
     expect(prompt).not.toContain('introduce a narrative hook this turn');
+  });
+});
+
+describe('buildChoicesAgentSystemPrompt - vendor/trade section', () => {
+  it('includes vendor section when action mentions trade keyword', () => {
+    const prompt = buildChoicesAgentSystemPrompt(makeInput({ actionAttempt: 'Buy a healing potion from the vendor' }));
+    expect(prompt).toContain('VENDOR');
+  });
+
+  it('excludes vendor section for ordinary non-trade action', () => {
+    const prompt = buildChoicesAgentSystemPrompt(makeInput({ actionAttempt: 'Sneak past the guard' }));
+    expect(prompt).not.toContain('VENDOR');
+  });
+});
+
+describe('buildChoicesAgentSystemPrompt - riddle section', () => {
+  it('includes riddle section when recent history mentions riddle', () => {
+    const prompt = buildChoicesAgentSystemPrompt(makeInput({ recentHistory: ['The sphinx poses a riddle to the party.'] }));
+    expect(prompt).toContain('RIDDLE');
+  });
+
+  it('excludes riddle section for ordinary action with no riddle signal', () => {
+    const prompt = buildChoicesAgentSystemPrompt(makeInput({ actionAttempt: 'Sneak past the guard' }));
+    expect(prompt).not.toContain('RIDDLE');
   });
 });

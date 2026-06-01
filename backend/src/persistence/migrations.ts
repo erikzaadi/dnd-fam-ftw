@@ -224,6 +224,9 @@ export const migrate = (db: DB): void => {
   if (!turnCols.includes('narrationFailed')) {
     db.prepare("ALTER TABLE turn_history ADD COLUMN narrationFailed INTEGER").run();
   }
+  if (!turnCols.includes('choicesFailed')) {
+    db.prepare("ALTER TABLE turn_history ADD COLUMN choicesFailed INTEGER").run();
+  }
   if (!turnCols.includes('narrationValidationError')) {
     db.prepare("ALTER TABLE turn_history ADD COLUMN narrationValidationError TEXT").run();
   }

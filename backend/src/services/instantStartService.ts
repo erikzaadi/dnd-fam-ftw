@@ -29,7 +29,8 @@ export function buildInstantStartParty(sessionId: string): Character[] {
 }
 
 async function generateAvatars(party: Character[], sessionId: string): Promise<void> {
-  await Promise.allSettled(party.map(async char => {
+  // Sequential (not parallel) to avoid API quota spikes that compete with narration on early turns
+  for (const char of party) {
     try {
       const result = await ImageService.generateAvatar(char, sessionId);
       const current = await StateService.getSession(sessionId);
@@ -38,7 +39,7 @@ async function generateAvatars(party: Character[], sessionId: string): Promise<v
       }
       const idx = current.party.findIndex(c => c.id === char.id);
       if (idx === -1) {
-        return;
+        continue;
       }
       current.party[idx] = {
         ...current.party[idx],
@@ -52,7 +53,7 @@ async function generateAvatars(party: Character[], sessionId: string): Promise<v
     } catch (err) {
       console.warn(`[InstantStart] Avatar generation failed for ${char.name}:`, err);
     }
-  }));
+  }
 }
 
 export async function runInstantStartBackground(

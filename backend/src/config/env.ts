@@ -16,6 +16,7 @@ export type AppConfig = {
   FRONTEND_URL?: string;
   APP_BASE_PATH: string;
   APP_VERSION: string;
+  NARRATION_WORKFLOW: 'monolith' | 'agentic';
 };
 
 let _config: AppConfig | null = null;
@@ -30,6 +31,14 @@ export function getConfig(): AppConfig {
 export function isAuthEnabled(): boolean {
   const c = getConfig();
   return !!(c.GOOGLE_CLIENT_ID && c.GOOGLE_CLIENT_SECRET && c.JWT_SECRET);
+}
+
+function parseNarrationWorkflow(): 'monolith' | 'agentic' {
+  const value = process.env.NARRATION_WORKFLOW ?? 'agentic';
+  if (value !== 'monolith' && value !== 'agentic') {
+    throw new Error(`[Config] Invalid NARRATION_WORKFLOW: "${value}". Must be "monolith" or "agentic".`);
+  }
+  return value;
 }
 
 function parse(): AppConfig {
@@ -54,5 +63,6 @@ function parse(): AppConfig {
     FRONTEND_URL: process.env.FRONTEND_URL ?? '',
     APP_BASE_PATH: process.env.APP_BASE_PATH ?? '/',
     APP_VERSION: process.env.APP_VERSION ?? 'dev',
+    NARRATION_WORKFLOW: parseNarrationWorkflow(),
   };
 }
