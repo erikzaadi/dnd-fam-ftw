@@ -4,7 +4,7 @@
 
 A family-friendly, AI-powered D&D adventure game built for short, hilarious story nights. An AI Dungeon Master narrates your adventure, generates scene artwork, and never lets the story get boring.
 
-![Home screen](docs/home-screen.png)
+![Home screen](docs/dnd-fam-again-home.png)
 
 ---
 
@@ -20,7 +20,7 @@ No prep required. No DM experience required. Just vibes and a d20.
 
 ### The Adventure
 
-![Scene image with savings toggle](docs/scene-image-gameplay.png)
+![Scene image with narration overlay](docs/dnd-fam-again-story.png)
 
 - **AI Dungeon Master** : OpenAI models narrate your story in real-time
 - **GPT Image scene and realm images** : every major moment gets illustrated, and each realm gets a generated preview image for home and recap screens
@@ -32,11 +32,7 @@ No prep required. No DM experience required. Just vibes and a d20.
 - **Per-session image toggle** : the 🖼/🪙 toggle in-session overrides the global images setting; session preference wins
 - **Real-time multi-device sync** : everyone at the table can follow along via SSE
 
-![Session header with party avatars](docs/session-header-party.png)
-
-![AI narration panel](docs/narration-panel.png)
-
-![Action choices and d20 result](docs/turn-history-card.png)
+![Action choices and d20 result](docs/dnd-fam-again-breadcrumbs.png)
 
 ![Inventory panel with stat bonus item](docs/inventory-panel.png)
 
@@ -55,7 +51,7 @@ No prep required. No DM experience required. Just vibes and a d20.
 
 Every hero gets a generated portrait and carries their quirk into the story:
 
-![Character popup - Pundemic](docs/character-popup-pundemic.png) ![Character popup - Mambadelic](docs/character-popup-mambadelic.png)
+![Character popup - Pundemic](docs/character-popup-pundemic.png) ![Character popup - Zara Spellsworth](docs/dnd-fam-again-zara.png)
 
 ### Between Sessions
 
@@ -274,7 +270,7 @@ See **[MANAGE.md](MANAGE.md)** for the full command reference.
 
 ## AI Usage
 
-There are seven distinct AI calls in the app, each with a different purpose and cost profile:
+There are 15 distinct AI calls in the app, each with a different purpose and cost profile:
 
 | Call | Where | Model env var | Default | When |
 |---|---|---|---|---|
@@ -285,9 +281,11 @@ There are seven distinct AI calls in the app, each with a different purpose and 
 | **TLDR summary** | `turnRoutes.ts` | `OPENAI_MODEL_NARRATION` | `gpt-4.1-mini` | On demand in recap screen |
 | **Character history** | `characterRoutes.ts` | `OPENAI_MODEL_NARRATION` | `gpt-4.1-mini` | When importing a character from a previous session |
 | **Campaign brief / DM prep** | `storySummaryService.ts` | `OPENAI_MODEL_ASYNC` | `gpt-4.1` | At realm creation (blocks first turn) |
+| **DM prep compilation** | `dmPrepCompilationService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-4.1-nano` | After campaign brief, compresses brief into a structured premise |
 | **Story summary** | `storySummaryService.ts` | `OPENAI_MODEL_ASYNC` | `gpt-4.1` | Every 5 turns, background |
 | **Metrics summary** | `.github/workflows/metrics.yml` | hardcoded | `gpt-4.1` | Weekly CI job |
 | **TTS narration** | `ttsService.ts` | `OPENAI_MODEL_TTS` | `gpt-4o-mini-tts` | Every turn, async queued |
+| **Scene image brief** | `imageBriefProvider.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-4.1-nano` | Every turn, generates a ~45-word prompt for the image model |
 | **Scene image** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | Every turn, async via SSE, cached by prompt hash |
 | **Realm preview image** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | On realm creation, cached |
 | **Avatar generation** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | Once per character creation, cached permanently |
