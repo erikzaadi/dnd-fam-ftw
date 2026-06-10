@@ -34,6 +34,7 @@ jobs:
   snapshots:
     runs-on: ubuntu-latest
     environment: ci
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v5
