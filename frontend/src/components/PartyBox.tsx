@@ -1,7 +1,7 @@
 import type { Character } from '../types';
 import { imgSrc, pulseSyncDelay } from '../lib/api';
 import { Tooltip } from './Tooltip';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 
 interface PartyBoxProps {
@@ -40,7 +40,7 @@ const tooltipContent = (c: Character, isActor: boolean, canSupport: boolean): Re
       <div className="text-slate-300 text-[10px]">{hp}{buffs ? ` · ${buffs}` : ''}</div>
       {canSupport && !isActor && (
         <div className="mt-1 pt-1 border-t border-slate-700/50 flex flex-col gap-0.5">
-          <div className="text-[9px] text-blue-400/90 font-black tracking-wider uppercase">Press [B] to Bless</div>
+          <div className="text-[9px] text-blue-400/90 font-black tracking-wider uppercase">Press [E] to Bless</div>
           <div className="text-[9px] text-emerald-400/90 font-black tracking-wider uppercase">Press [A] to Aid</div>
         </div>
       )}
@@ -87,7 +87,7 @@ export const PartyBox = ({
     const isActor = character.id === activeCharacterId;
     const canSupport = !isActor && character.status !== 'downed' && !previewThinking;
 
-    if (e.key === 'b' && canSupport && onBlessCharacter) {
+    if (e.key === 'e' && canSupport && onBlessCharacter) {
       e.preventDefault();
       onBlessCharacter(character.id);
     } else if (e.key === 'a' && canSupport && onAidCharacter) {
@@ -97,6 +97,36 @@ export const PartyBox = ({
       handleArrowNav(e);
     }
   };
+
+  // Support E/A while merely hovering an avatar (no keyboard focus needed); the
+  // tooltip advertises the keys on hover, so they must work on hover.
+  const hoveredCharRef = useRef<Character | null>(null);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || e.defaultPrevented) {
+        return;
+      }
+      const character = hoveredCharRef.current;
+      if (!character || (e.key !== 'e' && e.key !== 'a')) {
+        return;
+      }
+      const canSupport = character.id !== activeCharacterId && character.status !== 'downed' && !previewThinking;
+      if (!canSupport) {
+        return;
+      }
+      if (e.key === 'e' && onBlessCharacter) {
+        e.preventDefault();
+        onBlessCharacter(character.id);
+      } else if (e.key === 'a' && onAidCharacter) {
+        e.preventDefault();
+        onAidCharacter(character.id);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [activeCharacterId, previewThinking, onBlessCharacter, onAidCharacter]);
 
   return (
     <div
@@ -120,8 +150,14 @@ export const PartyBox = ({
                 type="button"
                 onClick={() => onCharacterClick(c)}
                 onKeyDown={(e) => handleCharKeyDown(e, c)}
+                onMouseEnter={() => {
+                  hoveredCharRef.current = c;
+                }}
+                onMouseLeave={() => {
+                  hoveredCharRef.current = null;
+                }}
                 className={`relative flex items-center justify-center rounded-full transition-all hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 ${isActive ? 'w-12 h-12 xl:w-14 xl:h-14' : 'w-9 h-9 xl:w-11 xl:h-11'}`}
-                aria-label={`${c.name} - ${c.hp}/${c.max_hp} HP. Press B to bless, A to aid.`}
+                aria-label={`${c.name} - ${c.hp}/${c.max_hp} HP. Press E to bless, A to aid.`}
               >
                 {c.avatarUrl ? (
                   <img

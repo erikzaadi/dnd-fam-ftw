@@ -148,7 +148,9 @@ interface SessionHudProps {
 
 export const SessionHud = ({ session, onCharacterClick, onBlessCharacter, onAidCharacter, onPartyBoost, previewThinking }: SessionHudProps) => (
   <header className={`fixed top-0 left-0 right-0 ${Z.hud} flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3 pointer-events-none`}>
-    <h1 className="text-amber-500 text-lg md:text-2xl xl:text-3xl font-display font-black italic tracking-tight shrink-0 bg-slate-950/60 backdrop-blur-md ml-4 px-4 py-2 rounded-2xl pointer-events-auto self-start">
+    {/* One line + ellipsis keeps the fixed banner's height deterministic, so the
+        session layout's static top padding below it always clears it */}
+    <h1 className="text-amber-500 text-lg md:text-2xl xl:text-3xl font-display font-black italic tracking-tight shrink-0 max-w-full truncate bg-slate-950/60 backdrop-blur-md ml-4 px-4 py-2 rounded-2xl pointer-events-auto self-start">
       {session.displayName}
     </h1>
     <div className="pointer-events-auto ml-4 sm:ml-0" data-tutorial="party-box">

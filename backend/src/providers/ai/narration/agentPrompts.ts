@@ -77,16 +77,20 @@ export function buildNarrationAgentSystemPrompt(input: NarrationInput): string {
   return sections.join('\n\n');
 }
 
+const DEFEATED_FOES_RULE = `DEFEATED FOES: resolvedEncounterEnemyNames lists enemies that are already defeated, fled, or surrendered. They are gone from the story. Never create choices that attack, pursue, guard against, or otherwise reference them. Build choices around what comes next: new locations, NPCs, clues, or fresh obstacles.`;
+
 export function buildChoicesAgentSystemPrompt(input: NarrationInput): string {
   const isActiveCombat = input.encounterState?.status === 'active';
   const tradeEnabled = isTradeTurn(input);
   const riddleEnabled = isRiddleTurn(input);
+  const hasResolvedFoes = !!input.resolvedEncounterEnemyNames?.length;
 
   const sections = [
     'You are a fantasy DM producing exactly 3 action choices for the next character\'s turn.',
     'Your output contains ONLY one field: choices (exactly 3 items).',
     'Do NOT produce narration text, rollNarration, currentTensionLevel, or any state changes.',
     'Generate choices appropriate for the turn outcome indicated by actionResult and the current scene.',
+    ...(hasResolvedFoes ? [DEFEATED_FOES_RULE] : []),
     SECTION_CHOICES_FORMAT,
     SECTION_DIFFICULTY_SHORT,
     ...(isActiveCombat ? [SECTION_COMBAT_PACING] : []),

@@ -249,6 +249,10 @@ export const SessionPage = () => {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // A more specific handler (e.g. party box bless/aid) already consumed this key
+      if (e.defaultPrevented) {
+        return;
+      }
       const inTextField = (e.target as HTMLElement).tagName === 'TEXTAREA' || (e.target as HTMLElement).tagName === 'INPUT';
       if (inTextField) {
         return;
@@ -1068,7 +1072,7 @@ export const SessionPage = () => {
       )}
 
       {!showChronicle && !loading && !showMobileActionsOverlay && (
-        <nav className="fixed inset-x-3 bottom-3 z-[80] grid grid-cols-3 gap-2 rounded-2xl border border-slate-700/80 bg-slate-950/92 p-2 shadow-2xl backdrop-blur-md xl:hidden" aria-label="Session mobile tools">
+        <nav className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[80] grid grid-cols-3 gap-2 rounded-2xl border border-slate-700/80 bg-slate-950/92 p-2 shadow-2xl backdrop-blur-md xl:hidden" aria-label="Session mobile tools">
           <button
             type="button"
             onClick={() => setMobileActionsOpen(true)}
@@ -1117,7 +1121,7 @@ export const SessionPage = () => {
         </div>
       )}
 
-      <div className={`grid gap-4 px-4 pb-24 min-h-dvh grid-cols-1 ${sessionGridRows} xl:h-dvh xl:overflow-hidden xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-rows-[1fr] xl:pb-4 ${showBanner ? 'pt-40 sm:pt-28' : 'pt-3'}`}>
+      <div className={`grid gap-4 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] min-h-dvh grid-cols-1 ${sessionGridRows} xl:h-dvh xl:overflow-hidden xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-rows-[1fr] xl:pb-4 ${showBanner ? 'pt-40 sm:pt-28' : 'pt-14 xl:pt-3'}`}>
         {/* Story Stage */}
         <div className={`min-h-[18rem] xl:min-h-0 ${showNarrationOnlyLoading ? 'hidden xl:block' : ''}`} data-tutorial="story-box">
           <StoryStage
@@ -1319,6 +1323,7 @@ export const SessionPage = () => {
             { key: 's', action: 'Open / close settings' },
             { key: 'q', action: 'Exit realm (with confirm)' },
             { key: 'p', action: 'Focus party box (shows banner)' },
+            { key: 'e / a', action: 'Bless / Aid hovered or focused party member' },
             { key: 'r', action: 'Party rally (boon)' },
             { key: 'b', action: 'Toggle banner' },
             { key: 'Esc', action: 'Close overlays / blur input' },

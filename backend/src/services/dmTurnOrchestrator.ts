@@ -218,6 +218,7 @@ function choicesUserContent(input: NarrationInput): string {
     encounterState: input.encounterState
       ? { status: input.encounterState.status, enemies: input.encounterState.enemies.map(e => ({ name: e.name, hp: e.hp, status: e.status })) }
       : undefined,
+    resolvedEncounterEnemyNames: input.resolvedEncounterEnemyNames?.length ? input.resolvedEncounterEnemyNames : undefined,
     previousChoiceLabels: input.previousChoiceLabels,
     actingCharacterName: input.actingCharacterName,
     nextCharacterName: input.nextCharacterName,
@@ -244,11 +245,18 @@ function inventoryUserContent(input: NarrationInput): string {
   return JSON.stringify({
     inventory: input.inventory,
     actionAttempt: input.actionAttempt,
-    actionResult: { success: input.actionResult.success, summary: input.actionResult.summary },
+    // difficulty drives the loot drop-rate rules; stats/class drive the stat-fit rules
+    actionResult: {
+      success: input.actionResult.success,
+      summary: input.actionResult.summary,
+      difficulty: input.actionResult.difficulty,
+    },
+    actingCharacterName: input.actingCharacterName,
+    gameMode: input.gameMode,
     encounterState: input.encounterState ? { status: input.encounterState.status } : undefined,
     encounterJustResolved: input.encounterJustResolved,
     encounterLootHint: input.encounterLootHint,
-    party: input.party.map(c => ({ name: c.name })),
+    party: input.party.map(c => ({ name: c.name, class: c.class, species: c.species, stats: c.stats })),
   });
 }
 

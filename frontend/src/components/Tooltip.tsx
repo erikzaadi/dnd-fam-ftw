@@ -4,9 +4,9 @@ import { createPortal } from 'react-dom';
 
 // Literal strings required so Tailwind scans all group variants at build time.
 const GROUP = {
-  default: { wrapper: 'group', hover: 'group-hover:opacity-100' },
-  use: { wrapper: 'group/use', hover: 'group-hover/use:opacity-100' },
-  give: { wrapper: 'group/give', hover: 'group-hover/give:opacity-100' },
+  default: { wrapper: 'group', hover: 'group-hover:opacity-100 group-focus-within:opacity-100' },
+  use: { wrapper: 'group/use', hover: 'group-hover/use:opacity-100 group-focus-within/use:opacity-100' },
+  give: { wrapper: 'group/give', hover: 'group-hover/give:opacity-100 group-focus-within/give:opacity-100' },
 } as const;
 
 interface TooltipProps {

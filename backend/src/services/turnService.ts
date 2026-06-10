@@ -137,23 +137,25 @@ const stripChoicesTargetingDefeatedEnemies = (
   newState: SessionState,
   turnResult: Awaited<ReturnType<typeof AiDmService.generateTurnResult>>,
 ): boolean => {
-  // Run for active encounters and for just-resolved encounters - newState.encounterState.enemies
-  // always has updated statuses, so defeated enemies are visible in both cases.
-  if (!newState.encounterState) {
-    return false;
-  }
-  const defeatedTerms = new Set(
-    newState.encounterState.enemies
+  // Defeated terms come from the live encounter (updated statuses cover both active
+  // and just-resolved fights) plus the most recently archived encounter, so the turn
+  // right after resolution moves the encounter to pastEncounters is still covered.
+  const lastArchived = newState.pastEncounters?.[newState.pastEncounters.length - 1];
+  const defeatedTerms = new Set([
+    ...(newState.encounterState?.enemies ?? [])
       .filter(e => e.status !== 'active')
       .flatMap(e => [e.name, ...(e.aliases ?? [])].map(t => t.toLowerCase())),
-  );
+    ...(!newState.encounterState && lastArchived
+      ? lastArchived.enemies.flatMap(e => [e.name, ...(e.aliases ?? [])].map(t => t.toLowerCase()))
+      : []),
+  ]);
   if (defeatedTerms.size === 0) {
     return false;
   }
-  const activeEnemies = newState.encounterState.enemies.filter(e => e.status === 'active');
+  const activeEnemies = (newState.encounterState?.enemies ?? []).filter(e => e.status === 'active');
   let changed = false;
   const fixedChoices = turnResult.choices.map(choice => {
-    const lower = choice.label.toLowerCase();
+    const lower = `${choice.label} ${choice.narration ?? ''}`.toLowerCase();
     if (![...defeatedTerms].some(term => lower.includes(term))) {
       return choice;
     }

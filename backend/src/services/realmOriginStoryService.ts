@@ -8,6 +8,11 @@ function buildFallback(session: SessionState): string {
   return `${names} came together in ${realm}. Their story is about to begin.`;
 }
 
+// Scale length with party size: one setup paragraph plus roughly one per two heroes
+function paragraphCount(session: SessionState): number {
+  return 1 + Math.ceil(session.party.length / 2);
+}
+
 function buildPrompt(session: SessionState): string {
   const charLines = session.party.map(c => {
     const parts = [`${c.name}, a ${c.gender ? c.gender + ' ' : ''}${c.species} ${c.class}`];
@@ -46,7 +51,9 @@ function buildPrompt(session: SessionState): string {
     }
   }
 
-  return `Write the opening origin story for a family-friendly D&D realm. 3 to 5 short paragraphs. Plain prose, no headers.
+  const paragraphs = paragraphCount(session);
+
+  return `Write the opening origin story for a family-friendly D&D realm. Exactly ${paragraphs} short paragraphs: the first sets the realm and the stakes, the rest weave in the heroes. Plain prose, no headers.
 
 ${realmLine}${dmContext}
 Tone: ${toneNote}
@@ -79,12 +86,15 @@ export const RealmOriginStoryService = {
     const { client, model } = createChatClientForTier('async');
     console.log(`[OriginStory] Generating for session=${sessionId} model=${model}`);
 
+    // Token budget tracks the party-scaled paragraph count used in the prompt
+    const maxTokens = Math.min(600, 140 * paragraphCount(session) + 60);
+
     let text: string;
     try {
       const response = await client.chat.completions.create({
         model,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 600,
+        max_tokens: maxTokens,
       }, { signal: AbortSignal.timeout(30_000) });
       const msg = response.choices[0].message;
       const raw = msg.content || (msg as unknown as Record<string, string>)['reasoning_content'] || '';
