@@ -4,7 +4,7 @@
 
 A family-friendly, AI-powered D&D adventure game built for short, hilarious story nights. An AI Dungeon Master narrates your adventure, generates scene artwork, and never lets the story get boring.
 
-![Home screen](docs/dnd-fam-again-home.png)
+![Home screen](docs/home.png)
 
 ---
 
@@ -20,7 +20,7 @@ No prep required. No DM experience required. Just vibes and a d20.
 
 ### The Adventure
 
-![Scene image with narration overlay](docs/dnd-fam-again-story.png)
+![Scene image with narration overlay](docs/story-scene.png)
 
 - **AI Dungeon Master** : OpenAI models narrate your story in real-time
 - **GPT Image scene and realm images** : every major moment gets illustrated, and each realm gets a generated preview image for home and recap screens
@@ -32,7 +32,7 @@ No prep required. No DM experience required. Just vibes and a d20.
 - **Per-session image toggle** : the 🖼/🪙 toggle in-session overrides the global images setting; session preference wins
 - **Real-time multi-device sync** : everyone at the table can follow along via SSE
 
-![Action choices and d20 result](docs/dnd-fam-again-breadcrumbs.png)
+![Action choices with team-up, gear, social, and obstacle flavors](docs/action-choices.png)
 
 ![Inventory panel with stat bonus item](docs/inventory-panel.png)
 
@@ -51,7 +51,7 @@ No prep required. No DM experience required. Just vibes and a d20.
 
 Every hero gets a generated portrait and carries their quirk into the story:
 
-![Character popup - Pundemic](docs/character-popup-pundemic.png) ![Character popup - Zara Spellsworth](docs/dnd-fam-again-zara.png)
+![Character popup with stat breakdown and inventory](docs/character-popup.png)
 
 ### Between Sessions
 
@@ -59,6 +59,15 @@ Every hero gets a generated portrait and carries their quirk into the story:
 
 - **TLDR mode** : AI summarises the whole adventure in 3 sentences for latecomers
 - **Movie mode** : animated slideshow of every scene, with Ken Burns effect and pause/play controls. Click any image for fullscreen. If a turn has no scene image, the realm preview is used as the fallback.
+
+### Alternative Ways to Play
+
+![Car mode - hands-free voice play](docs/car-mode.png)
+
+- **Car mode** (`/session/<id>/car`) : hands-free play for road trips - the DM reads narration aloud (TTS) and players answer by voice (speech-to-text); requires voice setup before it unlocks
+- **Terminal mode** (`/session/<id>/terminal`) : a retro CRT adventure shell; type choice numbers or free-text actions like it's 1982. There is no in-app link - this is a very well hidden feature reserved for the most hoodie-driven hackers: view-source folk, and those who still remember the old code (in any realm: Up Up Down Down Left Right Left Right B A)
+
+![Terminal mode - retro adventure shell](docs/terminal-mode.png)
 
 ### Audio
 

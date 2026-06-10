@@ -222,7 +222,7 @@ Transfer a transferable item to another party member. Also bypasses the stat rol
 
 Rules:
 - The acting character must own the item.
-- The item must have `transferable: true`.
+- The item must not have `transferable: false` (a missing `transferable` field defaults to giveable).
 - The item is moved from the giver's inventory to the receiver's inventory.
 - The item retains all its properties (`statBonuses`, `healValue`, etc.).
 - AI narrates the transfer.

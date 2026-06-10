@@ -54,4 +54,49 @@ describe('Inventory', () => {
 
     expect(onGiveItem).toHaveBeenCalledWith('alice', 'moon-key', 'bob');
   });
+
+  it('shows the Give button when transferable is undefined (defaults to giveable)', () => {
+    const party = [
+      makeChar('alice', 'Alice', [
+        {
+          id: 'moon-key',
+          name: 'Moon Key',
+          description: 'A silver key with a moon-shaped bow.',
+        },
+      ]),
+      makeChar('bob', 'Bob'),
+    ];
+    render(
+      <Inventory
+        party={party}
+        activeCharacterId="alice"
+        onGiveItem={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Give' })).toBeInTheDocument();
+  });
+
+  it('hides the Give button when the item is explicitly not transferable', () => {
+    const party = [
+      makeChar('alice', 'Alice', [
+        {
+          id: 'cursed-ring',
+          name: 'Cursed Ring',
+          description: 'It will not come off.',
+          transferable: false,
+        },
+      ]),
+      makeChar('bob', 'Bob'),
+    ];
+    render(
+      <Inventory
+        party={party}
+        activeCharacterId="alice"
+        onGiveItem={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: 'Give' })).not.toBeInTheDocument();
+  });
 });

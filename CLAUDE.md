@@ -140,6 +140,7 @@ When adding CLI subcommands or flags, also update `scripts/cli-completion.bash`.
 | `npm run test:e2e` | Playwright E2E tests using isolated dev servers and mocked narration |
 | `npm run test:visual` | Playwright visual snapshot tests (dev server must be running) |
 | `npm run test:visual:update` | Regenerate local snapshot baselines |
+| `npm run generate-readme-screenshots` | Regenerate `docs/*.png` README screenshots (self-contained: boots seeded backend + frontend with mocked AI) |
 | `npm run setup:playwright` | One-time: install Playwright Chromium |
 
 ## Testing patterns

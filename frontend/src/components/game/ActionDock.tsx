@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import type { TurnResult, Character, FreeActionPreview } from '../../types';
 import { apiFetch, imgSrc, pulseSyncDelay } from '../../lib/api';
-import { beatTarget } from '../../lib/game';
+import { computeChoiceOdds, COMBO_HELPER_BONUS, CHOICE_ITEM_BONUS, CHARACTER_EDGE_BONUS } from '../../lib/game';
 import { StatImg } from './StatIcon';
 import { STAT_COLORS, STAT_TEXT_COLORS } from '../../lib/statColors';
 import { getHpColors } from '../../lib/hpColors';
@@ -56,16 +56,6 @@ const CHOICE_FLAVOR_BADGES: Record<string, { label: string; className: string }>
   item: { label: 'Gear', className: 'bg-amber-950/40 border-amber-700/50 text-amber-300' },
   environment: { label: 'Obstacle', className: 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300' },
 };
-
-const COMBO_HELPER_BONUS = 2;
-const CHOICE_ITEM_BONUS = 2;
-const CHARACTER_EDGE_BONUS = 2;
-
-const calcProb = (statTotal: number, target: number) => {
-  const minNeeded = Math.max(1, Math.min(20, target - statTotal));
-  return Math.round(((21 - minNeeded) / 20) * 100);
-};
-
 
 export const ActionDock = ({
   turn,
@@ -475,24 +465,10 @@ export const ActionDock = ({
               <div className="flex flex-col gap-2">
                 <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 px-1">Choose an Action</div>
                 {turn.choices.map((choice, i) => {
-                  const isRiddleAnswer = !!choice.riddleAnswer;
                   const flavorBadge = choice.flavor && choice.flavor !== 'standard' ? CHOICE_FLAVOR_BADGES[choice.flavor] : null;
                   const risk = RISK_MAP[choice.difficulty] ?? RISK_MAP.normal;
-                  const choiceStat = choice.stat as 'might' | 'magic' | 'mischief';
-                  const statBase = activeCharacter?.stats[choiceStat] ?? 0;
-                  const statBonus = activeCharacter?.inventory.reduce((s, item) => s + (item.statBonuses?.[choiceStat] ?? 0), 0) ?? 0;
-                  const rawBuffBonus = (activeCharacter?.buffs ?? []).reduce((s, buff) => s + (buff.statBonuses?.[choiceStat] ?? 0), 0);
-                  const buffBonus = Math.min(3, Math.max(-3, rawBuffBonus));
-                  const hasActiveHelper = choice.flavor === 'combo' && !!choice.helperCharacterName && party.some(c => c.name === choice.helperCharacterName && c.status === 'active' && c.id !== activeCharacter?.id);
-                  const helperBonus = hasActiveHelper ? COMBO_HELPER_BONUS : 0;
-                  const hasChoiceItem = choice.flavor === 'item' && !!activeCharacter && choice.itemOwnerName === activeCharacter.name && !!choice.itemName && activeCharacter.inventory.some(item => item.name === choice.itemName);
-                  const choiceItemBonus = hasChoiceItem ? CHOICE_ITEM_BONUS : 0;
-                  const characterBonus = choice.flavor === 'spotlight' || choice.flavor === 'social' ? CHARACTER_EDGE_BONUS : 0;
-                  const characterBonusLabel = choice.flavor === 'spotlight' ? 'spotlight' : choice.flavor === 'social' ? 'social' : '';
-                  const statTotal = statBase + statBonus + buffBonus + helperBonus + choiceItemBonus + characterBonus;
-                  const target = beatTarget(choice.difficultyValue, choice.difficulty);
+                  const { isRiddleAnswer, statBonus, buffBonus, helperBonus, choiceItemBonus, characterBonus, characterBonusLabel, statTotal, target, prob } = computeChoiceOdds(choice, activeCharacter, party);
                   const shortcut = i + 1;
-                  const prob = calcProb(statTotal, target);
 
                   return (
                     <div key={i} className="relative">

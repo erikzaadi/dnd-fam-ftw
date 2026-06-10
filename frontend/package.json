@@ -15,7 +15,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test --config playwright.e2e.config.ts",
     "test:visual": "playwright test",
-    "test:visual:update": "playwright test --update-snapshots"
+    "test:visual:update": "playwright test --update-snapshots",
+    "generate-readme-screenshots": "playwright test --config playwright.readme.config.ts"
   },
   "dependencies": {
     "@dnd-fam-ftw/shared": "file:../packages/shared",

@@ -118,6 +118,41 @@ describe('GameEngine', () => {
     expect(result.newState.party.find(c => c.id === 'next')!.inventory).toHaveLength(0);
     expect(result.newState.party.find(c => c.id === 'target')!.inventory[0].name).toBe('Moon Key');
   });
+
+  it('applyGiveItem allows giving an item when transferable is undefined (defaults to true)', () => {
+    const giver = makeChar({
+      id: 'giver',
+      name: 'Pip',
+      inventory: [{ id: 'moon-key', name: 'Moon Key', description: 'Silver key', consumable: false }], // transferable is undefined
+    });
+    const chosenTarget = makeChar({ id: 'target', name: 'Zara' });
+    const session = makeSession({
+      activeCharacterId: 'giver',
+      party: [giver, chosenTarget],
+    });
+
+    const result = GameEngine.applyGiveItem(session, 'giver', 'moon-key', 'target');
+
+    expect(result.error).toBeUndefined();
+    expect(result.newState.party.find(c => c.id === 'target')!.inventory[0].name).toBe('Moon Key');
+  });
+
+  it('applyGiveItem returns an error when item is explicitly not transferable', () => {
+    const giver = makeChar({
+      id: 'giver',
+      name: 'Pip',
+      inventory: [{ id: 'cursed-ring', name: 'Cursed Ring', description: 'Cannot remove', transferable: false, consumable: false }],
+    });
+    const chosenTarget = makeChar({ id: 'target', name: 'Zara' });
+    const session = makeSession({
+      activeCharacterId: 'giver',
+      party: [giver, chosenTarget],
+    });
+
+    const result = GameEngine.applyGiveItem(session, 'giver', 'cursed-ring', 'target');
+
+    expect(result.error).toBe('Item is not transferable');
+  });
 });
 
 describe('GameEngine.resolveAction - edge cases', () => {

@@ -13,6 +13,8 @@ import {
   buildLocationSegment,
 } from '../session/car/carSpeechSegment';
 import { imgSrc } from '../lib/api';
+import { computeChoiceOdds } from '../lib/game';
+import type { Choice, Session } from '../types';
 
 
 interface TerminalEntry {
@@ -21,6 +23,16 @@ interface TerminalEntry {
   text: string;
   imageUrl?: string;
 }
+
+// Choice line with the same roll odds the ActionDock shows: stat, total vs target, risk, percentage
+const formatChoiceLine = (choice: Choice, idx: number, sess: Session | null | undefined): string => {
+  const activeChar = sess?.party.find(c => c.id === sess.activeCharacterId) ?? null;
+  const odds = computeChoiceOdds(choice, activeChar, sess?.party ?? []);
+  if (odds.isRiddleAnswer) {
+    return `${idx + 1}. ${choice.label} [riddle answer - no roll]`;
+  }
+  return `${idx + 1}. ${choice.label} [${choice.stat} ${odds.statTotal} vs ${odds.target} - ${odds.riskLabel.toLowerCase()} ${odds.prob}%]`;
+};
 
 export const TerminalMode: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -110,7 +122,7 @@ export const TerminalMode: React.FC = () => {
 
       if (turn.choices && turn.choices.length > 0) {
         turn.choices.forEach((choice, idx) => {
-          addLogEntry('system', `${idx + 1}. ${choice.label}`);
+          addLogEntry('system', formatChoiceLine(choice, idx, updatedSession));
         });
       }
 
@@ -232,7 +244,7 @@ export const TerminalMode: React.FC = () => {
             newEntries.push({
               id: `init-choice-${idx}`,
               type: 'system',
-              text: `${idx + 1}. ${choice.label}`,
+              text: formatChoiceLine(choice, idx, session),
             });
           });
         }
@@ -316,7 +328,7 @@ export const TerminalMode: React.FC = () => {
         const latestTurn = history[history.length - 1];
         if (latestTurn && latestTurn.choices) {
           latestTurn.choices.forEach((choice, idx) => {
-            addLogEntry('system', `${idx + 1}. ${choice.label}`);
+            addLogEntry('system', formatChoiceLine(choice, idx, session));
           });
         }
       } else if (intent.type === 'retry' || (intent.type === 'custom' && trimmedCommand.toLowerCase().startsWith('retry '))) {
@@ -387,7 +399,7 @@ export const TerminalMode: React.FC = () => {
       const latestTurn = history[history.length - 1];
       if (latestTurn && latestTurn.choices && latestTurn.choices.length > 0) {
         latestTurn.choices.forEach((choice, idx) => {
-          addLogEntry('system', `${idx + 1}. ${choice.label}`);
+          addLogEntry('system', formatChoiceLine(choice, idx, session));
         });
       } else {
         addLogEntry('system', 'No options available for the current turn.');
@@ -433,7 +445,7 @@ export const TerminalMode: React.FC = () => {
           const latestTurn = history[history.length - 1];
           if (latestTurn && latestTurn.choices) {
             latestTurn.choices.forEach((choice, idx) => {
-              addLogEntry('system', `${idx + 1}. ${choice.label}`);
+              addLogEntry('system', formatChoiceLine(choice, idx, session));
             });
           }
         } else if (inputValue) {
@@ -457,7 +469,7 @@ export const TerminalMode: React.FC = () => {
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [id, navigate, inputValue, actionPreviewText, activeImageUrl, history, clearPreview, addLogEntry, toggleFullscreenMode, handleCarMode, handleHelp, handleClear]);
+  }, [id, navigate, inputValue, actionPreviewText, activeImageUrl, history, session, clearPreview, addLogEntry, toggleFullscreenMode, handleCarMode, handleHelp, handleClear]);
 
   // Sync fullscreen change events with local state and output log notices
   useEffect(() => {

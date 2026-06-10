@@ -1,9 +1,13 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const DB_PATH = '/tmp/dnd-fam-ftw-e2e.sqlite';
-const IMAGE_PATH = '/tmp/dnd-fam-ftw-e2e-images';
-const BACKEND_PORT = 3101;
-const FRONTEND_PORT = 5174;
+// Self-contained config for generating README screenshots into docs/.
+// Boots its own backend (with a throwaway seeded SQLite and mocked AI)
+// and frontend, so no running dev server or API keys are needed.
+
+const DB_PATH = '/tmp/dnd-fam-ftw-readme-screenshots.sqlite';
+const IMAGE_PATH = '/tmp/dnd-fam-ftw-readme-screenshots-images';
+const BACKEND_PORT = 3102;
+const FRONTEND_PORT = 5175;
 
 const backendEnv = [
   `SQLITE_DB_PATH=${DB_PATH}`,
@@ -11,24 +15,23 @@ const backendEnv = [
   'LOCAL_IMAGE_PUBLIC_BASE_URL=/test-images',
   'IMAGE_STORAGE_PROVIDER=local',
   'TEST_AI_MOCK=true',
-  'OPENAI_API_KEY=e2e-test-key',
+  'OPENAI_API_KEY=readme-screenshots-key',
   `PORT=${BACKEND_PORT}`,
 ].join(' ');
 
 export default defineConfig({
-  testDir: './tests/e2e',
+  testDir: './tests',
+  testMatch: 'readme-screenshots.spec.ts',
   fullyParallel: false,
-  forbidOnly: !!process.env.CI,
   retries: 0,
   workers: 1,
-  reporter: process.env.CI ? [['github'], ['list']] : 'html',
+  reporter: 'list',
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${FRONTEND_PORT}`,
-    trace: 'on-first-retry',
+    baseURL: `http://localhost:${FRONTEND_PORT}`,
   },
   webServer: [
     {
-      command: `${backendEnv} npm exec -- tsx src/scripts/cli.ts sessions seed && ${backendEnv} npm exec -- tsx watch src/index.ts`,
+      command: `rm -f ${DB_PATH} && ${backendEnv} npm exec -- tsx src/scripts/cli.ts sessions seed && ${backendEnv} npm exec -- tsx src/index.ts`,
       cwd: '../backend',
       url: `http://localhost:${BACKEND_PORT}/health`,
       timeout: 120_000,

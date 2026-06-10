@@ -97,12 +97,73 @@ describe('carSpeechSegment', () => {
   });
 
   describe('buildChoicesSegment', () => {
-    it('builds numbered choices', () => {
+    it('builds numbered choices without odds when no session is given', () => {
       const choices = [
         { label: 'Attack', difficulty: 'normal' as const, stat: 'might' as const },
         { label: 'Run away', difficulty: 'easy' as const, stat: 'mischief' as const },
       ];
       expect(buildChoicesSegment(choices)).toBe('Option 1: Attack. Option 2: Run away.');
+    });
+
+    it('speaks stat, risk, and success percentage when a session is given', () => {
+      const session: Session = {
+        id: '1',
+        scene: 'Cave',
+        turn: 1,
+        displayName: 'Test Session',
+        savingsMode: false,
+        interventionState: { rescuesUsed: 0 },
+        activeCharacterId: 'char-1',
+        party: [
+          {
+            id: 'char-1',
+            name: 'Hagar',
+            class: 'Barbarian',
+            species: 'Human',
+            quirk: 'Angry',
+            hp: 10,
+            max_hp: 10,
+            status: 'active',
+            stats: { might: 4, magic: 0, mischief: 1 },
+            inventory: [],
+          },
+        ],
+      } as unknown as Session;
+      const choices = [
+        { label: 'Attack', difficulty: 'normal' as const, stat: 'might' as const },
+      ];
+      // might 4 vs target 12 -> needs 8+ on the d20 -> 65 percent
+      expect(buildChoicesSegment(choices, session)).toBe('Option 1: Attack. A risky might roll, 65 percent.');
+    });
+
+    it('announces riddle answers as no-roll options', () => {
+      const session: Session = {
+        id: '1',
+        scene: 'Cave',
+        turn: 1,
+        displayName: 'Test Session',
+        savingsMode: false,
+        interventionState: { rescuesUsed: 0 },
+        activeCharacterId: 'char-1',
+        party: [
+          {
+            id: 'char-1',
+            name: 'Hagar',
+            class: 'Barbarian',
+            species: 'Human',
+            quirk: 'Angry',
+            hp: 10,
+            max_hp: 10,
+            status: 'active',
+            stats: { might: 4, magic: 0, mischief: 1 },
+            inventory: [],
+          },
+        ],
+      } as unknown as Session;
+      const choices = [
+        { label: 'Answer: a river', difficulty: 'normal' as const, stat: 'mischief' as const, riddleAnswer: 'a river' },
+      ];
+      expect(buildChoicesSegment(choices, session)).toBe('Option 1: Answer: a river. A riddle answer, no roll needed.');
     });
   });
 

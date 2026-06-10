@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FirstRunWizard } from './FirstRunWizard';
+import { installMockLocalStorage } from '../test/mockLocalStorage';
 
 const mocks = vi.hoisted(() => ({
   apiFetch: vi.fn(),
@@ -53,7 +54,7 @@ vi.mock('../stt/browserSpeechRecognitionService', () => ({
 }));
 
 beforeEach(() => {
-  localStorage.clear();
+  installMockLocalStorage();
   vi.clearAllMocks();
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,

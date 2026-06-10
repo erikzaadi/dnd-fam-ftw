@@ -1,5 +1,5 @@
 import { zodResponseFormat } from 'openai/helpers/zod';
-import type { NarrationChoice, NarrationInput, NarrationOutput, NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
+import type { NarrationChoice, NarrationInput, NarrationOutput, NarrationProvider, NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
 import { buildNarrationFallback } from '../providers/ai/narration/narrationFallback.js';
 import { buildNarrationUserContent } from '../providers/ai/narration/narrationPrompt.js';
 import { isTradeTurn } from '../providers/ai/narration/narrationPrompt.js';
@@ -113,8 +113,9 @@ export function shouldRunRecoveryAgent(input: NarrationInput): boolean {
 function extractStreamingFields(snapshot: string): { rollNarration: string | null; narration: string } {
   const rollMatch = /"rollNarration":"((?:[^"\\]|\\.)*)/.exec(snapshot);
   const narrationMatch = /"narration":"((?:[^"\\]|\\.)*)/.exec(snapshot);
+  // The em-dash swap is length-preserving, so the emitted-length chunk diffing stays consistent
   const unescape = (s: string) =>
-    s.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"').replace(/\\\\/g, '\\').replace(/\\r/g, '');
+    s.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"').replace(/\\\\/g, '\\').replace(/\\r/g, '').replace(/—/g, '-');
   return {
     rollNarration: rollMatch ? unescape(rollMatch[1]) : null,
     narration: narrationMatch ? unescape(narrationMatch[1]) : '',
@@ -396,24 +397,40 @@ async function callRecoveryAgent(input: NarrationInput, signal: AbortSignal): Pr
   return parsed.data;
 }
 
+const ANSI_RE = new RegExp(String.fromCharCode(0x1b) + String.raw`\[[0-9;]*[a-zA-Z]`, 'g');
+// Control chars except \n and \t, which are legitimate in narration prose
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARS_RE = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
+
+// Models occasionally ignore the no-em-dash typography prompt rule. Enforce it
+// deterministically on all player-visible text, as the monolith guard used to.
+function cleanText(value: string): string {
+  return value.replace(ANSI_RE, '').replace(CONTROL_CHARS_RE, '').replace(/[—]/g, '-');
+}
+
 function coerceChoice(raw: ChoicesAgentOutput['choices'][0]): NarrationChoice {
   return {
-    label: raw.label,
+    label: cleanText(raw.label),
     difficulty: raw.difficulty,
     stat: raw.stat,
     difficultyValue: raw.difficultyValue,
-    narration: raw.narration ?? undefined,
-    riddleAnswer: raw.riddleAnswer ?? undefined,
+    narration: raw.narration ? cleanText(raw.narration) : undefined,
+    riddleAnswer: raw.riddleAnswer ? cleanText(raw.riddleAnswer) : undefined,
     riddleCorrect: raw.riddleCorrect ?? undefined,
     flavor: raw.flavor ?? undefined,
     helperCharacterName: raw.helperCharacterName ?? undefined,
     itemOwnerName: raw.itemOwnerName ?? undefined,
     itemName: raw.itemName ?? undefined,
-    environmentFeature: raw.environmentFeature ?? undefined,
+    environmentFeature: raw.environmentFeature ? cleanText(raw.environmentFeature) : undefined,
   };
 }
 
-export class DmTurnOrchestrator {
+export class DmTurnOrchestrator implements NarrationProvider {
+  // NarrationProvider entry point used by createNarrationProvider()
+  generateTurn(input: NarrationInput, callbacks?: NarrationStreamCallbacks): Promise<DmTurnOrchestratorResult> {
+    return this.orchestrate(input, callbacks);
+  }
+
   async rerunChoices(input: NarrationInput): Promise<NarrationChoice[] | null> {
     const start = Date.now();
     const controller = new AbortController();
@@ -505,19 +522,29 @@ export class DmTurnOrchestrator {
       }
       : undefined;
 
+    // Narration streams a few hundred tokens, so it regularly needs >3.5s; the
+    // deadline is p99 hang protection, not a latency target - a fallback narration
+    // is a much worse player outcome than a couple of extra seconds of streaming.
+    // First/intervention/sanctuary turns are story-critical and run while heavy
+    // background work (campaign media, origin story) competes for the API, and
+    // the player is reading intro text anyway - give them an even longer budget.
+    const relaxedDeadlines = !!(input.isFirstTurn || input.interventionRescue || input.sanctuaryRecovery);
+    const narrationDeadlineMs = relaxedDeadlines ? 8000 : 6000;
+    const choicesDeadlineMs = relaxedDeadlines ? 5000 : 3500;
+
     const [narration, choices, combat, inventory, recovery] = await Promise.all([
       withDeadline(
         'narration',
         (signal) => callNarrationAgent(input, gatedCallbacks, signal),
         narrationFallback,
-        3500,
+        narrationDeadlineMs,
         diagnostics,
       ),
       withDeadline(
         'choices',
         (signal) => callChoicesAgent(input, signal),
         choicesFallback,
-        3500,
+        choicesDeadlineMs,
         diagnostics,
       ),
       runCombat
@@ -546,10 +573,10 @@ export class DmTurnOrchestrator {
 
     // Zod schemas allow null for optional fields but NarrationOutput uses undefined.
     // Coerce choices explicitly; use runtime-safe casts for complex nested types
-    // (same pattern used by OpenAINarrationProvider which casts message.parsed as NarrationOutput).
+    // whose Zod-inferred shapes are structurally compatible with NarrationOutput.
     return {
-      narration: narration.narration,
-      rollNarration: narration.rollNarration ?? undefined,
+      narration: cleanText(narration.narration),
+      rollNarration: narration.rollNarration ? cleanText(narration.rollNarration) : undefined,
       currentTensionLevel: narration.currentTensionLevel,
       choices: choices.choices.map(coerceChoice),
       suggestedDamage: combat.suggestedDamage ?? null,

@@ -1,4 +1,5 @@
 import type { Session, TurnResult, Choice, Character } from '../../types';
+import { computeChoiceOdds } from '../../lib/game';
 
 /**
  * Sanitizes text to be spoken by a text-to-speech engine.
@@ -117,11 +118,22 @@ export function buildActiveCharacterSegment(session: Session): string {
 /**
  * Builds options segment.
  */
-export function buildChoicesSegment(choices: Choice[]): string {
+export function buildChoicesSegment(choices: Choice[], session?: Session | null): string {
   if (!choices || choices.length === 0) {
     return '';
   }
-  return choices.map((c, i) => sanitizeText(`Option ${i + 1}: ${c.label}.`)).join(' ');
+  const activeChar = session ? session.party.find(c => c.id === session.activeCharacterId) ?? null : null;
+  return choices.map((c, i) => {
+    const base = `Option ${i + 1}: ${c.label}.`;
+    if (!session) {
+      return sanitizeText(base);
+    }
+    const odds = computeChoiceOdds(c, activeChar, session.party);
+    if (odds.isRiddleAnswer) {
+      return sanitizeText(`${base} A riddle answer, no roll needed.`);
+    }
+    return sanitizeText(`${base} A ${odds.riskLabel.toLowerCase()} ${c.stat} roll, ${odds.prob} percent.`);
+  }).join(' ');
 }
 
 /**

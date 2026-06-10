@@ -21,6 +21,7 @@ import { useAudioSettings } from '../audio/useAudioSettings';
 import { useTtsSettings } from '../tts/useTtsSettings';
 import { narrationTtsService } from '../tts/narrationTtsService';
 import { useCapabilities } from '../hooks/useCapabilities';
+import { useKonamiCode } from '../hooks/useKonamiCode';
 import { Tooltip } from '../components/Tooltip';
 import { NarrationTtsButton } from '../components/NarrationTtsButton';
 import { KeybindingsHelp } from '../components/KeybindingsHelp';
@@ -315,6 +316,13 @@ export const SessionPage = () => {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [history.length, navigate, showFullInventory]);
+
+  // Easter egg: the Konami code drops you into the retro adventure shell
+  useKonamiCode(() => {
+    audioManager.stopMusic();
+    narrationTtsService.stopNarration();
+    navigate(`/session/${id}/terminal`);
+  });
 
   const { connectionState } = useSessionEvents({
     sessionId: id!,

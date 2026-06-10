@@ -436,7 +436,7 @@ export class GameEngine {
     }
 
     const item = actingChar.inventory[itemIdx];
-    if (!item.transferable) {
+    if (item.transferable === false) {
       return { newState, actionAttempt: { actionAttempt: 'give item', actionResult: { success: false, roll: 0, statUsed: 'none' } }, error: 'Item is not transferable' };
     }
 

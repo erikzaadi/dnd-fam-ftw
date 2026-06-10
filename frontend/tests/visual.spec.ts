@@ -1,7 +1,17 @@
-import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  SESSIONS,
+  dismissAudioOverlay,
+  waitForSessionReady,
+  getSessionOrFail,
+  enableSavingsMode,
+  getSessionDetailOrFail,
+  suppressFirstRunOverlays,
+  setupCarModeRoutes,
+} from './helpers';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BACKEND_DIR = path.resolve(__dirname, '../../backend');
@@ -17,17 +27,6 @@ const VIEWPORTS = [
   { width: 3440, height: 1440, name: 'desktop-ultrawide-21-9' },
 ];
 
-const SESSIONS = {
-  standard: 'seed-session-1',
-  dragonPeak: 'seed-session-2',
-  inventory: 'seed-session-1',
-  characterPopup: 'seed-session-3',
-  chronicle: 'seed-session-1',
-  fallen: 'seed-session-6',
-  storyRealm: 'seed-session-5',
-  mechanicsShowcase: 'seed-session-7',
-} as const;
-
 const SEEDED_PARTY = {
   [SESSIONS.standard]: ['Barnabas Strongarm', 'Zara the Nimble', 'Eldwin Spark', 'Mira the Bold'],
   [SESSIONS.characterPopup]: ['Pipwick', 'Thalia Stone', 'Brother Oswin', 'Mirela Voss'],
@@ -42,33 +41,6 @@ const CHARACTER_POPUP_TARGET = {
   characterName: 'Pipwick',
 } as const;
 
-type SessionListItem = { id: string; displayName: string; gameOver?: boolean };
-type VisualCharacter = { id: string; name: string; status?: string };
-type SessionDetail = {
-  id: string;
-  activeCharacterId?: string;
-  party: VisualCharacter[];
-};
-
-async function dismissAudioOverlay(page: Page): Promise<void> {
-  const btn = page.getByRole('button', { name: 'Enable Audio' });
-  try {
-    await btn.waitFor({ state: 'visible', timeout: 2000 });
-    await btn.click();
-  } catch {
-    // overlay not present
-  }
-}
-
-async function waitForSessionReady(page: Page): Promise<void> {
-  // Session screenshots should not capture transient image-generation state.
-  try {
-    await page.getByText('Painting the scene...').waitFor({ state: 'hidden', timeout: 30_000 });
-  } catch {
-    // not present or already gone
-  }
-}
-
 async function screenshotViewports(page: Page, slug: string): Promise<void> {
   for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
@@ -78,35 +50,6 @@ async function screenshotViewports(page: Page, slug: string): Promise<void> {
       maxDiffPixelRatio: 0.01,
     });
   }
-}
-
-async function getSessionOrFail(request: APIRequestContext, id: string): Promise<SessionListItem> {
-  const res = await request.get('/api/sessions');
-  expect(res.ok()).toBe(true);
-  const sessions = await res.json() as SessionListItem[];
-  const session = sessions.find(s => s.id === id);
-  expect(
-    session,
-    `Seed session ${id} was not found. Run "cd backend && npm run cli -- sessions seed" against the visual-test database before updating snapshots.`
-  ).toBeTruthy();
-  return session;
-}
-
-async function setSavingsMode(request: APIRequestContext, sessionId: string, enabled: boolean): Promise<void> {
-  const res = await request.post(`/api/session/${sessionId}/savings-mode`, {
-    data: { enabled },
-  });
-  expect(res.ok()).toBe(true);
-}
-
-async function enableSavingsMode(request: APIRequestContext, sessionId: string): Promise<void> {
-  await setSavingsMode(request, sessionId, true);
-}
-
-async function getSessionDetailOrFail(request: APIRequestContext, id: string): Promise<SessionDetail> {
-  const res = await request.get(`/api/session/${id}`);
-  expect(res.ok()).toBe(true);
-  return await res.json() as SessionDetail;
 }
 
 async function mockPreviewAction(page: Page): Promise<void> {
@@ -127,15 +70,6 @@ async function mockPreviewAction(page: Page): Promise<void> {
       flavor: 'item',
     }),
   }));
-}
-
-// Suppress first-run overlays in visual tests. Each test calls this
-// before page.goto() so the initScript fires before React mounts.
-async function suppressFirstRunOverlays(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    localStorage.setItem('tutorial_ever_started', '1');
-    localStorage.setItem('dnd-first-run-wizard', JSON.stringify({ completedVersion: 1 }));
-  });
 }
 
 function seedSessionsFixture(): void {
@@ -1097,57 +1031,6 @@ test('session dm-recap panel - roll result failure with HP loss', async ({ page 
   await expect(page.getByText('The realm responds...')).toBeVisible({ timeout: 5_000 });
   await screenshotViewports(page, 'session-dm-recap-roll-failure');
 });
-
-async function setupCarModeRoutes(page: Page, sessionId: string): Promise<void> {
-  await page.route(`**/api/session/${sessionId}`, route => {
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        id: sessionId,
-        displayName: 'Car Mode Adventure',
-        scene: 'The Whispering Forest',
-        turn: 1,
-        activeCharacterId: 'char-1',
-        party: [
-          {
-            id: 'char-1',
-            name: 'Barnabas Strongarm',
-            class: 'Barbarian',
-            species: 'Human',
-            hp: 10,
-            max_hp: 10,
-            status: 'active',
-            inventory: [],
-          },
-        ],
-      }),
-    });
-  });
-  await page.route(`**/api/session/${sessionId}/history`, route => {
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify([
-        {
-          id: 1,
-          narration: 'You hear a low growl from the dark trees.',
-          choices: [
-            { label: 'Draw your sword', difficulty: 'normal', stat: 'might' },
-            { label: 'Sneak past the bushes', difficulty: 'hard', stat: 'mischief' },
-          ],
-        },
-      ]),
-    });
-  });
-  await page.route('**/api/capabilities', route => {
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ hasCloudAI: true, hasTts: true }),
-    });
-  });
-}
 
 test('car-mode-setup-blocking', async ({ page }) => {
   const sessionId = 'visual-car-mode-setup';

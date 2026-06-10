@@ -249,7 +249,7 @@ export function useCarConductor({
   const speakOptionsAndPrompt = useCallback(() => {
     const latestTurn = history[history.length - 1];
     const choices = latestTurn?.choices || [];
-    const choicesSeg = buildChoicesSegment(choices);
+    const choicesSeg = buildChoicesSegment(choices, session);
 
     const seq: SpokenSegment[] = [];
     if (choicesSeg) {
@@ -258,12 +258,12 @@ export function useCarConductor({
     seq.push({ type: 'prompt', text: CHOOSE_ACTION_PROMPT, cacheKey: 'car:v1:prompt:choose-action' });
 
     void playSequence(seq);
-  }, [history, playSequence]);
+  }, [history, session, playSequence]);
 
   const speakOptionsOnly = useCallback(() => {
     const latestTurn = history[history.length - 1];
     const choices = latestTurn?.choices || [];
-    const choicesSeg = buildChoicesSegment(choices);
+    const choicesSeg = buildChoicesSegment(choices, session);
 
     const seq: SpokenSegment[] = [];
     if (choicesSeg) {
@@ -271,7 +271,7 @@ export function useCarConductor({
     }
 
     void playSequence(seq);
-  }, [history, playSequence]);
+  }, [history, session, playSequence]);
 
   const speakFullStorySequence = useCallback(() => {
     const latestTurn = history[history.length - 1];
@@ -316,7 +316,7 @@ export function useCarConductor({
       }
     }
 
-    const choicesSeg = buildChoicesSegment(latestTurn.choices);
+    const choicesSeg = buildChoicesSegment(latestTurn.choices, session);
     if (choicesSeg) {
       seq.push({ type: 'choices', text: choicesSeg });
     }

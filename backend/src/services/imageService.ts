@@ -131,7 +131,7 @@ export class ImageService {
     const visualQuirk = this.getSafeVisualQuirk(char.quirk);
     const quirkPart = visualQuirk ? ` The character visibly has ${visualQuirk}.` : '';
     const prompt = buildImagePrompt(
-      `Extreme close-up avatar of one ${genderDesc}${char.species.toLowerCase()} ${char.class.toLowerCase()} adventurer facing the camera against a simple dark atmospheric background with dramatic rim lighting. Only the living character's head, shoulders, costume collar, and expression are visible; crop out hands, weapons, tables, surrounding rooms, props, framed art, and display surfaces.${quirkPart}`,
+      `Extreme close-up avatar of one ${genderDesc}${char.species.toLowerCase()} ${char.class.toLowerCase()} adventurer facing the camera against a simple dark atmospheric background with dramatic rim lighting. Determine the character's visual traits from the fantasy species "${char.species}": anatomy, skin, ears, and facial features must unmistakably match that species rather than defaulting to a generic human look (unless the species itself is human). Only the living character's head, shoulders, costume collar, and expression are visible; crop out hands, weapons, tables, surrounding rooms, props, framed art, and display surfaces.${quirkPart}`,
       IMAGE_PROMPT_STYLE.avatar,
     );
     const promptHash = crypto.createHash('md5').update(prompt).digest('hex');

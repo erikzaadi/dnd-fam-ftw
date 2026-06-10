@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
+import { installMockLocalStorage } from '../test/mockLocalStorage';
 import {
   FIRST_RUN_WIZARD_VERSION,
   isFirstRunWizardCurrent,
@@ -9,7 +10,7 @@ import {
 } from './firstRunPreferences';
 
 beforeEach(() => {
-  localStorage.clear();
+  installMockLocalStorage();
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-05-10T12:00:00.000Z'));
 });

@@ -1,6 +1,7 @@
 import type { NarrationInput, NarrationOutput } from './NarrationProvider.js';
 
 const cleanLabel = (text: string): string => text.trim().replace(/\s+/g, ' ').replace(/[.?!]+$/g, '');
+const capitalizeFirst = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
 const normalizedText = (text: string): string => text.toLowerCase().replace(/[^\p{Letter}\p{Number}]+/gu, ' ').replace(/\s+/g, ' ').trim();
 
 const INTERNAL_GUIDANCE_FRAGMENTS = [
@@ -82,16 +83,20 @@ export function buildNarrationFallback(input: NarrationInput): NarrationOutput {
     : sceneNoun(input.scene);
   const action = cleanLabel(input.actionAttempt);
   const succeeded = input.actionResult.success;
-  const beat = nextBeat(input, scene);
+  const beat = capitalizeFirst(nextBeat(input, scene));
   // Avoid "Actor's Actor does something" when the action already starts with the actor's name.
   const actionText = !action
     ? `${actor}'s move`
     : action.toLowerCase().startsWith(actor.toLowerCase())
       ? action
       : `${actor}'s ${action}`;
-  const result = succeeded
-    ? `${actionText} works. ${beat}`
-    : `${actionText} falls short. ${beat}`;
+  // On the first turn the action is a synthetic kickoff phrase, not a verb phrase -
+  // "X works." reads broken, and there is no prior story to lean on. Use a real opener.
+  const result = input.isFirstTurn
+    ? `The adventure begins. ${capitalizeFirst(scene)} stretches out before ${actor} and the party, and something here is already stirring.`
+    : succeeded
+      ? `${actionText} works. ${beat}`
+      : `${actionText} falls short. ${beat}`;
 
   const activeEnemy = activeEncounter?.enemies?.find(e => e.status === 'active');
   const choices = activeEnemy

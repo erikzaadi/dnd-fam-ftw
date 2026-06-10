@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { EncounterStartProposal } from '../../../types.js';
-import { CHOICE_FLAVOR_VALUES, DIFFICULTY_VALUES, STAT_VALUES, TENSION_LEVEL_VALUES } from '../../../types.js';
+import { CHOICE_FLAVOR_VALUES, DIFFICULTY_VALUES, STAT_VALUES } from '../../../types.js';
 
 const ENCOUNTER_SCHOOLS = ['fire', 'frost', 'light', 'shadow', 'nature', 'storm', 'mind', 'force', 'holy', 'mechanical'] as const;
 const ENCOUNTER_ROLES = ['minion', 'standard', 'elite', 'boss', 'hazard'] as const;
@@ -166,43 +166,5 @@ export const buffRemoveSchema = z.object({
   buffName: z.string().min(1),
 });
 
-export const narrationOutputSchema = z.object({
-  rollNarration: z.string().optional().nullable(),
-  narration: z.string().min(1),
-  choices: z.array(choiceSchema).length(3),
-  currentTensionLevel: z.enum(TENSION_LEVEL_VALUES).default('medium'),
-  suggestedInventoryAdd: inventoryAddSchema.optional().nullable(),
-  suggestedInventoryRemove: inventoryRemoveSchema.optional().nullable(),
-  suggestedInventoryUpdate: inventoryUpdateSchema.optional().nullable(),
-  suggestedRevive: reviveSchema.optional().nullable(),
-  suggestedHeal: z.array(reviveSchema).optional().nullable(),
-  suggestedBuffAdd: z.preprocess(val => (val !== null && val !== undefined && !Array.isArray(val) ? [val] : val), z.array(buffAddSchema).optional().nullable()),
-  suggestedBuffRemove: buffRemoveSchema.optional().nullable(),
-  suggestedDamage: z.number().int().min(0).max(20).optional().nullable(),
-  suggestedEncounterStart: suggestedEncounterStartSchema.optional().nullable(),
-  suggestedEncounterUpdate: suggestedEncounterUpdateSchema,
-});
-
-export type ValidNarrationOutput = z.infer<typeof narrationOutputSchema>;
 export type { EncounterStartProposal };
 export type EncounterUpdateProposal = NonNullable<z.infer<typeof suggestedEncounterUpdateSchema>>;
-
-export const NARRATION_FALLBACK: ValidNarrationOutput = {
-  narration: 'The situation grows more mysterious, but the adventure continues.',
-  choices: [
-    { label: 'Inspect the area', difficulty: 'easy', stat: 'might', difficultyValue: 8, narration: 'You examine your surroundings carefully.' },
-    { label: 'Talk to someone nearby', difficulty: 'normal', stat: 'mischief', difficultyValue: 11, narration: 'Perhaps someone here knows more than they are letting on.' },
-    { label: 'Use your magic', difficulty: 'normal', stat: 'magic', difficultyValue: 12, narration: 'Channel the arcane to reveal what lies hidden.' },
-  ],
-  currentTensionLevel: 'medium',
-  suggestedInventoryAdd: null,
-  suggestedInventoryRemove: null,
-  suggestedInventoryUpdate: null,
-  suggestedRevive: null,
-  suggestedHeal: null,
-  suggestedBuffAdd: null,
-  suggestedBuffRemove: null,
-  suggestedDamage: null,
-  suggestedEncounterStart: null,
-  suggestedEncounterUpdate: null,
-};

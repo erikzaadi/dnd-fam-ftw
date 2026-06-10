@@ -3,9 +3,13 @@ import path from 'path';
 import fs from 'fs';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { getDb } from '../persistence/database.js';
 import { StateService } from '../services/stateService.js';
+
+// Every test here spawns the CLI via cold `npx tsx` subprocesses (1s+ each under
+// load), so the default 5s vitest timeout is too tight for multi-command tests.
+vi.setConfig({ testTimeout: 20_000 });
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_PATH = path.join(__dirname, 'cli.ts');

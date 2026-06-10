@@ -72,12 +72,21 @@ export async function runInstantStartBackground(
   await StateService.updateSession(sessionId, withRealm);
   broadcastSessionChanged(namespaceId, sessionId, 'updated');
 
+  // Heavy media work (encounter avatars, area images, image briefs, preview)
+  // competes with the first-turn narration call for API throughput and has
+  // caused turn-1 narration timeouts. Gate all of it until turn 1 is stored.
+  let releaseMediaGate = (): void => {};
+  const mediaGate = new Promise<void>(resolve => {
+    releaseMediaGate = resolve;
+  });
+
   const dmPrep = await StorySummaryService.generateCampaignBrief(
     sessionId,
     seed.worldDescription,
     seed.displayName,
     'normal',
     session.gameMode,
+    { mediaGate },
   ).catch(err => {
     console.warn('[InstantStart] Campaign brief generation failed:', err);
     return null;
@@ -91,11 +100,9 @@ export async function runInstantStartBackground(
     }
   }
 
-  // Start preview image in background now that we have dm prep context
-  refreshDmPrepImageBriefAndPreview(sessionId, dmPrep, namespaceId);
-
   const forTurn = await StateService.getSession(sessionId);
   if (!forTurn) {
+    releaseMediaGate();
     return;
   }
 
@@ -107,6 +114,8 @@ export async function runInstantStartBackground(
   } catch (err) {
     console.error('[InstantStart] First turn generation failed:', err);
     broadcastInstantStartReady(namespaceId, sessionId);
+    refreshDmPrepImageBriefAndPreview(sessionId, dmPrep, namespaceId);
+    releaseMediaGate();
     return;
   }
 
@@ -118,6 +127,10 @@ export async function runInstantStartBackground(
 
   // Session is playable - signal navigation before starting slow image generation
   broadcastInstantStartReady(namespaceId, sessionId);
+
+  // First turn is in - release the deferred campaign media and start the preview
+  refreshDmPrepImageBriefAndPreview(sessionId, dmPrep, namespaceId);
+  releaseMediaGate();
 
   if (forTurn.savingsMode) {
     return;

@@ -67,6 +67,10 @@ const ENCOUNTER_SEEDS_MARKER = 'ENCOUNTER_SEEDS:';
 type GenerateCampaignBriefOptions = {
   mediaMode?: 'background' | 'inline';
   onMediaReady?: () => void | Promise<void>;
+  // When set, background media generation waits for this promise before starting.
+  // Used by instant-start to keep heavy image/LLM work from competing with the
+  // first-turn narration call for API throughput.
+  mediaGate?: Promise<void>;
 };
 
 const tryParseJsonArray = (text: string): EncounterSeed[] | null => {
@@ -283,6 +287,11 @@ The JSON block must be a valid JSON array with no extra text or prose inside it.
         };
         if (options.mediaMode === 'inline') {
           await generateMedia();
+        } else if (options.mediaGate) {
+          console.log(`[Campaign] Brief ready for session ${sessionId} — media deferred until gate opens`);
+          void options.mediaGate.then(() => {
+            runBackground(`campaign-media session=${sessionId}`, generateMedia);
+          });
         } else {
           console.log(`[Campaign] Brief ready for session ${sessionId} — media generating in background`);
           runBackground(`campaign-media session=${sessionId}`, generateMedia);

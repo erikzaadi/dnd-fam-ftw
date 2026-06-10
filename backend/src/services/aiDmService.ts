@@ -4,8 +4,7 @@ import type { NarrationInput, NarrationOutput, NarrationStreamCallbacks } from '
 import { buildNarrationFallback } from '../providers/ai/narration/narrationFallback.js';
 import { resolveEncounterSeed } from './encounterService.js';
 import { devLog } from '../lib/devLog.js';
-import { getConfig } from '../config/env.js';
-import { DmTurnOrchestrator, type DmTurnOrchestratorResult } from './dmTurnOrchestrator.js';
+import type { DmTurnOrchestratorResult } from './dmTurnOrchestrator.js';
 import {
   getSessionPromptCache,
   setSessionPromptCache,
@@ -230,16 +229,8 @@ export class AiDmService {
       `momentum=${narrationInput.sceneMomentum?.directive ?? 'none'}`,
     ].join(' '));
     try {
-      const config = getConfig();
-      let output: NarrationOutput;
-      if (config.NARRATION_WORKFLOW === 'agentic') {
-        devLog.log(`[AiDm] workflow=agentic sessionTurn=${input.turn}`);
-        const orchestrator = new DmTurnOrchestrator();
-        output = await orchestrator.orchestrate(narrationInput, callbacks);
-      } else {
-        const provider = createNarrationProvider();
-        output = await provider.generateTurn(narrationInput, callbacks);
-      }
+      const provider = createNarrationProvider();
+      const output: NarrationOutput = await provider.generateTurn(narrationInput, callbacks);
       devLog.log(`[AiDm] provider-done sessionTurn=${input.turn} durationMs=${Date.now() - totalStart}`);
 
       return {

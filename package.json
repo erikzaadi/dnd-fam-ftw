@@ -36,6 +36,7 @@
         "cli": "npm run cli --prefix backend --",
         "generate-static-assets": "npm --prefix backend run generate-static-assets",
         "generate-image-samples": "npm --prefix backend run generate-image-samples",
+        "generate-readme-screenshots": "npm run generate-readme-screenshots --prefix frontend",
         "test:visual": "npm run test:visual --prefix frontend",
         "test:visual:update": "npm run test:visual:update --prefix frontend",
         "setup:playwright": "npm exec --prefix frontend -- playwright install chromium"
