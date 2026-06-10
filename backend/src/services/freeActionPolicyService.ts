@@ -278,3 +278,50 @@ export function ensureSuccessfulSupportSuggestion(
 
   return turnResult;
 }
+
+const SUPPORT_BUFF_INTENTS = new Set(['bless_character', 'aid_character', 'party_boost', 'improve_item']);
+
+// Support and healing attempts never punish the acting hero with HP damage on
+// failure - the DM prompts promise this, but the agent that owns
+// suggestedDamage only runs during encounters, so enforce it deterministically.
+export function isNoFailureDamageAction(action: string, actionIntent?: string): boolean {
+  return (!!actionIntent && SUPPORT_BUFF_INTENTS.has(actionIntent)) || isHealingFreeAction(action);
+}
+
+export function suppressFailedSupportDamage(
+  actionAttempt: ActionAttempt,
+  turnResult: TurnResult,
+  actionIntent?: string,
+): TurnResult {
+  if (actionAttempt.actionResult.success || !isNoFailureDamageAction(actionAttempt.actionAttempt, actionIntent)) {
+    return turnResult;
+  }
+  if (turnResult.suggestedDamage === 0) {
+    return turnResult;
+  }
+  return { ...turnResult, suggestedDamage: 0 };
+}
+
+// The recovery agent sometimes grants a buff the target already carries on an
+// unrelated action, silently refreshing its duration. Deliberate support
+// actions are allowed to refresh; everything else is dropped.
+export function dropRedundantBuffAdds(
+  session: SessionState,
+  turnResult: TurnResult,
+  actionIntent?: string,
+): TurnResult {
+  if (!Array.isArray(turnResult.suggestedBuffAdd) || turnResult.suggestedBuffAdd.length === 0) {
+    return turnResult;
+  }
+  if (actionIntent && SUPPORT_BUFF_INTENTS.has(actionIntent)) {
+    return turnResult;
+  }
+  const kept = turnResult.suggestedBuffAdd.filter(buff => {
+    const target = session.party.find(c => c.name === buff.characterName);
+    return !target?.buffs?.some(active => active.name.trim().toLowerCase() === buff.name.trim().toLowerCase());
+  });
+  if (kept.length === turnResult.suggestedBuffAdd.length) {
+    return turnResult;
+  }
+  return { ...turnResult, suggestedBuffAdd: kept.length > 0 ? kept : null };
+}

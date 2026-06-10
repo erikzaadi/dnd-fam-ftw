@@ -7,6 +7,8 @@ import type { Character, EncounterEnemy, EncounterWeakness, FreeActionPreview } 
 import { devLog } from '../lib/devLog.js';
 
 export const STAT_FALLBACK = { might: 2, magic: 2, mischief: 3 };
+
+const PREVIEW_NARRATION_VOICE = 'The narration field must be third person present tense and name the character. Never write it in first person, never address the party, never begin with "Let\'s" or "We".';
 export type SuggestedStat = 'might' | 'magic' | 'mischief';
 export type SessionActionStatSuggestion = FreeActionBonusPreview & { stat: SuggestedStat };
 export type PreviewActionIntent =
@@ -138,32 +140,49 @@ export async function previewFreeAction(
     const item = context.itemId
       ? itemOwner?.inventory.find(i => i.id === context.itemId)
       : null;
+    const targetCondition = target
+      ? target.status === 'downed'
+        ? ', currently DOWNED'
+        : target.hp < target.max_hp
+          ? `, wounded (${target.hp}/${target.max_hp} hp)`
+          : ''
+      : '';
     const targetLine = target && context.intent !== 'party_boost'
-      ? `Target ally: ${target.name}, ${target.species} ${target.class}, stats might ${target.stats.might}, magic ${target.stats.magic}, mischief ${target.stats.mischief}.`
+      ? `Target ally: ${target.name}, ${target.species} ${target.class}${targetCondition}, stats might ${target.stats.might}, magic ${target.stats.magic}, mischief ${target.stats.mischief}.`
       : '';
     const itemLine = item && itemOwner
       ? `Target gear: ${itemOwner.name}'s ${item.name}. Description: ${item.description}. Effect: ${item.effect ?? 'none'}. Tags: ${(item.tags ?? []).join(', ') || 'none'}.`
       : '';
     const targetInstruction = context.intent === 'party_boost'
       ? ' Address the whole group (everyone, all allies) - never name a single character.'
-      : target ? ` Name ${target.name} as the target.` : '';
+      : target
+        ? ` Name ${target.name} as the target. Fit the action to ${character?.name ?? 'the actor'}'s class strengths and ${target.name}'s condition${target.hp < target.max_hp ? ' - they are hurt, so mending, soothing, or steadying them is fitting' : ''}.`
+        : '';
     const itemInstruction = item ? ` Reference ${item.name}.` : '';
+    const strongestStat = character
+      ? (['might', 'magic', 'mischief'] as const).reduce((a, b) => character.stats[b] > character.stats[a] ? b : a)
+      : null;
+    const styleLine = character && strongestStat
+      ? `Action style: express the action through ${character.name}'s strongest stat (${strongestStat} ${character.stats[strongestStat]}). Might heroes use physical feats, warcries, shielding, or brute leverage; magic heroes cast spells, charms, or blessings; mischief heroes use tricks, distractions, banter, or clever setups.`
+      : '';
 
     prompt = `${describeActiveCharacter(character)}
 Intent: ${context.intent ?? 'custom'}
 Method: ${context.method ?? 'none'}
+${styleLine}
 ${targetLine}
 ${itemLine}
 ${storyContext ? `\nCurrent story context:\n${storyContext}\n` : ''}
 ${encounterSection}
 Write a short action sentence (8-18 words) that fits the intent and the current scene.${targetInstruction}${itemInstruction} Avoid promising success. Then analyze it.
 Stat guide: might = physical/combat/force, magic = spells/arcane/healing/divine, mischief = stealth/trickery/charm/persuasion.${hasEncounter ? '\nWeakness labels are flavorful display text. Keep the exact label from the encounter data. Only set weakPointMatch when a revealed, non-broken weakness clearly matches this action\'s school or tags. Use "may exploit" wording when confidence is low.' : ''}
+${PREVIEW_NARRATION_VOICE}
 
 Reply with JSON:
 {
   "generatedAction": "<action sentence, 8-18 words>",
   "stat": "might" | "magic" | "mischief",
-  "narration": "<one short evocative sentence, 8-14 words>"${hasEncounter ? `,
+  "narration": "<one short evocative third-person sentence, 8-14 words>"${hasEncounter ? `,
   "school": "<magic school: fire|frost|light|shadow|nature|storm|mind|force|holy|mechanical|null>",
   "actionTags": ["<optional descriptive tags>"],
   "likelyEnemyId": "<id of likely targeted enemy, or null>",
@@ -175,12 +194,13 @@ Reply with JSON:
 ${storyContext ? `\nUse this story context so the preview fits the current scene without spoiling the result:\n${storyContext}\n` : ''}
 ${encounterSection}
 Stat guide: might = physical/combat/force, magic = spells/arcane/healing/divine, mischief = stealth/trickery/charm/persuasion.${hasEncounter ? '\nWeakness labels are flavorful display text. Keep the exact label from the encounter data; do not rewrite it to a generic school. Only set weakPointMatch when a revealed, non-broken weakness on the likely target clearly matches this action\'s school or tags. Use "may exploit" wording when confidence is low.' : ''}
+${PREVIEW_NARRATION_VOICE}
 
 Reply with JSON:
 {
   "action": "<polished first-person or third-person action sentence, preserving the player's intent>",
   "stat": "might" | "magic" | "mischief",
-  "narration": "<one short evocative sentence, 8-14 words, describing what the character does>"${hasEncounter ? `,
+  "narration": "<one short evocative third-person sentence, 8-14 words, describing what the character does>"${hasEncounter ? `,
   "school": "<magic school this action uses: fire|frost|light|shadow|nature|storm|mind|force|holy|mechanical|null>",
   "actionTags": ["<optional descriptive tags>"],
   "likelyEnemyId": "<id of the enemy most likely targeted, or null>",

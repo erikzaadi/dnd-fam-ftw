@@ -1,5 +1,14 @@
 import type { AudioSettings } from './audioTypes';
 
+// AbortError just means a pause() interrupted a pending play() - expected when
+// tracked sfx (e.g. the narrating whoosh) are cut short by the next event.
+function warnUnlessAborted(e: unknown) {
+  if (e instanceof Error && e.name === 'AbortError') {
+    return;
+  }
+  console.warn('[SfxPlayer] Playback failed', e);
+}
+
 export class SfxPlayer {
   private settings: AudioSettings;
 
@@ -17,7 +26,7 @@ export class SfxPlayer {
     }
     const audio = new Audio(path);
     audio.volume = this.settings.sfxVolume;
-    audio.play().catch(e => console.warn('[SfxPlayer] Playback failed', e));
+    audio.play().catch(warnUnlessAborted);
   }
 
   public playRandom(options: readonly string[]) {
@@ -35,7 +44,7 @@ export class SfxPlayer {
     const path = options[Math.floor(Math.random() * options.length)];
     const audio = new Audio(path);
     audio.volume = this.settings.sfxVolume;
-    audio.play().catch(e => console.warn('[SfxPlayer] Playback failed', e));
+    audio.play().catch(warnUnlessAborted);
     return audio;
   }
 

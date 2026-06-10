@@ -210,6 +210,7 @@ function choicesUserContent(input: NarrationInput): string {
       species: c.species,
       hp: c.hp,
       maxHp: c.maxHp,
+      stats: c.stats,
       status: c.status,
       buffs: c.buffs,
     })),
@@ -222,6 +223,15 @@ function choicesUserContent(input: NarrationInput): string {
     previousChoiceLabels: input.previousChoiceLabels,
     actingCharacterName: input.actingCharacterName,
     nextCharacterName: input.nextCharacterName,
+    // Only the next character's gear: item choices may use their items exclusively
+    inventory: input.inventory
+      .filter(item => item.ownerName === input.nextCharacterName)
+      .map(item => ({
+        ownerName: item.ownerName,
+        name: item.name,
+        ...(item.effect && { effect: item.effect }),
+        ...(item.tags?.length && { tags: item.tags }),
+      })),
     recentHistory: input.recentHistory?.slice(-2),
   });
 }
@@ -276,9 +286,15 @@ function recoveryUserContent(input: NarrationInput): string {
   });
 }
 
-async function callChoicesAgent(input: NarrationInput, signal: AbortSignal): Promise<ChoicesAgentOutput> {
-  // Choices is a simple structured task - use nano to reduce gpt-4.1-mini contention and latency
-  const model = getModelForTier('preview');
+async function callChoicesAgent(
+  input: NarrationInput,
+  signal: AbortSignal,
+  // First attempt uses nano to reduce gpt-4.1-mini contention; retries escalate
+  // to the narration tier, which has proven more reliable under the deadline.
+  tier: 'preview' | 'narration' = 'preview',
+  extraInstruction?: string,
+): Promise<ChoicesAgentOutput> {
+  const model = getModelForTier(tier);
   const systemPrompt = buildChoicesAgentSystemPrompt(input);
   const userContent = choicesUserContent(input);
 
@@ -286,7 +302,7 @@ async function callChoicesAgent(input: NarrationInput, signal: AbortSignal): Pro
     model,
     messages: [
       { role: 'system' as const, content: systemPrompt },
-      { role: 'user' as const, content: userContent },
+      { role: 'user' as const, content: extraInstruction ? `${userContent}\n\n${extraInstruction}` : userContent },
     ],
     response_format: zodResponseFormat(choicesAgentOutputSchema, 'choices_agent_output'),
     max_completion_tokens: 450,
@@ -416,6 +432,58 @@ function cleanText(value: string): string {
   return value.replace(ANSI_RE, '').replace(CONTROL_CHARS_RE, '').replace(/[—]/g, '-');
 }
 
+// Compare ignoring case and the emoji prefix item names carry ("⚔️ Iron Sword")
+function normalizeItemName(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+// The choices agent sees only the next character's gear, but may still invent
+// items or attribute gear to the wrong hero. An item choice must reference an
+// item the next character actually carries; otherwise downgrade to standard.
+function sanitizeItemChoices(choices: NarrationChoice[], input: NarrationInput): NarrationChoice[] {
+  return choices.map(choice => {
+    if (choice.flavor !== 'item') {
+      return choice;
+    }
+    const ownedItem = choice.itemName
+      ? input.inventory.find(item =>
+        item.ownerName === input.nextCharacterName &&
+        normalizeItemName(item.name) === normalizeItemName(choice.itemName as string)
+      )
+      : undefined;
+    if (ownedItem) {
+      return { ...choice, itemOwnerName: ownedItem.ownerName, itemName: ownedItem.name };
+    }
+    devLog.log(`[Guard] dropped item choice with unknown gear item="${choice.itemName ?? ''}" owner="${choice.itemOwnerName ?? ''}" next="${input.nextCharacterName ?? ''}"`);
+    return { ...choice, flavor: 'standard', itemOwnerName: undefined, itemName: undefined };
+  });
+}
+
+function nextCharacterTopStat(input: NarrationInput): { name: string; stat: 'might' | 'magic' | 'mischief'; value: number } | null {
+  const next = input.party.find(c => c.name === input.nextCharacterName);
+  if (!next) {
+    return null;
+  }
+  const stat = (['might', 'magic', 'mischief'] as const).reduce((a, b) => next.stats[b] > next.stats[a] ? b : a);
+  return { name: next.name, stat, value: next.stats[stat] };
+}
+
+function hasTopStatCoverage(choices: Array<{ stat: string }>, input: NarrationInput): boolean {
+  const top = nextCharacterTopStat(input);
+  return !top || choices.some(c => c.stat === top.stat);
+}
+
+// Observability for the stat-coverage rule: flag turns where the next hero
+// still gets no choice in their strongest stat after all retries (e.g. a
+// fighter offered only magic/mischief options).
+function auditChoiceStatCoverage(choices: NarrationChoice[], input: NarrationInput): NarrationChoice[] {
+  const top = nextCharacterTopStat(input);
+  if (top && !choices.some(c => c.stat === top.stat)) {
+    devLog.warn(`[Choices] no ${top.stat} option for ${top.name} (their top stat): ${choices.map(c => `"${c.label}" (${c.stat})`).join(' | ')}`);
+  }
+  return choices;
+}
+
 function coerceChoice(raw: ChoicesAgentOutput['choices'][0]): NarrationChoice {
   return {
     label: cleanText(raw.label),
@@ -444,7 +512,7 @@ export class DmTurnOrchestrator implements NarrationProvider {
     const controller = new AbortController();
     try {
       const result = await Promise.race([
-        callChoicesAgent(input, controller.signal),
+        callChoicesAgent(input, controller.signal, 'narration'),
         new Promise<never>((_, reject) =>
           setTimeout(() => {
             controller.abort();
@@ -453,7 +521,7 @@ export class DmTurnOrchestrator implements NarrationProvider {
         ),
       ]);
       devLog.log(`[Metrics] choices-rerun status=ok durationMs=${Date.now() - start}`);
-      return result.choices.map(coerceChoice);
+      return sanitizeItemChoices(result.choices.map(coerceChoice), input);
     } catch (err) {
       devLog.warn(`[Metrics] choices-rerun status=timeout-or-error durationMs=${Date.now() - start} error=${err instanceof Error ? err.message : String(err)}`);
       return null;
@@ -539,6 +607,49 @@ export class DmTurnOrchestrator implements NarrationProvider {
     const relaxedDeadlines = !!(input.isFirstTurn || input.interventionRescue || input.sanctuaryRecovery);
     const narrationDeadlineMs = relaxedDeadlines ? 8000 : 6000;
     const choicesDeadlineMs = relaxedDeadlines ? 5000 : 3500;
+    const choicesRetryDeadlineMs = 3000;
+
+    // A failed choices agent means generic one-per-stat fallback choices - a
+    // worse player outcome than a few extra seconds. Retry once on any
+    // failure; the retry mostly overlaps with narration's remaining stream.
+    const choicesWithRetry = async (): Promise<ChoicesAgentOutput> => {
+      const first = await withDeadline<ChoicesAgentOutput | null>(
+        'choices',
+        (signal) => callChoicesAgent(input, signal),
+        null,
+        choicesDeadlineMs,
+        diagnostics,
+      );
+      if (first && hasTopStatCoverage(first.choices, input)) {
+        return first;
+      }
+      if (first) {
+        // Real choices, but none in the next hero's strongest stat. One
+        // corrective attempt on the stronger model with the violation spelled
+        // out; if it also fails, the first real choices still beat fallback.
+        const top = nextCharacterTopStat(input);
+        const corrected = await withDeadline<ChoicesAgentOutput | null>(
+          'choices-coverage-retry',
+          (signal) => callChoicesAgent(
+            input,
+            signal,
+            'narration',
+            `IMPORTANT: a previous attempt offered no "${top?.stat}" choice. ${top?.name} acts next and their strongest stat is ${top?.stat} (${top?.value}). At least one choice MUST use stat "${top?.stat}", phrased naturally for the scene.`,
+          ),
+          null,
+          choicesRetryDeadlineMs,
+          diagnostics,
+        );
+        return corrected ?? first;
+      }
+      return withDeadline(
+        'choices-retry',
+        (signal) => callChoicesAgent(input, signal, 'narration'),
+        choicesFallback,
+        choicesRetryDeadlineMs,
+        diagnostics,
+      );
+    };
 
     const [narration, choices, combat, inventory, recovery] = await Promise.all([
       withDeadline(
@@ -548,13 +659,7 @@ export class DmTurnOrchestrator implements NarrationProvider {
         narrationDeadlineMs,
         diagnostics,
       ),
-      withDeadline(
-        'choices',
-        (signal) => callChoicesAgent(input, signal),
-        choicesFallback,
-        choicesDeadlineMs,
-        diagnostics,
-      ),
+      choicesWithRetry(),
       runCombat
         ? withDeadline('combat', (signal) => callCombatAgent(input, signal), combatFallback, 2500, diagnostics, true)
         : Promise.resolve(combatFallback),
@@ -575,8 +680,10 @@ export class DmTurnOrchestrator implements NarrationProvider {
     const narrationUsedFallback = diagnostics.some(
       d => d.agent === 'narration' && (d.status === 'fallback' || d.status === 'timeout'),
     );
+    // The retry runs exactly when the first attempt failed, so the final
+    // choices are fallback only if the retry itself failed.
     const choicesUsedFallback = diagnostics.some(
-      d => d.agent === 'choices' && (d.status === 'fallback' || d.status === 'timeout'),
+      d => d.agent === 'choices-retry' && (d.status === 'fallback' || d.status === 'timeout'),
     );
 
     // Zod schemas allow null for optional fields but NarrationOutput uses undefined.
@@ -586,7 +693,7 @@ export class DmTurnOrchestrator implements NarrationProvider {
       narration: cleanText(narration.narration),
       rollNarration: narration.rollNarration ? cleanText(narration.rollNarration) : undefined,
       currentTensionLevel: narration.currentTensionLevel,
-      choices: choices.choices.map(coerceChoice),
+      choices: auditChoiceStatCoverage(sanitizeItemChoices(choices.choices.map(coerceChoice), input), input),
       suggestedDamage: combat.suggestedDamage ?? null,
       suggestedEncounterStart: (combat.suggestedEncounterStart ?? null) as NarrationOutput['suggestedEncounterStart'],
       suggestedEncounterUpdate: (combat.suggestedEncounterUpdate ?? null) as NarrationOutput['suggestedEncounterUpdate'],

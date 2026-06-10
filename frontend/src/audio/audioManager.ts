@@ -164,7 +164,7 @@ export class AudioManager {
     if (!this.settings?.enabled || !this.settings?.sfxEnabled || this.settings.masterMuted) {
       return;
     }
-    musicPlayer.setVolume(this.settings.musicVolume * 0.5);
+    musicPlayer.fadeVolumeTo(this.settings.musicVolume * 0.5);
     this.narratingAudio = this.sfxPlayer.playRandomTracked(audioCatalog.sfx.narrating.normal);
   }
 
@@ -178,7 +178,7 @@ export class AudioManager {
 
   public stopNarrating() {
     this.stopNarratingAudio();
-    musicPlayer.setVolume(this.settings.musicVolume);
+    musicPlayer.fadeVolumeTo(this.settings.musicVolume);
   }
 }
 

@@ -141,6 +141,8 @@ Damage only applies on a **failed** `perform` roll (not on `use_item` or `give_i
 
 **Impact damage bonus:** If a failed roll has `impact: "strong"`, add +1 damage on top of the difficulty damage. If it has `impact: "extreme"` (including natural 1), add +2 damage.
 
+**No damage for failed support or healing:** Failed support actions (bless, aid, party boost, improve item) and failed healing actions never damage the acting character - the attempt simply falls short. This is enforced deterministically, even on a natural 1.
+
 Damage is dealt to the **acting character** (the one whose turn it is). HP cannot drop below 0.
 
 ---

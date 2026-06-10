@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { ActionAttempt, Character, SessionState, TurnResult } from '../types.js';
 import {
   buildFreeActionWarnings,
+  dropRedundantBuffAdds,
   ensureSuccessfulEnchantmentSuggestion,
   ensureSuccessfulHealingSuggestion,
   getFreeActionDifficulty,
   inferActionIntent,
+  suppressFailedSupportDamage,
 } from './freeActionPolicyService.js';
 
 const makeChar = (overrides: Partial<Character> = {}): Character => ({
@@ -79,6 +81,23 @@ describe('freeActionPolicyService', () => {
     }));
 
     expect(warnings[0]).toContain('Healing intent detected');
+  });
+
+  it('does not treat hyphenated enemy names like sleep-stealing as healing intent', () => {
+    const action = 'Conjure an illusion to frighten the sleep-stealing tinker with authority';
+    const warnings = buildFreeActionWarnings(action, makeSession({
+      party: [makeChar({ hp: 4, max_hp: 10 })],
+    }));
+
+    expect(warnings).toHaveLength(0);
+    expect(getFreeActionDifficulty(action)).toEqual({ difficulty: 'normal' });
+  });
+
+  it('still detects healing words at hyphen-free boundaries', () => {
+    expect(getFreeActionDifficulty('Rest by the fire to recover')).toEqual({
+      difficulty: 'easy',
+      difficultyValue: 8,
+    });
   });
 
   it('adds fallback healing when a successful healing action omitted suggestedHeal', () => {
@@ -161,6 +180,104 @@ describe('freeActionPolicyService', () => {
       statBonuses: { might: 1, magic: 1 },
       condition: 'Enchanted',
     });
+  });
+});
+
+describe('dropRedundantBuffAdds', () => {
+  const inspiredChar = () => makeChar({
+    name: 'Barnaby',
+    buffs: [{ id: 'buff-1', name: 'Inspired', kind: 'buff', description: 'Fired up.', statBonuses: { might: 1 }, remainingTurns: 2 }],
+  });
+
+  const inspiredAdd = (characterName: string) => ({
+    characterName,
+    name: 'Inspired',
+    kind: 'buff' as const,
+    description: 'Fired up.',
+    statBonuses: { might: 1 },
+    remainingTurns: 2,
+  });
+
+  it('drops a buff the target already carries on a non-support action', () => {
+    const turnResult = dropRedundantBuffAdds(
+      makeSession({ party: [inspiredChar()] }),
+      makeTurnResult({ suggestedBuffAdd: [inspiredAdd('Barnaby')] }),
+    );
+
+    expect(turnResult.suggestedBuffAdd).toBeNull();
+  });
+
+  it('keeps buffs for targets that do not have them', () => {
+    const turnResult = dropRedundantBuffAdds(
+      makeSession({ party: [inspiredChar(), makeChar({ id: 'hero-2', name: 'Zara' })] }),
+      makeTurnResult({ suggestedBuffAdd: [inspiredAdd('Barnaby'), inspiredAdd('Zara')] }),
+    );
+
+    expect(turnResult.suggestedBuffAdd).toEqual([inspiredAdd('Zara')]);
+  });
+
+  it('allows deliberate support actions to refresh an existing buff', () => {
+    const turnResult = dropRedundantBuffAdds(
+      makeSession({ party: [inspiredChar()] }),
+      makeTurnResult({ suggestedBuffAdd: [inspiredAdd('Barnaby')] }),
+      'party_boost',
+    );
+
+    expect(turnResult.suggestedBuffAdd).toEqual([inspiredAdd('Barnaby')]);
+  });
+
+  it('matches buff names case-insensitively', () => {
+    const turnResult = dropRedundantBuffAdds(
+      makeSession({ party: [inspiredChar()] }),
+      makeTurnResult({ suggestedBuffAdd: [{ ...inspiredAdd('Barnaby'), name: 'inspired' }] }),
+    );
+
+    expect(turnResult.suggestedBuffAdd).toBeNull();
+  });
+});
+
+describe('suppressFailedSupportDamage', () => {
+  const failedAttempt = (action: string) => makeAttempt({
+    actionAttempt: action,
+    actionResult: { success: false, roll: 1, statUsed: 'might', impact: 'extreme', difficultyTarget: 8 },
+  });
+
+  it('zeroes damage for a failed party boost', () => {
+    const turnResult = suppressFailedSupportDamage(
+      failedAttempt('Eytrig raises his shield, bracing the party for the peril ahead.'),
+      makeTurnResult({ suggestedDamage: null }),
+      'party_boost',
+    );
+
+    expect(turnResult.suggestedDamage).toBe(0);
+  });
+
+  it('zeroes damage for a failed healing action without an intent', () => {
+    const turnResult = suppressFailedSupportDamage(
+      failedAttempt('Heal the wounded warrior'),
+      makeTurnResult({ suggestedDamage: 2 }),
+    );
+
+    expect(turnResult.suggestedDamage).toBe(0);
+  });
+
+  it('leaves combat failures untouched', () => {
+    const turnResult = suppressFailedSupportDamage(
+      failedAttempt('Strike the goblin with my axe'),
+      makeTurnResult({ suggestedDamage: null }),
+    );
+
+    expect(turnResult.suggestedDamage).toBeNull();
+  });
+
+  it('does nothing on success', () => {
+    const turnResult = suppressFailedSupportDamage(
+      makeAttempt(),
+      makeTurnResult({ suggestedDamage: null }),
+      'party_boost',
+    );
+
+    expect(turnResult.suggestedDamage).toBeNull();
   });
 });
 

@@ -239,7 +239,11 @@ describe('DmTurnOrchestrator.orchestrate', () => {
 
   it('uses choices fallback when choices agent fails, narration still succeeds', async () => {
     mockStreamOnce(makeNarrationCompletion('The hall opens before you.'));
-    // Choices agent throws
+    // Choices agent throws on both the first attempt and the retry
+    mocks.stream.mockReturnValueOnce({
+      on: vi.fn(),
+      finalChatCompletion: vi.fn().mockRejectedValue(new Error('choices failure')),
+    });
     mocks.stream.mockReturnValueOnce({
       on: vi.fn(),
       finalChatCompletion: vi.fn().mockRejectedValue(new Error('choices failure')),
@@ -413,6 +417,10 @@ describe('DmTurnOrchestrator.orchestrate', () => {
     mockStreamOnce({
       choices: [{ finish_reason: 'stop', message: { refusal: null, parsed: null } }],
     });
+    // The retry attempt also fails (malformed again)
+    mockStreamOnce({
+      choices: [{ finish_reason: 'stop', message: { refusal: null, parsed: null } }],
+    });
 
     const orchestrator = new DmTurnOrchestrator();
     const result = await orchestrator.orchestrate(baseInput());
@@ -420,6 +428,77 @@ describe('DmTurnOrchestrator.orchestrate', () => {
     expect(result.choices).toHaveLength(3);
     expect(result.choicesFailed).toBe(true);
     expect(result.narration).toBe('Onward.');
+  });
+
+  it('choices agent timeout retries once and uses the retry output', async () => {
+    vi.useFakeTimers();
+    try {
+      mockStreamOnce(makeNarrationCompletion('Onward.'));
+      // First choices attempt hangs past its deadline
+      mocks.stream.mockReturnValueOnce({
+        on: vi.fn(),
+        finalChatCompletion: vi.fn(() => new Promise(() => {})),
+      });
+      // Retry succeeds
+      mockStreamOnce(makeChoicesCompletion());
+
+      const orchestrator = new DmTurnOrchestrator();
+      const promise = orchestrator.orchestrate(baseInput());
+      await vi.advanceTimersByTimeAsync(3600);
+      const result = await promise;
+
+      expect(result.choices).toHaveLength(3);
+      expect(result.choices[0].label).toBe('Press deeper');
+      expect(result.choicesFailed).toBe(false);
+      const firstDiag = result.agentDiagnostics.find(d => d.agent === 'choices');
+      const retryDiag = result.agentDiagnostics.find(d => d.agent === 'choices-retry');
+      expect(firstDiag?.status).toBe('timeout');
+      expect(retryDiag?.status).toBe('ok');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('retries choices on the stronger model when no choice uses the next hero top stat', async () => {
+    // Pip's top stat is mischief (4); the fixture choices are all might
+    const input = { ...baseInput(), nextCharacterName: 'Pip' };
+    mockStreamOnce(makeNarrationCompletion('Onward.'));
+    mockStreamOnce(makeChoicesCompletion());
+    // Coverage retry returns a mischief option
+    mockStreamOnce({
+      choices: [{
+        finish_reason: 'stop',
+        message: {
+          refusal: null,
+          parsed: { choices: [{ ...validChoice, stat: 'mischief', label: 'Sneak past the guard' }, validChoice, validChoice] },
+        },
+      }],
+    });
+
+    const orchestrator = new DmTurnOrchestrator();
+    const result = await orchestrator.orchestrate(input);
+
+    expect(result.choices.some(c => c.stat === 'mischief')).toBe(true);
+    expect(result.choicesFailed).toBe(false);
+    expect(result.agentDiagnostics.find(d => d.agent === 'choices-coverage-retry')?.status).toBe('ok');
+  });
+
+  it('keeps the first real choices when the coverage retry fails', async () => {
+    const input = { ...baseInput(), nextCharacterName: 'Pip' };
+    mockStreamOnce(makeNarrationCompletion('Onward.'));
+    mockStreamOnce(makeChoicesCompletion());
+    // Coverage retry fails
+    mocks.stream.mockReturnValueOnce({
+      on: vi.fn(),
+      finalChatCompletion: vi.fn().mockRejectedValue(new Error('retry failure')),
+    });
+
+    const orchestrator = new DmTurnOrchestrator();
+    const result = await orchestrator.orchestrate(input);
+
+    expect(result.choices).toHaveLength(3);
+    expect(result.choices[0].label).toBe('Press deeper');
+    expect(result.choicesFailed).toBe(false);
   });
 
   it('hanging agents resolve to fallback at the deadline instead of hanging the turn', async () => {
@@ -432,7 +511,8 @@ describe('DmTurnOrchestrator.orchestrate', () => {
 
       const orchestrator = new DmTurnOrchestrator();
       const promise = orchestrator.orchestrate(baseInput());
-      await vi.advanceTimersByTimeAsync(6100);
+      // Narration deadline 6000ms; choices 3500ms + 3000ms retry = 6500ms
+      await vi.advanceTimersByTimeAsync(6600);
       const result = await promise;
 
       expect(result.narrationFailed).toBe(true);

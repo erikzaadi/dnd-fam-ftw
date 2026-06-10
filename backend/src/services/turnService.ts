@@ -19,7 +19,7 @@ import {
   toFreeActionBonusPreview,
 } from './freeActionInferenceService.js';
 import { buildSceneMomentum, buildScenePressure } from './sceneMomentumService.js';
-import { ensureSuccessfulEnchantmentSuggestion, ensureSuccessfulHealingSuggestion, ensureSuccessfulSupportSuggestion, inferActionIntent } from './freeActionPolicyService.js';
+import { dropRedundantBuffAdds, ensureSuccessfulEnchantmentSuggestion, ensureSuccessfulHealingSuggestion, ensureSuccessfulSupportSuggestion, inferActionIntent, isNoFailureDamageAction, suppressFailedSupportDamage } from './freeActionPolicyService.js';
 import { repairEncounterNameIfNeeded } from './encounterNameRepairService.js';
 import { buildRollNarration } from './rollNarrationService.js';
 
@@ -154,6 +154,7 @@ const stripChoicesTargetingDefeatedEnemies = (
   }
   const activeEnemies = (newState.encounterState?.enemies ?? []).filter(e => e.status === 'active');
   let changed = false;
+  let replacedCount = 0;
   const fixedChoices = turnResult.choices.map(choice => {
     const lower = `${choice.label} ${choice.narration ?? ''}`.toLowerCase();
     if (![...defeatedTerms].some(term => lower.includes(term))) {
@@ -161,19 +162,27 @@ const stripChoicesTargetingDefeatedEnemies = (
     }
     changed = true;
     const target = activeEnemies[0];
-    const replacement = target
-      ? `Press the attack on the ${target.name}`
-      : 'Hold position and stay ready';
-    const replacementNarration = target
-      ? `Keep the pressure on the ${target.name} while the moment allows.`
-      : 'Brace and stay alert for what comes next.';
-    devLog.warn(`[Guard] choice targets defeated enemy - replacing. original="${choice.label}" new="${replacement}"`);
+    // Vary replacements so multiple stripped choices don't render as identical buttons
+    const variants = target
+      ? [
+        { label: `Press the attack on the ${target.name}`, narration: `Keep the pressure on the ${target.name} while the moment allows.` },
+        { label: `Find an opening against the ${target.name}`, narration: `Watch the ${target.name} for a weakness to exploit.` },
+        { label: `Throw the ${target.name} off balance`, narration: `Disrupt the ${target.name} before they can regroup.` },
+      ]
+      : [
+        { label: 'Hold position and stay ready', narration: 'Brace and stay alert for what comes next.' },
+        { label: 'Scan the area for the next threat', narration: 'Sweep the surroundings before moving on.' },
+        { label: 'Regroup with the party', narration: 'Pull together and plan the next move.' },
+      ];
+    const replacement = variants[replacedCount % variants.length];
+    replacedCount++;
+    devLog.warn(`[Guard] choice targets defeated enemy - replacing. original="${choice.label}" new="${replacement.label}"`);
     return {
-      label: replacement,
+      label: replacement.label,
       difficulty: choice.difficulty,
       stat: choice.stat,
       difficultyValue: choice.difficultyValue,
-      narration: replacementNarration,
+      narration: replacement.narration,
       flavor: 'standard' as const,
     };
   });
@@ -410,7 +419,9 @@ export const executeTurnAction = async (
     `scenePressure=${scenePressure.kind} momentum=${sceneMomentum.directive}`,
   );
 
-  const earlyHpChange = GameEngine.computeDeterministicHpChange(session, actingCharId, actionAttempt);
+  const earlyHpChange = isNoFailureDamageAction(action, effectiveActionIntent)
+    ? null
+    : GameEngine.computeDeterministicHpChange(session, actingCharId, actionAttempt);
   if (actionAttempt.actionResult.statUsed !== 'none') {
     broadcastUpdate(sessionId, 'narration_roll_ready', {
       rollNarration: buildRollNarration(actionAttempt.actionResult) || null,
@@ -432,6 +443,8 @@ export const executeTurnAction = async (
   turnResult = ensureSuccessfulHealingSuggestion(session, actionAttempt, turnResult);
   turnResult = ensureSuccessfulEnchantmentSuggestion(session, actionAttempt, turnResult);
   turnResult = ensureSuccessfulSupportSuggestion(session, actionAttempt, turnResult, effectiveActionIntent, targetCharName);
+  turnResult = dropRedundantBuffAdds(session, turnResult, effectiveActionIntent);
+  turnResult = suppressFailedSupportDamage(actionAttempt, turnResult, effectiveActionIntent);
   stepStart = logTurnStep(sessionId, 'post-llm-guards', stepStart);
   const newState = GameEngine.updateState(session, actionAttempt, turnResult as unknown as Record<string, unknown>);
   await repairEncounterNameIfNeeded(session, newState, {

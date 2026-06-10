@@ -22,5 +22,6 @@ export interface MusicPlayer {
   startNext(category: MusicCategory): Promise<void>;
   stop(): void;
   setVolume(volume: number): void;
+  fadeVolumeTo(volume: number, durationMs?: number): void;
   setMuted(muted: boolean): void;
 }

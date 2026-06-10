@@ -153,10 +153,11 @@ export const SECTION_ACTING_SHORT = `Acting and Next Character:
 - Write choices as direct actions BY \`nextCharacterName\`. Match their class, species, stats, quirk, inventory, and status.`;
 
 export const SECTION_CHOICE_VARIETY = `Choice variety:
+- Stat coverage: at least one of the 3 choices MUST use \`nextCharacterName\`'s highest stat, phrased naturally for the scene. Even in quiet or investigative scenes a might hero can pry, smash, lift, shoulder through, guard, or test strength; a magic hero can sense, channel, or ward; a mischief hero can sneak, notice, or charm. Never give all 3 choices stats the next hero is weak in.
 - Use pronouns matching each character's \`gender\` field.
 - Spotlight: occasionally highlight one hero's class, quirk, history, or carried item. Keep it active and useful.
 - Combo/help: offer a choice where \`nextCharacterName\` works with one active ally. Set \`flavor: "combo"\` and \`helperCharacterName\`. Make combos slightly easier than solo.
-- Item: one choice may use gear carried by \`nextCharacterName\` only. Set \`flavor: "item"\`, \`itemOwnerName\`, \`itemName\`. Never suggest another hero's gear.
+- Item: one choice may use gear carried by \`nextCharacterName\` only, and only an item listed in the provided \`inventory\` data. Set \`flavor: "item"\`, \`itemOwnerName\`, \`itemName\` (exact name from \`inventory\`). Never invent an item, never suggest another hero's gear. If \`inventory\` lists no items for \`nextCharacterName\`, do not produce an item choice.
 - Environment: specific actionable obstacles (collapsing bridge, unstable runes, falling stones). Use active verbs. Set \`flavor: "environment"\` and \`environmentFeature\` to the exact area label or obstacle name - never the scene name itself.
 - Social encounters: tailor to class strengths (rogues deceive, mages charm, holy characters appeal to honour).
 - Flavors: "spotlight", "social", "combo", "item", "environment", or "standard". Max 2 bonus-bearing (combo, item, social, spotlight) per response.
