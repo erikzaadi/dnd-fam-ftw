@@ -484,6 +484,46 @@ function auditChoiceStatCoverage(choices: NarrationChoice[], input: NarrationInp
   return choices;
 }
 
+const TOP_STAT_FALLBACK_LABELS: Record<'might' | 'magic' | 'mischief', { label: string; narration: string }> = {
+  might: { label: 'Use your strength to push through', narration: 'Force the situation with raw power.' },
+  magic: { label: 'Channel your magic to help', narration: 'Let your arcane gift tip the scales.' },
+  mischief: { label: 'Find a clever angle', narration: 'Use your wits to outmaneuver the problem.' },
+};
+
+// Guarantees the next character always has at least one choice in their top
+// stat. If every AI attempt failed to include it, replaces whichever choice
+// uses the character's weakest stat (or the last choice on a tie) with a
+// generic fallback for the top stat.
+function ensureTopStatCoverage(output: ChoicesAgentOutput, input: NarrationInput): ChoicesAgentOutput {
+  const top = nextCharacterTopStat(input);
+  if (!top || output.choices.some(c => c.stat === top.stat)) {
+    return output;
+  }
+  const next = input.party.find(c => c.name === input.nextCharacterName);
+  const weakestStat = next
+    ? (['might', 'magic', 'mischief'] as const).reduce((a, b) => next.stats[b] < next.stats[a] ? b : a)
+    : null;
+  // Find the index of the choice to replace: prefer one using the weakest
+  // stat, fall back to the last choice.
+  const replaceIdx = weakestStat
+    ? (output.choices.findIndex(c => c.stat === weakestStat) !== -1
+      ? output.choices.findIndex(c => c.stat === weakestStat)
+      : output.choices.length - 1)
+    : output.choices.length - 1;
+  const fallback = TOP_STAT_FALLBACK_LABELS[top.stat];
+  devLog.warn(`[Choices] injecting fallback ${top.stat} choice for ${top.name} at index ${replaceIdx}`);
+  const updated = [...output.choices] as ChoicesAgentOutput['choices'];
+  updated[replaceIdx] = {
+    label: fallback.label,
+    difficulty: 'normal',
+    stat: top.stat,
+    difficultyValue: 12,
+    narration: fallback.narration,
+    flavor: 'standard',
+  };
+  return { choices: updated };
+}
+
 function coerceChoice(raw: ChoicesAgentOutput['choices'][0]): NarrationChoice {
   return {
     label: cleanText(raw.label),
@@ -626,7 +666,8 @@ export class DmTurnOrchestrator implements NarrationProvider {
       if (first) {
         // Real choices, but none in the next hero's strongest stat. One
         // corrective attempt on the stronger model with the violation spelled
-        // out; if it also fails, the first real choices still beat fallback.
+        // out. If the retry also misses coverage, inject a deterministic
+        // fallback choice rather than silently returning bad choices.
         const top = nextCharacterTopStat(input);
         const corrected = await withDeadline<ChoicesAgentOutput | null>(
           'choices-coverage-retry',
@@ -640,7 +681,8 @@ export class DmTurnOrchestrator implements NarrationProvider {
           choicesRetryDeadlineMs,
           diagnostics,
         );
-        return corrected ?? first;
+        const best = corrected ?? first;
+        return ensureTopStatCoverage(best, input);
       }
       return withDeadline(
         'choices-retry',

@@ -483,9 +483,10 @@ describe('DmTurnOrchestrator.orchestrate', () => {
     expect(result.agentDiagnostics.find(d => d.agent === 'choices-coverage-retry')?.status).toBe('ok');
   });
 
-  it('keeps the first real choices when the coverage retry fails', async () => {
+  it('injects top-stat fallback when the coverage retry fails', async () => {
     const input = { ...baseInput(), nextCharacterName: 'Pip' };
     mockStreamOnce(makeNarrationCompletion('Onward.'));
+    // All choices use might; Pip's top stat is mischief
     mockStreamOnce(makeChoicesCompletion());
     // Coverage retry fails
     mocks.stream.mockReturnValueOnce({
@@ -497,7 +498,8 @@ describe('DmTurnOrchestrator.orchestrate', () => {
     const result = await orchestrator.orchestrate(input);
 
     expect(result.choices).toHaveLength(3);
-    expect(result.choices[0].label).toBe('Press deeper');
+    // The weakest-stat (might) choice at index 0 is replaced with the mischief fallback
+    expect(result.choices.some(c => c.stat === 'mischief')).toBe(true);
     expect(result.choicesFailed).toBe(false);
   });
 
