@@ -40,7 +40,16 @@ export const SECTION_COMBAT_PACING = `COMBAT PACING - Decisive Encounters (CRITI
 - Prolonged grinding against the same enemy is FORBIDDEN. Change the terrain, have enemies flee or surrender, introduce a new complication, or close the scene.
 - NEVER immediately replace downed enemies with fresh ones from the exact same group to extend the fight.
 - If a previous turn already declared the last enemy defeated or showed an exit/reward path, treat the fight as over. Later failed travel, regrouping, or investigation rolls may create a new complication, but not the same enemy wave returning.
-- MORALE AND SURRENDER: Enemies can flee, bargain, surrender, reveal clues, or hand over loot instead of fighting to the last breath. If surrender or retreat yields an item, badge, key, map, coin purse, weapon, clue-object, or reward, set suggestedInventoryAdd.`;
+- MORALE AND SURRENDER: Enemies can flee, bargain, surrender, reveal clues, or hand over loot instead of fighting to the last breath. If surrender or retreat yields an item, badge, key, map, coin purse, weapon, clue-object, or reward, describe it concretely in the story. The inventory module handles the structured loot addition.`;
+
+export const SECTION_ACTIVE_COMBAT_CHOICES = `ACTIVE COMBAT - Choice Requirements (CRITICAL - overrides all story-pacing and location-stall rules):
+- An encounter is active. At least 2 of the 3 choices MUST be combat actions that directly engage an enemy from \`encounterState.enemies\` (status: "active" only).
+- Each combat choice must name the enemy or describe a concrete action against it: attack, exploit a weakness, use a class ability on it, use terrain from \`encounterState.areas\` against it, or apply an item to deal with it.
+- Revealed weaknesses (\`revealedWeaknesses\`) are known to the party - write at least one choice that exploits a revealed weakness when one exists. Use the weakness label verbatim (e.g. "clear mind" - a choice might say "Focus your mind to dispel the Roomshifter Illusions").
+- Enemy \`traits\` describe how the enemy behaves - use them to create varied, enemy-specific choices (e.g. a "disorient" trait suggests a focus/clarity counter; a "change gravity" trait suggests anchoring or using the gravity shift).
+- Do NOT generate exploration, artifact, investigation, healing, or story-advancement choices as your combat choices. The LOCATION STALL and story beat signals do not apply mid-fight - finishing the current encounter IS how the party moves on.
+- One of the 3 choices may be defensive or tactical (shield, protect an ally, fortify position) but it must still be framed around the ongoing fight.
+- If the enemy's HP is at or below half its \`maxHp\`, at least one choice must be a finishing move to end the encounter this turn.`;
 
 export const SECTION_ACTIVE_ENCOUNTER = `ACTIVE ENCOUNTER (encounterState):
 - When \`encounterState\` is provided with \`status: "active"\`, the party is in a tracked combat encounter. The enemies in \`enemies\` are the authoritative record of the fight.
@@ -52,7 +61,7 @@ export const SECTION_ACTIVE_ENCOUNTER = `ACTIVE ENCOUNTER (encounterState):
 - Damage amounts: 1-2 for glancing hits, 3-4 for solid strikes, 5+ for devastating or weak-point blows.
 - Do NOT set \`enemyDamage\` for an enemy already "defeated", "fled", or "surrendered".
 - Do NOT set \`suggestedEncounterStart\` when \`encounterState.status === "active"\` - an encounter is already running.
-- If \`encounterLootHint\` is provided: when your narration ends the encounter (all enemies defeated, fled, or surrendered), weave the loot into the victory narration - describe the party finding, receiving, or claiming it as part of the story - and set \`suggestedInventoryAdd\` in the SAME response. Do not wait for a later turn. The item name must be taken verbatim from \`encounterLootHint\`.
+- If \`encounterLootHint\` is provided: when the encounter ends, ensure all enemies are fully resolved in \`suggestedEncounterUpdate\`. The inventory module detects \`encounterLootHint\` on a resolved encounter and handles loot addition automatically.
 - When \`encounterJustResolved\` is true and no loot was granted yet: narrate the aftermath and move into a reward, rest, clue, or route beat.
 - If \`resolvedEncounterEnemyNames\` is provided, do not re-spawn those exact defeated enemies. You may still start new encounters with fresh enemy names.
 - When no \`encounterState\` is active and the scene clearly starts a fight - enemies appear and combat begins - set \`suggestedEncounterStart\` with the enemy list, roles, and weak points. If you omit it, the backend may infer a matching prepared encounter from narration context.
@@ -62,19 +71,19 @@ export const SECTION_FAIL_FORWARD = `FAIL FORWARD:
 - A failed roll should still move the story somewhere interesting. Do not narrate "nothing happens" unless the failure is intentionally comic and brief.
 - On failure, add a consequence: lost time, attention drawn, worse position, a new obstacle, a revealed danger, damaged confidence, a stolen/lost item, or success at a cost.
 - Do not hide essential campaign progress behind a single failed roll. If the party misses a clue, reveal a different clue with a complication.
-- If the narration says an item is stolen, lost, traded away, broken beyond use, sacrificed, or taken by an NPC, you MUST set suggestedInventoryRemove for that exact item.`;
+- If the story consequence implies an item was stolen, lost, sacrificed, or taken, describe the loss concretely - name the item and the manner of loss. A separate inventory module owns the structured removal.`;
 
 export const SECTION_REST_RECOVERY = `REST AND RECOVERY:
 - Rest scenes can be meaningful choices: a campfire pause, cozy inn, healer's hut, hidden grove, magical sanctuary, shared meal, or uneasy sleep.
 - Avoid downtime filler. Use rest scenes only when the party is hurt, downed, recovering from a wipe, or the current story already clearly calls for it.
 - If the party rests, sleeps, eats, receives care, or recovers and the narration says wounds improve, set suggestedHeal for the healed active characters or suggestedRevive for downed characters.
-- Rest can include a gentle complication: a clue appears, a dream reveals a secret, an NPC visits, tracks are found, or one non-essential carried item is stolen or lost. If an item leaves inventory, set suggestedInventoryRemove.
+- Rest can include a gentle complication: a clue appears, a dream reveals a secret, an NPC visits, tracks are found, or one non-essential carried item is stolen or lost. If an item leaves inventory, describe the loss concretely - the inventory module handles removal.
 - Never remove a quest-critical or non-transferable item as a random rest complication.`;
 
 export const SECTION_CUTE_CONDITIONS_BUFFS = `CUTE CONDITIONS AND BUFFS:
 - You may use short-lived story conditions as flavor in narration and choices: Brave, Scared, Slowed, Hidden, Sparkling with Magic, Covered in Goo, Dizzy, Inspired, or Jinxed.
 - If the condition gives a temporary character-bound mechanical benefit or penalty, use \`suggestedBuffAdd\`. Examples: blessing a hero, haste, courage, shield magic, jinx-breaking luck, a monster curse, fear, slime-slowing, or bad luck from an enemy spell.
-- Do NOT use buffs for permanent item changes. Use \`suggestedInventoryUpdate\` only when an existing item changes.
+- Do NOT use buffs for permanent item changes. Item changes are handled by the inventory module.
 - Buffs and curses are short-lived. Default to \`remainingTurns: 2\` or \`remainingUses: 1\`; never request more than 3 turns. Stat modifiers must be small, from -2 to +2 on one stat. Do not create healing buffs.
 - Use \`kind: "buff"\` for helpful effects and \`kind: "curse"\` for harmful effects. Curses use negative statBonuses, such as { "mischief": -1 }.
 - Buffs and curses target exact active character names. Never target a downed character. If an effect ends in the story, use \`suggestedBuffRemove\`.
@@ -140,8 +149,9 @@ export const SECTION_DIFFICULTY_SHORT = `DYNAMIC DIFFICULTY (difficultyValue):
 
 export const SECTION_CONTINUITY_SHORT = `Story Continuity:
 - Use \`storySummary\` for continuity. Build on \`recentHistory\`, never repeat it.
+- CRITICAL: \`storySummary\` sections (CURRENT ARC, NEXT PROMISED BEAT, OPEN THREAD, LOCATION STALL, FROZEN CONFRONTATION) are private backend directives. Never quote these section headers or their text verbatim in narration or choices. Translate them silently into story events.
 - Vary choices using \`previousChoiceFlavors\` and \`selectedChoiceFlavor\`.
-- If \`dmPrep\` is provided: honour its lore, villains, locations, and plot hooks. Reveal secrets gradually through clues, NPC reactions, and environmental details. When the party earns a quest object, set \`suggestedInventoryAdd\`. When the matching obstacle appears, offer a choice using the carried object (easier than brute force). Quest-critical objects must use \`transferable: false\` unless the story says otherwise.
+- If \`dmPrep\` is provided: honour its lore, villains, locations, and plot hooks. Reveal secrets gradually through clues, NPC reactions, and environmental details. When the party earns a quest object, describe finding or receiving it concretely - the inventory module handles the structured addition. When the matching obstacle appears, offer a choice using the carried object (easier than brute force).
 - NPCs from \`dmPrep\` must appear IN the narration itself - they speak, react, interfere, threaten, or help. A villain should loom; a merchant should call out. NPCs are part of the living world, not just action targets.
 - NPC FOLLOW-THROUGH: if the same NPC has loomed without acting in 2 or more of the last 3 turns, have them act now - a spoken line, a physical move, a demand, or a visible arrival.
 - No \`dmPrep\`: invent and maintain an implicit 3-stage arc (discovery, escalation, climax) with a destination, looming threat, and unfolding mystery.`;
@@ -243,20 +253,22 @@ export const SECTION_BUFFS_CURSES_FORMAT = `Buffs and Curses:
 - To remove a named active effect because the story cancels it, set \`suggestedBuffRemove\`: { "characterName": "exact target", "buffName": "exact buff or curse name" }.
 - Otherwise set suggestedBuffAdd: null and suggestedBuffRemove: null.`;
 
-export const SECTION_SUPPORT_ACTION_PAYOFF = `SUPPORT ACTION PAYOFF (CRITICAL - follow these rules exactly when the action is bless, aid, party boost, or enchant):
+export const SECTION_SUPPORT_ACTION_PAYOFF = `SUPPORT ACTION PAYOFF (CRITICAL - follow these rules exactly when the action is bless, aid, or party boost):
 - If the action is a BLESS (granting magical protection, luck, or a divine edge to a specific ally) and the roll SUCCEEDS: you MUST set suggestedBuffAdd with kind "buff", a +1 stat bonus in the stat most fitting to the scene (magic for arcane bless, might for martial bless, mischief for luck-bless), remainingTurns: 2. Do NOT leave suggestedBuffAdd null on a successful bless.
 - If the action is an AID (setting up an assist, a clever distraction, or a supportive setup for a specific ally's next action) and the roll SUCCEEDS: you MUST set suggestedBuffAdd with kind "buff", name "Aided", +1 in the stat most relevant to the ally's next likely action, remainingUses: 1. Do NOT leave suggestedBuffAdd null on a successful aid.
 - If the action is a PARTY BOOST (rallying, inspiring, or encouraging the whole group) and the roll SUCCEEDS: you MUST set suggestedBuffAdd as an ARRAY containing one entry per non-active, non-downed party member, each with kind "buff", name "Inspired", +1 might or +1 magic (whichever fits the acting hero's style), remainingTurns: 2. Every eligible ally gets the buff.
-- If the action is an ENCHANT or IMPROVE on an existing item and the roll SUCCEEDS: you MUST set suggestedInventoryUpdate for the named item. Choose an appropriate stat bonus (+1 in might, magic, or mischief), add "Enchanted" to tags, update the description to reflect the change. Do NOT leave suggestedInventoryUpdate null on a successful enchant.
-- On a FAILED support roll: set both suggestedBuffAdd: null and suggestedInventoryUpdate: null. Narrate the attempt falling short without punishing the acting hero with HP damage.`;
+- On a FAILED support roll: set suggestedBuffAdd: null. Narrate the attempt falling short without punishing the acting hero with HP damage.`;
 
 export const SECTION_ACTION_INTENT = `ACTION INTENT (use when actionIntent is provided):
 - \`actionIntent\` tells you exactly what kind of support action this is. It overrides any guessing from the action text.
 - "bless_character": MUST set suggestedBuffAdd on the named target (use actingCharacterName's target from actionAttempt text or nextCharacterName as fallback). Kind "buff", name "Blessed", +1 magic or might.
 - "aid_character": MUST set suggestedBuffAdd with name "Aided", kind "buff", remainingUses: 1. Find the target name in the actionAttempt text.
 - "party_boost": MUST set suggestedBuffAdd with name "Inspired", kind "buff", targeting the party member with lowest HP. Never null on success.
-- "improve_item": MUST set suggestedInventoryUpdate for the item referenced in actionAttempt. +1 stat bonus, add "Enchanted" to tags.
-- These are MANDATORY on success. The backend enforces them as a fallback, but the AI narration should still set them for narrative coherence.`;
+- These are MANDATORY on success. The backend enforces them as a fallback.`;
+
+export const SECTION_ACTION_INTENT_INVENTORY = `ACTION INTENT - Item Enchant (use when actionIntent is "improve_item"):
+- If the roll SUCCEEDS: you MUST set suggestedInventoryUpdate for the item referenced in actionAttempt. Choose a +1 stat bonus (might, magic, or mischief) that fits the item's nature. Add "Enchanted" to tags and update the description to reflect the change.
+- On failure: set suggestedInventoryUpdate: null.`;
 
 export const SECTION_INVENTORY_BASICS = `Inventory:
 - \`ownerName\` tells you which character carries each item.
@@ -303,13 +315,34 @@ export const SECTION_INVENTORY_TRADE = `PARTY AND NPC ITEM TRANSFERS:
 - For trades with NPCs: set BOTH suggestedInventoryRemove (item given away) AND suggestedInventoryAdd (item received). Use targetCharacterName on suggestedInventoryAdd if the received item goes to a specific character.
 - Otherwise set suggestedInventoryRemove: null.`;
 
+export const SECTION_CHOICES_CONTINUITY = `Story Continuity for Choices:
+- Use \`storySummary\` to ground choices in where the story is heading. Prioritize CURRENT ARC, NEXT PROMISED BEAT, and LOCATION STALL sections when present.
+- LOCATION STALL: if storySummary contains a LOCATION STALL line, at least one choice MUST offer a concrete way to move on: follow a lead, enter a new area, respond to a hook, or answer an NPC's call.
+- If \`sceneMomentum\` is provided, align choices with its \`suggestedNextBeat\` to advance the story toward the promised beat.
+- Build on \`recentHistory\` - never offer choices that replay what the party just did this turn or the turn before. Each turn's choices should reflect what just happened and point toward what comes next.
+- If \`previousChoiceLabels\` are provided, generate entirely different labels. Even if the scene is similar, choices must name new actions, targets, or approaches.
+- Vary flavor types using \`previousChoiceFlavors\` and \`selectedChoiceFlavor\` to avoid repeating the same flavor back-to-back.`;
+
+export const SECTION_CHOICES_CONTINUITY_COMBAT = `Combat Choices Continuity:
+- Build on \`recentHistory\` - never repeat an action the party just attempted this turn or the turn before. Name new combat approaches, attack angles, or tactical options against the current enemy.
+- If \`previousChoiceLabels\` are provided, generate entirely different labels. Even if targeting the same enemy, name a different action or approach each turn.
+- Vary flavor types using \`previousChoiceFlavors\` and \`selectedChoiceFlavor\` to avoid repeating the same flavor back-to-back.`;
+
 export const SECTION_FROZEN_CONFRONTATION = `
 - If \`storySummary\` contains a FROZEN CONFRONTATION line, treat it as high priority: within ` +
-`the next 1-2 turns surface that character as a real encounter via suggestedEncounterStart, ` +
-`or force a direct confrontation moment. Stop generating proxy enemies.`;
+`the next 1-2 turns make that character's presence viscerally concrete - have them arrive, speak, ` +
+`threaten, or act directly. The combat module owns structured encounter starts. Stop generating proxy enemies.`;
 
 export const SECTION_LOCATION_STALL = `
 - If \`storySummary\` contains a LOCATION STALL line, introduce a narrative hook this turn ` +
 `that makes moving feel urgent or rewarding: a messenger, a door opening, the current ` +
 `location becoming dangerous, or an NPC pointing the way out.`;
+
+export const SECTION_POST_ENCOUNTER_CHOICES = `POST-ENCOUNTER Choice Requirements (CRITICAL - overrides LOCATION STALL):
+- The party just won a combat encounter (\`encounterJustResolved: true\`).
+- ABSOLUTELY FORBIDDEN choices: "hold position", "stay ready", "brace", "scan the area", "reinforce the realm", "stabilize the area", or any variant that describes waiting, defending in place, or generic realm-stability. These are NOT valid post-encounter choices.
+- Read \`storySummary\`'s NEXT PROMISED BEAT section - that is the primary guide for where the party should go now. Generate at least 2 choices that advance directly toward what the NEXT PROMISED BEAT describes.
+- Read \`encounterObjective\` - the fight was guarding or blocking something. At least one choice must enter or use whatever the encounter was guarding (a hidden room, a passage, an object, an NPC).
+- If \`encounterLootHint\` is present, at least one choice should use the just-acquired item to physically advance toward the next story goal (navigate using it, access a locked area with it, leverage its specific ability to progress).
+- The LOCATION STALL signal means the story must MOVE NOW. All 3 choices must be forward-motion options, not defensive or holding ones.`;
 

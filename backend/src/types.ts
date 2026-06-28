@@ -34,4 +34,5 @@ export interface AIInput extends SessionState, ActionAttempt {
   interventionRescue?: boolean;
   sanctuaryRecovery?: boolean;
   actionIntent?: string;
+  recentChoiceLabels?: string[];
 }

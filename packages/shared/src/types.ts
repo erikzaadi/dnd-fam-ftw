@@ -263,6 +263,23 @@ export interface ActionAttempt {
   };
 }
 
+export type AgentErrorKind =
+  | 'refusal'
+  | 'content_filter'
+  | 'length'
+  | 'no_parsed'
+  | 'schema'
+  | 'network'
+  | 'timeout';
+
+export interface AgentDiagnostic {
+  agent: string;
+  durationMs: number;
+  status: 'ok' | 'timeout' | 'fallback' | 'retry';
+  errorKind?: AgentErrorKind;
+  errorMessage?: string;
+}
+
 export interface TurnResult {
   id?: number;
   encounterId?: string;
@@ -309,6 +326,7 @@ export interface TurnResult {
   narrationRetryValidationError?: string;
   suggestedEncounterStart?: EncounterStartProposal | null;
   suggestedEncounterUpdate?: unknown | null;
+  agentDiagnostics?: AgentDiagnostic[];
 }
 
 export interface SessionPreview {

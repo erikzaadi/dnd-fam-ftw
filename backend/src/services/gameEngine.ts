@@ -732,10 +732,12 @@ export class GameEngine {
           newState.pastEncounters = [...(newState.pastEncounters ?? []), updated];
           // Grant loot immediately on encounter resolution - do not wait for the next turn's AI
           const encSeed = resolveEncounterSeed(updated.name, newState.dmPrepEncounters ?? []);
+          const topStat = (Object.entries(actingChar.stats) as Array<[keyof typeof actingChar.stats, number]>)
+            .sort(([, a], [, b]) => b - a)[0][0];
           if (encSeed?.lootHint) {
             const lootName = this.cleanItemName(encSeed.lootHint);
             if (lootName && !this.partyHasItem(newState.party, lootName)) {
-              actingChar.inventory.push({ id: createId(), name: lootName, description: '', tags: [] });
+              actingChar.inventory.push({ id: createId(), name: lootName, description: '', tags: [], statBonuses: { [topStat]: 1 } });
               if (aiSuggestedChanges) {
                 this.appendLootNarration(aiSuggestedChanges, actingChar.name, lootName);
               }
@@ -748,6 +750,7 @@ export class GameEngine {
                 name: lootName,
                 description: 'A trophy earned in battle.',
                 tags: ['trophy'],
+                statBonuses: { [topStat]: 1 },
               });
               if (aiSuggestedChanges) {
                 this.appendLootNarration(aiSuggestedChanges, actingChar.name, lootName);

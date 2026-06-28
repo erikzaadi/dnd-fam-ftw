@@ -81,7 +81,7 @@ describe('buildNarrationAgentSystemPrompt', () => {
       storySummary: 'STORY SO FAR: The party arrived.\nFROZEN CONFRONTATION: Malakor the Defiler - targeted repeatedly but never escalated.',
     }));
     expect(prompt).toContain('FROZEN CONFRONTATION');
-    expect(prompt).toContain('surface that character as a real encounter');
+    expect(prompt).toContain('make that character\'s presence viscerally concrete');
   });
 
   it('includes location stall section when storySummary contains LOCATION STALL', () => {
@@ -96,7 +96,7 @@ describe('buildNarrationAgentSystemPrompt', () => {
     const prompt = buildNarrationAgentSystemPrompt(makeInput({
       storySummary: 'STORY SO FAR: The party arrived.',
     }));
-    expect(prompt).not.toContain('surface that character as a real encounter');
+    expect(prompt).not.toContain('make that character\'s presence viscerally concrete');
     expect(prompt).not.toContain('introduce a narrative hook this turn');
   });
 
@@ -130,19 +130,13 @@ describe('buildCombatAgentSystemPrompt', () => {
     expect(prompt).toContain('CRITICAL - Damage on Failure');
   });
 
-  it('active encounter includes combat loot section', () => {
-    const prompt = buildCombatAgentSystemPrompt(makeInput(ACTIVE_ENCOUNTER_INPUT));
-    expect(prompt).toContain('COMBAT LOOT');
-  });
-
-  it('encounterJustResolved includes combat loot section', () => {
-    const prompt = buildCombatAgentSystemPrompt(makeInput({ encounterJustResolved: true }));
-    expect(prompt).toContain('COMBAT LOOT');
-  });
-
-  it('non-loot turn excludes combat loot section', () => {
-    const prompt = buildCombatAgentSystemPrompt(makeInput());
-    expect(prompt).not.toContain('COMBAT LOOT');
+  it('never includes combat loot section (inventory module owns loot)', () => {
+    const activeCombat = buildCombatAgentSystemPrompt(makeInput(ACTIVE_ENCOUNTER_INPUT));
+    const lootResolved = buildCombatAgentSystemPrompt(makeInput({ encounterJustResolved: true }));
+    const exploration = buildCombatAgentSystemPrompt(makeInput());
+    expect(activeCombat).not.toContain('COMBAT LOOT');
+    expect(lootResolved).not.toContain('COMBAT LOOT');
+    expect(exploration).not.toContain('COMBAT LOOT');
   });
 });
 
@@ -337,6 +331,80 @@ describe('isRiddleTurn', () => {
     expect(isRiddleTurn(makeRiddleInput({
       recentHistory: ['You entered the vault.', 'The sphinx posed a new puzzle.'],
     }))).toBe(true);
+  });
+});
+
+// The "fullest" input compiles the largest possible prompt (active combat, downed
+// party, trade keyword, special intents). Ownership tests use this to catch any
+// cross-domain leakage that only appears under specific conditional sections.
+const makeFullInput = (): NarrationInput => makeInput({
+  encounterState: { id: 'enc-1', name: 'Goblin Fight', status: 'active' as const, enemies: [], areas: [], round: 2 },
+  party: [
+    { name: 'Pip', class: 'Rogue', species: 'Halfling', hp: 8, maxHp: 10, stats: { might: 1, magic: 2, mischief: 4 }, status: 'active', buffs: [{ id: 'b1', name: 'Blessed', description: 'Lucky', statBonuses: { magic: 1 }, remainingTurns: 2 }] },
+    { name: 'Brom', class: 'Warrior', species: 'Human', hp: 0, maxHp: 10, stats: { might: 4, magic: 1, mischief: 2 }, status: 'downed' },
+  ],
+  actionAttempt: 'Give the healing potion to Brom',
+  actionResult: { success: true, summary: 'ok', statUsed: 'magic' },
+  actionIntent: 'bless_character',
+  sceneMomentum: { directive: 'climax_pressure' as const, suggestedNextBeat: 'suggestedEncounterStart', staleChoiceCount: 0, turnsSinceSceneChange: 3, turnsSinceCombat: 0, justCompletedCombat: false, justCompletedDifficultChallenge: false, reason: 'test' },
+  storySummary: 'STORY SO FAR: The dungeon deepens.\nFROZEN CONFRONTATION: Malakor the Defiler - lurking nearby.',
+  interventionRescue: true,
+  sanctuaryRecovery: false,
+  recentHistory: ['A merchant appeared.'],
+  inventory: [{ name: '⚔️ Iron Sword', description: 'A sword', ownerName: 'Pip', statBonuses: {}, transferable: true, consumable: false }],
+});
+
+describe('prompt ownership - narration agent never instructs inventory-owned fields', () => {
+  // suggestedDamage and suggestedEncounterStart appear in the narration prompt only
+  // in negation contexts ("do NOT set X") - that is intentional. The assertions below
+  // cover inventory-owned fields that were removed in Phase 2 and must stay removed.
+  it('never contains inventory field names from any conditional section', () => {
+    const prompt = buildNarrationAgentSystemPrompt(makeFullInput());
+    expect(prompt).not.toContain('suggestedInventoryAdd');
+    expect(prompt).not.toContain('suggestedInventoryRemove');
+    expect(prompt).not.toContain('suggestedInventoryUpdate');
+  });
+});
+
+describe('prompt ownership - combat agent never instructs cross-domain fields', () => {
+  it('never contains inventory-owned field names', () => {
+    const prompt = buildCombatAgentSystemPrompt(makeFullInput());
+    expect(prompt).not.toContain('suggestedInventoryAdd');
+    expect(prompt).not.toContain('suggestedInventoryRemove');
+    expect(prompt).not.toContain('suggestedInventoryUpdate');
+  });
+
+  it('never contains recovery-owned field names', () => {
+    const prompt = buildCombatAgentSystemPrompt(makeFullInput());
+    expect(prompt).not.toContain('suggestedRevive');
+    expect(prompt).not.toContain('suggestedHeal');
+    expect(prompt).not.toContain('suggestedBuffAdd');
+    expect(prompt).not.toContain('suggestedBuffRemove');
+  });
+});
+
+describe('prompt ownership - inventory agent never instructs cross-domain fields', () => {
+  it('never contains recovery-owned field names', () => {
+    const prompt = buildInventoryAgentSystemPrompt(makeFullInput());
+    expect(prompt).not.toContain('suggestedRevive');
+    expect(prompt).not.toContain('suggestedHeal');
+    expect(prompt).not.toContain('suggestedBuffAdd');
+    expect(prompt).not.toContain('suggestedBuffRemove');
+  });
+
+  it('never contains combat-owned field names', () => {
+    const prompt = buildInventoryAgentSystemPrompt(makeFullInput());
+    expect(prompt).not.toContain('suggestedDamage');
+    expect(prompt).not.toContain('suggestedEncounterStart');
+  });
+});
+
+describe('prompt ownership - recovery agent never instructs inventory-owned fields', () => {
+  it('never contains inventory field names from any conditional section', () => {
+    const prompt = buildRecoveryAgentSystemPrompt(makeFullInput());
+    expect(prompt).not.toContain('suggestedInventoryAdd');
+    expect(prompt).not.toContain('suggestedInventoryRemove');
+    expect(prompt).not.toContain('suggestedInventoryUpdate');
   });
 });
 

@@ -21,6 +21,7 @@ import {
 import { buildSceneMomentum, buildScenePressure } from './sceneMomentumService.js';
 import { dropRedundantBuffAdds, ensureSuccessfulEnchantmentSuggestion, ensureSuccessfulHealingSuggestion, ensureSuccessfulSupportSuggestion, inferActionIntent, isNoFailureDamageAction, suppressFailedSupportDamage } from './freeActionPolicyService.js';
 import { repairEncounterNameIfNeeded } from './encounterNameRepairService.js';
+import { checkTurnResultConsistency } from './turnResultConsistencyService.js';
 import { buildRollNarration } from './rollNarrationService.js';
 
 const logTurnStep = (sessionId: string, step: string, start: number, details = ''): number => {
@@ -306,6 +307,7 @@ export const executeTurnAction = async (
     const itemLlmMs = Date.now() - itemLlmStart;
     stepStart = logTurnStep(sessionId, 'item-llm', stepStart, `retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
 
+    checkTurnResultConsistency(turnResult, itemState, itemAttempt);
     const newState = GameEngine.updateState(itemState, itemAttempt, turnResult as unknown as Record<string, unknown>);
     await repairEncounterNameIfNeeded(itemState, newState, {
       narration: turnResult.narration,
@@ -347,6 +349,9 @@ export const executeTurnAction = async (
   const history = await StateService.getTurnHistory(sessionId);
   stepStart = logTurnStep(sessionId, 'load-history', stepStart, `history=${history.length}`);
   const latestChoices = history[history.length - 1]?.choices ?? session.lastChoices;
+  const recentChoiceLabels = [...new Set(
+    history.slice(-5, -1).flatMap(h => h.choices.map(c => c.label))
+  )];
   const submittedChoice = latestChoices.find(choice => choice.label === action);
   const inferredFreeActionBonuses: InferredFreeActionBonuses = submittedChoice ? {} : inferFreeActionBonuses(action, character, session);
   const helperCharacter = submittedChoice?.flavor === 'combo' && submittedChoice.helperCharacterName
@@ -410,7 +415,7 @@ export const executeTurnAction = async (
   const scenePressure = buildScenePressure(history, actionAttempt, session.scene);
   const sceneMomentum = buildSceneMomentum(history, actionAttempt, session, scenePressure);
   const effectiveActionIntent = actionIntent ?? inferActionIntent(action, session);
-  const aiInput: AIInput = { ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId, scenePressure, sceneMomentum, ...(effectiveActionIntent && { actionIntent: effectiveActionIntent }), lastChoices: latestChoices };
+  const aiInput: AIInput = { ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId, scenePressure, sceneMomentum, ...(effectiveActionIntent && { actionIntent: effectiveActionIntent }), lastChoices: latestChoices, ...(recentChoiceLabels.length > 0 && { recentChoiceLabels }) };
   const targetCharName = targetCharacterId ? session.party.find(c => c.id === targetCharacterId)?.name : undefined;
   stepStart = logTurnStep(
     sessionId,
@@ -445,6 +450,7 @@ export const executeTurnAction = async (
   turnResult = ensureSuccessfulSupportSuggestion(session, actionAttempt, turnResult, effectiveActionIntent, targetCharName);
   turnResult = dropRedundantBuffAdds(session, turnResult, effectiveActionIntent);
   turnResult = suppressFailedSupportDamage(actionAttempt, turnResult, effectiveActionIntent);
+  checkTurnResultConsistency(turnResult, session, actionAttempt);
   stepStart = logTurnStep(sessionId, 'post-llm-guards', stepStart);
   const newState = GameEngine.updateState(session, actionAttempt, turnResult as unknown as Record<string, unknown>);
   await repairEncounterNameIfNeeded(session, newState, {

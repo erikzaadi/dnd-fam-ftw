@@ -1,4 +1,5 @@
 import { zodResponseFormat } from 'openai/helpers/zod';
+import type { ZodType } from 'zod';
 import type { NarrationChoice, NarrationInput, NarrationOutput, NarrationProvider, NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
 import { buildNarrationFallback } from '../providers/ai/narration/narrationFallback.js';
 import { buildNarrationUserContent } from '../providers/ai/narration/narrationPrompt.js';
@@ -21,20 +22,41 @@ import {
   type CombatAgentOutput,
   type InventoryAgentOutput,
   type RecoveryAgentOutput,
+  type AgentDiagnostic,
+  type AgentErrorKind,
 } from '../providers/ai/narration/agentSchemas.js';
 import { createOpenAIClient, getModelForTier } from '../providers/ai/openAiClient.js';
 import { devLog } from '../lib/devLog.js';
 
-export type AgentDiagnostic = {
-  agent: string;
-  durationMs: number;
-  status: 'ok' | 'timeout' | 'fallback' | 'retry';
-};
+export type { AgentDiagnostic, AgentErrorKind };
 
 export type DmTurnOrchestratorResult = NarrationOutput & {
   agentDiagnostics: AgentDiagnostic[];
   choicesFailed: boolean;
 };
+
+function classifyAgentError(err: unknown): AgentErrorKind {
+  if (!(err instanceof Error)) {
+    return 'network';
+  }
+  const msg = err.message.toLowerCase();
+  if (msg.includes('refus')) {
+    return 'refusal';
+  }
+  if (msg.includes('content filter') || msg.includes('content_filter')) {
+    return 'content_filter';
+  }
+  if (msg.includes('truncated') || msg.includes('length limit')) {
+    return 'length';
+  }
+  if (msg.includes('no parsed')) {
+    return 'no_parsed';
+  }
+  if (msg.includes('schema error')) {
+    return 'schema';
+  }
+  return 'network';
+}
 
 async function withDeadline<T>(
   name: string,
@@ -55,10 +77,10 @@ async function withDeadline<T>(
           return await fn(controller.signal);
         } catch (err) {
           if (retryOnce && !controller.signal.aborted) {
-            const msg = err instanceof Error ? err.message : '';
-            if (msg.includes('schema error') || msg.includes('no parsed')) {
+            const kind = classifyAgentError(err);
+            if (kind === 'schema' || kind === 'no_parsed') {
               retried = true;
-              devLog.warn(`[Orchestrator] ${name} retrying after parse error: ${msg}`);
+              devLog.warn(`[Orchestrator] ${name} retrying after ${kind}: ${err instanceof Error ? err.message : String(err)}`);
               return await fn(controller.signal);
             }
           }
@@ -84,23 +106,46 @@ async function withDeadline<T>(
     const durationMs = Date.now() - start;
     const isTimeout = err instanceof Error && err.message === 'agent-deadline';
     const status: AgentDiagnostic['status'] = isTimeout ? 'timeout' : 'fallback';
-    devLog.warn(`[Metrics] agent=${name} status=${status} durationMs=${durationMs} error=${err instanceof Error ? err.message : String(err)}`);
-    diagnostics.push({ agent: name, durationMs, status });
+    const errorKind: AgentErrorKind = isTimeout ? 'timeout' : classifyAgentError(err);
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    devLog.warn(`[Metrics] agent=${name} status=${status} durationMs=${durationMs} errorKind=${errorKind} error=${errorMessage}`);
+    diagnostics.push({ agent: name, durationMs, status, errorKind, errorMessage });
     return fallback;
   }
 }
 
+// Returns true when there is a strong structural signal that a new encounter
+// should start this turn. Guards against running the combat agent on every
+// tense exploration turn by requiring an explicit momentum or mode signal.
+export function hasEncounterStartSignal(input: NarrationInput): boolean {
+  if (input.encounterState?.status === 'active') {
+    return false;
+  }
+  const nextBeat = input.sceneMomentum?.suggestedNextBeat ?? '';
+  if (nextBeat.includes('suggestedEncounterStart')) {
+    return true;
+  }
+  if (input.sceneMomentum?.directive === 'climax_pressure') {
+    return true;
+  }
+  if (input.gameMode === 'zug-ma-geddon') {
+    return true;
+  }
+  return false;
+}
+
 export function shouldRunCombatAgent(input: NarrationInput): boolean {
-  return input.encounterState?.status === 'active';
+  return input.encounterState?.status === 'active' || hasEncounterStartSignal(input);
 }
 
 export function shouldRunInventoryAgent(input: NarrationInput): boolean {
   const isActiveCombat = input.encounterState?.status === 'active';
   const isLootTurn = isActiveCombat || !!input.encounterJustResolved;
-  return isTradeTurn(input) || isLootTurn;
+  const isEnchantTurn = input.actionIntent === 'improve_item';
+  return isTradeTurn(input) || isLootTurn || isEnchantTurn;
 }
 
-const BUFF_INTENT_SET = new Set(['bless_character', 'aid_character', 'party_boost', 'improve_item']);
+const BUFF_INTENT_SET = new Set(['bless_character', 'aid_character', 'party_boost']);
 
 export function shouldRunRecoveryAgent(input: NarrationInput): boolean {
   const hasDownedMember = input.party.some(c => c.status === 'downed');
@@ -198,12 +243,17 @@ async function callNarrationAgent(
 }
 
 function choicesUserContent(input: NarrationInput): string {
+  const isActiveCombat = input.encounterState?.status === 'active';
+  const isEncounterResolution = !isActiveCombat && !!input.encounterJustResolved;
   return JSON.stringify({
     scene: input.scene,
     tone: input.tone,
     gameMode: input.gameMode,
     isFirstTurn: input.isFirstTurn,
-    storySummary: input.storySummary ? input.storySummary.slice(0, 300) : undefined,
+    // Omit story-arc signals during active combat only: the fight is the current beat.
+    // Post-encounter turns still need storySummary (NEXT PROMISED BEAT) to know where to advance.
+    ...(!isActiveCombat && { storySummary: input.storySummary }),
+    ...(!isActiveCombat && input.sceneMomentum && { sceneMomentum: input.sceneMomentum }),
     party: input.party.map(c => ({
       name: c.name,
       class: c.class,
@@ -217,10 +267,31 @@ function choicesUserContent(input: NarrationInput): string {
     actionAttempt: input.actionAttempt,
     actionResult: { success: input.actionResult.success, summary: input.actionResult.summary },
     encounterState: input.encounterState
-      ? { status: input.encounterState.status, enemies: input.encounterState.enemies.map(e => ({ name: e.name, hp: e.hp, status: e.status })) }
+      ? {
+        status: input.encounterState.status,
+        areas: input.encounterState.areas?.map(a => ({ label: a.label, effect: a.effect })),
+        enemies: input.encounterState.enemies.map(e => ({
+          name: e.name,
+          hp: e.hp,
+          maxHp: e.maxHp,
+          status: e.status,
+          ...(e.traits?.length && { traits: e.traits }),
+          ...(e.weaknesses?.some(w => w.revealed) && {
+            revealedWeaknesses: e.weaknesses.filter(w => w.revealed).map(w => w.label),
+          }),
+        })),
+      }
       : undefined,
+    ...(hasEncounterStartSignal(input) && { encounterStartExpected: true }),
+    ...(isEncounterResolution && {
+      encounterJustResolved: true,
+      ...(input.encounterState?.objective && { encounterObjective: input.encounterState.objective }),
+      ...(input.encounterLootHint && { encounterLootHint: input.encounterLootHint }),
+    }),
     resolvedEncounterEnemyNames: input.resolvedEncounterEnemyNames?.length ? input.resolvedEncounterEnemyNames : undefined,
     previousChoiceLabels: input.previousChoiceLabels,
+    ...(input.previousChoiceFlavors?.length && { previousChoiceFlavors: input.previousChoiceFlavors }),
+    ...(input.selectedChoiceFlavor && { selectedChoiceFlavor: input.selectedChoiceFlavor }),
     actingCharacterName: input.actingCharacterName,
     nextCharacterName: input.nextCharacterName,
     // Only the next character's gear: item choices may use their items exclusively
@@ -232,22 +303,46 @@ function choicesUserContent(input: NarrationInput): string {
         ...(item.effect && { effect: item.effect }),
         ...(item.tags?.length && { tags: item.tags }),
       })),
-    recentHistory: input.recentHistory?.slice(-2),
+    recentHistory: input.recentHistory?.slice(-3),
   });
 }
 
 function combatUserContent(input: NarrationInput): string {
+  const isActiveCombat = input.encounterState?.status === 'active';
+  const actionResult = {
+    success: input.actionResult.success,
+    impact: input.actionResult.impact,
+    summary: input.actionResult.summary,
+    statUsed: input.actionResult.statUsed,
+  };
+  const party = input.party.map(c => ({ name: c.name, hp: c.hp, maxHp: c.maxHp, status: c.status }));
+
+  if (isActiveCombat) {
+    return JSON.stringify({
+      encounterState: input.encounterState,
+      actionAttempt: input.actionAttempt,
+      actionResult,
+      party,
+      encounterJustResolved: input.encounterJustResolved,
+      // encounterLootHint triggers SECTION_ACTIVE_ENCOUNTER's enemy-cleanup rule
+      ...(input.encounterLootHint && { encounterLootHint: input.encounterLootHint }),
+    });
+  }
+
+  // Encounter-start turn: supply seed/momentum/history so the agent can choose
+  // which prepared encounter to start and avoid re-spawning resolved ones.
   return JSON.stringify({
-    encounterState: input.encounterState,
     actionAttempt: input.actionAttempt,
-    actionResult: {
-      success: input.actionResult.success,
-      impact: input.actionResult.impact,
-      summary: input.actionResult.summary,
-      statUsed: input.actionResult.statUsed,
-    },
-    party: input.party.map(c => ({ name: c.name, hp: c.hp, maxHp: c.maxHp, status: c.status })),
-    encounterJustResolved: input.encounterJustResolved,
+    actionResult,
+    party,
+    sceneMomentum: input.sceneMomentum,
+    gameMode: input.gameMode,
+    dmPrepEncounters: input.dmPrepEncounters,
+    storySummary: input.storySummary,
+    recentHistory: input.recentHistory?.slice(-3),
+    resolvedEncounterEnemyNames: input.resolvedEncounterEnemyNames?.length
+      ? input.resolvedEncounterEnemyNames
+      : undefined,
   });
 }
 
@@ -255,11 +350,12 @@ function inventoryUserContent(input: NarrationInput): string {
   return JSON.stringify({
     inventory: input.inventory,
     actionAttempt: input.actionAttempt,
-    // difficulty drives the loot drop-rate rules; stats/class drive the stat-fit rules
+    // difficulty drives loot drop-rate; impact scales loot quality on extreme successes; stats/class drive stat-fit
     actionResult: {
       success: input.actionResult.success,
       summary: input.actionResult.summary,
       difficulty: input.actionResult.difficulty,
+      impact: input.actionResult.impact,
     },
     actingCharacterName: input.actingCharacterName,
     gameMode: input.gameMode,
@@ -267,6 +363,8 @@ function inventoryUserContent(input: NarrationInput): string {
     encounterJustResolved: input.encounterJustResolved,
     encounterLootHint: input.encounterLootHint,
     party: input.party.map(c => ({ name: c.name, class: c.class, species: c.species, stats: c.stats })),
+    // recent narrative context: lets the agent understand what the scene established
+    recentHistory: input.recentHistory?.slice(-2),
   });
 }
 
@@ -279,11 +377,62 @@ function recoveryUserContent(input: NarrationInput): string {
   return prefix + JSON.stringify({
     party: input.party.map(c => ({ name: c.name, hp: c.hp, maxHp: c.maxHp, status: c.status, buffs: c.buffs })),
     actionAttempt: input.actionAttempt,
-    actionResult: { success: input.actionResult.success, summary: input.actionResult.summary },
+    // actingCharacterName needed by SECTION_SUPPORT_ACTION_PAYOFF to exclude the actor from party-wide buffs
+    actingCharacterName: input.actingCharacterName,
+    // impact lets the agent scale heal amounts for strong/extreme successes
+    actionResult: { success: input.actionResult.success, summary: input.actionResult.summary, impact: input.actionResult.impact },
     actionIntent: input.actionIntent,
     sanctuaryRecovery: input.sanctuaryRecovery,
     interventionRescue: input.interventionRescue,
   });
+}
+
+async function callStructuredAgent<T>(config: {
+  agentName: string;
+  schema: ZodType<T>;
+  schemaKey: string;
+  model: string;
+  systemPrompt: string;
+  userContent: string;
+  maxCompletionTokens: number;
+  signal: AbortSignal;
+}): Promise<T> {
+  const { agentName, schema, schemaKey, model, systemPrompt, userContent, maxCompletionTokens, signal } = config;
+
+  const stream = createOpenAIClient().chat.completions.stream({
+    model,
+    messages: [
+      { role: 'system' as const, content: systemPrompt },
+      { role: 'user' as const, content: userContent },
+    ],
+    response_format: zodResponseFormat(schema, schemaKey),
+    max_completion_tokens: maxCompletionTokens,
+    stream: true as const,
+    stream_options: { include_usage: true },
+  }, { signal });
+
+  const response = await stream.finalChatCompletion();
+  const message = response.choices[0].message;
+
+  if (message.refusal) {
+    throw new Error(`${agentName} agent refusal: ${message.refusal}`);
+  }
+  if (response.choices[0].finish_reason === 'content_filter') {
+    throw new Error(`${agentName} agent: content filter`);
+  }
+  if (!message.parsed) {
+    const reason = response.choices[0].finish_reason === 'length'
+      ? 'truncated by length limit'
+      : 'no parsed structured output';
+    throw new Error(`${agentName} agent: ${reason}`);
+  }
+
+  const parsed = schema.safeParse(message.parsed);
+  if (!parsed.success) {
+    throw new Error(`${agentName} agent schema error: ${parsed.error.message}`);
+  }
+
+  return parsed.data;
 }
 
 async function callChoicesAgent(
@@ -294,131 +443,56 @@ async function callChoicesAgent(
   tier: 'preview' | 'narration' = 'preview',
   extraInstruction?: string,
 ): Promise<ChoicesAgentOutput> {
-  const model = getModelForTier(tier);
-  const systemPrompt = buildChoicesAgentSystemPrompt(input);
   const userContent = choicesUserContent(input);
-
-  const stream = createOpenAIClient().chat.completions.stream({
-    model,
-    messages: [
-      { role: 'system' as const, content: systemPrompt },
-      { role: 'user' as const, content: extraInstruction ? `${userContent}\n\n${extraInstruction}` : userContent },
-    ],
-    response_format: zodResponseFormat(choicesAgentOutputSchema, 'choices_agent_output'),
-    max_completion_tokens: 450,
-    stream: true as const,
-    stream_options: { include_usage: true },
-  }, { signal });
-
-  const response = await stream.finalChatCompletion();
-  const message = response.choices[0].message;
-
-  if (!message.parsed) {
-    throw new Error(`Choices agent: no parsed output`);
-  }
-
-  const parsed = choicesAgentOutputSchema.safeParse(message.parsed);
-  if (!parsed.success) {
-    throw new Error(`Choices agent schema error: ${parsed.error.message}`);
-  }
-
-  return parsed.data;
+  return callStructuredAgent({
+    agentName: 'choices',
+    schema: choicesAgentOutputSchema,
+    schemaKey: 'choices_agent_output',
+    model: getModelForTier(tier),
+    systemPrompt: buildChoicesAgentSystemPrompt(input),
+    userContent: extraInstruction ? `${userContent}\n\n${extraInstruction}` : userContent,
+    maxCompletionTokens: 450,
+    signal,
+  });
 }
 
 async function callCombatAgent(input: NarrationInput, signal: AbortSignal): Promise<CombatAgentOutput> {
-  const model = getModelForTier('narration');
-  const systemPrompt = buildCombatAgentSystemPrompt(input);
-  const userContent = combatUserContent(input);
-
-  const stream = createOpenAIClient().chat.completions.stream({
-    model,
-    messages: [
-      { role: 'system' as const, content: systemPrompt },
-      { role: 'user' as const, content: userContent },
-    ],
-    response_format: zodResponseFormat(combatAgentOutputSchema, 'combat_agent_output'),
-    max_completion_tokens: 400,
-    stream: true as const,
-    stream_options: { include_usage: true },
-  }, { signal });
-
-  const response = await stream.finalChatCompletion();
-  const message = response.choices[0].message;
-
-  if (!message.parsed) {
-    throw new Error(`Combat agent: no parsed output`);
-  }
-
-  const parsed = combatAgentOutputSchema.safeParse(message.parsed);
-  if (!parsed.success) {
-    throw new Error(`Combat agent schema error: ${parsed.error.message}`);
-  }
-
-  return parsed.data;
+  return callStructuredAgent({
+    agentName: 'combat',
+    schema: combatAgentOutputSchema,
+    schemaKey: 'combat_agent_output',
+    model: getModelForTier('narration'),
+    systemPrompt: buildCombatAgentSystemPrompt(input),
+    userContent: combatUserContent(input),
+    maxCompletionTokens: 400,
+    signal,
+  });
 }
 
 async function callInventoryAgent(input: NarrationInput, signal: AbortSignal): Promise<InventoryAgentOutput> {
-  const model = getModelForTier('narration');
-  const systemPrompt = buildInventoryAgentSystemPrompt(input);
-  const userContent = inventoryUserContent(input);
-
-  const stream = createOpenAIClient().chat.completions.stream({
-    model,
-    messages: [
-      { role: 'system' as const, content: systemPrompt },
-      { role: 'user' as const, content: userContent },
-    ],
-    response_format: zodResponseFormat(inventoryAgentOutputSchema, 'inventory_agent_output'),
-    max_completion_tokens: 350,
-    stream: true as const,
-    stream_options: { include_usage: true },
-  }, { signal });
-
-  const response = await stream.finalChatCompletion();
-  const message = response.choices[0].message;
-
-  if (!message.parsed) {
-    throw new Error(`Inventory agent: no parsed output`);
-  }
-
-  const parsed = inventoryAgentOutputSchema.safeParse(message.parsed);
-  if (!parsed.success) {
-    throw new Error(`Inventory agent schema error: ${parsed.error.message}`);
-  }
-
-  return parsed.data;
+  return callStructuredAgent({
+    agentName: 'inventory',
+    schema: inventoryAgentOutputSchema,
+    schemaKey: 'inventory_agent_output',
+    model: getModelForTier('narration'),
+    systemPrompt: buildInventoryAgentSystemPrompt(input),
+    userContent: inventoryUserContent(input),
+    maxCompletionTokens: 350,
+    signal,
+  });
 }
 
 async function callRecoveryAgent(input: NarrationInput, signal: AbortSignal): Promise<RecoveryAgentOutput> {
-  const model = getModelForTier('narration');
-  const systemPrompt = buildRecoveryAgentSystemPrompt(input);
-  const userContent = recoveryUserContent(input);
-
-  const stream = createOpenAIClient().chat.completions.stream({
-    model,
-    messages: [
-      { role: 'system' as const, content: systemPrompt },
-      { role: 'user' as const, content: userContent },
-    ],
-    response_format: zodResponseFormat(recoveryAgentOutputSchema, 'recovery_agent_output'),
-    max_completion_tokens: 350,
-    stream: true as const,
-    stream_options: { include_usage: true },
-  }, { signal });
-
-  const response = await stream.finalChatCompletion();
-  const message = response.choices[0].message;
-
-  if (!message.parsed) {
-    throw new Error(`Recovery agent: no parsed output`);
-  }
-
-  const parsed = recoveryAgentOutputSchema.safeParse(message.parsed);
-  if (!parsed.success) {
-    throw new Error(`Recovery agent schema error: ${parsed.error.message}`);
-  }
-
-  return parsed.data;
+  return callStructuredAgent({
+    agentName: 'recovery',
+    schema: recoveryAgentOutputSchema,
+    schemaKey: 'recovery_agent_output',
+    model: getModelForTier('narration'),
+    systemPrompt: buildRecoveryAgentSystemPrompt(input),
+    userContent: recoveryUserContent(input),
+    maxCompletionTokens: 350,
+    signal,
+  });
 }
 
 const ANSI_RE = new RegExp(String.fromCharCode(0x1b) + String.raw`\[[0-9;]*[a-zA-Z]`, 'g');
@@ -471,6 +545,17 @@ function nextCharacterTopStat(input: NarrationInput): { name: string; stat: 'mig
 function hasTopStatCoverage(choices: Array<{ stat: string }>, input: NarrationInput): boolean {
   const top = nextCharacterTopStat(input);
   return !top || choices.some(c => c.stat === top.stat);
+}
+
+// Detects when the model echoed back the exact same choice labels as the
+// previous turn instead of generating fresh ones. This can happen on
+// post-combat turns where the previous choices are still in the input context.
+function hasStaleChoices(choices: Array<{ label: string }>, input: NarrationInput): boolean {
+  if (!input.previousChoiceLabels?.length || choices.length === 0) {
+    return false;
+  }
+  const previous = new Set(input.previousChoiceLabels);
+  return choices.every(c => previous.has(c.label));
 }
 
 // Observability for the stat-coverage rule: flag turns where the next hero
@@ -605,6 +690,7 @@ export class DmTurnOrchestrator implements NarrationProvider {
     devLog.log([
       '[Orchestrator] start',
       `encounter=${input.encounterState?.status ?? 'none'}`,
+      `startSignal=${hasEncounterStartSignal(input)}`,
       `runCombat=${runCombat}`,
       `runInventory=${runInventory}`,
       `runRecovery=${runRecovery}`,
@@ -660,23 +746,29 @@ export class DmTurnOrchestrator implements NarrationProvider {
         choicesDeadlineMs,
         diagnostics,
       );
-      if (first && hasTopStatCoverage(first.choices, input)) {
+      if (first && hasTopStatCoverage(first.choices, input) && !hasStaleChoices(first.choices, input)) {
         return first;
       }
       if (first) {
-        // Real choices, but none in the next hero's strongest stat. One
-        // corrective attempt on the stronger model with the violation spelled
-        // out. If the retry also misses coverage, inject a deterministic
-        // fallback choice rather than silently returning bad choices.
         const top = nextCharacterTopStat(input);
+        const isStale = hasStaleChoices(first.choices, input);
+        const lacksStatCoverage = !hasTopStatCoverage(first.choices, input);
+        const instructions: string[] = [];
+        if (isStale) {
+          devLog.warn(`[Choices] stale: returned labels are identical to previousChoiceLabels for ${input.nextCharacterName ?? 'unknown'}`);
+          instructions.push(
+            `CRITICAL: Your previous response returned the exact same choices as the previous turn. You MUST generate completely new choices reflecting the current scene and ${input.nextCharacterName ?? 'the next character'}'s class and abilities.`,
+          );
+        }
+        if (lacksStatCoverage && top) {
+          instructions.push(
+            `IMPORTANT: a previous attempt offered no "${top.stat}" choice. ${top.name} acts next and their strongest stat is ${top.stat} (${top.value}). At least one choice MUST use stat "${top.stat}", phrased naturally for the scene.`,
+          );
+        }
+        const diagName = isStale ? 'choices-stale-retry' : 'choices-coverage-retry';
         const corrected = await withDeadline<ChoicesAgentOutput | null>(
-          'choices-coverage-retry',
-          (signal) => callChoicesAgent(
-            input,
-            signal,
-            'narration',
-            `IMPORTANT: a previous attempt offered no "${top?.stat}" choice. ${top?.name} acts next and their strongest stat is ${top?.stat} (${top?.value}). At least one choice MUST use stat "${top?.stat}", phrased naturally for the scene.`,
-          ),
+          diagName,
+          (signal) => callChoicesAgent(input, signal, 'narration', instructions.join(' ')),
           null,
           choicesRetryDeadlineMs,
           diagnostics,
@@ -709,7 +801,7 @@ export class DmTurnOrchestrator implements NarrationProvider {
         ? withDeadline('inventory', (signal) => callInventoryAgent(input, signal), inventoryFallback, 2500, diagnostics, true)
         : Promise.resolve(inventoryFallback),
       runRecovery
-        ? withDeadline('recovery', (signal) => callRecoveryAgent(input, signal), recoveryFallback, 2000, diagnostics, true)
+        ? withDeadline('recovery', (signal) => callRecoveryAgent(input, signal), recoveryFallback, 3000, diagnostics, true)
         : Promise.resolve(recoveryFallback),
     ]);
 

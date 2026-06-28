@@ -26,6 +26,11 @@ import {
   SECTION_INVENTORY_TRADE,
   SECTION_FROZEN_CONFRONTATION,
   SECTION_LOCATION_STALL,
+  SECTION_ACTION_INTENT_INVENTORY,
+  SECTION_CHOICES_CONTINUITY,
+  SECTION_CHOICES_CONTINUITY_COMBAT,
+  SECTION_ACTIVE_COMBAT_CHOICES,
+  SECTION_POST_ENCOUNTER_CHOICES,
 } from './narrationPromptSections.js';
 
 const ACTIVE_ENCOUNTER_NARRATION_CONTEXT = `ACTIVE ENCOUNTER - Narration Context:
@@ -37,7 +42,7 @@ const ACTIVE_ENCOUNTER_NARRATION_CONTEXT = `ACTIVE ENCOUNTER - Narration Context
 
 const TYPOGRAPHY_RULE = `CRITICAL - Typography: NEVER use em dashes in any output field. Use a comma, colon, or hyphen instead.`;
 
-const BUFF_ACTION_INTENTS = new Set(['bless_character', 'aid_character', 'party_boost', 'improve_item']);
+const BUFF_ACTION_INTENTS = new Set(['bless_character', 'aid_character', 'party_boost']);
 
 function isBuffTurn(input: NarrationInput): boolean {
   if (input.actionIntent && BUFF_ACTION_INTENTS.has(input.actionIntent)) {
@@ -81,9 +86,20 @@ const DEFEATED_FOES_RULE = `DEFEATED FOES: resolvedEncounterEnemyNames lists ene
 
 export function buildChoicesAgentSystemPrompt(input: NarrationInput): string {
   const isActiveCombat = input.encounterState?.status === 'active';
+  // Mirror the hasEncounterStartSignal logic from the orchestrator: combat agent will
+  // start an encounter this turn, so choices must be combat-ready for the next turn.
+  const encounterStarting = !isActiveCombat && (
+    (input.sceneMomentum?.suggestedNextBeat ?? '').includes('suggestedEncounterStart') ||
+    input.sceneMomentum?.directive === 'climax_pressure' ||
+    input.gameMode === 'zug-ma-geddon'
+  );
+  const isEncounterResolution = !isActiveCombat && !!input.encounterJustResolved;
   const tradeEnabled = isTradeTurn(input);
   const riddleEnabled = isRiddleTurn(input);
   const hasResolvedFoes = !!input.resolvedEncounterEnemyNames?.length;
+  // Suppress story-pacing sections during active combat or the resolution turn: the fight/victory is the current beat.
+  const hasStall = !isActiveCombat && !isEncounterResolution && !!input.storySummary?.includes('LOCATION STALL');
+  const hasFrozen = !isActiveCombat && !isEncounterResolution && !!input.storySummary?.includes('FROZEN CONFRONTATION');
 
   const sections = [
     'You are a fantasy DM producing exactly 3 action choices for the next character\'s turn.',
@@ -93,9 +109,14 @@ export function buildChoicesAgentSystemPrompt(input: NarrationInput): string {
     ...(hasResolvedFoes ? [DEFEATED_FOES_RULE] : []),
     SECTION_CHOICES_FORMAT,
     SECTION_DIFFICULTY_SHORT,
-    ...(isActiveCombat ? [SECTION_COMBAT_PACING] : []),
+    ...(isActiveCombat ? [SECTION_COMBAT_PACING, SECTION_ACTIVE_COMBAT_CHOICES] : []),
+    ...(isEncounterResolution ? [SECTION_POST_ENCOUNTER_CHOICES] : []),
+    ...(encounterStarting ? ['ENCOUNTER STARTING: `encounterStartExpected: true` means an encounter begins this turn. Generate at least 2 combat-ready choices for `nextCharacterName`: attack, defend, use a special ability, exploit a weakness, or use the environment tactically. Do NOT generate exploration or investigation choices - the party is entering a fight.'] : []),
     SECTION_ACTING_SHORT,
     SECTION_CHOICE_VARIETY,
+    ...(isActiveCombat ? [SECTION_CHOICES_CONTINUITY_COMBAT] : [SECTION_CHOICES_CONTINUITY]),
+    ...(hasStall ? [SECTION_LOCATION_STALL] : []),
+    ...(hasFrozen ? [SECTION_FROZEN_CONFRONTATION] : []),
     ...(riddleEnabled ? [SECTION_CHOICES_RIDDLE] : []),
     ...(tradeEnabled ? [SECTION_CHOICES_VENDOR] : []),
     SECTION_PARTY_STATUS,
@@ -105,10 +126,7 @@ export function buildChoicesAgentSystemPrompt(input: NarrationInput): string {
   return sections.join('\n\n');
 }
 
-export function buildCombatAgentSystemPrompt(input: NarrationInput): string {
-  const isActiveCombat = input.encounterState?.status === 'active';
-  const isLootTurn = isActiveCombat || !!input.encounterJustResolved;
-
+export function buildCombatAgentSystemPrompt(_input: NarrationInput): string {
   const sections = [
     'You are the combat resolution module for a fantasy DM system.',
     'Your output contains ONLY three fields: suggestedDamage, suggestedEncounterStart, suggestedEncounterUpdate.',
@@ -117,7 +135,6 @@ export function buildCombatAgentSystemPrompt(input: NarrationInput): string {
     SECTION_COMBAT_PACING,
     SECTION_ACTIVE_ENCOUNTER,
     SECTION_DAMAGE_FAILURE,
-    ...(isLootTurn ? [SECTION_INVENTORY_COMBAT_LOOT] : []),
   ];
 
   return sections.join('\n\n');
@@ -127,6 +144,7 @@ export function buildInventoryAgentSystemPrompt(input: NarrationInput): string {
   const isActiveCombat = input.encounterState?.status === 'active';
   const isLootTurn = isActiveCombat || !!input.encounterJustResolved;
   const tradeEnabled = isTradeTurn(input);
+  const isEnchantTurn = input.actionIntent === 'improve_item';
 
   const sections = [
     'You are the inventory resolution module for a fantasy DM system.',
@@ -137,6 +155,7 @@ export function buildInventoryAgentSystemPrompt(input: NarrationInput): string {
     SECTION_INVENTORY_BASICS,
     ...(isLootTurn ? [SECTION_INVENTORY_COMBAT_LOOT] : []),
     ...(tradeEnabled ? [SECTION_INVENTORY_TRADE] : []),
+    ...(isEnchantTurn ? [SECTION_ACTION_INTENT_INVENTORY] : []),
   ];
 
   return sections.join('\n\n');

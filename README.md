@@ -279,11 +279,11 @@ See **[MANAGE.md](MANAGE.md)** for the full command reference.
 
 ## AI Usage
 
-There are 15 distinct AI calls in the app, each with a different purpose and cost profile:
+There are 15+ distinct AI calls in the app, each with a different purpose and cost profile:
 
 | Call | Where | Model env var | Default | When |
 |---|---|---|---|---|
-| **Turn narration** | `OpenAINarrationProvider.ts` | `OPENAI_MODEL_NARRATION` | `gpt-4.1-mini` | Every action : the core DM loop |
+| **Turn narration** (2-5 parallel agents) | `dmTurnOrchestrator.ts` | `OPENAI_MODEL_NARRATION` / `OPENAI_MODEL_PREVIEW` | `gpt-4.1-mini` / `gpt-4.1-nano` | Every action : narration + choices always; combat/inventory/recovery agents conditional - see `MULTI_AGENT_WORKFLOW.md` |
 | **Action preview** | `statSuggestionService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-4.1-nano` | While player types an action |
 | **Stat suggestion** | `statSuggestionService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-4.1-nano` | Character creation and action routing |
 | **Session naming** | `sessionNameService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-4.1-nano` | Once at realm creation |
@@ -301,7 +301,7 @@ There are 15 distinct AI calls in the app, each with a different purpose and cos
 
 Use `npm run cli -- metrics` (or `./dnd-fam-ftw-prod-cli metrics` on production) to see per-namespace counts for sessions, turns, images, and avatars generated.
 
-Turn narration is the only call that blocks the player response. Scene images are generated asynchronously after the turn : the story text appears immediately, and the image arrives via SSE a few seconds later. Realm preview images are also generated asynchronously and are skipped when the session is in savings mode.
+The turn narration agents (2-5 parallel calls) are the only AI calls that block the player response. Scene images are generated asynchronously after the turn : the story text appears immediately, and the image arrives via SSE a few seconds later. Realm preview images are also generated asynchronously and are skipped when the session is in savings mode.
 
 ---
 

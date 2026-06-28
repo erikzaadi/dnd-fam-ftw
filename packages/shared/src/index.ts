@@ -13,6 +13,11 @@ export type {
 } from './types.js';
 
 export type {
+  AgentErrorKind,
+  AgentDiagnostic,
+} from './types.js';
+
+export type {
   CharacterStatus,
   GameMode,
   Stat,

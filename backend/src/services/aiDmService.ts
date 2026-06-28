@@ -184,7 +184,13 @@ export function toNarrationInput(input: AIInput): NarrationInput {
         : `The action failed${input.actionResult.impact && input.actionResult.impact !== 'normal' ? ` with ${input.actionResult.impact} impact` : ''}.`,
     },
     recentHistory: input.recentHistory ?? [],
-    ...(input.lastChoices.length > 0 && { previousChoiceLabels: input.lastChoices.map(choice => choice.label) }),
+    ...(() => {
+      const labels = [
+        ...input.lastChoices.map(c => c.label),
+        ...(input.recentChoiceLabels ?? []),
+      ];
+      return labels.length > 0 ? { previousChoiceLabels: [...new Set(labels)] } : {};
+    })(),
     ...(input.lastChoices.some(choice => choice.itemName) && { previousChoiceItemNames: input.lastChoices.map(choice => choice.itemName).filter((name): name is string => !!name) }),
     ...(previousChoiceFlavors.length > 0 && { previousChoiceFlavors }),
     ...(selectedChoice?.flavor && { selectedChoiceFlavor: selectedChoice.flavor }),
@@ -255,6 +261,7 @@ export class AiDmService {
         choicesFailed: (output as DmTurnOrchestratorResult).choicesFailed ?? false,
         narrationValidationError: output.narrationValidationError,
         narrationRetryValidationError: output.narrationRetryValidationError,
+        agentDiagnostics: (output as DmTurnOrchestratorResult).agentDiagnostics,
         imageUrl: null,
       };
     } catch (error: unknown) {

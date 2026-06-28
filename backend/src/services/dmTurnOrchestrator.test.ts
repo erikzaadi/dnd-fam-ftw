@@ -15,6 +15,7 @@ import {
   shouldRunCombatAgent,
   shouldRunInventoryAgent,
   shouldRunRecoveryAgent,
+  hasEncounterStartSignal,
   DmTurnOrchestrator,
 } from './dmTurnOrchestrator.js';
 
@@ -113,17 +114,52 @@ afterEach(() => {
 
 // ---- Gate function tests ----
 
+describe('hasEncounterStartSignal', () => {
+  it('returns false when encounter is already active', () => {
+    const input = { ...baseInput(), encounterState: { id: 'enc-1', name: 'Battle', status: 'active' as const, enemies: [], areas: [], round: 1 }, sceneMomentum: { directive: 'climax_pressure' as const, suggestedNextBeat: 'suggestedEncounterStart', staleChoiceCount: 0, turnsSinceSceneChange: 1, turnsSinceCombat: 0, justCompletedCombat: false, justCompletedDifficultChallenge: false, reason: 'test' } };
+    expect(hasEncounterStartSignal(input)).toBe(false);
+  });
+
+  it('returns true when suggestedNextBeat includes suggestedEncounterStart', () => {
+    const input = { ...baseInput(), sceneMomentum: { directive: 'press_current_scene' as const, suggestedNextBeat: 'Start a goblin fight via suggestedEncounterStart', staleChoiceCount: 0, turnsSinceSceneChange: 2, turnsSinceCombat: 5, justCompletedCombat: false, justCompletedDifficultChallenge: false, reason: 'test' } };
+    expect(hasEncounterStartSignal(input)).toBe(true);
+  });
+
+  it('returns true when directive is climax_pressure and no active encounter', () => {
+    const input = { ...baseInput(), sceneMomentum: { directive: 'climax_pressure' as const, suggestedNextBeat: 'Villain arrives', staleChoiceCount: 0, turnsSinceSceneChange: 3, turnsSinceCombat: 3, justCompletedCombat: false, justCompletedDifficultChallenge: false, reason: 'test' } };
+    expect(hasEncounterStartSignal(input)).toBe(true);
+  });
+
+  it('returns true when gameMode is zug-ma-geddon and no active encounter', () => {
+    expect(hasEncounterStartSignal({ ...baseInput(), gameMode: 'zug-ma-geddon' })).toBe(true);
+  });
+
+  it('returns false for ordinary exploration turn with no signals', () => {
+    expect(hasEncounterStartSignal(baseInput())).toBe(false);
+  });
+
+  it('returns false when directive is press_current_scene with no encounter-start beat', () => {
+    const input = { ...baseInput(), sceneMomentum: { directive: 'press_current_scene' as const, suggestedNextBeat: 'Keep exploring the dungeon', staleChoiceCount: 0, turnsSinceSceneChange: 1, turnsSinceCombat: 2, justCompletedCombat: false, justCompletedDifficultChallenge: false, reason: 'test' } };
+    expect(hasEncounterStartSignal(input)).toBe(false);
+  });
+});
+
 describe('shouldRunCombatAgent', () => {
   it('returns true when encounter is active', () => {
     const input = { ...baseInput(), encounterState: { id: 'enc-1', name: 'Battle', status: 'active' as const, enemies: [], areas: [], round: 1 } };
     expect(shouldRunCombatAgent(input)).toBe(true);
   });
 
-  it('returns false when no encounter', () => {
+  it('returns true when hasEncounterStartSignal is true even with no active encounter', () => {
+    const input = { ...baseInput(), sceneMomentum: { directive: 'climax_pressure' as const, suggestedNextBeat: 'Villain arrives', staleChoiceCount: 0, turnsSinceSceneChange: 3, turnsSinceCombat: 3, justCompletedCombat: false, justCompletedDifficultChallenge: false, reason: 'test' } };
+    expect(shouldRunCombatAgent(input)).toBe(true);
+  });
+
+  it('returns false when no encounter and no start signal', () => {
     expect(shouldRunCombatAgent(baseInput())).toBe(false);
   });
 
-  it('returns false when encounter is resolved', () => {
+  it('returns false when encounter is resolved and no start signal', () => {
     const input = { ...baseInput(), encounterState: { id: 'enc-1', name: 'Battle', status: 'resolved' as const, enemies: [], areas: [], round: 1 } };
     expect(shouldRunCombatAgent(input)).toBe(false);
   });
@@ -459,6 +495,60 @@ describe('DmTurnOrchestrator.orchestrate', () => {
     }
   });
 
+  it('retries when choices agent returns the same labels as previousChoiceLabels', async () => {
+    const previousLabels = ['Press deeper', 'Press deeper', 'Press deeper'];
+    const input = { ...baseInput(), previousChoiceLabels: previousLabels, nextCharacterName: 'Pip' };
+    mockStreamOnce(makeNarrationCompletion('Onward.'));
+    // First choices attempt returns the exact same labels as previous turn
+    mockStreamOnce(makeChoicesCompletion()); // validChoice label is 'Press deeper' x3
+    // Stale retry returns fresh choices
+    mockStreamOnce({
+      choices: [{
+        finish_reason: 'stop',
+        message: {
+          refusal: null,
+          parsed: {
+            choices: [
+              { ...validChoice, label: 'Smash through the barrier', stat: 'mischief' },
+              { ...validChoice, label: 'Scout the route ahead', stat: 'might' },
+              { ...validChoice, label: 'Rally the party', stat: 'magic' },
+            ],
+          },
+        },
+      }],
+    });
+
+    const orchestrator = new DmTurnOrchestrator();
+    const result = await orchestrator.orchestrate(input);
+
+    expect(result.choices[0].label).toBe('Smash through the barrier');
+    expect(result.choicesFailed).toBe(false);
+    const staleDiag = result.agentDiagnostics.find(d => d.agent === 'choices-stale-retry');
+    expect(staleDiag?.status).toBe('ok');
+  });
+
+  it('uses stale choices as fallback and applies ensureTopStatCoverage when stale retry also fails', async () => {
+    const previousLabels = ['Press deeper', 'Press deeper', 'Press deeper'];
+    const input = { ...baseInput(), previousChoiceLabels: previousLabels, nextCharacterName: 'Pip' };
+    mockStreamOnce(makeNarrationCompletion('Onward.'));
+    // First attempt: stale
+    mockStreamOnce(makeChoicesCompletion());
+    // Stale retry fails
+    mocks.stream.mockReturnValueOnce({
+      on: vi.fn(),
+      finalChatCompletion: vi.fn().mockRejectedValue(new Error('retry failure')),
+    });
+
+    const orchestrator = new DmTurnOrchestrator();
+    const result = await orchestrator.orchestrate(input);
+
+    // Falls back to the stale choices with ensureTopStatCoverage applied
+    // Pip's top stat is mischief (4); 'Press deeper' uses might, so one slot is replaced
+    expect(result.choices).toHaveLength(3);
+    expect(result.choices.some(c => c.stat === 'mischief')).toBe(true);
+    expect(result.choicesFailed).toBe(false);
+  });
+
   it('retries choices on the stronger model when no choice uses the next hero top stat', async () => {
     // Pip's top stat is mischief (4); the fixture choices are all might
     const input = { ...baseInput(), nextCharacterName: 'Pip' };
@@ -620,6 +710,62 @@ describe('DmTurnOrchestrator.orchestrate', () => {
     expect(result.suggestedInventoryAdd).toBeNull();
     const inventoryDiag = result.agentDiagnostics.find(d => d.agent === 'inventory');
     expect(inventoryDiag?.status).toBe('fallback');
+  });
+
+  it('failed agent diagnostic has errorKind=refusal when agent returns a refusal', async () => {
+    const input: NarrationInput = {
+      ...baseInput(),
+      encounterState: { id: 'enc-1', name: 'Ambush', status: 'active', enemies: [], areas: [], round: 1 },
+    };
+
+    mockStreamOnce(makeNarrationCompletion('The fight continues.'));
+    mockStreamOnce(makeChoicesCompletion());
+    // Combat agent responds with a content refusal
+    mocks.stream.mockReturnValueOnce({
+      on: vi.fn(),
+      finalChatCompletion: vi.fn().mockResolvedValue({
+        choices: [{ finish_reason: 'stop', message: { refusal: 'I cannot generate combat content.', parsed: null } }],
+      }),
+    });
+    mockStreamOnce(makeInventoryCompletion());
+
+    const orchestrator = new DmTurnOrchestrator();
+    const result = await orchestrator.orchestrate(input);
+
+    const combatDiag = result.agentDiagnostics.find(d => d.agent === 'combat');
+    expect(combatDiag?.status).toBe('fallback');
+    expect(combatDiag?.errorKind).toBe('refusal');
+    expect(combatDiag?.errorMessage).toContain('refusal');
+  });
+
+  it('timed-out optional agent diagnostic has errorKind=timeout and status=timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      const input: NarrationInput = {
+        ...baseInput(),
+        encounterState: { id: 'enc-1', name: 'Ambush', status: 'active', enemies: [], areas: [], round: 1 },
+      };
+
+      mockStreamOnce(makeNarrationCompletion('The fight rages.'));
+      mockStreamOnce(makeChoicesCompletion());
+      // Combat agent hangs past deadline
+      mocks.stream.mockReturnValueOnce({
+        on: vi.fn(),
+        finalChatCompletion: vi.fn(() => new Promise(() => {})),
+      });
+      mockStreamOnce(makeInventoryCompletion());
+
+      const orchestrator = new DmTurnOrchestrator();
+      const promise = orchestrator.orchestrate(input);
+      await vi.advanceTimersByTimeAsync(3000);
+      const result = await promise;
+
+      const combatDiag = result.agentDiagnostics.find(d => d.agent === 'combat');
+      expect(combatDiag?.status).toBe('timeout');
+      expect(combatDiag?.errorKind).toBe('timeout');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
