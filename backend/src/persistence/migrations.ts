@@ -122,8 +122,19 @@ export const migrate = (db: DB): void => {
     db.prepare("ALTER TABLE turn_history ADD COLUMN rollNarration TEXT").run();
   }
   if (!turnCols.includes('createdAt')) {
-    db.prepare("ALTER TABLE turn_history ADD COLUMN createdAt DATETIME DEFAULT CURRENT_TIMESTAMP").run();
+    // libsql rejects a non-constant ALTER TABLE ADD COLUMN default (e.g. DEFAULT CURRENT_TIMESTAMP),
+    // so add the column bare, backfill existing rows, then stamp future inserts via trigger.
+    db.prepare("ALTER TABLE turn_history ADD COLUMN createdAt DATETIME").run();
+    db.prepare("UPDATE turn_history SET createdAt = CURRENT_TIMESTAMP WHERE createdAt IS NULL").run();
   }
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS turn_history_set_created_at
+    AFTER INSERT ON turn_history
+    FOR EACH ROW WHEN NEW.createdAt IS NULL
+    BEGIN
+      UPDATE turn_history SET createdAt = CURRENT_TIMESTAMP WHERE id = NEW.id;
+    END;
+  `);
 
   const choiceCols = (db.prepare("PRAGMA table_info(turn_choices)").all() as { name: string }[]).map(r => r.name);
   if (!choiceCols.includes('difficultyValue')) {
