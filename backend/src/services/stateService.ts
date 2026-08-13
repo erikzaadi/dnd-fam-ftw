@@ -115,6 +115,10 @@ export class StateService {
     return userRepository.deleteUser(email);
   }
 
+  public static recordLogin(email: string): void {
+    userRepository.recordLogin(email);
+  }
+
   public static setPrimaryNamespace(email: string, namespaceId: string): { ok: boolean; reason?: string } {
     const user = this.getUserByEmail(email);
     if (!user) {

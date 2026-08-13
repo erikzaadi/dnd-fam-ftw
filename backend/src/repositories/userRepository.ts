@@ -12,6 +12,7 @@ export type UserListItem = UserRecord & {
   namespace_name: string;
   namespaces: { id: string; name: string }[];
   created_at: string;
+  lastLogin: string | null;
 };
 
 export const userRepository = {
@@ -52,10 +53,10 @@ export const userRepository = {
   listUsers(): UserListItem[] {
     const db = getDb();
     const users = db.prepare(`
-      SELECT u.id, u.email, u.namespace_id, n.name as namespace_name, u.role, u.created_at
+      SELECT u.id, u.email, u.namespace_id, n.name as namespace_name, u.role, u.created_at, u.lastLogin
       FROM users u JOIN namespaces n ON u.namespace_id = n.id
       ORDER BY u.created_at
-    `).all() as (UserRecord & { namespace_name: string; created_at: string })[];
+    `).all() as (UserRecord & { namespace_name: string; created_at: string; lastLogin: string | null })[];
     const userNamespaces = db.prepare(`
       SELECT un.user_id, n.id, n.name
       FROM user_namespaces un JOIN namespaces n ON n.id = un.namespace_id
@@ -64,6 +65,11 @@ export const userRepository = {
       ...user,
       namespaces: userNamespaces.filter(un => un.user_id === user.id).map(un => ({ id: un.id, name: un.name })),
     }));
+  },
+
+  recordLogin(email: string): void {
+    const db = getDb();
+    db.prepare('UPDATE users SET lastLogin = CURRENT_TIMESTAMP WHERE email = ?').run(email);
   },
 
   deleteUser(email: string): boolean {

@@ -92,6 +92,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
     }
   
     const namespaceId = namespaces[0]?.id ?? user.namespace_id;
+    StateService.recordLogin(email);
     setFullAuthCookie(res, { email: user.email, namespaceId, type: 'full' }, { isProduction });
   
     res.redirect(`${frontendUrl}${basePath}`);
@@ -119,6 +120,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
       return;
     }
     res.clearCookie('jwt_pending', { path: '/' });
+    StateService.recordLogin(req.pendingPayload!.email);
     setFullAuthCookie(res, { email: req.pendingPayload!.email, namespaceId, type: 'full' }, { isProduction });
     res.json({ ok: true });
   }));

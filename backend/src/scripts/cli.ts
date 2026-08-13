@@ -10,7 +10,7 @@
  *                   sessions <id> | assign-session <sessionId> <nsId>
  *                   add-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
  *   sessions        list [--json] | nuke | seed | export | import | regenerate-dm-prep <id>
- *   metrics         [--json] | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>]
+ *   metrics         [--json] [--since <ISO date>] | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]
  *   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
  */
 
@@ -82,11 +82,11 @@ case 'users': {
       console.log('No users found.');
     } else {
       const col = (s: string | number, w: number) => String(s).padEnd(w);
-      console.log(`\n${col('Email', 35)} ${col('Primary NS', 22)} ${col('All Namespaces', 35)} ${col('Role', 8)} Created`);
-      console.log('-'.repeat(115));
+      console.log(`\n${col('Email', 35)} ${col('Primary NS', 22)} ${col('All Namespaces', 35)} ${col('Role', 8)} ${col('Created', 22)} Last Login`);
+      console.log('-'.repeat(140));
       for (const u of users) {
         const allNs = u.namespaces.map(n => n.name).join(', ') || u.namespace_name;
-        console.log(`${col(u.email, 35)} ${col(u.namespace_name, 22)} ${col(allNs, 35)} ${col(u.role, 8)} ${u.created_at}`);
+        console.log(`${col(u.email, 35)} ${col(u.namespace_name, 22)} ${col(allNs, 35)} ${col(u.role, 8)} ${col(u.created_at, 22)} ${u.lastLogin ?? 'never'}`);
       }
       console.log();
     }
@@ -560,8 +560,8 @@ case 'sessions': {
         for (const turn of (session.turnHistory as Record<string, unknown>[]) ?? []) {
           const mappedCharId = turn.characterId ? (charIdMap.get(turn.characterId as string) ?? null) : null;
           const result = db.prepare(`
-INSERT INTO turn_history (sessionId, characterId, encounterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, image_storage_key, image_storage_provider, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionChoiceItemBonus, actionChoiceItemName, actionChoiceItemOwnerName, actionCharacterBonus, actionCharacterBonusLabel, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges, narrationRetried, narrationFailed, narrationValidationError, narrationRetryValidationError)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO turn_history (sessionId, characterId, encounterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, image_storage_key, image_storage_provider, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionChoiceItemBonus, actionChoiceItemName, actionChoiceItemOwnerName, actionCharacterBonus, actionCharacterBonusLabel, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges, narrationRetried, narrationFailed, narrationValidationError, narrationRetryValidationError, createdAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
             newSessionId, mappedCharId, turn.encounterId ?? null,
             turn.narration, turn.rollNarration ?? null,
@@ -578,6 +578,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
             turn.currentTensionLevel ?? null, turn.hpChanges ?? null, turn.inventoryChanges ?? null,
             turn.narrationRetried ?? null, turn.narrationFailed ?? null,
             turn.narrationValidationError ?? null, turn.narrationRetryValidationError ?? null,
+            turn.createdAt ?? null,
           );
 
           const newTurnId = result.lastInsertRowid;
@@ -676,10 +677,11 @@ case 'metrics': {
     const formatFlag = parseArgValue(allArgs.find(a => a === '--format' || a.startsWith('--format=')));
     const outputFormat = process.argv.includes('--csv') ? 'csv' : formatFlag ?? (jsonMode ? 'json' : 'table');
     if (!['table', 'json', 'csv'].includes(outputFormat)) {
-      fail('Usage: cli metrics narration [--json|--format csv|--csv] [--failed-only] [--namespace <id>] [--session <id>]');
+      fail('Usage: cli metrics narration [--json|--format csv|--csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]');
     }
     const namespaceFilter = parseArgValue(allArgs.find(a => a === '--namespace' || a.startsWith('--namespace=')));
     const sessionFilter = parseArgValue(allArgs.find(a => a === '--session' || a.startsWith('--session=')));
+    const sinceFilter = parseArgValue(allArgs.find(a => a === '--since' || a.startsWith('--since=')));
     const failedOnly = process.argv.includes('--failed-only');
 
     const conditions = failedOnly
@@ -693,6 +695,10 @@ case 'metrics': {
     if (sessionFilter) {
       conditions.push('th.sessionId = ?');
       params.push(sessionFilter);
+    }
+    if (sinceFilter) {
+      conditions.push('datetime(th.createdAt) >= datetime(?)');
+      params.push(sinceFilter);
     }
 
     const dbPath = path.resolve(getConfig().SQLITE_DB_PATH);
@@ -782,9 +788,30 @@ case 'metrics': {
     max_turns: number | null;
     encounters_seeded: number;
     encounters_dynamic: number;
+    new_sessions_since?: number;
+    turns_since?: number;
+    active_users_since?: number;
   }
+  const sinceFilter = parseArgValue(allArgs.find(a => a === '--since' || a.startsWith('--since=')));
   const dbPath = path.resolve(getConfig().SQLITE_DB_PATH);
   const db = new Database(dbPath, { readonly: true });
+  const sinceColumns = sinceFilter
+    ? `,
+      COALESCE((
+        SELECT COUNT(DISTINCT s2.id) FROM sessions s2
+        WHERE s2.namespace_id = n.id AND datetime(s2.createdAt) >= datetime(?)
+      ), 0) AS new_sessions_since,
+      COALESCE((
+        SELECT COUNT(*) FROM turn_history th2
+        JOIN sessions ts2 ON ts2.id = th2.sessionId
+        WHERE ts2.namespace_id = n.id AND datetime(th2.createdAt) >= datetime(?)
+      ), 0) AS turns_since,
+      COALESCE((
+        SELECT COUNT(DISTINCT u.id) FROM users u
+        WHERE u.namespace_id = n.id AND datetime(u.lastLogin) >= datetime(?)
+      ), 0) AS active_users_since`
+    : '';
+  const sinceParams = sinceFilter ? [sinceFilter, sinceFilter, sinceFilter] : [];
   const rows = db.prepare(`
     SELECT
       n.id AS namespace_id,
@@ -811,12 +838,12 @@ case 'metrics': {
         SELECT SUM(tu.character_count) FROM tts_usage tu
         WHERE tu.namespace_id = n.id AND tu.provider = 'openai'
       ), 0) AS tts_characters,
-      COUNT(DISTINCT CASE WHEN s.savingsMode = 1 THEN s.id END) AS savings_mode_sessions
+      COUNT(DISTINCT CASE WHEN s.savingsMode = 1 THEN s.id END) AS savings_mode_sessions${sinceColumns}
     FROM namespaces n
     LEFT JOIN sessions s ON s.namespace_id = n.id
     GROUP BY n.id
     ORDER BY n.created_at
-  `).all() as Omit<NamespaceMetrics, 'encounters_seeded' | 'encounters_dynamic'>[];
+  `).all(...sinceParams) as Omit<NamespaceMetrics, 'encounters_seeded' | 'encounters_dynamic'>[];
 
   // Count seeded vs. dynamic encounters by parsing JSON per session in Node.js
   const encounterRows = db.prepare(`
@@ -959,7 +986,7 @@ Resources:
                   sessions <id> | assign-session <sessionId> <nsId>
                   add-user <nsId> <email> | remove-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
   sessions        list [--json] | nuke | seed | export | import
-  metrics         [--json] | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>]
+  metrics         [--json] [--since <ISO date>] | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]
   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
 
 Run cli <resource> for sub-command help.

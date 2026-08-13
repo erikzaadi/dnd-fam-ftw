@@ -92,16 +92,23 @@ Per-namespace usage stats: sessions, turns, images, avatars, TTS, and savings mo
 ./dnd-fam-ftw-cli metrics --json
 ```
 
-Narration retry and fallback diagnostics are available as analysis-friendly JSON or CSV. The default includes any turn that retried narration, kept a structured retry after a gameplay guard warning, or fell back after schema/provider failure.
+Pass `--since <ISO date>` to add windowed counts per namespace: `new_sessions_since`, `turns_since` (turns played since that date), and `active_users_since` (users who logged in since that date). Requires `turn_history.createdAt` and `users.lastLogin`, both populated going forward (existing rows before the migration are backfilled to the migration timestamp).
+
+```bash
+./dnd-fam-ftw-cli metrics --since 2026-08-01T00:00:00Z --json
+```
+
+Narration retry and fallback diagnostics are available as analysis-friendly JSON or CSV. The default includes any turn that retried narration, kept a structured retry after a gameplay guard warning, or fell back after schema/provider failure. Add `--since <ISO date>` to scope to turns created after that date.
 
 ```bash
 ./dnd-fam-ftw-cli metrics narration --json
 ./dnd-fam-ftw-cli metrics narration --format csv
 ./dnd-fam-ftw-cli metrics narration --failed-only --namespace <id>
 ./dnd-fam-ftw-cli metrics narration --session <id> --csv
+./dnd-fam-ftw-cli metrics narration --since 2026-08-01T00:00:00Z --json
 ```
 
-The weekly metrics workflow stores a compact narration diagnostics summary and flags a significant failure increase when failures rise by at least 3, or double from a nonzero previous week.
+The weekly metrics workflow tracks the timestamp of its last run in SSM and passes it as `--since` to `metrics` and `metrics narration`, so all weekly figures (new sessions, new narration failures, most active namespace, active users) are computed directly from real row timestamps rather than diffing snapshots.
 
 ### invite-requests
 

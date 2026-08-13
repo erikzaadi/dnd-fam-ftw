@@ -8,8 +8,7 @@ on:
 env:
   AWS_REGION: eu-west-1
   SSM_PREFIX: /dnd-fam-ftw/prod
-  METRICS_SSM_PATH: /dnd-fam-ftw/internal/last-weekly-metrics
-  NARRATION_METRICS_SSM_PATH: /dnd-fam-ftw/internal/last-weekly-narration-metrics
+  LAST_REPORT_SSM_PATH: /dnd-fam-ftw/internal/last-weekly-report-at
   CURRENT_DIR: /opt/dnd-fam-ftw/current
   APP_ENV_FILE: /opt/dnd-fam-ftw/app.env
   SSH_USER: ubuntu
@@ -46,48 +45,69 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "${{ secrets.LIGHTSAIL_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Fetch previous metrics from SSM
-        id: previous
+      - name: Determine report window
+        id: window
         run: |
+          NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           PREV=$(aws ssm get-parameter \
-            --name "$METRICS_SSM_PATH" \
+            --name "$LAST_REPORT_SSM_PATH" \
             --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+          if [ -z "$PREV" ] || [ "$PREV" = "None" ]; then
+            SINCE=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          else
+            SINCE="$PREV"
+          fi
           {
-            echo "output<<EOF"
-            echo "$PREV"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Fetch previous narration metrics from SSM
-        id: previous_narration
-        run: |
-          PREV=$(aws ssm get-parameter \
-            --name "$NARRATION_METRICS_SSM_PATH" \
-            --query 'Parameter.Value' --output text 2>/dev/null || echo "")
-          {
-            echo "output<<EOF"
-            echo "$PREV"
-            echo "EOF"
+            echo "since=$SINCE"
+            echo "now=$NOW"
           } >> "$GITHUB_OUTPUT"
 
       - name: Gather metrics
         id: metrics
+        env:
+          SINCE: ${{ steps.window.outputs.since }}
         run: |
           # shellcheck disable=SC2029
           METRICS=$(ssh "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}" \
-            "bash -lc 'cd $CURRENT_DIR && node --env-file=$APP_ENV_FILE dist/scripts/cli.js metrics'")
+            "bash -lc 'cd $CURRENT_DIR && node --env-file=$APP_ENV_FILE dist/scripts/cli.js metrics --since \"$SINCE\" --json'")
           {
             echo "output<<EOF"
             echo "$METRICS"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Gather users
+        id: users
+        run: |
+          # shellcheck disable=SC2029
+          USERS=$(ssh "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}" \
+            "bash -lc 'cd $CURRENT_DIR && node --env-file=$APP_ENV_FILE dist/scripts/cli.js users list --json'")
+          {
+            echo "output<<EOF"
+            echo "$USERS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Gather namespaces
+        id: namespaces
+        run: |
+          # shellcheck disable=SC2029
+          NAMESPACES=$(ssh "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}" \
+            "bash -lc 'cd $CURRENT_DIR && node --env-file=$APP_ENV_FILE dist/scripts/cli.js namespaces list --json'")
+          {
+            echo "output<<EOF"
+            echo "$NAMESPACES"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Gather narration diagnostics
         id: narration
+        env:
+          SINCE: ${{ steps.window.outputs.since }}
         run: |
           # shellcheck disable=SC2029
           NARRATION=$(ssh "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}" \
-            "bash -lc 'cd $CURRENT_DIR && node --env-file=$APP_ENV_FILE dist/scripts/cli.js metrics narration --json'")
+            "bash -lc 'cd $CURRENT_DIR && node --env-file=$APP_ENV_FILE dist/scripts/cli.js metrics narration --since \"$SINCE\" --json'")
           SUMMARY=$(echo "$NARRATION" | jq -c '{
             diagnostic_turns: length,
             retried_turns: ([.[] | select(.narration_retried == true)] | length),
@@ -114,32 +134,110 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Analyze session growth
+        id: session_growth
+        env:
+          CURRENT_METRICS: ${{ steps.metrics.outputs.output }}
+        run: |
+          NEW_SESSIONS=$(echo "$CURRENT_METRICS" | jq '[.[].new_sessions_since] | add // 0')
+          MESSAGE="New sessions since last report: $NEW_SESSIONS."
+          {
+            echo "new_sessions=$NEW_SESSIONS"
+            echo "message=$MESSAGE"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Analyze narration health
         id: narration_health
         env:
           CURRENT_NARRATION_METRICS: ${{ steps.narration.outputs.output }}
-          PREV_NARRATION_METRICS: ${{ steps.previous_narration.outputs.output }}
         run: |
-          CURRENT_FAILED=$(echo "$CURRENT_NARRATION_METRICS" | jq -r '.failed_turns // 0')
-          if [ -n "$PREV_NARRATION_METRICS" ]; then
-            PREVIOUS_FAILED=$(echo "$PREV_NARRATION_METRICS" | jq -r '.failed_turns // 0' 2>/dev/null || echo 0)
-          else
-            PREVIOUS_FAILED=0
-          fi
-          DELTA=$((CURRENT_FAILED - PREVIOUS_FAILED))
+          FAILED=$(echo "$CURRENT_NARRATION_METRICS" | jq -r '.failed_turns // 0')
           SIGNIFICANT=false
-          if [ "$DELTA" -ge 3 ]; then
-            SIGNIFICANT=true
-          elif [ "$PREVIOUS_FAILED" -gt 0 ] && [ "$CURRENT_FAILED" -ge $((PREVIOUS_FAILED * 2)) ]; then
+          if [ "$FAILED" -ge 3 ]; then
             SIGNIFICANT=true
           fi
+          MESSAGE="New narration failures since last report: $FAILED."
           if [ "$SIGNIFICANT" = true ]; then
-            MESSAGE="Significant increase in narration failures: $CURRENT_FAILED this week, up from $PREVIOUS_FAILED."
-          else
-            MESSAGE="Narration failures: $CURRENT_FAILED this week, previous $PREVIOUS_FAILED."
+            MESSAGE="$MESSAGE This is a significant number of failures."
           fi
           {
             echo "significant=$SIGNIFICANT"
+            echo "message=$MESSAGE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Analyze active users
+        id: active_users
+        env:
+          CURRENT_METRICS: ${{ steps.metrics.outputs.output }}
+        run: |
+          ACTIVE=$(echo "$CURRENT_METRICS" | jq '[.[].active_users_since] | add // 0')
+          MESSAGE="Active users since last report: $ACTIVE."
+          {
+            echo "message=$MESSAGE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Analyze new users
+        id: new_users
+        env:
+          CURRENT_USERS: ${{ steps.users.outputs.output }}
+          SINCE: ${{ steps.window.outputs.since }}
+        run: |
+          NEW_USERS=$(jq -n --argjson current "$CURRENT_USERS" --arg since "$SINCE" '
+            ($since | fromdateiso8601) as $since_epoch
+            | $current | map(select((.created_at | strptime("%Y-%m-%d %H:%M:%S") | mktime) >= $since_epoch))
+          ')
+          COUNT=$(echo "$NEW_USERS" | jq 'length')
+          if [ "$COUNT" -gt 0 ]; then
+            NAMES=$(echo "$NEW_USERS" | jq -r '.[] | "\(.email) (\(.namespace_name))"' | paste -sd ', ')
+            MESSAGE="New users since last report ($COUNT): $NAMES"
+          else
+            MESSAGE="New users since last report: 0"
+          fi
+          {
+            echo "count=$COUNT"
+            echo "message=$MESSAGE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Analyze new namespaces
+        id: new_namespaces
+        env:
+          CURRENT_NAMESPACES: ${{ steps.namespaces.outputs.output }}
+          SINCE: ${{ steps.window.outputs.since }}
+        run: |
+          NEW_NAMESPACES=$(jq -n --argjson current "$CURRENT_NAMESPACES" --arg since "$SINCE" '
+            ($since | fromdateiso8601) as $since_epoch
+            | $current | map(select((.created_at | strptime("%Y-%m-%d %H:%M:%S") | mktime) >= $since_epoch))
+          ')
+          COUNT=$(echo "$NEW_NAMESPACES" | jq 'length')
+          if [ "$COUNT" -gt 0 ]; then
+            NAMES=$(echo "$NEW_NAMESPACES" | jq -r '.[].name' | paste -sd ', ')
+            MESSAGE="New namespaces since last report ($COUNT): $NAMES"
+          else
+            MESSAGE="New namespaces since last report: 0"
+          fi
+          {
+            echo "count=$COUNT"
+            echo "message=$MESSAGE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Analyze top namespace
+        id: top_namespace
+        env:
+          CURRENT_METRICS: ${{ steps.metrics.outputs.output }}
+        run: |
+          RESULT=$(echo "$CURRENT_METRICS" | jq '
+            map({namespace_name, turns_since: (.turns_since // 0)})
+            | sort_by(-.turns_since)
+            | .[0] // {namespace_name: null, turns_since: 0}
+          ')
+          NAME=$(echo "$RESULT" | jq -r '.namespace_name // "none"')
+          TURNS=$(echo "$RESULT" | jq -r '.turns_since // 0')
+          if [ "$NAME" = "none" ] || [ "$TURNS" -le 0 ]; then
+            MESSAGE="No namespace activity since last report."
+          else
+            MESSAGE="Most active namespace since last report: $NAME ($TURNS turns)."
+          fi
+          {
             echo "message=$MESSAGE"
           } >> "$GITHUB_OUTPUT"
 
@@ -161,10 +259,13 @@ jobs:
         id: summary
         env:
           CURRENT_METRICS: ${{ steps.metrics.outputs.output }}
-          PREV_METRICS: ${{ steps.previous.outputs.output }}
           CURRENT_NARRATION_METRICS: ${{ steps.narration.outputs.output }}
-          PREV_NARRATION_METRICS: ${{ steps.previous_narration.outputs.output }}
           NARRATION_HEALTH: ${{ steps.narration_health.outputs.message }}
+          SESSION_GROWTH: ${{ steps.session_growth.outputs.message }}
+          ACTIVE_USERS: ${{ steps.active_users.outputs.message }}
+          NEW_USERS: ${{ steps.new_users.outputs.message }}
+          NEW_NAMESPACES: ${{ steps.new_namespaces.outputs.message }}
+          TOP_NAMESPACE: ${{ steps.top_namespace.outputs.message }}
         run: |
           OPENAI_API_KEY=$(aws ssm get-parameter \
             --name "$SSM_PREFIX/OPENAI_API_KEY" \
@@ -172,19 +273,27 @@ jobs:
             --query 'Parameter.Value' --output text)
 
           PROMPT="You are a usage analyst for a family D&D game app."
-          PROMPT="$PROMPT Summarize this week's metrics in 2-3 sentences, highlighting trends vs last week."
-          PROMPT="$PROMPT Include narration retry/fallback health."
+          PROMPT="$PROMPT Summarize this week's metrics in 2-3 sentences, highlighting trends since the last report."
+          PROMPT="$PROMPT Open by explicitly stating the number of new sessions since the last report,"
+          PROMPT="$PROMPT taken verbatim from the session growth line below."
+          PROMPT="$PROMPT Include narration retry/fallback health, explicitly stating the number of"
+          PROMPT="$PROMPT new narration failures since the last report."
           PROMPT="$PROMPT Mention total encounters, how many were from DM prep seeds (encounters_seeded)"
           PROMPT="$PROMPT vs. dynamic/organic (encounters_dynamic)."
-          PROMPT="$PROMPT Explicitly call out a significant increase in narration failures"
-          PROMPT="$PROMPT when failed_turns rose by 3 or more, or doubled from a nonzero previous value."
-          PROMPT="$PROMPT Be concise and friendly. If no previous metrics, just summarize current state."
+          PROMPT="$PROMPT Explicitly call out when narration failures since the last report are 3 or more."
+          PROMPT="$PROMPT Mention active users since the last report."
+          PROMPT="$PROMPT If there are new users or new namespaces since the last report, name them by email/name."
+          PROMPT="$PROMPT Mention the most active namespace since the last report if there was meaningful activity."
+          PROMPT="$PROMPT Be concise and friendly."
           MESSAGE=$(printf '%s' "$PROMPT")
-          MESSAGE=$(printf '%s\n\nCurrent usage:\n%s' "$MESSAGE" "$CURRENT_METRICS")
-          MESSAGE=$(printf '%s\n\nPrevious usage:\n%s' "$MESSAGE" "${PREV_METRICS:-none}")
+          MESSAGE=$(printf '%s\n\nCurrent usage (windowed since last report):\n%s' "$MESSAGE" "$CURRENT_METRICS")
+          MESSAGE=$(printf '%s\n\nSession growth:\n%s' "$MESSAGE" "$SESSION_GROWTH")
           MESSAGE=$(printf '%s\n\nNarration health:\n%s' "$MESSAGE" "$NARRATION_HEALTH")
-          MESSAGE=$(printf '%s\n\nCurrent narration diagnostics:\n%s' "$MESSAGE" "$CURRENT_NARRATION_METRICS")
-          MESSAGE=$(printf '%s\n\nPrevious narration diagnostics:\n%s' "$MESSAGE" "${PREV_NARRATION_METRICS:-none}")
+          MESSAGE=$(printf '%s\n\nNarration diagnostics (windowed since last report):\n%s' "$MESSAGE" "$CURRENT_NARRATION_METRICS")
+          MESSAGE=$(printf '%s\n\nActive users:\n%s' "$MESSAGE" "$ACTIVE_USERS")
+          MESSAGE=$(printf '%s\n\nNew users:\n%s' "$MESSAGE" "$NEW_USERS")
+          MESSAGE=$(printf '%s\n\nNew namespaces:\n%s' "$MESSAGE" "$NEW_NAMESPACES")
+          MESSAGE=$(printf '%s\n\nTop namespace:\n%s' "$MESSAGE" "$TOP_NAMESPACE")
           PAYLOAD=$(jq -n \
             --arg message "$MESSAGE" \
             '{
@@ -214,12 +323,25 @@ jobs:
           INVITES_JSON: ${{ steps.invites.outputs.output }}
           INVITES_COUNT: ${{ steps.invites.outputs.count }}
           NARRATION_HEALTH: ${{ steps.narration_health.outputs.message }}
-          NARRATION_SIGNIFICANT: ${{ steps.narration_health.outputs.significant }}
+          SESSION_GROWTH: ${{ steps.session_growth.outputs.message }}
+          ACTIVE_USERS: ${{ steps.active_users.outputs.message }}
+          NEW_USERS: ${{ steps.new_users.outputs.message }}
+          NEW_USERS_COUNT: ${{ steps.new_users.outputs.count }}
+          NEW_NAMESPACES: ${{ steps.new_namespaces.outputs.message }}
+          NEW_NAMESPACES_COUNT: ${{ steps.new_namespaces.outputs.count }}
+          TOP_NAMESPACE: ${{ steps.top_namespace.outputs.message }}
         run: |
           MSG="$SUMMARY"
-          if [ "$NARRATION_SIGNIFICANT" = "true" ]; then
-            MSG=$(printf '%s\n\n%s' "$MSG" "$NARRATION_HEALTH")
+          MSG=$(printf '%s\n\n%s' "$MSG" "$SESSION_GROWTH")
+          MSG=$(printf '%s\n%s' "$MSG" "$NARRATION_HEALTH")
+          MSG=$(printf '%s\n%s' "$MSG" "$ACTIVE_USERS")
+          if [ "${NEW_USERS_COUNT:-0}" -gt 0 ]; then
+            MSG=$(printf '%s\n%s' "$MSG" "$NEW_USERS")
           fi
+          if [ "${NEW_NAMESPACES_COUNT:-0}" -gt 0 ]; then
+            MSG=$(printf '%s\n%s' "$MSG" "$NEW_NAMESPACES")
+          fi
+          MSG=$(printf '%s\n%s' "$MSG" "$TOP_NAMESPACE")
           if [ "${INVITES_COUNT:-0}" -gt 0 ]; then
             EMAILS=$(echo "$INVITES_JSON" | jq -r '.[].email' | paste -sd ', ')
             MSG=$(printf '%s\n\nPending invites (%s): %s' "$MSG" "$INVITES_COUNT" "$EMAILS")
@@ -239,21 +361,13 @@ jobs:
           title: Weekly Metrics
           message: ${{ steps.message.outputs.output }}
 
-      - name: Save metrics to SSM
-        run: |
-          aws ssm put-parameter \
-            --name "$METRICS_SSM_PATH" \
-            --value "${{ steps.metrics.outputs.output }}" \
-            --type String \
-            --overwrite
-
-      - name: Save narration metrics to SSM
+      - name: Save report window to SSM
         env:
-          NARRATION_SUMMARY: ${{ steps.narration.outputs.output }}
+          NOW: ${{ steps.window.outputs.now }}
         run: |
           aws ssm put-parameter \
-            --name "$NARRATION_METRICS_SSM_PATH" \
-            --value "$NARRATION_SUMMARY" \
+            --name "$LAST_REPORT_SSM_PATH" \
+            --value "$NOW" \
             --type String \
             --overwrite
 

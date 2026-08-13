@@ -121,6 +121,9 @@ export const migrate = (db: DB): void => {
   if (!turnCols.includes('rollNarration')) {
     db.prepare("ALTER TABLE turn_history ADD COLUMN rollNarration TEXT").run();
   }
+  if (!turnCols.includes('createdAt')) {
+    db.prepare("ALTER TABLE turn_history ADD COLUMN createdAt DATETIME DEFAULT CURRENT_TIMESTAMP").run();
+  }
 
   const choiceCols = (db.prepare("PRAGMA table_info(turn_choices)").all() as { name: string }[]).map(r => r.name);
   if (!choiceCols.includes('difficultyValue')) {
@@ -353,5 +356,10 @@ export const migrate = (db: DB): void => {
     db.prepare("ALTER TABLE sessions ADD COLUMN origin_story_image_storage_key TEXT").run();
     db.prepare("ALTER TABLE sessions ADD COLUMN origin_story_image_storage_provider TEXT").run();
     db.prepare("ALTER TABLE sessions ADD COLUMN origin_story_generated_at TEXT").run();
+  }
+
+  const userColsFull = (db.prepare("PRAGMA table_info(users)").all() as { name: string }[]).map(r => r.name);
+  if (!userColsFull.includes('lastLogin')) {
+    db.prepare("ALTER TABLE users ADD COLUMN lastLogin DATETIME").run();
   }
 };

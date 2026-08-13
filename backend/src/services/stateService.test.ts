@@ -287,6 +287,15 @@ describe('StateService - User / Namespace management', () => {
     expect(found).toBeDefined();
     expect(found!.namespace_name).toBeTruthy();
     expect(found!.namespaces?.length).toBeGreaterThan(0);
+    expect(found!.lastLogin).toBeNull();
+  });
+
+  it('recordLogin sets lastLogin for the user', () => {
+    StateService.createUser('login-test@example.com');
+    StateService.recordLogin('login-test@example.com');
+    const users = StateService.listUsers();
+    const found = users.find(u => u.email === 'login-test@example.com');
+    expect(found!.lastLogin).toBeTruthy();
   });
 
   it('createNamespace + getNamespaceById', () => {

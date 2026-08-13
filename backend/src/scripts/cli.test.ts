@@ -353,6 +353,34 @@ describe('CLI metrics', () => {
     expect(Array.isArray(rows)).toBe(true);
     expect(rows.every(row => 'total_turns' in row)).toBe(true);
   });
+
+  it('--since adds windowed counts and excludes turns older than the window', () => {
+    seedNarrationMetricsTurn();
+
+    const future = new Date(Date.now() + 60_000).toISOString();
+    const { stdout, status } = cli('metrics', '--since', future, '--json');
+    expect(status).toBe(0);
+    const rows = JSON.parse(stdout) as { namespace_id: string; new_sessions_since: number; turns_since: number }[];
+    const local = rows.find(r => r.namespace_id === 'local');
+    expect(local?.new_sessions_since).toBe(0);
+    expect(local?.turns_since).toBe(0);
+
+    const past = new Date(Date.now() - 60_000).toISOString();
+    const sinceStdout = cli('metrics', '--since', past, '--json').stdout;
+    const sinceRows = JSON.parse(sinceStdout) as { namespace_id: string; turns_since: number }[];
+    const localSince = sinceRows.find(r => r.namespace_id === 'local');
+    expect(localSince?.turns_since).toBeGreaterThan(0);
+  });
+
+  it('narration --since excludes turns older than the window', () => {
+    seedNarrationMetricsTurn();
+
+    const future = new Date(Date.now() + 60_000).toISOString();
+    const { stdout, status } = cli('metrics', 'narration', '--since', future, '--json');
+    expect(status).toBe(0);
+    const rows = JSON.parse(stdout) as { session_id: string }[];
+    expect(rows.some(r => r.session_id === 'narration-metrics-session')).toBe(false);
+  });
 });
 
 // ── invite-requests ───────────────────────────────────────────────────────────

@@ -31,7 +31,8 @@ _dnd_flags() {
   case "$1/$2" in
     sessions/export)  echo "--session= --namespace= --output=" ;;
     sessions/import)  echo "--namespace-id=" ;;
-    metrics/narration) echo "--format= --csv --failed-only --namespace= --session=" ;;
+    metrics/)           echo "--since=" ;;
+    metrics/narration) echo "--format= --csv --failed-only --namespace= --session= --since=" ;;
     namespaces/set-limits) echo "--max-sessions= --max-turns=" ;;
     invite-requests/approve) echo "--namespace=" ;;
     *) echo "" ;;
