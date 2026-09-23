@@ -842,7 +842,7 @@ describe('runChoicesWithRetry', () => {
     expect(result.initial).toEqual(result.choices);
     expect(result.initialIssues).toEqual({ stale: false, lacksTopStat: false });
     expect(result.diagnostics.map(d => d.agent)).toEqual(['choices']);
-    expect(mocks.stream.mock.calls[0][0].model).toBe('gpt-4.1-nano');
+    expect(mocks.stream.mock.calls[0][0].model).toBe('gpt-5.6-luna');
   });
 
   it('marks a stale-label retry as escalated to the narration tier', async () => {
@@ -955,7 +955,7 @@ describe('runChoicesWithRetry', () => {
     await runChoicesWithRetry(input, { observer: recorder.observer });
 
     expect(recorder.starts).toEqual([
-      { agent: 'choices', tier: 'preview', model: 'gpt-4.1-nano' },
+      { agent: 'choices', tier: 'preview', model: 'gpt-5.6-luna' },
       { agent: 'choices-coverage-retry', tier: 'narration', model: 'gpt-4.1-mini' },
     ]);
     expect(recorder.ends).toHaveLength(2);
@@ -1053,12 +1053,21 @@ describe('choices request settings by tier', () => {
 
     expect(result.escalated).toBe(true);
     const [initialRequest, retryRequest] = mocks.stream.mock.calls.map(call => call[0]);
-    expect(initialRequest).toMatchObject({ model: 'gpt-4.1-nano', reasoning_effort: 'none', max_completion_tokens: 450 });
+    expect(initialRequest).toMatchObject({ model: 'gpt-5.6-luna', reasoning_effort: 'none', max_completion_tokens: 450 });
     expect(retryRequest.model).toBe('gpt-4.1-mini');
     expect(retryRequest).not.toHaveProperty('reasoning_effort');
   });
 
-  it('sends no reasoning field on choices requests when the preview setting is unset', async () => {
+  it('sends the built-in reasoning none on choices requests when the preview setting is unset', async () => {
+    mockStreamOnce(makeChoicesCompletion());
+
+    await runChoicesWithRetry(baseInput());
+
+    expect(mocks.stream.mock.calls[0][0]).toMatchObject({ model: 'gpt-5.6-luna', reasoning_effort: 'none' });
+  });
+
+  it('sends no reasoning field on choices requests with the explicit omit escape hatch', async () => {
+    process.env.OPENAI_REASONING_EFFORT_PREVIEW = 'omit';
     mockStreamOnce(makeChoicesCompletion());
 
     await runChoicesWithRetry(baseInput());

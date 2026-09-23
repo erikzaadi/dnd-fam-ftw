@@ -21,6 +21,7 @@ afterEach(() => {
   delete process.env.OPENAI_MODEL_NARRATION;
   delete process.env.OPENAI_MODEL_PREVIEW;
   delete process.env.OPENAI_MODEL_ASYNC;
+  delete process.env.OPENAI_REASONING_EFFORT_PREVIEW;
   delete process.env.OPENAI_REASONING_EFFORT_NARRATION;
   delete process.env.OPENAI_TEXT_VERBOSITY_NARRATION;
   delete process.env.OPENAI_SERVICE_TIER_NARRATION;
@@ -44,8 +45,22 @@ describe('openAiClient', () => {
     const { getModelForTier } = await import('./openAiClient.js');
 
     expect(getModelForTier('narration')).toBe('gpt-4.1-mini');
-    expect(getModelForTier('preview')).toBe('gpt-4.1-nano');
+    expect(getModelForTier('preview')).toBe('gpt-5.6-luna');
     expect(getModelForTier('async')).toBe('gpt-4.1');
+  });
+
+  it('pairs the built-in preview model with reasoning none so they roll back together', async () => {
+    const { getModelForTier, getTierRequestSettings, PREVIEW_DEFAULTS } = await import('./openAiClient.js');
+
+    expect(PREVIEW_DEFAULTS).toEqual({ model: 'gpt-5.6-luna', reasoningEffort: 'none' });
+    expect(getModelForTier('preview')).toBe(PREVIEW_DEFAULTS.model);
+    expect(getTierRequestSettings('preview')).toEqual({ reasoning_effort: PREVIEW_DEFAULTS.reasoningEffort });
+  });
+
+  it('never defaults the preview tier to the retired gpt-4.1-nano', async () => {
+    const { getModelForTier } = await import('./openAiClient.js');
+
+    expect(getModelForTier('preview')).not.toMatch(/gpt-4\.1-nano/);
   });
 
   it('getModelForTier respects per-tier env var overrides', async () => {

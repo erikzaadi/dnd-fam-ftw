@@ -131,21 +131,21 @@ Run from `backend/`. `OPENAI_MAX_RETRIES=0` must be in the environment before th
 
 ```bash
 # Preview the plan and worst-case request count without calling the provider
-npx tsx src/scripts/evaluatePreviewChoices.ts --label baseline-nano --dry-run
+npx tsx src/scripts/evaluatePreviewChoices.ts --label baseline --dry-run
 
 # Baseline: current configuration, 20 fixtures x 3 repeats, at most 120 requests
-OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/evaluatePreviewChoices.ts --label baseline-nano
+OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/evaluatePreviewChoices.ts --label baseline
 
 # Interleaved comparison: per-configuration model/reasoning overrides
-OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/evaluatePreviewChoices.ts --label oct-compare \
-  --config nano \
-  --config primary:OPENAI_MODEL_PREVIEW=gpt-5.6-luna,OPENAI_REASONING_EFFORT_PREVIEW=none
+OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/evaluatePreviewChoices.ts --label compare \
+  --config current \
+  --config candidate:OPENAI_MODEL_PREVIEW=gpt-6-luna,OPENAI_REASONING_EFFORT_PREVIEW=none
 ```
 
 | Option | Default | Meaning |
 |---|---|---|
 | `--label <name>` | required | Run label recorded in results |
-| `--config <name>[:K=V,...]` | one config named after the label | Repeatable. Only `OPENAI_MODEL_*`, `OPENAI_REASONING_EFFORT_*`, `OPENAI_TEXT_VERBOSITY_*`, and `OPENAI_SERVICE_TIER_*` overrides are allowed |
+| `--config <name>[:K=V,...]` | one config named after the label | Repeatable. A config without overrides uses the built-in defaults. Only `OPENAI_MODEL_*`, `OPENAI_REASONING_EFFORT_*`, `OPENAI_TEXT_VERBOSITY_*`, and `OPENAI_SERVICE_TIER_*` overrides are allowed |
 | `--repeat <n>` | 3 | Passes over the fixture set |
 | `--fixtures <id,id>` | all 20 | Restrict to specific fixtures |
 | `--max-requests <n>` | 120 per config | Stops before an attempt could exceed the ceiling and marks the run incomplete |
@@ -177,12 +177,14 @@ Every preview-tier caller (initial choices, action previews, stat suggestions, s
 
 | Value | Request |
 |---|---|
-| unset | No `reasoning_effort` field (current `gpt-4.1-nano` behavior) |
+| unset | `none`, the built-in default paired with the built-in `gpt-5.6-luna` preview model |
 | `none`, `minimal`, `low`, `medium`, `high`, `xhigh` | Sent as `reasoning_effort` |
-| `omit` | Never sent, for OpenAI-compatible endpoints that reject the field |
+| `omit` | Never sent. Set this for OpenAI-compatible endpoints or custom models that reject the field |
 | anything else | Backend refuses to start |
 
-Narration-tier choices retries and all narration/async requests never receive preview settings. Reasoning-capable preview models default to medium reasoning, which can spend a small helper's whole token budget: set `none` together with such a model. A preview reply that is empty with `finish_reason=length` logs a `console.warn` (`[AI] <caller> truncated: ...`) even though the caller falls back.
+Narration-tier choices retries and all narration/async requests never receive preview settings. Reasoning-capable preview models default to medium reasoning on the provider side, which can spend a small helper's whole token budget, so the app sends `none` unless told otherwise.
+
+The built-in preview model (`gpt-5.6-luna`) and its reasoning default (`none`) are defined together in `PREVIEW_DEFAULTS` (`backend/src/providers/ai/openAiClient.ts`) and roll back together. `gpt-4.1-nano` retires on 2026-10-23 and must not be restored as a default. Production does not pin either value: `deploy-backend.sh` leaves both unset, so the code defaults apply. Selection evidence is in `next-up-instructions/model-refresh-02-live-validation.md`. A preview reply that is empty with `finish_reason=length` logs a `console.warn` (`[AI] <caller> truncated: ...`) even though the caller falls back.
 
 `[Metrics] turn_complete` log lines include `choicesFailed=` (final choices fell back to deterministic choices) and `choicesEscalated=` (a narration-tier choices retry started, whatever its outcome).
 

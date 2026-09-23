@@ -127,7 +127,8 @@ OPENAI_IMAGE_MODEL=gpt-image-2
 Per-tier text model overrides (all have built-in defaults, only set to override):
 ```
 OPENAI_MODEL_NARRATION=gpt-4.1-mini   # turn narration, summaries
-OPENAI_MODEL_PREVIEW=gpt-4.1-nano     # action previews, stat suggestions (latency-critical)
+OPENAI_MODEL_PREVIEW=gpt-5.6-luna     # action previews, stat suggestions, choices (latency-critical)
+OPENAI_REASONING_EFFORT_PREVIEW=none  # preview reasoning; set omit for endpoints that reject the field
 OPENAI_MODEL_ASYNC=gpt-4.1            # campaign brief, story summaries (background)
 OPENAI_MODEL_TTS=gpt-4o-mini-tts      # text-to-speech narration
 ```
@@ -139,6 +140,7 @@ OPENAI_API_KEY=sk-or-...
 OPENAI_BASE_URL=https://openrouter.ai/api/v1
 OPENAI_MODEL_NARRATION=meta-llama/llama-3.3-8b-instruct:free
 OPENAI_MODEL_PREVIEW=meta-llama/llama-3.3-8b-instruct:free
+OPENAI_REASONING_EFFORT_PREVIEW=omit
 OPENAI_MODEL_ASYNC=meta-llama/llama-3.3-8b-instruct:free
 # Images may not be supported by the selected endpoint : disable image generation if needed
 ```
@@ -150,6 +152,7 @@ OPENAI_API_KEY=localai
 OPENAI_BASE_URL=http://127.0.0.1:8080/v1
 OPENAI_MODEL_NARRATION=qwen3-1.7b
 OPENAI_MODEL_PREVIEW=qwen3-1.7b
+OPENAI_REASONING_EFFORT_PREVIEW=omit
 OPENAI_MODEL_ASYNC=qwen3-1.7b
 # OPENAI_IMAGE_MODEL=<image model exposed by your compatible server>
 ```
@@ -283,18 +286,18 @@ There are 15+ distinct AI calls in the app, each with a different purpose and co
 
 | Call | Where | Model env var | Default | When |
 |---|---|---|---|---|
-| **Turn narration** (2-5 parallel agents) | `dmTurnOrchestrator.ts` | `OPENAI_MODEL_NARRATION` / `OPENAI_MODEL_PREVIEW` | `gpt-4.1-mini` / `gpt-4.1-nano` | Every action : narration + choices always; combat/inventory/recovery agents conditional - see `MULTI_AGENT_WORKFLOW.md` |
-| **Action preview** | `statSuggestionService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-4.1-nano` | While player types an action |
-| **Stat suggestion** | `statSuggestionService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-4.1-nano` | Character creation and action routing |
-| **Session naming** | `sessionNameService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-4.1-nano` | Once at realm creation |
+| **Turn narration** (2-5 parallel agents) | `dmTurnOrchestrator.ts` | `OPENAI_MODEL_NARRATION` / `OPENAI_MODEL_PREVIEW` | `gpt-4.1-mini` / `gpt-5.6-luna` | Every action : narration + choices always; combat/inventory/recovery agents conditional - see `MULTI_AGENT_WORKFLOW.md` |
+| **Action preview** | `statSuggestionService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-5.6-luna` | While player types an action |
+| **Stat suggestion** | `statSuggestionService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-5.6-luna` | Character creation and action routing |
+| **Session naming** | `sessionNameService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-5.6-luna` | Once at realm creation |
 | **TLDR summary** | `turnRoutes.ts` | `OPENAI_MODEL_NARRATION` | `gpt-4.1-mini` | On demand in recap screen |
 | **Character history** | `characterRoutes.ts` | `OPENAI_MODEL_NARRATION` | `gpt-4.1-mini` | When importing a character from a previous session |
 | **Campaign brief / DM prep** | `storySummaryService.ts` | `OPENAI_MODEL_ASYNC` | `gpt-4.1` | At realm creation (blocks first turn) |
-| **DM prep compilation** | `dmPrepCompilationService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-4.1-nano` | After campaign brief, compresses brief into a structured premise |
+| **DM prep compilation** | `dmPrepCompilationService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-5.6-luna` | After campaign brief, compresses brief into a structured premise |
 | **Story summary** | `storySummaryService.ts` | `OPENAI_MODEL_ASYNC` | `gpt-4.1` | Every 5 turns, background |
 | **Metrics summary** | `.github/workflows/metrics.yml` | hardcoded | `gpt-4.1` | Weekly CI job |
 | **TTS narration** | `ttsService.ts` | `OPENAI_MODEL_TTS` | `gpt-4o-mini-tts` | Every turn, async queued |
-| **Scene image brief** | `imageBriefProvider.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-4.1-nano` | Every turn, generates a ~45-word prompt for the image model |
+| **Scene image brief** | `imageBriefProvider.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-5.6-luna` | Every turn, generates a 15-25 word prompt for the image model |
 | **Scene image** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | Every turn, async via SSE, cached by prompt hash |
 | **Realm preview image** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | On realm creation, cached |
 | **Avatar generation** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | Once per character creation, cached permanently |

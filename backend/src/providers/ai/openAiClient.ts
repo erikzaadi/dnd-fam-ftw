@@ -55,12 +55,18 @@ export function createOpenAIClient(): OpenAI {
   return _client;
 }
 
+// Built-in preview model and reasoning defaults are one rollback unit and
+// change together: gpt-5.6-luna defaults to medium reasoning, which can spend
+// a small helper's whole token budget, so it ships with reasoning "none".
+// gpt-4.1-nano retires on 2026-10-23 and must never return as a default.
+export const PREVIEW_DEFAULTS = { model: 'gpt-5.6-luna', reasoningEffort: 'none' } as const;
+
 export function getModelForTier(tier: 'narration' | 'preview' | 'async'): string {
   switch (tier) {
   case 'narration':
     return process.env.OPENAI_MODEL_NARRATION ?? 'gpt-4.1-mini';
   case 'preview':
-    return process.env.OPENAI_MODEL_PREVIEW ?? 'gpt-4.1-nano';
+    return process.env.OPENAI_MODEL_PREVIEW ?? PREVIEW_DEFAULTS.model;
   case 'async':
     return process.env.OPENAI_MODEL_ASYNC ?? 'gpt-4.1';
   }
@@ -70,20 +76,23 @@ export function getNarrationReasoningEffort(): OpenAIReasoningEffort | undefined
   return optionalEnum('OPENAI_REASONING_EFFORT_NARRATION', REASONING_EFFORTS);
 }
 
-// Unset keeps the legacy nano request (no reasoning field). "omit" is the
-// explicit escape hatch for endpoints that reject the field and is never sent.
-// Invalid values throw: ignoring them would silently enable provider-default
-// reasoning, which can consume a helper's whole token budget.
+// Unset uses the built-in default ("none"). "omit" is the explicit escape
+// hatch for endpoints that reject the field and is never sent. Invalid values
+// throw: ignoring them would silently enable provider-default reasoning,
+// which can consume a helper's whole token budget.
 export function getPreviewReasoningEffort(): OpenAIReasoningEffort | undefined {
   const effort = optionalEnum('OPENAI_REASONING_EFFORT_PREVIEW', [...REASONING_EFFORTS, 'omit'] as const, true);
-  return effort === 'omit' ? undefined : effort;
+  if (effort === 'omit') {
+    return undefined;
+  }
+  return effort ?? PREVIEW_DEFAULTS.reasoningEffort;
 }
 
 export type TierRequestSettings = { reasoning_effort?: OpenAIReasoningEffort };
 
 // Optional per-tier request fields, spread into chat completion requests.
-// Only explicitly configured fields are emitted, so custom endpoints never
-// receive fields they were not configured for. Resolve with the tier that
+// Preview requests send reasoning_effort unless it is set to "omit", which
+// custom endpoints that reject the field need. Resolve with the tier that
 // actually serves the request (a narration-tier retry gets narration settings).
 export function getTierRequestSettings(tier: 'narration' | 'preview' | 'async'): TierRequestSettings {
   if (tier !== 'preview') {

@@ -113,17 +113,26 @@ afterEach(() => {
 });
 
 describe.each(callers)('preview request settings: $name', (caller) => {
-  it('sends max_completion_tokens, no max_tokens, no temperature, and no reasoning field when unset', async () => {
+  it('sends the built-in model with reasoning none, max_completion_tokens, and no temperature when unset', async () => {
     mocks.create.mockResolvedValueOnce(completion(caller.content));
 
     await caller.run();
 
     const request = lastRequest();
-    expect(request.model).toBe('gpt-4.1-nano');
+    expect(request.model).toBe('gpt-5.6-luna');
+    expect(request.reasoning_effort).toBe('none');
     expect(request.max_completion_tokens).toEqual(expect.any(Number));
     expect(request).not.toHaveProperty('max_tokens');
     expect(request).not.toHaveProperty('temperature');
-    expect(request).not.toHaveProperty('reasoning_effort');
+  });
+
+  it('sends an explicitly configured reasoning effort instead of the built-in none', async () => {
+    process.env.OPENAI_REASONING_EFFORT_PREVIEW = 'low';
+    mocks.create.mockResolvedValueOnce(completion(caller.content));
+
+    await caller.run();
+
+    expect(lastRequest().reasoning_effort).toBe('low');
   });
 
   it('sends reasoning_effort none when explicitly configured, for a custom model and base URL', async () => {
@@ -142,13 +151,19 @@ describe.each(callers)('preview request settings: $name', (caller) => {
     expect(mocks.OpenAI).toHaveBeenCalledWith(expect.objectContaining({ baseURL: 'http://127.0.0.1:9999/v1' }));
   });
 
-  it('omits the reasoning field for the explicit omit escape hatch', async () => {
+  it('omits the reasoning field for the explicit omit escape hatch on a custom endpoint', async () => {
     process.env.OPENAI_REASONING_EFFORT_PREVIEW = 'omit';
+    process.env.OPENAI_MODEL_PREVIEW = 'qwen3-1.7b';
+    process.env.OPENAI_BASE_URL = 'http://127.0.0.1:8080/v1';
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
     mocks.create.mockResolvedValueOnce(completion(caller.content));
 
     await caller.run();
 
-    expect(lastRequest()).not.toHaveProperty('reasoning_effort');
+    const request = lastRequest();
+    expect(request.model).toBe('qwen3-1.7b');
+    expect(request).not.toHaveProperty('reasoning_effort');
+    expect(request).not.toHaveProperty('temperature');
   });
 
   it('warns in production when a reply is empty and truncated by the token cap', async () => {
@@ -158,7 +173,7 @@ describe.each(callers)('preview request settings: $name', (caller) => {
 
     await caller.run();
 
-    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/truncated: empty content with finish_reason=length model=gpt-4\.1-nano/));
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/truncated: empty content with finish_reason=length model=gpt-5\.6-luna/));
     warn.mockRestore();
   });
 });

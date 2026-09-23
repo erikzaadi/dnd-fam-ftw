@@ -79,6 +79,8 @@ S3_IMAGE_PREFIX=generated/
 S3_IMAGE_PUBLIC_BASE_URL=$IMAGE_BUCKET_URL
 
 # AI
+# Preview model and reasoning use the paired code defaults (gpt-5.6-luna, reasoning none).
+# Do not pin OPENAI_MODEL_PREVIEW or OPENAI_REASONING_EFFORT_PREVIEW here or in SSM.
 OPENAI_IMAGE_MODEL=gpt-image-2
 
 # Auth

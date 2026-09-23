@@ -56,7 +56,7 @@ beforeEach(() => {
 describe('repairEncounterNameIfNeeded', () => {
   it('uses the preview model to repair low-quality dynamic encounter names', async () => {
     mocks.createMock.mockReturnValue({
-      model: 'gpt-4.1-nano',
+      model: 'gpt-5.6-luna',
       client: {
         chat: {
           completions: {
@@ -85,7 +85,7 @@ describe('repairEncounterNameIfNeeded', () => {
 
   it('falls back to a salvaged name when the preview call fails', async () => {
     mocks.createMock.mockReturnValue({
-      model: 'gpt-4.1-nano',
+      model: 'gpt-5.6-luna',
       client: {
         chat: {
           completions: {
