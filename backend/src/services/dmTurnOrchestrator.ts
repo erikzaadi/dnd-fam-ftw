@@ -793,6 +793,13 @@ function coerceChoice(raw: ChoicesAgentOutput['choices'][0]): NarrationChoice {
   };
 }
 
+// Deterministic guards between the choices agent output and what the player
+// sees. Shared with the preview-choices evaluation script so its
+// player-visible scoring matches production.
+export function toPlayerChoices(output: ChoicesAgentOutput, input: NarrationInput): NarrationChoice[] {
+  return auditChoiceStatCoverage(sanitizeItemChoices(output.choices.map(coerceChoice), input), input);
+}
+
 export class DmTurnOrchestrator implements NarrationProvider {
   // NarrationProvider entry point used by createNarrationProvider()
   generateTurn(input: NarrationInput, callbacks?: NarrationStreamCallbacks): Promise<DmTurnOrchestratorResult> {
@@ -936,7 +943,7 @@ export class DmTurnOrchestrator implements NarrationProvider {
       narration: cleanText(narration.narration),
       rollNarration: narration.rollNarration ? cleanText(narration.rollNarration) : undefined,
       currentTensionLevel: narration.currentTensionLevel,
-      choices: auditChoiceStatCoverage(sanitizeItemChoices(choicesFlow.choices.choices.map(coerceChoice), input), input),
+      choices: toPlayerChoices(choicesFlow.choices, input),
       suggestedDamage: combat.suggestedDamage ?? null,
       suggestedEncounterStart: (combat.suggestedEncounterStart ?? null) as NarrationOutput['suggestedEncounterStart'],
       suggestedEncounterUpdate: (combat.suggestedEncounterUpdate ?? null) as NarrationOutput['suggestedEncounterUpdate'],

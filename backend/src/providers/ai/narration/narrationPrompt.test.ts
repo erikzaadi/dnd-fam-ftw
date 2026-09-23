@@ -431,3 +431,20 @@ describe('buildChoicesAgentSystemPrompt - riddle section', () => {
     expect(prompt).not.toContain('RIDDLE');
   });
 });
+
+describe('buildChoicesAgentSystemPrompt - actor section', () => {
+  it('uses the choices-specific actor rules instead of the narration acting rules', () => {
+    const prompt = buildChoicesAgentSystemPrompt(makeInput());
+    expect(prompt).toContain('Choice perspective:');
+    expect(prompt).toContain('in second person');
+    expect(prompt).toContain("Do not put any party hero's name in `label` or `narration`");
+    expect(prompt).toContain('different active ally, never yourself');
+    expect(prompt).not.toContain('Narration MUST describe what THEY did');
+  });
+
+  it('keeps the acting-character narration rule in the narration agent prompt', () => {
+    const prompt = buildNarrationAgentSystemPrompt(makeInput());
+    expect(prompt).toContain('Narration MUST describe what THEY did');
+    expect(prompt).not.toContain('Choice perspective:');
+  });
+});

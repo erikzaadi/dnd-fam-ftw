@@ -162,6 +162,15 @@ export const SECTION_ACTING_SHORT = `Acting and Next Character:
 - Transition naturally through story context. Do NOT write turn-order commentary like "X's turn" or "X steps forward to act".
 - Write choices as direct actions BY \`nextCharacterName\`. Match their class, species, stats, quirk, inventory, and status.`;
 
+// Experimental v3: address the next player directly instead of repeating hero
+// names in choice prose. Validate against the frozen fixtures before shipping.
+export const SECTION_CHOICES_ACTOR = `Choice perspective:
+- "You" and "your" always refer to the next character to act (\`nextCharacterName\`).
+- Write each \`label\` as a direct action with an implied "you", such as "Inspect the doorway". Write each choice's \`narration\` in second person, such as "You search the doorway for a hidden latch."
+- Do not put any party hero's name in \`label\` or \`narration\`. For another hero, use "your ally" in the prose.
+- For a combo, set \`helperCharacterName\` to the exact name of a different active ally, never yourself. Keep required item metadata names exact; the no-name rule applies to label and narration only.
+- Offer actions supported by your class, abilities, status, and listed inventory. Do not invent gear or use another hero's gear. Preview a possible action, not a completed outcome or turn-order announcement.`;
+
 export const SECTION_CHOICE_VARIETY = `Choice variety:
 - Stat coverage: at least one of the 3 choices MUST use \`nextCharacterName\`'s highest stat, phrased naturally for the scene. Even in quiet or investigative scenes a might hero can pry, smash, lift, shoulder through, guard, or test strength; a magic hero can sense, channel, or ward; a mischief hero can sneak, notice, or charm. Never give all 3 choices stats the next hero is weak in.
 - Use pronouns matching each character's \`gender\` field.

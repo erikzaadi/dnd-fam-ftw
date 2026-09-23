@@ -18,6 +18,7 @@ import {
   hasEncounterStartSignal,
   DmTurnOrchestrator,
   runChoicesWithRetry,
+  toPlayerChoices,
   type ChoicesRequestInfo,
   type StructuredRequestMeasurement,
 } from './dmTurnOrchestrator.js';
@@ -1016,5 +1017,22 @@ describe('model refresh choices fixtures', () => {
       expect(first.party.some(c => c.name === first.nextCharacterName && c.status === 'active'), fixture.id).toBe(true);
       expect(fixture.expectedFacts.length, fixture.id).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('toPlayerChoices', () => {
+  it('applies the production item guard to player-visible choices', () => {
+    const input = { ...baseInput(), nextCharacterName: 'Pip' };
+    const choices = toPlayerChoices({
+      choices: [
+        { ...validChoice, label: 'Offer a shiny coin', stat: 'mischief', flavor: 'item', itemOwnerName: 'Pip', itemName: 'Shiny Coin' },
+        validChoice,
+        validChoice,
+      ],
+    }, input);
+
+    // The label survives even though the invented item metadata is dropped
+    expect(choices[0]).toMatchObject({ label: 'Offer a shiny coin', flavor: 'standard' });
+    expect(choices[0].itemName).toBeUndefined();
   });
 });

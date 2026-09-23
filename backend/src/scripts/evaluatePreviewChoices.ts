@@ -33,9 +33,11 @@ import { createHash } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { buildChoicesAgentSystemPrompt } from '../providers/ai/narration/agentPrompts.js';
 import { getModelForTier, getOpenAIMaxRetries } from '../providers/ai/openAiClient.js';
 import {
   runChoicesWithRetry,
+  toPlayerChoices,
   type ChoicesRequestInfo,
   type StructuredRequestMeasurement,
 } from '../services/dmTurnOrchestrator.js';
@@ -62,6 +64,9 @@ type AttemptRecord = {
   config: string;
   fixtureId: string;
   fixtureHash: string;
+  // Hash of the choices system prompt built for this input: runs with
+  // different prompt versions must not be compared as one sample.
+  promptHash: string;
   category: string;
   deadline: ChoicesFixture['deadline'];
   repeat: number;
@@ -74,6 +79,8 @@ type AttemptRecord = {
   initialIssues: { stale: boolean; lacksTopStat: boolean } | null;
   initial: unknown;
   final: unknown;
+  // Final choices after production's deterministic guards: what the player sees.
+  playerVisible: unknown;
   diagnostics: unknown;
   requests: RequestRecord[];
   unfinishedRequests: number;
@@ -200,6 +207,10 @@ function fixtureHash(fixture: ChoicesFixture): string {
   return createHash('sha256').update(payload).digest('hex').slice(0, 16);
 }
 
+function promptHash(fixture: ChoicesFixture): string {
+  return createHash('sha256').update(buildChoicesAgentSystemPrompt(fixture.build())).digest('hex').slice(0, 16);
+}
+
 function gitRevision(): { revision: string | null; dirty: boolean | null } {
   try {
     const revision = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
@@ -248,7 +259,8 @@ async function runAttempt(
   const requests: RequestRecord[] = [];
   let started = 0;
   const startedAt = new Date();
-  const result = await withConfigEnv(config, () => runChoicesWithRetry(fixture.build(), {
+  const input = fixture.build();
+  const result = await withConfigEnv(config, () => runChoicesWithRetry(input, {
     observer: {
       onRequestStart: () => {
         started++;
@@ -268,6 +280,7 @@ async function runAttempt(
     config: config.name,
     fixtureId: fixture.id,
     fixtureHash: hash,
+    promptHash: promptHash(fixture),
     category: fixture.category,
     deadline: fixture.deadline,
     repeat,
@@ -280,6 +293,7 @@ async function runAttempt(
     initialIssues: result.initialIssues,
     initial: result.initial,
     final: result.choices,
+    playerVisible: toPlayerChoices(result.choices, input),
     diagnostics: result.diagnostics,
     requests,
     unfinishedRequests: started - requests.length,
@@ -338,7 +352,8 @@ function scoringSheet(runId: string, attempts: AttemptRecord[], fixtures: Choice
   const lines = [
     `# Choices scoring sheet: ${runId}`,
     '',
-    'Score the raw initial output against checklist items 1-6 in model-refresh-02-live-validation.md.',
+    'Score the raw initial output against checklist items 1-6 in model-refresh-02-live-validation.md,',
+    'and separately score the player-visible choices. A metadata repair does not fix misleading label text.',
     'Missing initial output fails every item. Record invented completed state transitions separately.',
     '',
   ];
@@ -347,11 +362,26 @@ function scoringSheet(runId: string, attempts: AttemptRecord[], fixtures: Choice
     for (const fact of facts.get(attempt.fixtureId) ?? []) {
       lines.push(`- Expected: ${fact}`);
     }
-    lines.push('', '```json', JSON.stringify(attempt.initial, null, 2), '```', '');
+    lines.push(
+      '',
+      'Raw initial output (score items 1-6 on this):',
+      '',
+      '```json',
+      JSON.stringify(attempt.initial, null, 2),
+      '```',
+      '',
+      `Player-visible after retries and production guards (${attempt.usedFallback ? 'deterministic fallback' : attempt.escalated ? 'after narration-tier retry' : 'same attempt'}):`,
+      '',
+      '```json',
+      JSON.stringify(attempt.playerVisible, null, 2),
+      '```',
+      '',
+    );
     lines.push(
       `Automated: valid=${attempt.initialValid} stale=${attempt.initialIssues?.stale ?? '-'} lacksTopStat=${attempt.initialIssues?.lacksTopStat ?? '-'}`,
       '',
-      '- [ ] 1 schema  - [ ] 2 actionable  - [ ] 3 scene/encounter  - [ ] 4 top stat  - [ ] 5 fresh  - [ ] 6 no invented facts',
+      'Raw:            - [ ] 1 schema  - [ ] 2 actionable  - [ ] 3 scene/encounter  - [ ] 4 top stat  - [ ] 5 fresh  - [ ] 6 no invented facts',
+      'Player-visible: - [ ] 2 actionable  - [ ] 3 scene/encounter  - [ ] 4 top stat  - [ ] 5 fresh  - [ ] 6 no invented facts',
       '- Invented completed state transition: no',
       '- Notes:',
       '',
@@ -401,6 +431,7 @@ async function main() {
     git: gitRevision(),
     fixtureVersion: MODEL_REFRESH_FIXTURE_VERSION,
     fixtureHashes: Object.fromEntries(hashes),
+    choicesPromptHashes: Object.fromEntries(fixtures.map(f => [f.id, promptHash(f)])),
     repeat: args.repeat,
     maxRequests,
     maxRetries: 0,

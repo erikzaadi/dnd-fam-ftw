@@ -152,7 +152,7 @@ OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/evaluatePreviewChoic
 | `--out-dir <path>` | `backend/data/model-refresh` | Results directory (gitignored) |
 | `--dry-run` | off | Print the plan only |
 
-Outputs: `runs.jsonl` (run header with git revision and fixture hashes, one record per attempt with raw initial output and per-request timing/usage, and a summary) and `score-<runId>.md`, a manual checklist sheet per attempt. Escalation, fallback, deadline misses, and p50/p95 completion latency are printed per configuration. First-content latency is report-only.
+Outputs: `runs.jsonl` (run header with git revision, fixture hashes, and choices prompt hashes; one record per attempt with raw initial output, player-visible choices after production guards, and per-request timing/usage; and a summary) and `score-<runId>.md`, a manual checklist sheet scoring raw and player-visible output separately. Do not compare runs whose prompt hashes differ as one sample. Escalation, fallback, deadline misses, and p50/p95 completion latency are printed per configuration. First-content latency is report-only.
 
 `OPENAI_MAX_RETRIES` is a client-wide setting (non-negative integer). Unset keeps the OpenAI SDK default; invalid values fail at client creation.
 
