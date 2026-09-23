@@ -1,4 +1,5 @@
 import { zodResponseFormat } from 'openai/helpers/zod';
+import type { CompletionUsage } from 'openai/resources/completions';
 import type { ZodType } from 'zod';
 import type { NarrationChoice, NarrationInput, NarrationOutput, NarrationProvider, NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
 import { buildNarrationFallback } from '../providers/ai/narration/narrationFallback.js';
@@ -387,6 +388,16 @@ function recoveryUserContent(input: NarrationInput): string {
   });
 }
 
+// Per-request measurements, reported only when an evaluation observer is attached.
+export type StructuredRequestMeasurement = {
+  firstContentMs: number | null;
+  completionMs: number;
+  finishReason: string | null;
+  usage: CompletionUsage | null;
+  rawContent: string | null;
+  error: string | null;
+};
+
 async function callStructuredAgent<T>(config: {
   agentName: string;
   schema: ZodType<T>;
@@ -396,8 +407,11 @@ async function callStructuredAgent<T>(config: {
   userContent: string;
   maxCompletionTokens: number;
   signal: AbortSignal;
+  onMeasurement?: (measurement: StructuredRequestMeasurement) => void;
 }): Promise<T> {
-  const { agentName, schema, schemaKey, model, systemPrompt, userContent, maxCompletionTokens, signal } = config;
+  const { agentName, schema, schemaKey, model, systemPrompt, userContent, maxCompletionTokens, signal, onMeasurement } = config;
+  const start = Date.now();
+  let firstContentMs: number | null = null;
 
   const stream = createOpenAIClient().chat.completions.stream({
     model,
@@ -411,8 +425,37 @@ async function callStructuredAgent<T>(config: {
     stream_options: { include_usage: true },
   }, { signal });
 
-  const response = await stream.finalChatCompletion();
+  if (onMeasurement) {
+    stream.on('content', () => {
+      if (firstContentMs === null) {
+        firstContentMs = Date.now() - start;
+      }
+    });
+  }
+
+  let response: Awaited<ReturnType<typeof stream.finalChatCompletion>>;
+  try {
+    response = await stream.finalChatCompletion();
+  } catch (err) {
+    onMeasurement?.({
+      firstContentMs,
+      completionMs: Date.now() - start,
+      finishReason: null,
+      usage: null,
+      rawContent: null,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
   const message = response.choices[0].message;
+  onMeasurement?.({
+    firstContentMs,
+    completionMs: Date.now() - start,
+    finishReason: response.choices[0].finish_reason ?? null,
+    usage: response.usage ?? null,
+    rawContent: message.content ?? null,
+    error: null,
+  });
 
   if (message.refusal) {
     throw new Error(`${agentName} agent refusal: ${message.refusal}`);
@@ -442,17 +485,24 @@ async function callChoicesAgent(
   // to the narration tier, which has proven more reliable under the deadline.
   tier: 'preview' | 'narration' = 'preview',
   extraInstruction?: string,
+  observe?: { agent: string; observer: ChoicesFlowObserver },
 ): Promise<ChoicesAgentOutput> {
   const userContent = choicesUserContent(input);
+  const model = getModelForTier(tier);
+  const request = { agent: observe?.agent ?? 'choices', tier, model };
+  observe?.observer.onRequestStart?.(request);
   return callStructuredAgent({
     agentName: 'choices',
     schema: choicesAgentOutputSchema,
     schemaKey: 'choices_agent_output',
-    model: getModelForTier(tier),
+    model,
     systemPrompt: buildChoicesAgentSystemPrompt(input),
     userContent: extraInstruction ? `${userContent}\n\n${extraInstruction}` : userContent,
     maxCompletionTokens: 450,
     signal,
+    onMeasurement: observe
+      ? (measurement) => observe.observer.onRequestEnd?.({ ...request, ...measurement })
+      : undefined,
   });
 }
 
@@ -609,6 +659,123 @@ function ensureTopStatCoverage(output: ChoicesAgentOutput, input: NarrationInput
   return { choices: updated };
 }
 
+export type ChoicesRequestInfo = {
+  agent: string;
+  tier: 'preview' | 'narration';
+  model: string;
+};
+
+// Evaluation-only hooks. Production orchestration never attaches an observer.
+export type ChoicesFlowObserver = {
+  onRequestStart?: (request: ChoicesRequestInfo) => void;
+  onRequestEnd?: (event: ChoicesRequestInfo & StructuredRequestMeasurement) => void;
+};
+
+export type ChoicesFlowResult = {
+  choices: ChoicesAgentOutput;
+  // First preview-tier output before any retry or deterministic repair; null
+  // when that attempt failed or timed out.
+  initial: ChoicesAgentOutput | null;
+  initialIssues: { stale: boolean; lacksTopStat: boolean } | null;
+  diagnostics: AgentDiagnostic[];
+  // A narration-tier choices retry was started, whatever its outcome.
+  escalated: boolean;
+  // Final choices are the deterministic fallback after the error retry failed.
+  usedFallback: boolean;
+};
+
+// Initial preview-tier choices attempt plus at most one narration-tier retry.
+// Shared by orchestrate() and the preview-choices evaluation script so both
+// exercise the same deadlines, retries, and repairs.
+export async function runChoicesWithRetry(
+  input: NarrationInput,
+  options: { diagnostics?: AgentDiagnostic[]; observer?: ChoicesFlowObserver } = {},
+): Promise<ChoicesFlowResult> {
+  const diagnostics = options.diagnostics ?? [];
+  const observer = options.observer;
+  const observe = (agent: string) => (observer ? { agent, observer } : undefined);
+
+  const relaxedDeadlines = !!(input.isFirstTurn || input.interventionRescue || input.sanctuaryRecovery);
+  const choicesDeadlineMs = relaxedDeadlines ? 5000 : 3500;
+  const choicesRetryDeadlineMs = 3000;
+  const choicesFallback: ChoicesAgentOutput = { choices: buildNarrationFallback(input).choices };
+
+  // A failed choices agent means generic one-per-stat fallback choices - a
+  // worse player outcome than a few extra seconds. Retry once on any
+  // failure; the retry mostly overlaps with narration's remaining stream.
+  const first = await withDeadline<ChoicesAgentOutput | null>(
+    'choices',
+    (signal) => callChoicesAgent(input, signal, 'preview', undefined, observe('choices')),
+    null,
+    choicesDeadlineMs,
+    diagnostics,
+  );
+  if (first && hasTopStatCoverage(first.choices, input) && !hasStaleChoices(first.choices, input)) {
+    return {
+      choices: first,
+      initial: first,
+      initialIssues: { stale: false, lacksTopStat: false },
+      diagnostics,
+      escalated: false,
+      usedFallback: false,
+    };
+  }
+  if (first) {
+    const top = nextCharacterTopStat(input);
+    const isStale = hasStaleChoices(first.choices, input);
+    const lacksStatCoverage = !hasTopStatCoverage(first.choices, input);
+    const instructions: string[] = [];
+    if (isStale) {
+      devLog.warn(`[Choices] stale: returned labels are identical to previousChoiceLabels for ${input.nextCharacterName ?? 'unknown'}`);
+      instructions.push(
+        `CRITICAL: Your previous response returned the exact same choices as the previous turn. You MUST generate completely new choices reflecting the current scene and ${input.nextCharacterName ?? 'the next character'}'s class and abilities.`,
+      );
+    }
+    if (lacksStatCoverage && top) {
+      instructions.push(
+        `IMPORTANT: a previous attempt offered no "${top.stat}" choice. ${top.name} acts next and their strongest stat is ${top.stat} (${top.value}). At least one choice MUST use stat "${top.stat}", phrased naturally for the scene.`,
+      );
+    }
+    const diagName = isStale ? 'choices-stale-retry' : 'choices-coverage-retry';
+    const corrected = await withDeadline<ChoicesAgentOutput | null>(
+      diagName,
+      (signal) => callChoicesAgent(input, signal, 'narration', instructions.join(' '), observe(diagName)),
+      null,
+      choicesRetryDeadlineMs,
+      diagnostics,
+    );
+    const best = corrected ?? first;
+    return {
+      choices: ensureTopStatCoverage(best, input),
+      initial: first,
+      initialIssues: { stale: isStale, lacksTopStat: lacksStatCoverage },
+      diagnostics,
+      escalated: true,
+      usedFallback: false,
+    };
+  }
+  const retried = await withDeadline(
+    'choices-retry',
+    (signal) => callChoicesAgent(input, signal, 'narration', undefined, observe('choices-retry')),
+    choicesFallback,
+    choicesRetryDeadlineMs,
+    diagnostics,
+  );
+  // The retry runs exactly when the first attempt failed, so the final
+  // choices are fallback only if the retry itself failed.
+  const usedFallback = diagnostics.some(
+    d => d.agent === 'choices-retry' && (d.status === 'fallback' || d.status === 'timeout'),
+  );
+  return {
+    choices: retried,
+    initial: null,
+    initialIssues: null,
+    diagnostics,
+    escalated: true,
+    usedFallback,
+  };
+}
+
 function coerceChoice(raw: ChoicesAgentOutput['choices'][0]): NarrationChoice {
   return {
     label: cleanText(raw.label),
@@ -665,7 +832,6 @@ export class DmTurnOrchestrator implements NarrationProvider {
       narration: fallbackOutput.narration,
       currentTensionLevel: fallbackOutput.currentTensionLevel,
     };
-    const choicesFallback: ChoicesAgentOutput = { choices: fallbackOutput.choices };
     const combatFallback: CombatAgentOutput = {
       suggestedDamage: null,
       suggestedEncounterStart: null,
@@ -732,60 +898,8 @@ export class DmTurnOrchestrator implements NarrationProvider {
     // the player is reading intro text anyway - give them an even longer budget.
     const relaxedDeadlines = !!(input.isFirstTurn || input.interventionRescue || input.sanctuaryRecovery);
     const narrationDeadlineMs = relaxedDeadlines ? 8000 : 6000;
-    const choicesDeadlineMs = relaxedDeadlines ? 5000 : 3500;
-    const choicesRetryDeadlineMs = 3000;
 
-    // A failed choices agent means generic one-per-stat fallback choices - a
-    // worse player outcome than a few extra seconds. Retry once on any
-    // failure; the retry mostly overlaps with narration's remaining stream.
-    const choicesWithRetry = async (): Promise<ChoicesAgentOutput> => {
-      const first = await withDeadline<ChoicesAgentOutput | null>(
-        'choices',
-        (signal) => callChoicesAgent(input, signal),
-        null,
-        choicesDeadlineMs,
-        diagnostics,
-      );
-      if (first && hasTopStatCoverage(first.choices, input) && !hasStaleChoices(first.choices, input)) {
-        return first;
-      }
-      if (first) {
-        const top = nextCharacterTopStat(input);
-        const isStale = hasStaleChoices(first.choices, input);
-        const lacksStatCoverage = !hasTopStatCoverage(first.choices, input);
-        const instructions: string[] = [];
-        if (isStale) {
-          devLog.warn(`[Choices] stale: returned labels are identical to previousChoiceLabels for ${input.nextCharacterName ?? 'unknown'}`);
-          instructions.push(
-            `CRITICAL: Your previous response returned the exact same choices as the previous turn. You MUST generate completely new choices reflecting the current scene and ${input.nextCharacterName ?? 'the next character'}'s class and abilities.`,
-          );
-        }
-        if (lacksStatCoverage && top) {
-          instructions.push(
-            `IMPORTANT: a previous attempt offered no "${top.stat}" choice. ${top.name} acts next and their strongest stat is ${top.stat} (${top.value}). At least one choice MUST use stat "${top.stat}", phrased naturally for the scene.`,
-          );
-        }
-        const diagName = isStale ? 'choices-stale-retry' : 'choices-coverage-retry';
-        const corrected = await withDeadline<ChoicesAgentOutput | null>(
-          diagName,
-          (signal) => callChoicesAgent(input, signal, 'narration', instructions.join(' ')),
-          null,
-          choicesRetryDeadlineMs,
-          diagnostics,
-        );
-        const best = corrected ?? first;
-        return ensureTopStatCoverage(best, input);
-      }
-      return withDeadline(
-        'choices-retry',
-        (signal) => callChoicesAgent(input, signal, 'narration'),
-        choicesFallback,
-        choicesRetryDeadlineMs,
-        diagnostics,
-      );
-    };
-
-    const [narration, choices, combat, inventory, recovery] = await Promise.all([
+    const [narration, choicesFlow, combat, inventory, recovery] = await Promise.all([
       withDeadline(
         'narration',
         (signal) => callNarrationAgent(input, gatedCallbacks, signal),
@@ -793,7 +907,7 @@ export class DmTurnOrchestrator implements NarrationProvider {
         narrationDeadlineMs,
         diagnostics,
       ),
-      choicesWithRetry(),
+      runChoicesWithRetry(input, { diagnostics }),
       runCombat
         ? withDeadline('combat', (signal) => callCombatAgent(input, signal), combatFallback, 2500, diagnostics, true)
         : Promise.resolve(combatFallback),
@@ -814,11 +928,6 @@ export class DmTurnOrchestrator implements NarrationProvider {
     const narrationUsedFallback = diagnostics.some(
       d => d.agent === 'narration' && (d.status === 'fallback' || d.status === 'timeout'),
     );
-    // The retry runs exactly when the first attempt failed, so the final
-    // choices are fallback only if the retry itself failed.
-    const choicesUsedFallback = diagnostics.some(
-      d => d.agent === 'choices-retry' && (d.status === 'fallback' || d.status === 'timeout'),
-    );
 
     // Zod schemas allow null for optional fields but NarrationOutput uses undefined.
     // Coerce choices explicitly; use runtime-safe casts for complex nested types
@@ -827,7 +936,7 @@ export class DmTurnOrchestrator implements NarrationProvider {
       narration: cleanText(narration.narration),
       rollNarration: narration.rollNarration ? cleanText(narration.rollNarration) : undefined,
       currentTensionLevel: narration.currentTensionLevel,
-      choices: auditChoiceStatCoverage(sanitizeItemChoices(choices.choices.map(coerceChoice), input), input),
+      choices: auditChoiceStatCoverage(sanitizeItemChoices(choicesFlow.choices.choices.map(coerceChoice), input), input),
       suggestedDamage: combat.suggestedDamage ?? null,
       suggestedEncounterStart: (combat.suggestedEncounterStart ?? null) as NarrationOutput['suggestedEncounterStart'],
       suggestedEncounterUpdate: (combat.suggestedEncounterUpdate ?? null) as NarrationOutput['suggestedEncounterUpdate'],
@@ -840,7 +949,7 @@ export class DmTurnOrchestrator implements NarrationProvider {
       suggestedBuffRemove: recovery.suggestedBuffRemove ?? null,
       narrationRetried: false,
       narrationFailed: narrationUsedFallback,
-      choicesFailed: choicesUsedFallback,
+      choicesFailed: choicesFlow.usedFallback,
       agentDiagnostics: diagnostics,
     };
   }

@@ -17,29 +17,11 @@ import {
   shouldRunRecoveryAgent,
   hasEncounterStartSignal,
   DmTurnOrchestrator,
+  runChoicesWithRetry,
+  type ChoicesRequestInfo,
+  type StructuredRequestMeasurement,
 } from './dmTurnOrchestrator.js';
-
-// Minimal valid NarrationInput for tests
-const baseInput = (): NarrationInput => ({
-  scene: 'A mossy corridor',
-  party: [
-    {
-      name: 'Pip',
-      class: 'Rogue',
-      species: 'Halfling',
-      hp: 8,
-      maxHp: 10,
-      stats: { might: 1, magic: 2, mischief: 4 },
-      status: 'active',
-    },
-  ],
-  inventory: [],
-  actionAttempt: 'Sneak past the guard',
-  actionResult: { success: true, summary: 'The action succeeded.' },
-  recentHistory: [],
-  tone: 'playful',
-  gameMode: 'balanced',
-});
+import { baseInput, MODEL_REFRESH_CHOICES_FIXTURES } from '../tests/fixtures/model-refresh-choices.js';
 
 const validChoice = {
   label: 'Press deeper',
@@ -803,5 +785,236 @@ describe('DmTurnOrchestrator as NarrationProvider', () => {
 
     expect(result.narration).toBe('Through the factory seam.');
     expect(result.choices).toHaveLength(3);
+  });
+});
+
+describe('runChoicesWithRetry', () => {
+  type RequestEnd = ChoicesRequestInfo & StructuredRequestMeasurement;
+
+  function recordingObserver() {
+    const starts: ChoicesRequestInfo[] = [];
+    const ends: RequestEnd[] = [];
+    return {
+      starts,
+      ends,
+      observer: {
+        onRequestStart: (request: ChoicesRequestInfo) => starts.push(request),
+        onRequestEnd: (event: RequestEnd) => ends.push(event),
+      },
+    };
+  }
+
+  function mockStreamWithContent(completion: unknown) {
+    mocks.stream.mockReturnValueOnce({
+      on: vi.fn((event: string, handler: () => void) => {
+        if (event === 'content') {
+          handler();
+        }
+      }),
+      finalChatCompletion: vi.fn().mockResolvedValue(completion),
+    });
+  }
+
+  const freshChoices = {
+    choices: [{
+      finish_reason: 'stop',
+      message: {
+        refusal: null,
+        parsed: {
+          choices: [
+            { ...validChoice, label: 'Smash through the barrier', stat: 'mischief' },
+            { ...validChoice, label: 'Scout the route ahead', stat: 'might' },
+            { ...validChoice, label: 'Rally the party', stat: 'magic' },
+          ],
+        },
+      },
+    }],
+  };
+
+  it('returns the initial preview output without escalating when it passes the guards', async () => {
+    mockStreamOnce(makeChoicesCompletion());
+
+    const result = await runChoicesWithRetry(baseInput());
+
+    expect(result.escalated).toBe(false);
+    expect(result.usedFallback).toBe(false);
+    expect(result.initial).toEqual(result.choices);
+    expect(result.initialIssues).toEqual({ stale: false, lacksTopStat: false });
+    expect(result.diagnostics.map(d => d.agent)).toEqual(['choices']);
+    expect(mocks.stream.mock.calls[0][0].model).toBe('gpt-4.1-nano');
+  });
+
+  it('marks a stale-label retry as escalated to the narration tier', async () => {
+    const input = { ...baseInput(), previousChoiceLabels: ['Press deeper'], nextCharacterName: 'Pip' };
+    mockStreamOnce(makeChoicesCompletion());
+    mockStreamOnce(freshChoices);
+
+    const result = await runChoicesWithRetry(input);
+
+    expect(result.escalated).toBe(true);
+    expect(result.usedFallback).toBe(false);
+    expect(result.initialIssues?.stale).toBe(true);
+    expect(result.initial?.choices[0].label).toBe('Press deeper');
+    expect(result.choices.choices[0].label).toBe('Smash through the barrier');
+    expect(mocks.stream.mock.calls[1][0].model).toBe('gpt-4.1-mini');
+  });
+
+  it('marks a stat-coverage retry as escalated even when the retry fails', async () => {
+    const input = { ...baseInput(), nextCharacterName: 'Pip' };
+    mockStreamOnce(makeChoicesCompletion());
+    mocks.stream.mockReturnValueOnce({
+      on: vi.fn(),
+      finalChatCompletion: vi.fn().mockRejectedValue(new Error('retry failure')),
+    });
+
+    const result = await runChoicesWithRetry(input);
+
+    expect(result.escalated).toBe(true);
+    expect(result.usedFallback).toBe(false);
+    expect(result.initialIssues).toEqual({ stale: false, lacksTopStat: true });
+    expect(result.choices.choices.some(c => c.stat === 'mischief')).toBe(true);
+  });
+
+  it('reports fallback and escalation when both the initial attempt and error retry fail', async () => {
+    mocks.stream.mockReturnValue({
+      on: vi.fn(),
+      finalChatCompletion: vi.fn().mockRejectedValue(new Error('provider down')),
+    });
+
+    const result = await runChoicesWithRetry(baseInput());
+
+    expect(result.escalated).toBe(true);
+    expect(result.usedFallback).toBe(true);
+    expect(result.initial).toBeNull();
+    expect(result.initialIssues).toBeNull();
+    expect(result.choices.choices).toHaveLength(3);
+    expect(result.diagnostics.map(d => d.agent)).toEqual(['choices', 'choices-retry']);
+  });
+
+  it('counts a timed-out narration-tier retry as escalated and uses the ordinary 3500 ms deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.stream.mockReturnValue({
+        on: vi.fn(),
+        finalChatCompletion: vi.fn(() => new Promise(() => {})),
+      });
+
+      let settled = false;
+      const promise = runChoicesWithRetry(baseInput()).then((result) => {
+        settled = true;
+        return result;
+      });
+      await vi.advanceTimersByTimeAsync(3400);
+      expect(mocks.stream).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(3200);
+      const result = await promise;
+
+      expect(settled).toBe(true);
+      expect(result.escalated).toBe(true);
+      expect(result.usedFallback).toBe(true);
+      expect(result.diagnostics.map(d => d.status)).toEqual(['timeout', 'timeout']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('uses the relaxed 5000 ms initial deadline on first turns', async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.stream.mockReturnValue({
+        on: vi.fn(),
+        finalChatCompletion: vi.fn(() => new Promise(() => {})),
+      });
+
+      const promise = runChoicesWithRetry({ ...baseInput(), isFirstTurn: true });
+      await vi.advanceTimersByTimeAsync(4900);
+      expect(mocks.stream).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(3200);
+      const result = await promise;
+
+      expect(mocks.stream).toHaveBeenCalledTimes(2);
+      expect(result.escalated).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reports each physical request to an attached observer', async () => {
+    const input = { ...baseInput(), nextCharacterName: 'Pip' };
+    mockStreamWithContent({
+      ...makeChoicesCompletion(),
+      usage: { prompt_tokens: 100, completion_tokens: 40, total_tokens: 140 },
+    });
+    mocks.stream.mockReturnValueOnce({
+      on: vi.fn(),
+      finalChatCompletion: vi.fn().mockRejectedValue(new Error('retry failure')),
+    });
+    const recorder = recordingObserver();
+
+    await runChoicesWithRetry(input, { observer: recorder.observer });
+
+    expect(recorder.starts).toEqual([
+      { agent: 'choices', tier: 'preview', model: 'gpt-4.1-nano' },
+      { agent: 'choices-coverage-retry', tier: 'narration', model: 'gpt-4.1-mini' },
+    ]);
+    expect(recorder.ends).toHaveLength(2);
+    expect(recorder.ends[0]).toMatchObject({
+      agent: 'choices',
+      finishReason: 'stop',
+      usage: { total_tokens: 140 },
+      error: null,
+    });
+    expect(recorder.ends[0].firstContentMs).not.toBeNull();
+    expect(recorder.ends[1]).toMatchObject({ agent: 'choices-coverage-retry', finishReason: null, error: 'retry failure' });
+  });
+
+  it('shares one diagnostics array with the caller', async () => {
+    mockStreamOnce(makeChoicesCompletion());
+    const diagnostics = [{ agent: 'narration', durationMs: 1, status: 'ok' as const }];
+
+    const result = await runChoicesWithRetry(baseInput(), { diagnostics });
+
+    expect(result.diagnostics).toBe(diagnostics);
+    expect(diagnostics.map(d => d.agent)).toEqual(['narration', 'choices']);
+  });
+
+  it('orchestrate does not attach evaluation stream listeners', async () => {
+    mockStreamOnce(makeNarrationCompletion('Onward.'));
+    mockStreamOnce(makeChoicesCompletion());
+
+    await new DmTurnOrchestrator().orchestrate(baseInput());
+
+    for (const result of mocks.stream.mock.results) {
+      expect((result.value as { on: ReturnType<typeof vi.fn> }).on).not.toHaveBeenCalled();
+    }
+  });
+});
+
+describe('model refresh choices fixtures', () => {
+  it('has 20 uniquely named fixtures split 15 ordinary / 5 relaxed', () => {
+    const ids = MODEL_REFRESH_CHOICES_FIXTURES.map(f => f.id);
+    expect(ids).toHaveLength(20);
+    expect(new Set(ids).size).toBe(20);
+    expect(MODEL_REFRESH_CHOICES_FIXTURES.filter(f => f.deadline === 'ordinary')).toHaveLength(15);
+    expect(MODEL_REFRESH_CHOICES_FIXTURES.filter(f => f.deadline === 'relaxed')).toHaveLength(5);
+  });
+
+  it('labels relaxed fixtures consistently with the orchestrator relaxed-deadline flags', () => {
+    for (const fixture of MODEL_REFRESH_CHOICES_FIXTURES) {
+      const input = fixture.build();
+      const relaxed = !!(input.isFirstTurn || input.interventionRescue || input.sanctuaryRecovery);
+      expect(relaxed, fixture.id).toBe(fixture.deadline === 'relaxed');
+    }
+  });
+
+  it('names an existing active next character and returns fresh objects', () => {
+    for (const fixture of MODEL_REFRESH_CHOICES_FIXTURES) {
+      const first = fixture.build();
+      const second = fixture.build();
+      expect(first, fixture.id).not.toBe(second);
+      expect(first.party, fixture.id).not.toBe(second.party);
+      expect(first.party.some(c => c.name === first.nextCharacterName && c.status === 'active'), fixture.id).toBe(true);
+      expect(fixture.expectedFacts.length, fixture.id).toBeGreaterThan(0);
+    }
   });
 });

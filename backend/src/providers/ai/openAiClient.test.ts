@@ -16,6 +16,7 @@ afterEach(() => {
   vi.clearAllMocks();
   delete process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_BASE_URL;
+  delete process.env.OPENAI_MAX_RETRIES;
   delete process.env.OPENAI_IMAGE_MODEL;
   delete process.env.OPENAI_MODEL_NARRATION;
   delete process.env.OPENAI_MODEL_PREVIEW;
@@ -115,5 +116,56 @@ describe('openAiClient', () => {
     } finally {
       warn.mockRestore();
     }
+  });
+
+  it('omits maxRetries from the SDK constructor when OPENAI_MAX_RETRIES is unset', async () => {
+    process.env.OPENAI_API_KEY = 'test-key';
+
+    const { createOpenAIClient } = await import('./openAiClient.js');
+    createOpenAIClient();
+
+    expect(mocks.OpenAI).toHaveBeenCalledWith({ apiKey: 'test-key' });
+  });
+
+  it('passes OPENAI_MAX_RETRIES=0 to the SDK constructor', async () => {
+    process.env.OPENAI_API_KEY = 'test-key';
+    process.env.OPENAI_MAX_RETRIES = '0';
+
+    const { createOpenAIClient, getOpenAIMaxRetries } = await import('./openAiClient.js');
+    createOpenAIClient();
+
+    expect(getOpenAIMaxRetries()).toBe(0);
+    expect(mocks.OpenAI).toHaveBeenCalledWith({ apiKey: 'test-key', maxRetries: 0 });
+  });
+
+  it('passes a positive OPENAI_MAX_RETRIES to the SDK constructor', async () => {
+    process.env.OPENAI_API_KEY = 'test-key';
+    process.env.OPENAI_MAX_RETRIES = '3';
+
+    const { createOpenAIClient } = await import('./openAiClient.js');
+    createOpenAIClient();
+
+    expect(mocks.OpenAI).toHaveBeenCalledWith({ apiKey: 'test-key', maxRetries: 3 });
+  });
+
+  it.each(['-1', '1.5', 'two', ' 2'])('rejects invalid OPENAI_MAX_RETRIES=%j', async (value) => {
+    process.env.OPENAI_MAX_RETRIES = value;
+
+    const { createOpenAIClient } = await import('./openAiClient.js');
+
+    expect(() => createOpenAIClient()).toThrow(/OPENAI_MAX_RETRIES/);
+    expect(mocks.OpenAI).not.toHaveBeenCalled();
+  });
+
+  it('reuses the singleton client without re-reading OPENAI_MAX_RETRIES', async () => {
+    process.env.OPENAI_MAX_RETRIES = '0';
+
+    const { createOpenAIClient } = await import('./openAiClient.js');
+    const first = createOpenAIClient();
+    process.env.OPENAI_MAX_RETRIES = '5';
+    const second = createOpenAIClient();
+
+    expect(second).toBe(first);
+    expect(mocks.OpenAI).toHaveBeenCalledTimes(1);
   });
 });

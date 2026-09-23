@@ -123,6 +123,41 @@ View and manage invite requests from unregistered Google users.
 
 ---
 
+## Live preview-choices evaluation (paid)
+
+`backend/src/scripts/evaluatePreviewChoices.ts` replays the 20 frozen synthetic fixtures in `backend/src/tests/fixtures/model-refresh-choices.ts` through the production choices flow (`runChoicesWithRetry`): one preview request plus at most one narration-tier retry per attempt. It supports the model refresh plan in `next-up-instructions/model-refresh-02-live-validation.md`. It makes **paid** provider requests and never runs from unit tests.
+
+Run from `backend/`. `OPENAI_MAX_RETRIES=0` must be in the environment before the process starts. The script refuses to run otherwise, so every physical request counts against `--max-requests`:
+
+```bash
+# Preview the plan and worst-case request count without calling the provider
+npx tsx src/scripts/evaluatePreviewChoices.ts --label baseline-nano --dry-run
+
+# Baseline: current configuration, 20 fixtures x 3 repeats, at most 120 requests
+OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/evaluatePreviewChoices.ts --label baseline-nano
+
+# Interleaved comparison: per-configuration model/reasoning overrides
+OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/evaluatePreviewChoices.ts --label oct-compare \
+  --config nano \
+  --config primary:OPENAI_MODEL_PREVIEW=gpt-5.6-luna,OPENAI_REASONING_EFFORT_PREVIEW=none
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `--label <name>` | required | Run label recorded in results |
+| `--config <name>[:K=V,...]` | one config named after the label | Repeatable. Only `OPENAI_MODEL_*`, `OPENAI_REASONING_EFFORT_*`, `OPENAI_TEXT_VERBOSITY_*`, and `OPENAI_SERVICE_TIER_*` overrides are allowed |
+| `--repeat <n>` | 3 | Passes over the fixture set |
+| `--fixtures <id,id>` | all 20 | Restrict to specific fixtures |
+| `--max-requests <n>` | 120 per config | Stops before an attempt could exceed the ceiling and marks the run incomplete |
+| `--out-dir <path>` | `backend/data/model-refresh` | Results directory (gitignored) |
+| `--dry-run` | off | Print the plan only |
+
+Outputs: `runs.jsonl` (run header with git revision and fixture hashes, one record per attempt with raw initial output and per-request timing/usage, and a summary) and `score-<runId>.md`, a manual checklist sheet per attempt. Escalation, fallback, deadline misses, and p50/p95 completion latency are printed per configuration. First-content latency is report-only.
+
+`OPENAI_MAX_RETRIES` is a client-wide setting (non-negative integer). Unset keeps the OpenAI SDK default; invalid values fail at client creation.
+
+---
+
 ## Production management (AWS)
 
 Production commands run via SSH wrapper scripts under `scripts/deploy/`. These scripts:

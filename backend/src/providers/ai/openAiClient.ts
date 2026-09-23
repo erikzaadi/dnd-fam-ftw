@@ -19,15 +19,30 @@ function optionalEnum<T extends string>(envName: string, allowed: readonly T[]):
   return undefined;
 }
 
+// Unset keeps the SDK default retry count. Evaluation scripts set 0 so every
+// physical provider request is counted against their request budget.
+export function getOpenAIMaxRetries(): number | undefined {
+  const value = process.env.OPENAI_MAX_RETRIES;
+  if (value === undefined || value === '') {
+    return undefined;
+  }
+  if (!/^\d+$/.test(value)) {
+    throw new Error(`Invalid OPENAI_MAX_RETRIES="${value}". Expected a non-negative integer.`);
+  }
+  return Number(value);
+}
+
 export function createOpenAIClient(): OpenAI {
   if (!_client) {
     if (process.env.OPENAI_BASE_URL && !loggedBaseUrl) {
       console.log(`[AI] OpenAI-compatible baseURL=${process.env.OPENAI_BASE_URL}`);
       loggedBaseUrl = true;
     }
+    const maxRetries = getOpenAIMaxRetries();
     _client = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
       ...(process.env.OPENAI_BASE_URL && { baseURL: process.env.OPENAI_BASE_URL }),
+      ...(maxRetries !== undefined && { maxRetries }),
     });
   }
   return _client;
