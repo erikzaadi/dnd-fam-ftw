@@ -1,5 +1,5 @@
 import type { TensionLevel } from '../../../types.js';
-import { createOpenAIClient, getModelForTier } from '../openAiClient.js';
+import { createOpenAIClient, getModelForTier, getTierRequestSettings, warnIfEmptyTruncation } from '../openAiClient.js';
 import { devLog } from '../../../lib/devLog.js';
 
 const SAFE_WORD_GUIDANCE = `Safe word substitutions (the image API is sensitive to these):
@@ -7,7 +7,7 @@ const SAFE_WORD_GUIDANCE = `Safe word substitutions (the image API is sensitive 
 - Instead use: spectral, ethereal, skeletal warrior, cursed, shadowy, necrotic, withered
 - Describe actions as: clashes with, faces, confronts, battles, defends against`;
 
-const SYSTEM_PROMPT = `You write short visual image briefs for a fantasy scene.
+export const IMAGE_BRIEF_SYSTEM_PROMPT = `You write short visual image briefs for a fantasy scene.
 Output a single sentence of 15-25 words describing: who is in the scene, what action is happening, the environment, and the mood.
 Do NOT include art style phrases, rendering guidance, or technical instructions.
 Do NOT include text, writing, letters, numbers, runes, glyphs, symbols, inscriptions, book pages, title cards, posters, maps with markings, signs, banners with markings, labels, captions, UI, cards, or panels.
@@ -34,12 +34,13 @@ export async function generateImageBrief(
     const response = await createOpenAIClient().chat.completions.create({
       model,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: IMAGE_BRIEF_SYSTEM_PROMPT },
         { role: 'user', content: userContent },
       ],
       max_completion_tokens: 60,
-      temperature: 0.5,
+      ...getTierRequestSettings('preview'),
     }, { signal: AbortSignal.timeout(8000) });
+    warnIfEmptyTruncation('ImageBrief', model, response.choices[0]);
 
     const durationMs = Date.now() - start;
     const text = response.choices[0]?.message?.content?.trim() ?? null;

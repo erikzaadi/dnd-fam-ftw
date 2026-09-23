@@ -154,7 +154,22 @@ OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/evaluatePreviewChoic
 
 Outputs: `runs.jsonl` (run header with git revision, fixture hashes, and choices prompt hashes; one record per attempt with raw initial output, player-visible choices after production guards, and per-request timing/usage; and a summary) and `score-<runId>.md`, a manual checklist sheet scoring raw and player-visible output separately. Do not compare runs whose prompt hashes differ as one sample. Escalation, fallback, deadline misses, and p50/p95 completion latency are printed per configuration. First-content latency is report-only.
 
-`OPENAI_MAX_RETRIES` is a client-wide setting (non-negative integer). Unset keeps the OpenAI SDK default; invalid values fail at client creation.
+`OPENAI_MAX_RETRIES` is a client-wide setting (non-negative integer). Unset keeps the OpenAI SDK default; invalid values stop backend startup.
+
+### Preview-tier request settings
+
+Every preview-tier caller (initial choices, action previews, stat suggestions, session naming, encounter-name repair, image briefs, DM-prep compilation) sends `max_completion_tokens` and no `temperature`. `OPENAI_REASONING_EFFORT_PREVIEW` controls the optional `reasoning_effort` field for those requests only:
+
+| Value | Request |
+|---|---|
+| unset | No `reasoning_effort` field (current `gpt-4.1-nano` behavior) |
+| `none`, `minimal`, `low`, `medium`, `high`, `xhigh` | Sent as `reasoning_effort` |
+| `omit` | Never sent, for OpenAI-compatible endpoints that reject the field |
+| anything else | Backend refuses to start |
+
+Narration-tier choices retries and all narration/async requests never receive preview settings. Reasoning-capable preview models default to medium reasoning, which can spend a small helper's whole token budget: set `none` together with such a model. A preview reply that is empty with `finish_reason=length` logs a `console.warn` (`[AI] <caller> truncated: ...`) even though the caller falls back.
+
+`[Metrics] turn_complete` log lines include `choicesFailed=` (final choices fell back to deterministic choices) and `choicesEscalated=` (a narration-tier choices retry started, whatever its outcome).
 
 ---
 

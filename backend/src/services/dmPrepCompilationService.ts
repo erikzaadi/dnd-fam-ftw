@@ -1,8 +1,14 @@
-import { createOpenAIClient, getModelForTier } from '../providers/ai/openAiClient.js';
+import { createOpenAIClient, getModelForTier, getTierRequestSettings, warnIfEmptyTruncation } from '../providers/ai/openAiClient.js';
 import { devLog } from '../lib/devLog.js';
 
 const MAX_PREMISE_CHARS = 600;
 const COMPILE_TIMEOUT_MS = 8000;
+
+export const DM_PREP_SYSTEM_PROMPT = `You summarize a tabletop RPG campaign brief into a compact premise for use as in-game DM context.
+Write exactly 3-5 sentences covering: the main villain or final goal, the realm or setting flavor, the active campaign direction or current stakes, and any named NPCs or factions still in play.
+Do not describe encounter mechanics, stat blocks, enemy weaknesses, area images, or encounter seeds - those are handled separately.
+Be specific: use names, places, and hooks from the source text. Do not invent details not present in the source.
+Output only the premise sentences with no preamble, headers, or commentary. No em dashes.`;
 
 export async function compileDmPrepPremise(dmPrep: string): Promise<string | null> {
   if (!dmPrep || dmPrep.trim().length < 50) {
@@ -16,11 +22,7 @@ export async function compileDmPrepPremise(dmPrep: string): Promise<string | nul
       messages: [
         {
           role: 'system',
-          content: `You summarize a tabletop RPG campaign brief into a compact premise for use as in-game DM context.
-Write exactly 3-5 sentences covering: the main villain or final goal, the realm or setting flavor, the active campaign direction or current stakes, and any named NPCs or factions still in play.
-Do not describe encounter mechanics, stat blocks, enemy weaknesses, area images, or encounter seeds - those are handled separately.
-Be specific: use names, places, and hooks from the source text. Do not invent details not present in the source.
-Output only the premise sentences with no preamble, headers, or commentary. No em dashes.`,
+          content: DM_PREP_SYSTEM_PROMPT,
         },
         {
           role: 'user',
@@ -28,8 +30,9 @@ Output only the premise sentences with no preamble, headers, or commentary. No e
         },
       ],
       max_completion_tokens: 200,
-      temperature: 0.3,
+      ...getTierRequestSettings('preview'),
     }, { signal: AbortSignal.timeout(COMPILE_TIMEOUT_MS) });
+    warnIfEmptyTruncation('DmPrepCompile', model, response.choices[0]);
 
     const durationMs = Date.now() - start;
     const text = response.choices[0]?.message?.content?.trim() ?? '';

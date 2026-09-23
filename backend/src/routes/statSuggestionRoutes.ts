@@ -2,6 +2,7 @@ import { Router } from 'express';
 import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
+import { getTierRequestSettings, warnIfEmptyTruncation } from '../providers/ai/openAiClient.js';
 import { buildEncounterContextFromEnemies, parseSuggestedStats, previewFreeAction, STAT_FALLBACK, suggestStatForSessionAction } from '../services/statSuggestionService.js';
 import { parseBody } from './routeValidation.js';
 import type { FreeActionPreview } from '@dnd-fam-ftw/shared';
@@ -120,8 +121,10 @@ Character:
 Reply with ONLY valid JSON: {"might": N, "magic": N, "mischief": N}`
         }],
         response_format: { type: 'json_object' },
-        max_tokens: 60,
+        max_completion_tokens: 60,
+        ...getTierRequestSettings('preview'),
       }, { signal: AbortSignal.timeout(10_000) });
+      warnIfEmptyTruncation('CharacterStatSuggestion', model, response.choices[0]);
 
       const raw = response.choices[0].message.content ?? '';
       res.json(parseSuggestedStats(raw));

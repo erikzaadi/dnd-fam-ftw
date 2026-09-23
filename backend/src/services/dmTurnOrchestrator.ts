@@ -26,7 +26,7 @@ import {
   type AgentDiagnostic,
   type AgentErrorKind,
 } from '../providers/ai/narration/agentSchemas.js';
-import { createOpenAIClient, getModelForTier } from '../providers/ai/openAiClient.js';
+import { createOpenAIClient, getModelForTier, getTierRequestSettings, type TierRequestSettings } from '../providers/ai/openAiClient.js';
 import { devLog } from '../lib/devLog.js';
 
 export type { AgentDiagnostic, AgentErrorKind };
@@ -34,6 +34,8 @@ export type { AgentDiagnostic, AgentErrorKind };
 export type DmTurnOrchestratorResult = NarrationOutput & {
   agentDiagnostics: AgentDiagnostic[];
   choicesFailed: boolean;
+  // A narration-tier choices retry started this turn, whatever its outcome.
+  choicesEscalated: boolean;
 };
 
 function classifyAgentError(err: unknown): AgentErrorKind {
@@ -407,9 +409,10 @@ async function callStructuredAgent<T>(config: {
   userContent: string;
   maxCompletionTokens: number;
   signal: AbortSignal;
+  requestSettings?: TierRequestSettings;
   onMeasurement?: (measurement: StructuredRequestMeasurement) => void;
 }): Promise<T> {
-  const { agentName, schema, schemaKey, model, systemPrompt, userContent, maxCompletionTokens, signal, onMeasurement } = config;
+  const { agentName, schema, schemaKey, model, systemPrompt, userContent, maxCompletionTokens, signal, requestSettings, onMeasurement } = config;
   const start = Date.now();
   let firstContentMs: number | null = null;
 
@@ -421,6 +424,7 @@ async function callStructuredAgent<T>(config: {
     ],
     response_format: zodResponseFormat(schema, schemaKey),
     max_completion_tokens: maxCompletionTokens,
+    ...requestSettings,
     stream: true as const,
     stream_options: { include_usage: true },
   }, { signal });
@@ -500,6 +504,9 @@ async function callChoicesAgent(
     userContent: extraInstruction ? `${userContent}\n\n${extraInstruction}` : userContent,
     maxCompletionTokens: 450,
     signal,
+    // Resolved from the tier serving this request: a narration-tier retry
+    // must not inherit preview settings such as reasoning_effort.
+    requestSettings: getTierRequestSettings(tier),
     onMeasurement: observe
       ? (measurement) => observe.observer.onRequestEnd?.({ ...request, ...measurement })
       : undefined,
@@ -957,6 +964,7 @@ export class DmTurnOrchestrator implements NarrationProvider {
       narrationRetried: false,
       narrationFailed: narrationUsedFallback,
       choicesFailed: choicesFlow.usedFallback,
+      choicesEscalated: choicesFlow.escalated,
       agentDiagnostics: diagnostics,
     };
   }

@@ -259,6 +259,7 @@ export class AiDmService {
         narrationRetried: output.narrationRetried ?? false,
         narrationFailed: output.narrationFailed ?? false,
         choicesFailed: (output as DmTurnOrchestratorResult).choicesFailed ?? false,
+        choicesEscalated: (output as DmTurnOrchestratorResult).choicesEscalated ?? false,
         narrationValidationError: output.narrationValidationError,
         narrationRetryValidationError: output.narrationRetryValidationError,
         agentDiagnostics: (output as DmTurnOrchestratorResult).agentDiagnostics,

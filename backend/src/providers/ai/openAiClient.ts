@@ -7,13 +7,20 @@ export type OpenAIReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'hig
 export type OpenAITextVerbosity = 'low' | 'medium' | 'high';
 export type OpenAIServiceTier = 'auto' | 'default' | 'flex' | 'scale' | 'priority';
 
-function optionalEnum<T extends string>(envName: string, allowed: readonly T[]): T | undefined {
+const REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const;
+
+// strict: throw on invalid values instead of warning and ignoring them, for
+// settings where "ignored" would silently fall back to provider defaults.
+function optionalEnum<T extends string>(envName: string, allowed: readonly T[], strict = false): T | undefined {
   const value = process.env[envName];
   if (!value) {
     return undefined;
   }
   if ((allowed as readonly string[]).includes(value)) {
     return value as T;
+  }
+  if (strict) {
+    throw new Error(`Invalid ${envName}="${value}". Allowed: ${allowed.join(', ')}`);
   }
   console.warn(`[AI] Ignoring invalid ${envName}="${value}". Allowed: ${allowed.join(', ')}`);
   return undefined;
@@ -60,7 +67,43 @@ export function getModelForTier(tier: 'narration' | 'preview' | 'async'): string
 }
 
 export function getNarrationReasoningEffort(): OpenAIReasoningEffort | undefined {
-  return optionalEnum('OPENAI_REASONING_EFFORT_NARRATION', ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const);
+  return optionalEnum('OPENAI_REASONING_EFFORT_NARRATION', REASONING_EFFORTS);
+}
+
+// Unset keeps the legacy nano request (no reasoning field). "omit" is the
+// explicit escape hatch for endpoints that reject the field and is never sent.
+// Invalid values throw: ignoring them would silently enable provider-default
+// reasoning, which can consume a helper's whole token budget.
+export function getPreviewReasoningEffort(): OpenAIReasoningEffort | undefined {
+  const effort = optionalEnum('OPENAI_REASONING_EFFORT_PREVIEW', [...REASONING_EFFORTS, 'omit'] as const, true);
+  return effort === 'omit' ? undefined : effort;
+}
+
+export type TierRequestSettings = { reasoning_effort?: OpenAIReasoningEffort };
+
+// Optional per-tier request fields, spread into chat completion requests.
+// Only explicitly configured fields are emitted, so custom endpoints never
+// receive fields they were not configured for. Resolve with the tier that
+// actually serves the request (a narration-tier retry gets narration settings).
+export function getTierRequestSettings(tier: 'narration' | 'preview' | 'async'): TierRequestSettings {
+  if (tier !== 'preview') {
+    return {};
+  }
+  const effort = getPreviewReasoningEffort();
+  return effort ? { reasoning_effort: effort } : {};
+}
+
+type CompletionChoiceLike = { finish_reason?: string | null; message?: { content?: string | null } } | undefined;
+
+// A reasoning model can spend a small max_completion_tokens budget before
+// writing any visible text. Callers fall back silently on empty output, so
+// surface that truncation as a production warning instead of hiding it.
+export function warnIfEmptyTruncation(caller: string, model: string, choice: CompletionChoiceLike): boolean {
+  const truncated = choice?.finish_reason === 'length' && !choice.message?.content?.trim();
+  if (truncated) {
+    console.warn(`[AI] ${caller} truncated: empty content with finish_reason=length model=${model}`);
+  }
+  return truncated;
 }
 
 export function getNarrationTextVerbosity(): OpenAITextVerbosity | undefined {

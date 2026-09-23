@@ -249,3 +249,25 @@ const makeHistoryTurn = (lastAction: {
     },
   },
 });
+
+describe('executeTurnAction turn_complete metrics', () => {
+  it('logs choicesEscalated beside choicesFailed through production console.log', async () => {
+    resetMockNarrationProvider({ ...FIXED_NARRATION_OUTPUT, choicesFailed: true, choicesEscalated: true } as typeof FIXED_NARRATION_OUTPUT);
+    const log = vi.spyOn(console, 'log');
+    await insertSessionState(makeTestSession({
+      id: 'predefined-metrics-session',
+      lastChoices: choicesForSession(),
+    }));
+
+    const result = await executeTurnAction('predefined-metrics-session', 'local', {
+      action: 'Press the attack',
+      statUsed: 'might',
+      difficulty: 'normal',
+    });
+
+    expect(result.ok).toBe(true);
+    const line = log.mock.calls.map(call => String(call[0])).find(message => message.includes('[Metrics] turn_complete session=predefined-metrics-session'));
+    expect(line).toContain('choicesFailed=true choicesEscalated=true');
+    log.mockRestore();
+  });
+});

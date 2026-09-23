@@ -9,6 +9,7 @@ import cookieParser from 'cookie-parser';
 import { getConfig, isAuthEnabled } from './config/env.js';
 import { authMiddleware } from './middleware/auth.js';
 import { getImageStorageProvider } from './providers/storage/storageProviderFactory.js';
+import { getOpenAIMaxRetries, getPreviewReasoningEffort } from './providers/ai/openAiClient.js';
 import { StateService } from './services/stateService.js';
 import { createAuthRouter } from './routes/authRoutes.js';
 import { createEventsRouter } from './routes/eventsRoutes.js';
@@ -64,6 +65,16 @@ if (deprecatedAiEnvVars.length > 0) {
 const hasCloudAI = !!process.env.OPENAI_API_KEY;
 if (!hasCloudAI && process.env.NODE_ENV !== 'test' && process.env.TEST_AI_MOCK !== 'true') {
   console.error('FATAL: OpenAI-compatible AI is not configured. Set OPENAI_API_KEY.');
+  process.exit(1);
+}
+
+// Preview callers catch request errors and fall back, so an invalid request
+// setting would otherwise degrade quietly on every call. Fail at startup.
+try {
+  getPreviewReasoningEffort();
+  getOpenAIMaxRetries();
+} catch (err) {
+  console.error(`FATAL: ${err instanceof Error ? err.message : String(err)}`);
   process.exit(1);
 }
 

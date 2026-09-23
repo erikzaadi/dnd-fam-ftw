@@ -1036,3 +1036,80 @@ describe('toPlayerChoices', () => {
     expect(choices[0].itemName).toBeUndefined();
   });
 });
+
+describe('choices request settings by tier', () => {
+  afterEach(() => {
+    delete process.env.OPENAI_REASONING_EFFORT_PREVIEW;
+  });
+
+  it('sends preview reasoning on the initial choices request but not on the narration-tier retry', async () => {
+    process.env.OPENAI_REASONING_EFFORT_PREVIEW = 'none';
+    const input = { ...baseInput(), nextCharacterName: 'Pip' };
+    // Initial choices lack Pip's top stat (mischief), forcing a coverage retry
+    mockStreamOnce(makeChoicesCompletion());
+    mockStreamOnce(makeChoicesCompletion());
+
+    const result = await runChoicesWithRetry(input);
+
+    expect(result.escalated).toBe(true);
+    const [initialRequest, retryRequest] = mocks.stream.mock.calls.map(call => call[0]);
+    expect(initialRequest).toMatchObject({ model: 'gpt-4.1-nano', reasoning_effort: 'none', max_completion_tokens: 450 });
+    expect(retryRequest.model).toBe('gpt-4.1-mini');
+    expect(retryRequest).not.toHaveProperty('reasoning_effort');
+  });
+
+  it('sends no reasoning field on choices requests when the preview setting is unset', async () => {
+    mockStreamOnce(makeChoicesCompletion());
+
+    await runChoicesWithRetry(baseInput());
+
+    expect(mocks.stream.mock.calls[0][0]).not.toHaveProperty('reasoning_effort');
+  });
+
+  it('never sends preview reasoning on narration or mechanics agent requests', async () => {
+    process.env.OPENAI_REASONING_EFFORT_PREVIEW = 'none';
+    mockStreamOnce(makeNarrationCompletion('Onward.'));
+    mockStreamOnce(makeChoicesCompletion());
+
+    await new DmTurnOrchestrator().orchestrate(baseInput());
+
+    const [narrationRequest, choicesRequest] = mocks.stream.mock.calls.map(call => call[0]);
+    expect(narrationRequest.model).toBe('gpt-4.1-mini');
+    expect(narrationRequest).not.toHaveProperty('reasoning_effort');
+    expect(choicesRequest.reasoning_effort).toBe('none');
+  });
+});
+
+describe('orchestrate choicesEscalated', () => {
+  it('is false when the initial choices pass the guards', async () => {
+    mockStreamOnce(makeNarrationCompletion('Onward.'));
+    mockStreamOnce(makeChoicesCompletion());
+
+    const result = await new DmTurnOrchestrator().orchestrate(baseInput());
+
+    expect(result.choicesEscalated).toBe(false);
+    expect(result.choicesFailed).toBe(false);
+  });
+
+  it('is true when a coverage retry starts, even though choices did not fall back', async () => {
+    mockStreamOnce(makeNarrationCompletion('Onward.'));
+    mockStreamOnce(makeChoicesCompletion());
+    mockStreamOnce(makeChoicesCompletion());
+
+    const result = await new DmTurnOrchestrator().orchestrate({ ...baseInput(), nextCharacterName: 'Pip' });
+
+    expect(result.choicesEscalated).toBe(true);
+    expect(result.choicesFailed).toBe(false);
+  });
+
+  it('is true alongside choicesFailed when the error retry also fails', async () => {
+    mockStreamOnce(makeNarrationCompletion('Onward.'));
+    mocks.stream.mockReturnValueOnce({ on: vi.fn(), finalChatCompletion: vi.fn().mockRejectedValue(new Error('down')) });
+    mocks.stream.mockReturnValueOnce({ on: vi.fn(), finalChatCompletion: vi.fn().mockRejectedValue(new Error('down')) });
+
+    const result = await new DmTurnOrchestrator().orchestrate(baseInput());
+
+    expect(result.choicesEscalated).toBe(true);
+    expect(result.choicesFailed).toBe(true);
+  });
+});

@@ -329,7 +329,7 @@ export const executeTurnAction = async (
     broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
     broadcastSessionChanged(namespaceId, sessionId, 'updated');
     logTurnStep(sessionId, 'item-total', turnStart, `turnId=${turnResult.id}`);
-    console.log(`[Metrics] turn_complete session=${sessionId} turn=${itemState.turn} workflow=agentic totalMs=${Date.now() - turnStart} llmMs=${itemLlmMs} retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false} choicesFailed=${turnResult.choicesFailed ?? false}`);
+    console.log(`[Metrics] turn_complete session=${sessionId} turn=${itemState.turn} workflow=agentic totalMs=${Date.now() - turnStart} llmMs=${itemLlmMs} retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false} choicesFailed=${turnResult.choicesFailed ?? false} choicesEscalated=${turnResult.choicesEscalated ?? false}`);
     return { ok: true, body: { actionAttempt: itemAttempt, turnResult, session: newState } };
   }
 
@@ -487,7 +487,7 @@ export const executeTurnAction = async (
   broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
   broadcastSessionChanged(namespaceId, sessionId, 'updated');
   logTurnStep(sessionId, 'total', turnStart, `turnId=${turnResult.id}`);
-  console.log(`[Metrics] turn_complete session=${sessionId} turn=${session.turn} workflow=agentic totalMs=${Date.now() - turnStart} llmMs=${llmMs} retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false} choicesFailed=${turnResult.choicesFailed ?? false}`);
+  console.log(`[Metrics] turn_complete session=${sessionId} turn=${session.turn} workflow=agentic totalMs=${Date.now() - turnStart} llmMs=${llmMs} retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false} choicesFailed=${turnResult.choicesFailed ?? false} choicesEscalated=${turnResult.choicesEscalated ?? false}`);
 
   return {
     ok: true,

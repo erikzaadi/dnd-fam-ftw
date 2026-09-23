@@ -1,4 +1,5 @@
 import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
+import { getTierRequestSettings, warnIfEmptyTruncation } from '../providers/ai/openAiClient.js';
 import { devLog } from '../lib/devLog.js';
 import type { EncounterState, SessionState } from '../types.js';
 import { buildEnemyAliases, isLowQualityEncounterName, normalizeEnemyName, resolveEncounterSeed } from './encounterService.js';
@@ -99,8 +100,10 @@ const repairedNameFromAi = async (
         },
         { role: 'user', content: buildRepairContext(encounter, input) },
       ],
-      max_tokens: 24,
+      max_completion_tokens: 24,
+      ...getTierRequestSettings('preview'),
     }, { signal: AbortSignal.timeout(NAME_REPAIR_TIMEOUT_MS) });
+    warnIfEmptyTruncation('EncounterNameRepair', model, response.choices[0]);
     const raw = response.choices[0]?.message?.content ?? '';
     const repaired = cleanGeneratedName(raw);
     devLog.log(`[EncounterNameRepair] done model=${model} encounter=${encounter.id} durationMs=${Date.now() - started} fallback=${repaired ? 'false' : 'true'}`);

@@ -1,4 +1,5 @@
 import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
+import { getTierRequestSettings, warnIfEmptyTruncation } from '../providers/ai/openAiClient.js';
 import type { FreeActionBonusPreview } from './freeActionInferenceService.js';
 import { inferFreeActionBonuses, toFreeActionBonusPreview } from './freeActionInferenceService.js';
 import { StateService } from './stateService.js';
@@ -217,8 +218,10 @@ Reply with JSON:
       model,
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
-      max_tokens: needsGeneratedAction ? (hasEncounter ? 220 : 120) : (hasEncounter ? 160 : 80),
+      max_completion_tokens: needsGeneratedAction ? (hasEncounter ? 220 : 120) : (hasEncounter ? 160 : 80),
+      ...getTierRequestSettings('preview'),
     }, { signal: AbortSignal.timeout(8_000) });
+    warnIfEmptyTruncation('PreviewAction', model, response.choices[0]);
     devLog.log(`[PreviewAction] llm-done session=${sessionId} model=${model} durationMs=${Date.now() - start}`);
     const raw = (response.choices[0].message.content ?? '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
@@ -324,8 +327,10 @@ export async function suggestStatForSessionAction(
         role: 'user',
         content: `${describeActiveCharacter(character)} wants to: "${action}".${storyContext ? `\n\nCurrent story context:\n${storyContext}` : ''}\n\nWhich single stat fits best in this scene: might (physical strength, combat, force), magic (spells, arcane, healing, divine), or mischief (stealth, trickery, charm, persuasion, deception)? Reply with ONLY one word: might, magic, or mischief.`
       }],
-      max_tokens: 10,
+      max_completion_tokens: 10,
+      ...getTierRequestSettings('preview'),
     }, { signal: AbortSignal.timeout(8_000) });
+    warnIfEmptyTruncation('StatSuggestion', model, response.choices[0]);
     const raw = (response.choices[0].message.content ?? '').toLowerCase().trim().replace(/<think>[\s\S]*?<\/think>/g, '').trim();
     const stat = (['might', 'magic', 'mischief'] as const).find(s => raw.includes(s)) ?? 'mischief';
     return { stat, ...bonusPreview };

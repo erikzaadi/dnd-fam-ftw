@@ -322,6 +322,7 @@ export interface TurnResult {
   narrationRetried?: boolean;
   narrationFailed?: boolean;
   choicesFailed?: boolean;
+  choicesEscalated?: boolean;
   narrationValidationError?: string;
   narrationRetryValidationError?: string;
   suggestedEncounterStart?: EncounterStartProposal | null;
