@@ -156,6 +156,21 @@ Outputs: `runs.jsonl` (run header with git revision, fixture hashes, and choices
 
 `OPENAI_MAX_RETRIES` is a client-wide setting (non-negative integer). Unset keeps the OpenAI SDK default; invalid values stop backend startup.
 
+Three more paid checks support the same plan. Each sets the preview model with `--model` (reasoning `none`), requires `OPENAI_MAX_RETRIES=0`, supports `--dry-run`, and exits with code 2 on any failure:
+
+```bash
+# Temperature compatibility probes for a candidate (4 requests)
+OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/probePreviewCompatibility.ts --model gpt-5.6-luna
+
+# Every preview helper through its production function, including the 10/20/24-token caps (22 requests, ceiling 30)
+OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/checkPreviewHelpers.ts --model gpt-5.6-luna
+
+# Six full turns through DmTurnOrchestrator (about 4 requests per turn, ceiling 45)
+OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/smokePreviewTurns.ts --model gpt-5.6-luna
+```
+
+Outputs, in `backend/data/model-refresh/`: `probes.jsonl`, `helpers.jsonl`, and `smoke.jsonl`. The helper check uses a temporary SQLite database and deletes it afterwards. Both check scripts record every physical request, including its token cap, reasoning setting, and finish reason.
+
 ### Preview-tier request settings
 
 Every preview-tier caller (initial choices, action previews, stat suggestions, session naming, encounter-name repair, image briefs, DM-prep compilation) sends `max_completion_tokens` and no `temperature`. `OPENAI_REASONING_EFFORT_PREVIEW` controls the optional `reasoning_effort` field for those requests only:
