@@ -16,6 +16,8 @@ const REJECTION_MESSAGES: Record<string, string> = {
   operation_in_progress: 'Another action is still being resolved. Wait for it to finish, then try again.',
   stale_revision: 'The story moved on since you chose this. Check the latest scene and try again.',
   stale_preview: 'The scene changed since this action was previewed. Review it again before confirming.',
+  preview_mismatch: 'This action changed since it was previewed. Review it again before confirming.',
+  item_unavailable: 'That item is no longer available. Review the action again.',
   stale_choice: 'That option is from an earlier moment in the story. Pick from the latest options.',
   adventure_completed: 'This adventure has ended. Continue the world to start a new chapter.',
 };

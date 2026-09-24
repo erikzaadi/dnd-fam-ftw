@@ -4,8 +4,8 @@ description: Set up Node dependencies and install Playwright browsers
 inputs:
   node-version:
     required: false
-    default: '24'
-    description: Node.js version to install
+    default: ''
+    description: Node.js version to install (defaults to the repository .nvmrc)
   install-command:
     required: true
     description: Dependency install command to run before installing browsers
@@ -28,6 +28,7 @@ runs:
     - uses: actions/setup-node@v5
       with:
         node-version: ${{ inputs.node-version }}
+        node-version-file: .nvmrc
 
     - name: Install dependencies
       shell: bash

@@ -1,16 +1,24 @@
 import { createId } from '../lib/ids.js';
 import type { Difficulty, Stat } from '../types.js';
 
-// Server-side record of a free-action preview, so a confirmation carries server-verified
-// mechanics instead of trusting the difficulty/stat values the client echoes back.
+// Server-side record of an action preview. A confirmation that carries its id is exactly
+// this action: kind, identity and mechanics come from here, never from client echoes.
 // In-memory is deliberate: a restart fails pending operations anyway, and an unknown
 // preview simply asks the player to review the action again.
+export type PreviewActionKind = 'free_text' | 'item_use' | 'item_give';
+
 export type StoredActionPreview = {
   id: string;
   sessionId: string;
   revision: number;
   actingCharacterId: string;
+  kind: PreviewActionKind;
+  originalAction: string;
   interpretedAction: string;
+  actionIntent?: string;
+  itemId?: string;
+  itemOwnerCharacterId?: string;
+  targetCharacterId?: string;
   stat: Stat;
   difficulty: Difficulty;
   difficultyValue?: number;
@@ -43,12 +51,14 @@ export type PreviewLookup =
   | { status: 'valid'; preview: StoredActionPreview }
   | { status: 'stale' | 'unknown' };
 
-export const lookupActionPreview = (previewId: string, sessionId: string, revision: number, actingCharacterId: string): PreviewLookup => {
+// actingCharacterId is optional: a confirmation resolves the actor from the preview
+// itself, while callers that already know the actor also check it matches.
+export const lookupActionPreview = (previewId: string, sessionId: string, revision: number, actingCharacterId?: string): PreviewLookup => {
   const preview = previews.get(previewId);
   if (!preview || preview.sessionId !== sessionId || Date.now() - preview.createdAt > PREVIEW_TTL_MS) {
     return { status: 'unknown' };
   }
-  if (preview.revision !== revision || preview.actingCharacterId !== actingCharacterId) {
+  if (preview.revision !== revision || (actingCharacterId !== undefined && preview.actingCharacterId !== actingCharacterId)) {
     return { status: 'stale' };
   }
   return { status: 'valid', preview };

@@ -84,6 +84,7 @@ export const TerminalMode: React.FC = () => {
     connectionState,
     prevEncounterStatus,
     submitAction,
+    submitChoice,
     previewAction,
     actionPreview,
     clearPreview,
@@ -362,7 +363,7 @@ export const TerminalMode: React.FC = () => {
       if (choice) {
         addLogEntry('system', `Selected choice: ${choice.label}`);
         try {
-          await submitAction(choice.label, choice.stat, choice.difficulty, choice.difficultyValue ?? null);
+          await submitChoice(choice);
         } catch {
           addLogEntry('error', 'Failed to submit choice.');
         }
@@ -428,7 +429,7 @@ export const TerminalMode: React.FC = () => {
     } else {
       addLogEntry('system', 'Unknown command. Type "help" for a list of valid commands.');
     }
-  }, [addLogEntry, actionPreviewText, actionPreview, clearPreview, submitAction, history, previewAction, session, wrapUpAdventure, endAdventure]);
+  }, [addLogEntry, actionPreviewText, actionPreview, clearPreview, submitAction, submitChoice, history, previewAction, session, wrapUpAdventure, endAdventure]);
 
   const handleHelp = useCallback(() => {
     void executeCommand('help');

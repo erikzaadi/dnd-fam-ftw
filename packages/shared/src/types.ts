@@ -203,6 +203,9 @@ export interface InterventionState {
 }
 
 export interface Choice {
+  // Stable id of a stored suggestion (turn_choices row). Only choices of the latest
+  // turn are valid to submit; older ids are rejected as stale.
+  id?: number;
   label: string;
   difficulty: Difficulty;
   stat: Stat;
@@ -217,7 +220,46 @@ export interface Choice {
   environmentFeature?: string;
 }
 
-export type TurnType = 'normal' | 'intervention' | 'sanctuary';
+// conclusion: the adventure's ending (no choices). chapter_start: opening of a continued world.
+export type TurnType = 'normal' | 'intervention' | 'sanctuary' | 'conclusion' | 'chapter_start';
+
+// Adventure lifecycle. Independent of difficulty, pacing (gameMode) and interaction mode.
+export type AdventureFormat = 'one_evening' | 'long_lived';
+// Separate from party-wipe gameOver: completed means the story reached a deliberate ending.
+export type AdventureStatus = 'active' | 'concluding' | 'completed';
+export type AdventurePhase = 'opening' | 'development' | 'finale' | 'epilogue';
+export type AdventureResolution = 'success' | 'setback' | 'ended_early';
+// Narration's proposal about the chapter objective. The server accepts a resolution
+// only when committed facts (roll result, encounter outcome) support it.
+export type ObjectiveOutcome = 'none' | 'advanced' | 'resolved_success' | 'resolved_setback';
+
+// Persisted chapter progress. Contains no private DM material.
+export interface AdventureArcState {
+  chapter: number;
+  phase: AdventurePhase;
+  // Committed player actions in this chapter (initial, rescue and conclusion turns do not count).
+  playerActionCount: number;
+  // Count at which the current one-evening budget started (reset when switching back from long-lived).
+  budgetStartCount: number;
+  participatingHeroIds: string[];
+  wrapUpRequested: boolean;
+  finaleStartedAtCount?: number;
+  // Failed decisive attempts during the finale (a setback ending needs at least one earlier failure).
+  decisiveAttempts: number;
+  // Set when the finale ran long without resolution: views offer keep playing or end here.
+  continueOffered?: boolean;
+  resolution?: AdventureResolution;
+  conclusionTurnId?: number;
+}
+
+export interface AdventureProgress extends AdventureArcState {
+  format: AdventureFormat;
+  status: AdventureStatus;
+  objective?: string;
+  // One-evening pacing targets in playerActionCount terms (absent for long-lived).
+  finaleTargetAt?: number;
+  resolveByTarget?: number;
+}
 
 export interface HpChange {
   characterId: string;
@@ -327,6 +369,7 @@ export interface TurnResult {
   narrationRetryValidationError?: string;
   suggestedEncounterStart?: EncounterStartProposal | null;
   suggestedEncounterUpdate?: unknown | null;
+  objectiveOutcome?: ObjectiveOutcome | null;
   agentDiagnostics?: AgentDiagnostic[];
 }
 
@@ -339,19 +382,54 @@ export interface SessionPreview {
   difficulty: string;
   gameMode: string;
   gameOver?: boolean;
+  adventureFormat?: AdventureFormat;
+  adventureStatus?: AdventureStatus;
   previewImageUrl?: string;
   party: { id: string; name: string; class: string; species: string; avatarUrl?: string; hp: number; max_hp: number }[];
+}
+
+export type SessionOperationKind = 'action' | 'start' | 'wrap_up' | 'end_here' | 'continue_world';
+export type SessionOperationStatus = 'accepted' | 'running' | 'completed' | 'failed';
+// resolving: normal turn work. recovering: rescue/sanctuary follow-up after a party wipe.
+// concluding: generating a finale or epilogue.
+export type SessionOperationPhase = 'resolving' | 'recovering' | 'concluding';
+
+export interface SessionOperation {
+  id: string;
+  requestId: string;
+  kind: SessionOperationKind;
+  status: SessionOperationStatus;
+  phase?: SessionOperationPhase;
+  baseRevision: number;
+  resultRevision?: number;
+  turnId?: number;
+  errorCode?: string;
+  errorMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// 409 responses from mutation endpoints. All are retryable after the client refreshes.
+export type OperationConflictCode = 'operation_in_progress' | 'stale_revision' | 'request_id_conflict' | 'adventure_completed' | 'stale_preview' | 'preview_mismatch' | 'item_unavailable';
+
+export interface OperationAcceptedResponse {
+  queued: boolean;
+  replayed?: boolean;
+  operation: SessionOperation;
 }
 
 export interface Session {
   id: string;
   scene: string;
   turn: number;
+  // Incremented by every committed gameplay or settings mutation.
+  revision?: number;
   party: Character[];
   activeCharacterId: string;
   displayName: string;
   savingsMode: boolean;
   gameMode?: GameMode;
+  adventure?: AdventureProgress;
   interventionState: InterventionState;
   gameOver?: boolean;
   previewImageUrl?: string;
@@ -359,6 +437,15 @@ export interface Session {
   pastEncounters?: EncounterState[];
   originStory?: string;
   originStoryImageUrl?: string;
+}
+
+// Coherent view used to reconcile a client after (re)connecting.
+export interface SessionSnapshot {
+  revision: number;
+  session: Session;
+  history: TurnResult[];
+  activeOperation: SessionOperation | null;
+  latestOperation: SessionOperation | null;
 }
 
 export interface AppSettings {
@@ -392,6 +479,9 @@ export const OPENAI_TTS_DEFAULT_VOICE: OpenAiTtsVoice = 'cedar';
 export type SessionListEventType = 'connected' | 'heartbeat' | 'session_changed' | 'preview_image_available' | 'instant_start_ready';
 
 export interface FreeActionPreview {
+  // Server-issued handle binding this preview's mechanics to the session revision.
+  // Sent back on confirmation; a stale handle is rejected so the player re-previews.
+  previewId?: string;
   originalAction: string;
   interpretedAction: string;
   narration?: string;

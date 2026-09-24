@@ -20,6 +20,7 @@ vi.mock('../../tts/narrationTtsService', () => ({
 
 describe('useCarConductor', () => {
   const mockSubmitAction = vi.fn().mockResolvedValue(undefined);
+  const mockSubmitChoice = vi.fn().mockResolvedValue(undefined);
   const mockPreviewAction = vi.fn().mockResolvedValue(undefined);
   const mockClearPreview = vi.fn();
 
@@ -102,6 +103,7 @@ describe('useCarConductor', () => {
         actionPreview: null,
         previewThinking: false,
         submitAction: mockSubmitAction,
+        submitChoice: mockSubmitChoice,
         previewAction: mockPreviewAction,
         clearPreview: mockClearPreview,
         ttsSettings: mockTtsSettings,
@@ -124,6 +126,7 @@ describe('useCarConductor', () => {
         actionPreview: null,
         previewThinking: false,
         submitAction: mockSubmitAction,
+        submitChoice: mockSubmitChoice,
         previewAction: mockPreviewAction,
         clearPreview: mockClearPreview,
         ttsSettings: mockTtsSettings,

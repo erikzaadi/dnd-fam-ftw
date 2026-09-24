@@ -24,7 +24,6 @@ import { generateResolvedFirstTurn } from './resolvedFirstTurnService.js';
 import { repairEncounterNameIfNeeded } from './encounterNameRepairService.js';
 import { checkTurnResultConsistency } from './turnResultConsistencyService.js';
 import { buildRollNarration } from './rollNarrationService.js';
-import { lookupActionPreview } from './actionPreviewStore.js';
 import { buildAdventureDirective } from './adventureLifecycleService.js';
 import { isRejection, normalizeTurnAction, rejectTurnAction, validateTurnAction, type TurnAction, type TurnActionRequest } from './turnActionInput.js';
 import { finalizeTurn, type TurnActionResult } from './turnFinalizer.js';
@@ -157,14 +156,10 @@ const resolveRolledTurn = async (
   // Mechanics come from server-owned records: the stored choice descriptor for a
   // suggested action, or the stored preview for a confirmed free action. Client
   // echoes are a fallback for unpreviewed free text only.
-  const storedPreview = action.kind === 'free_text' && action.previewId
-    ? lookupActionPreview(action.previewId, sessionId, session.revision ?? 0, character.id)
-    : null;
+  // normalizeTurnAction already copied a confirmed preview's mechanics onto the action.
   const { statUsed, difficulty, difficultyValue } = action.kind === 'choice'
     ? { statUsed: action.choice.stat as Stat | 'none', difficulty: action.choice.difficulty, difficultyValue: action.choice.difficultyValue }
-    : storedPreview?.status === 'valid'
-      ? { statUsed: storedPreview.preview.stat as Stat | 'none', difficulty: storedPreview.preview.difficulty, difficultyValue: storedPreview.preview.difficultyValue }
-      : { statUsed: action.statUsed, difficulty: action.difficulty, difficultyValue: action.difficultyValue };
+    : { statUsed: action.statUsed, difficulty: action.difficulty, difficultyValue: action.difficultyValue };
 
   const inferredFreeActionBonuses: InferredFreeActionBonuses = submittedChoice ? {} : inferFreeActionBonuses(actionText, character, session);
   const helperCharacter = submittedChoice?.flavor === 'combo' && submittedChoice.helperCharacterName
@@ -189,7 +184,7 @@ const resolveRolledTurn = async (
     sessionId,
     'prepare-action',
     stepStart,
-    `kind=${action.kind} preview=${storedPreview?.status ?? 'none'} intent=${action.actionIntent ?? 'none'} helper=${helperCharacter ? 'true' : 'false'} item=${choiceItem ? 'true' : 'false'}`,
+    `kind=${action.kind} preview=${action.kind === 'free_text' && action.preview ? 'valid' : 'none'} intent=${action.actionIntent ?? 'none'} helper=${helperCharacter ? 'true' : 'false'} item=${choiceItem ? 'true' : 'false'}`,
   );
   const submittedChoicePreview = {
     ...(helperCharacter && {

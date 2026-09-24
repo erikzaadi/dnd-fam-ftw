@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Session, TurnResult, FreeActionPreview } from '../../types';
+import type { Choice, Session, TurnResult, FreeActionPreview } from '../../types';
 import type { TtsSettings } from '../../tts/ttsTypes';
 import { parseSpeechIntent } from '../../stt/speechIntent';
 import { useSpeechRecognition } from '../../stt/useSpeechRecognition';
@@ -55,6 +55,8 @@ interface UseCarConductorProps {
     targetCharId?: string | null,
     actionIntent?: string
   ) => Promise<void>;
+  // Selects a suggestion explicitly by its stable id.
+  submitChoice: (choice: Choice) => Promise<void>;
   previewAction: (actionText: string) => Promise<void>;
   clearPreview: () => void;
   ttsSettings: TtsSettings;
@@ -73,6 +75,7 @@ export function useCarConductor({
   actionPreview,
   previewThinking: _previewThinking,
   submitAction,
+  submitChoice,
   previewAction,
   clearPreview,
   ttsSettings,
@@ -363,7 +366,7 @@ export function useCarConductor({
         setConductorState('submitting');
         await speakAlert('Action sent.');
         try {
-          await submitAction(choice.label, choice.stat, choice.difficulty, choice.difficultyValue ?? null);
+          await submitChoice(choice);
           setConductorState('processing');
         } catch {
           addToTranscriptLog('System: Action submission failed.');

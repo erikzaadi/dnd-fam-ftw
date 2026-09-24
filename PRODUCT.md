@@ -23,6 +23,10 @@ Cozy, imaginative, surprising. Story-first. The wonder of collaborative storytel
 - Hardcore gamer HUD: cyberpunk neons, esports overlays, aggressive tournament aesthetic
 - Kiddie mobile game: Roblox-bright primary colors, bouncy fonts, condescending to adults
 
+## Default Experience
+
+A coherent adventure for one evening: start quickly, discover a clear problem, let every hero matter, reach a finale, and finish with a story worth retelling. Long-lived worlds, DM Prep, car mode and the hidden terminal remain available for people who choose them; the one-evening default governs defaults and visibility, not feature deletion.
+
 ## Design Principles
 
 1. **The story is the product** - UI should frame and amplify the AI narration, never compete with it

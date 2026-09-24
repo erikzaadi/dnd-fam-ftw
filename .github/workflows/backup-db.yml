@@ -1,5 +1,13 @@
-# Weekly SQLite database backup to S3.
-# Runs every Sunday at 02:00 UTC, or manually via workflow_dispatch.
+# Daily SQLite database backup to S3.
+# Runs every day at 02:00 UTC, or manually via workflow_dispatch.
+#
+# The backup is a transactionally consistent copy (VACUUM INTO) made by the deployed
+# release's backupDatabase script, integrity-checked before upload. A metadata JSON
+# (app version, schema summary, row counts, timestamp) is uploaded next to it.
+#
+# Recovery point: at most ~24h of adventures can be lost (daily schedule).
+# Recovery time: a restore stops the service for the copy only (seconds) plus workflow
+# runtime; see restore-db.yml and MANAGE.md.
 #
 # Required secrets in the 'production' environment (shared with deploy workflow):
 #   AWS_ACCESS_KEY_ID     - from terraform output app_access_key_id
@@ -10,19 +18,21 @@
 # Required variable in the 'production' environment (Actions Variable, not Secret):
 #   SNAPSHOTS_BUCKET_NAME - same bucket as VISUAL_SNAPSHOTS_BUCKET in the 'ci' environment
 #
-# Backups are stored at s3://<SNAPSHOTS_BUCKET_NAME>/db-backups/app-YYYY-MM-DD.db
-# A 90-day lifecycle rule on the bucket expires old backups automatically.
+# Backups are stored at s3://<SNAPSHOTS_BUCKET_NAME>/db-backups/app-YYYY-MM-DD.db (+ .json).
+# Retention is the bucket lifecycle rule on the db-backups/ prefix (90 days at the
+# time of writing); it is independent of visual snapshot retention.
 
 name: Backup DB
 
 on:
   schedule:
-    - cron: '0 2 * * 0'
+    - cron: '0 2 * * *'
   workflow_dispatch:
 
 env:
   AWS_REGION: eu-west-1
   DB_PATH: /mnt/dnd-fam-ftw-data/app.db
+  APP_DIR: /opt/dnd-fam-ftw
   SSH_USER: ubuntu
 
 jobs:
@@ -57,21 +67,36 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "${{ secrets.LIGHTSAIL_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Backup DB on server
+      - name: Consistent backup on server
+        env:
+          HOST: ${{ env.SSH_USER }}@${{ secrets.LIGHTSAIL_HOST }}
         run: |
           BACKUP_FILE="app-$(date -u +"%Y-%m-%d").db"
+          META_FILE="${BACKUP_FILE%.db}.json"
           # shellcheck disable=SC2029
-          ssh "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}" "cp $DB_PATH /tmp/$BACKUP_FILE"
-          scp "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}:/tmp/$BACKUP_FILE" "/tmp/$BACKUP_FILE"
+          ssh "$HOST" "
+            set -euo pipefail
+            cd $APP_DIR/current
+            APP_VERSION=\$(grep '^APP_VERSION=' $APP_DIR/app.env | cut -d= -f2- || true)
+            node dist/scripts/backupDatabase.js backup $DB_PATH /tmp/$BACKUP_FILE \"\$APP_VERSION\" > /tmp/$META_FILE
+          "
+          scp "$HOST:/tmp/$BACKUP_FILE" "/tmp/$BACKUP_FILE"
+          scp "$HOST:/tmp/$META_FILE" "/tmp/$META_FILE"
           # shellcheck disable=SC2029
-          ssh "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}" "rm /tmp/$BACKUP_FILE"
-          echo "BACKUP_FILE=$BACKUP_FILE" >> "$GITHUB_ENV"
+          ssh "$HOST" "rm -f /tmp/$BACKUP_FILE /tmp/$META_FILE"
+          cat "/tmp/$META_FILE"
+          {
+            echo "BACKUP_FILE=$BACKUP_FILE"
+            echo "META_FILE=$META_FILE"
+          } >> "$GITHUB_ENV"
 
       - name: Upload backup to S3
         run: |
           aws s3 cp "/tmp/$BACKUP_FILE" \
             "s3://${{ vars.SNAPSHOTS_BUCKET_NAME }}/db-backups/$BACKUP_FILE"
-          echo "Uploaded db-backups/$BACKUP_FILE"
+          aws s3 cp "/tmp/$META_FILE" \
+            "s3://${{ vars.SNAPSHOTS_BUCKET_NAME }}/db-backups/$META_FILE"
+          echo "Uploaded db-backups/$BACKUP_FILE and $META_FILE"
 
       - name: Close SSH for this runner
         if: always()

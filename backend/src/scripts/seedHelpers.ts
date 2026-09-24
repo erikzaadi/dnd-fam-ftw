@@ -104,9 +104,10 @@ export function seedTurn(
     );
   const turnId = info.lastInsertRowid;
   for (const c of choices) {
-    db.prepare(`INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue, narration, flavor, helperCharacterName, itemOwnerName, itemName, environmentFeature) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    db.prepare(`INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue, narration, riddleAnswer, riddleCorrect, flavor, helperCharacterName, itemOwnerName, itemName, environmentFeature) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(
         turnId, c.label, c.difficulty, c.stat, c.difficultyValue ?? null, c.narration ?? null,
+        c.riddleAnswer ?? null, c.riddleCorrect == null ? null : (c.riddleCorrect ? 1 : 0),
         c.flavor ?? null, c.helperCharacterName ?? null, c.itemOwnerName ?? null, c.itemName ?? null, c.environmentFeature ?? null,
       );
   }

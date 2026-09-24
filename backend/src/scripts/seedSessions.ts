@@ -3,7 +3,7 @@
  * Idempotent - each module drops and recreates its session.
  * Run from backend/: npx tsx src/scripts/seedSessions.ts
  *
- * Adventure lifecycle: seed modules 1-8 insert rows without adventure_format, so they get
+ * Adventure lifecycle: seed modules 1-8 and 10 insert rows without adventure_format, so they get
  * the column default 'long_lived' on purpose. Session 9 is an explicit completed
  * one-evening adventure. They represent adventures already in
  * progress, which (like migrated saves) must never gain one-evening finale pressure.
@@ -25,6 +25,7 @@ import { seed as seedS6, SESSION_ID as S6 } from './seedSession6.js';
 import { seed as seedMechanics, MECHANICS_SHOWCASE_SESSION_ID as S7 } from './seedMechanicsShowcase.js';
 import { seed as seedOnboard, ONBOARDING_TEMPLATE_SESSION_ID as S8 } from './seedOnboarding.js';
 import { seed as seedEnded, SESSION_ID as S9 } from './seedEndedAdventure.js';
+import { seed as seedRiddle, SESSION_ID as S10 } from './seedRiddle.js';
 
 dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '.env'), quiet: true });
 
@@ -32,7 +33,7 @@ StateService.initialize();
 
 const db = new Database(path.resolve(getConfig().SQLITE_DB_PATH));
 
-const seeds = [seedS1, seedS2, seedS3, seedS4, seedS5, seedS6, seedMechanics, seedOnboard, seedEnded];
+const seeds = [seedS1, seedS2, seedS3, seedS4, seedS5, seedS6, seedMechanics, seedOnboard, seedEnded, seedRiddle];
 for (const seedFn of seeds) {
   seedFn(db);
 }
@@ -47,3 +48,4 @@ console.log(`  Session 6 (${S6}): The Tomb of Endless Dark - 4 chars, 13 turns (
 console.log(`  Session 7 (${S7}): Mechanics Showcase - 4 chars, 4 turns`);
 console.log(`  Session 8 (${S8}): A Crumby Situation - 4 chars, 5 pre-played turns (onboarding template)`);
 console.log(`  Session 9 (${S9}): The Lantern Thief - 2 chars, 7 turns (completed one-evening adventure with ending)`);
+console.log(`  Session 10 (${S10}): The Singing Door - 3 chars, 3 turns (paused mid-riddle: correct, wrong, and non-answer choices)`);

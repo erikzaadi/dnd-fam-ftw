@@ -1,60 +1,66 @@
+# Unit, integration and E2E tests.
+#
+# The workflow always runs so the aggregate "Test result" check reports on every
+# change; jobs are skipped when their paths did not change. Shared, root package,
+# .nvmrc and workflow/action changes re-test every dependent package.
+# Deploy calls this workflow with run_all=true to verify the exact release SHA.
+
 name: Test
 
 on:
   push:
     branches:
       - main
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - 'packages/**'
   pull_request:
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - 'packages/**'
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      run_all:
+        description: Run every job regardless of changed paths
+        type: boolean
+        default: true
 
 jobs:
   changes:
+    if: ${{ !inputs.run_all }}
     runs-on: ubuntu-latest
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
-      e2e: >-
-        ${{
-          steps.filter.outputs.backend == 'true' ||
-          steps.filter.outputs.frontend == 'true' ||
-          steps.filter.outputs.packages == 'true'
-        }}
       frontend: ${{ steps.filter.outputs.frontend }}
-      packages: ${{ steps.filter.outputs.packages }}
+      e2e: ${{ steps.filter.outputs.backend == 'true' || steps.filter.outputs.frontend == 'true' }}
     steps:
       - uses: actions/checkout@v5
       - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
+            common: &common
+              - 'package.json'
+              - 'package-lock.json'
+              - '.nvmrc'
+              - '.github/workflows/test.yml'
+              - '.github/actions/**'
+              - 'packages/**'
             backend:
+              - *common
               - 'backend/**'
             frontend:
+              - *common
               - 'frontend/**'
-            packages:
-              - 'packages/**'
 
   test-backend-unit:
     name: Test Backend Unit
     needs: changes
     if: >-
-      needs.changes.outputs.backend == 'true' ||
-      needs.changes.outputs.packages == 'true' ||
-      github.event_name == 'workflow_dispatch'
+      always() &&
+      (inputs.run_all || needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version-file: .nvmrc
 
       - name: Install and build shared
         run: cd packages/shared && npm ci && npm run build
@@ -69,16 +75,15 @@ jobs:
     name: Test Backend Integration
     needs: changes
     if: >-
-      needs.changes.outputs.backend == 'true' ||
-      needs.changes.outputs.packages == 'true' ||
-      github.event_name == 'workflow_dispatch'
+      always() &&
+      (inputs.run_all || needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version-file: .nvmrc
 
       - name: Install and build shared
         run: cd packages/shared && npm ci && npm run build
@@ -93,16 +98,15 @@ jobs:
     name: Test Frontend Unit
     needs: changes
     if: >-
-      needs.changes.outputs.frontend == 'true' ||
-      needs.changes.outputs.packages == 'true' ||
-      github.event_name == 'workflow_dispatch'
+      always() &&
+      (inputs.run_all || needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version-file: .nvmrc
 
       - name: Install and build shared
         run: cd packages/shared && npm ci && npm run build
@@ -116,7 +120,9 @@ jobs:
   test-e2e:
     name: Test E2E
     needs: changes
-    if: needs.changes.outputs.e2e == 'true' || github.event_name == 'workflow_dispatch'
+    if: >-
+      always() &&
+      (inputs.run_all || needs.changes.outputs.e2e == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -129,6 +135,33 @@ jobs:
       - name: Run e2e tests
         run: cd frontend && npm run test:e2e
 
+      - name: Upload failure traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-artifacts
+          path: frontend/test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # Stable required check for branch protection: always reports, and fails if any
+  # job that ran failed or was cancelled. Skipped jobs (unchanged paths) pass.
+  result:
+    name: Test result
+    needs: [changes, test-backend-unit, test-backend-integration, test-frontend, test-e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check job results
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          if echo "$RESULTS" | jq -e '[.[] | .result] | any(. == "failure" or . == "cancelled")' > /dev/null; then
+            echo "One or more test jobs failed."
+            exit 1
+          fi
+
   notify:
     needs:
       - test-backend-unit
@@ -136,7 +169,7 @@ jobs:
       - test-frontend
       - test-e2e
     if: >-
-      always() &&
+      always() && !inputs.run_all &&
       (
         needs.test-backend-unit.result != 'skipped' ||
         needs.test-backend-integration.result != 'skipped' ||

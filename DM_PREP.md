@@ -177,6 +177,16 @@ This means each named encounter fires exactly once per session. If you want a re
 
 ---
 
+## One-evening sessions
+
+The session's **format** (one evening or long-lived) is a session setting, and it wins over anything the DM Prep says about campaign length. For a one-evening session:
+
+- Generated campaign briefs add `TONIGHT'S OBJECTIVE:` (player-facing) and `TONIGHT'S PAYOFF:` (private) lines.
+- Hand-written DM Prep is compiled into a bounded objective and a private payoff for tonight's chapter. Long campaign notes become one chapter within that world; wider hooks can stay open, and hidden villains or secrets can stay hidden.
+- The objective is stored once per chapter. If compilation fails, play is not blocked: the opening scene establishes a goal.
+- Editing DM Prep mid-adventure recompiles only the private payoff. The public objective, progress counters and resolved facts are preserved.
+- The ending (epilogue) never reads DM Prep, so it cannot reveal secrets.
+
 ## What DM Prep does not control
 
 - **Dice math** - base thresholds (8/12/16) and roll resolution are fixed.

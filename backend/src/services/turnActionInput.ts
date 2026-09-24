@@ -1,9 +1,9 @@
 import type { Choice, Difficulty, SessionState, Stat } from '../types.js';
-import { lookupActionPreview } from './actionPreviewStore.js';
+import { lookupActionPreview, type StoredActionPreview } from './actionPreviewStore.js';
 import { StateService } from './stateService.js';
 
 // Wire format of POST /session/:id/action. Kept for compatibility: older clients send
-// label-only choices and legacy aliases (ownerCharId, targetCharId, 'use item').
+// legacy aliases (ownerCharId, targetCharId, 'use item').
 export interface TurnActionRequest {
   action: string;
   statUsed: string;
@@ -17,7 +17,8 @@ export interface TurnActionRequest {
   actionType?: 'use_item' | 'give_item';
   actionIntent?: string;
   previewId?: string;
-  // Stable id of a suggested choice from the latest turn. Preferred over label matching.
+  // Stable id of a suggested choice from the latest turn. The only way to select one:
+  // text that happens to equal a choice label is free text.
   choiceId?: number;
 }
 
@@ -28,12 +29,12 @@ type ActionContext = {
 };
 
 // Normalized action. Mechanics for 'choice' come from the server-stored choice
-// descriptor; for 'free_text' from the stored preview when one was confirmed.
+// descriptor; for a confirmed preview (any kind) from the stored preview.
 export type TurnAction =
   | (ActionContext & { kind: 'choice'; text: string; choice: Choice })
-  | (ActionContext & { kind: 'free_text'; text: string; statUsed: Stat | 'none'; difficulty: Difficulty; difficultyValue?: number; previewId?: string })
-  | (ActionContext & { kind: 'item_use'; text: string; itemId: string })
-  | (ActionContext & { kind: 'item_give'; text: string; itemId: string });
+  | (ActionContext & { kind: 'free_text'; text: string; statUsed: Stat | 'none'; difficulty: Difficulty; difficultyValue?: number; preview?: StoredActionPreview })
+  | (ActionContext & { kind: 'item_use'; text: string; itemId: string; preview?: StoredActionPreview })
+  | (ActionContext & { kind: 'item_give'; text: string; itemId: string; preview?: StoredActionPreview });
 
 export type TurnActionRejection = {
   ok: false;
@@ -58,26 +59,81 @@ const legacyItemKind = (request: TurnActionRequest): 'item_use' | 'item_give' | 
   return null;
 };
 
+const stalePreview = (): TurnActionRejection =>
+  rejectTurnAction(409, { error: 'stale_preview', message: 'The scene changed since this action was previewed. Review it again before confirming.' });
+
+const previewMismatch = (): TurnActionRejection =>
+  rejectTurnAction(409, { error: 'preview_mismatch', message: 'This action changed since it was previewed. Review it again before confirming.' });
+
+// A confirmed preview is the action: kind, actor, target, intent and item come from the
+// stored record. Request fields may repeat them but never override them.
+const actionFromPreview = (
+  request: TurnActionRequest,
+  session: Pick<SessionState, 'id' | 'revision'>,
+  previewId: string,
+): TurnAction | TurnActionRejection => {
+  const lookup = lookupActionPreview(previewId, session.id, session.revision ?? 0);
+  if (lookup.status !== 'valid') {
+    return stalePreview();
+  }
+  const preview = lookup.preview;
+  const actorId = preview.kind === 'free_text'
+    ? preview.actingCharacterId
+    : preview.itemOwnerCharacterId ?? preview.actingCharacterId;
+  const requestActor = request.characterId ?? request.ownerCharId;
+  const requestTarget = request.targetCharacterId ?? request.targetCharId;
+  const requestItemKind = legacyItemKind(request);
+  const conflicts = request.choiceId !== undefined
+    || (requestActor !== undefined && requestActor !== actorId)
+    || (requestTarget !== undefined && requestTarget !== preview.targetCharacterId)
+    || (request.actionIntent !== undefined && request.actionIntent !== preview.actionIntent)
+    || (request.itemId !== undefined && request.itemId !== preview.itemId)
+    || (requestItemKind !== null && requestItemKind !== preview.kind)
+    || (request.action !== preview.interpretedAction && request.action !== preview.originalAction);
+  if (conflicts) {
+    return previewMismatch();
+  }
+
+  const context: ActionContext = {
+    actorId,
+    ...(preview.targetCharacterId && { targetCharacterId: preview.targetCharacterId }),
+    ...(preview.actionIntent && { actionIntent: preview.actionIntent }),
+  };
+  if (preview.kind === 'item_use' || preview.kind === 'item_give') {
+    if (!preview.itemId) {
+      return previewMismatch();
+    }
+    return { ...context, kind: preview.kind, text: request.action, itemId: preview.itemId, preview };
+  }
+  return {
+    ...context,
+    kind: 'free_text',
+    text: request.action,
+    statUsed: preview.stat,
+    difficulty: preview.difficulty,
+    ...(preview.difficultyValue != null && { difficultyValue: preview.difficultyValue }),
+    preview,
+  };
+};
+
 // Boundary adapter: legacy wire body -> discriminated action. latestChoices are the
 // suggestions offered by the latest committed turn (the only ones still valid).
+// Precedence: a confirmed preview, then an explicit choice id, then item aliases,
+// then free text.
 export const normalizeTurnAction = (
   request: TurnActionRequest,
-  session: Pick<SessionState, 'activeCharacterId'>,
+  session: Pick<SessionState, 'id' | 'revision' | 'activeCharacterId'>,
   latestChoices: Choice[],
 ): TurnAction | TurnActionRejection => {
+  if (request.previewId) {
+    return actionFromPreview(request, session, request.previewId);
+  }
+
   const context: ActionContext = {
     actorId: request.characterId ?? request.ownerCharId ?? session.activeCharacterId,
     ...((request.targetCharacterId ?? request.targetCharId) && { targetCharacterId: request.targetCharacterId ?? request.targetCharId }),
     ...(request.actionIntent && { actionIntent: request.actionIntent }),
   };
-
-  const itemKind = legacyItemKind(request);
-  if (itemKind) {
-    if (!request.itemId) {
-      return rejectTurnAction(400, { error: 'missing_item', message: 'Missing itemId' });
-    }
-    return { ...context, kind: itemKind, text: request.action, itemId: request.itemId };
-  }
 
   if (request.choiceId !== undefined) {
     const choice = latestChoices.find(c => c.id === request.choiceId);
@@ -88,10 +144,12 @@ export const normalizeTurnAction = (
     return { ...context, kind: 'choice', text: choice.label, choice };
   }
 
-  // Legacy clients: a label that matches a current suggestion is that suggestion.
-  const labelMatch = latestChoices.find(c => c.label === request.action);
-  if (labelMatch) {
-    return { ...context, kind: 'choice', text: labelMatch.label, choice: labelMatch };
+  const itemKind = legacyItemKind(request);
+  if (itemKind) {
+    if (!request.itemId) {
+      return rejectTurnAction(400, { error: 'missing_item', message: 'Missing itemId' });
+    }
+    return { ...context, kind: itemKind, text: request.action, itemId: request.itemId };
   }
 
   return {
@@ -101,7 +159,6 @@ export const normalizeTurnAction = (
     statUsed: request.statUsed as Stat | 'none',
     difficulty: (request.difficulty || 'normal') as Difficulty,
     ...(request.difficultyValue != null && { difficultyValue: request.difficultyValue }),
-    ...(request.previewId && { previewId: request.previewId }),
   };
 };
 
@@ -139,11 +196,18 @@ export const validateTurnAction = (
   }
 
   if (action.kind === 'item_use' || action.kind === 'item_give') {
+    // A previewed item action whose item or target vanished is a retryable conflict:
+    // the player keeps the draft and previews again.
+    const previewed = action.preview !== undefined;
     if (!character.inventory.some(item => item.id === action.itemId)) {
-      return rejectTurnAction(400, { error: 'item_not_found', message: 'That item is no longer in this hero\'s pack.' });
+      return previewed
+        ? rejectTurnAction(409, { error: 'item_unavailable', message: 'That item is no longer in this hero\'s pack. Review the action again.' })
+        : rejectTurnAction(400, { error: 'item_not_found', message: 'That item is no longer in this hero\'s pack.' });
     }
     if (action.kind === 'item_give' && !session.party.some(c => c.id === (action.targetCharacterId || action.actorId))) {
-      return rejectTurnAction(400, { error: 'target_not_found', message: 'That hero is no longer in the party.' });
+      return previewed
+        ? rejectTurnAction(409, { error: 'item_unavailable', message: 'That hero is no longer in the party. Review the action again.' })
+        : rejectTurnAction(400, { error: 'target_not_found', message: 'That hero is no longer in the party.' });
     }
     return null;
   }
@@ -152,12 +216,6 @@ export const validateTurnAction = (
     return rejectTurnAction(400, { error: 'downed', message: `${character.name} is downed and cannot act.` });
   }
 
-  if (action.kind === 'free_text' && action.previewId) {
-    const lookup = lookupActionPreview(action.previewId, session.id, session.revision ?? 0, character.id);
-    if (lookup.status !== 'valid') {
-      return rejectTurnAction(409, { error: 'stale_preview', message: 'The scene changed since this action was previewed. Review it again before confirming.' });
-    }
-  }
   return null;
 };
 

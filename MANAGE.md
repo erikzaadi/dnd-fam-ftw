@@ -78,7 +78,7 @@ Dev tools for inspecting and resetting session data.
 ./dnd-fam-ftw-cli sessions list                                              # print all sessions, characters, inventory, turn history
 ./dnd-fam-ftw-cli sessions list --json
 ./dnd-fam-ftw-cli sessions nuke                                              # delete all sessions and their data
-./dnd-fam-ftw-cli sessions seed                                              # seed 7 example sessions (idempotent)
+./dnd-fam-ftw-cli sessions seed                                              # seed 10 example sessions (idempotent; session 10 is paused mid-riddle)
 ./dnd-fam-ftw-cli sessions export [--session <id>] [--namespace <id>] [--output <file.json>]   # export sessions to JSON
 ./dnd-fam-ftw-cli sessions import <file.json> [--namespace-id <id>]         # import sessions from JSON
 ```
@@ -187,6 +187,26 @@ Narration-tier choices retries and all narration/async requests never receive pr
 The built-in preview model (`gpt-5.6-luna`) and its reasoning default (`none`) are defined together in `PREVIEW_DEFAULTS` (`backend/src/providers/ai/openAiClient.ts`) and roll back together. `gpt-4.1-nano` retires on 2026-10-23 and must not be restored as a default. Production does not pin either value: `deploy-backend.sh` leaves both unset, so the code defaults apply. Selection evidence is in `next-up-instructions/model-refresh-02-live-validation.md`. A preview reply that is empty with `finish_reason=length` logs a `console.warn` (`[AI] <caller> truncated: ...`) even though the caller falls back.
 
 `[Metrics] turn_complete` log lines include `choicesFailed=` (final choices fell back to deterministic choices) and `choicesEscalated=` (a narration-tier choices retry started, whatever its outcome).
+
+### Turn strategy comparison (plan 4, experimental)
+
+`AI_TURN_STRATEGY` selects the turn pipeline. Unset or `parallel` is production: all agents run in parallel. `resolved_first` is a candidate: the combat, inventory and recovery agents run first, the engine applies their proposals once, and narration and choices are generated from those frozen facts (see `MULTI_AGENT_WORKFLOW.md`). Item turns always use `parallel` for now. Any other value stops the backend at startup. Do not enable `resolved_first` in production until the comparison below passes the Q1-Q3 gates.
+
+Every committed turn logs one `[TurnDiag] {json}` line (strategy, stage timings, first narration chunk, agent outcomes, repairs that fired, revisions). It contains no narration or player text.
+
+Comparison runner (`backend/src/scripts/compareTurnStrategies.ts`), run from `backend/`:
+
+```bash
+# Free: check the harness and output with the mock provider
+npx tsx src/scripts/compareTurnStrategies.ts --label smoke --provider mock
+# Plan and worst-case request count, no calls
+npx tsx --env-file=../.env src/scripts/compareTurnStrategies.ts --label first --dry-run
+# PAID: 8 scenarios x 6 actions x 2 strategies, capped at 600 requests / $10 by default.
+# Verify current pricing first; --cost-per-request is required for live runs.
+OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/compareTurnStrategies.ts --label first --cost-per-request 0.004
+```
+
+Results go to `backend/data/strategy-comparison/<run>/`: `turns.jsonl`, a blinded `scorecard.csv` for human scoring, `blind-key.json` (open only after scoring), and `summary.json` (p50/p95 end-to-end and first-narration latency, fallbacks, repairs, requests, estimated cost). A run stopped by a cap is marked incomplete and cannot pass the release gate.
 
 ---
 
@@ -298,17 +318,32 @@ GitHub Actions handles automated deploys. Workflows live in `.github/workflows/`
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `deploy.yml` | Push to `main`, or `v*` tag | Deploys backend and/or frontend if relevant files changed (tag always deploys both) |
-| `lint.yml` | Push, PR, manual | Runs `npm run lint` across backend, frontend, workflows, and shell scripts |
-| `test.yml` | Push, PR, manual | Runs backend and frontend tests |
+| `deploy.yml` | `v*` tag, manual | First runs `lint.yml` and `test.yml` (all jobs) on the exact SHA. Tags deploy backend and frontend; manual runs deploy what changed since the last deployed SHA (shared package, root package files, `.nvmrc` and the deploy workflow count for both; an unknown comparison SHA rebuilds). Backend ships as a versioned release with automatic rollback. Shares the `production-mutation` concurrency group with restores and is never cancelled mid-run. |
+| `lint.yml` | Push, PR, manual, called by deploy | Lint + typecheck for shared, backend, frontend, workflows and shell scripts. Always reports the stable **Lint result** check (use it for branch protection). |
+| `test.yml` | Push, PR, manual, called by deploy | Backend unit + integration, frontend unit, E2E (failure traces uploaded as artifacts). Always reports the stable **Test result** check. |
 | `metrics.yml` | Sunday 10:00 UTC, manual | Gathers usage metrics + pending invite requests, AI summary via Pushover |
 | `visual-snapshots.yml` | `v*` tag, manual | Runs Playwright visual snapshot tests against a seeded prod instance; compare against S3 baselines. First run: dispatch with `update_snapshots=true` to generate baselines. |
 | `renew-cert.yml` | Scheduled (monthly) | Renews the Let's Encrypt cert via `certbot renew` |
-| `backup-db.yml` | Sunday 02:00 UTC, manual | Copies the SQLite DB from the instance and uploads to `s3://<SNAPSHOTS_BUCKET_NAME>/db-backups/`. Backups expire after 90 days. |
-| `restore-db.yml` | Manual only | Downloads a backup from S3, stops the service, overwrites the DB, restarts. Input: `backup_date` (YYYY-MM-DD). |
+| `backup-db.yml` | Daily 02:00 UTC, manual | Consistent copy via `VACUUM INTO` (`dist/scripts/backupDatabase.js`), integrity-checked, uploaded with a metadata JSON (app version, schema summary, counts) to `s3://<SNAPSHOTS_BUCKET_NAME>/db-backups/`. Retention follows the bucket lifecycle rule (90 days). Recovery point: up to ~24h. Requires a backend release that contains the backup script. |
+| `restore-db.yml` | Manual only | Inputs: `backup_date` (YYYY-MM-DD), `target` = `drill` (default: restores into a disposable copy, starts the app on a spare port against it, verifies, deletes; production untouched) or `production` (verifies the backup, keeps a `.pre-restore-*` copy, restores, checks startup, ownership and readable sessions/history). Run a drill first. |
 
 Required GitHub secrets (in the `production` environment): `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `LIGHTSAIL_INSTANCE_NAME`, `LIGHTSAIL_HOST`, `SSH_PRIVATE_KEY`, `API_DOMAIN`, `FRONTEND_DOMAIN`, `FRONTEND_BUCKET_NAME`, `IMAGE_BUCKET_NAME`, `CF_DIST_ID`.
 Required GitHub variable (in the `production` environment): `SNAPSHOTS_BUCKET_NAME`.
+
+### Backend releases and rollback
+
+The backend runs from `/opt/dnd-fam-ftw/current`, a symlink to `/opt/dnd-fam-ftw/releases/<release-id>`. Each deploy uploads a new release directory, keeps the previous `app.env` as `app.env.previous`, switches the symlink atomically, restarts, and verifies `/health` reports the new version; if not, the previous release and env file are restored and the deploy fails. The newest 5 releases are kept. The first deploy after this change migrates the old plain `current/` directory into `releases/legacy-*` automatically.
+
+Manual rollback (code/config only, never the database; schema migrations are additive so older releases run on the newer schema):
+
+```bash
+./scripts/deploy/rollback-backend.sh --list          # releases, * = active
+./scripts/deploy/rollback-backend.sh                 # back to the release before the current one
+./scripts/deploy/rollback-backend.sh <release-id>    # a specific release
+./scripts/deploy/rollback-backend.sh --restore-env   # also restore app.env.previous
+```
+
+Frontend rollback: re-run the Deploy workflow on the earlier tag with `force_frontend`. Old hashed assets stay in S3 for 30 days, so open tabs keep working across releases.
 
 ### Inspecting a backup locally
 

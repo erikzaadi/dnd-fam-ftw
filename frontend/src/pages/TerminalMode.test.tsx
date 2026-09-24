@@ -11,6 +11,7 @@ vi.mock('../session/car/useCarSessionRuntime', () => ({
 
 describe('TerminalMode', () => {
   const mockSubmitAction = vi.fn().mockResolvedValue(undefined);
+  const mockSubmitChoice = vi.fn().mockResolvedValue(undefined);
   const mockPreviewAction = vi.fn().mockResolvedValue(undefined);
   const mockClearPreview = vi.fn();
 
@@ -43,7 +44,7 @@ describe('TerminalMode', () => {
       id: 1,
       narration: 'The heavy iron door blocks your path.',
       choices: [
-        { label: 'Bash it down', stat: 'might', difficulty: 'hard' },
+        { id: 41, label: 'Bash it down', stat: 'might', difficulty: 'hard' },
         { label: 'Pick the lock', stat: 'mischief', difficulty: 'normal' },
       ],
       imagePrompt: null,
@@ -67,6 +68,7 @@ describe('TerminalMode', () => {
         connectionState: 'connected',
         prevEncounterStatus: 'none',
         submitAction: mockSubmitAction,
+        submitChoice: mockSubmitChoice,
         previewAction: mockPreviewAction,
         actionPreview: null,
         clearPreview: mockClearPreview,
@@ -122,7 +124,8 @@ describe('TerminalMode', () => {
     fireEvent.submit(input.closest('form')!);
 
     expect(screen.getByText(/Selected choice: Bash it down/i)).toBeInTheDocument();
-    expect(mockSubmitAction).toHaveBeenCalledWith('Bash it down', 'might', 'hard', null);
+    expect(mockSubmitChoice).toHaveBeenCalledWith(expect.objectContaining({ id: 41, label: 'Bash it down' }));
+    expect(mockSubmitAction).not.toHaveBeenCalled();
   });
 
   it('handles custom actions with preview and confirm state', async () => {
@@ -155,6 +158,7 @@ describe('TerminalMode', () => {
         connectionState: 'connected',
         prevEncounterStatus: 'none',
         submitAction: mockSubmitAction,
+        submitChoice: mockSubmitChoice,
         previewAction: mockPreviewAction,
         actionPreview: preview,
         clearPreview: mockClearPreview,

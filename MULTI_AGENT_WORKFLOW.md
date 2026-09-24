@@ -193,6 +193,17 @@ The parallel constraint means no agent can see the current turn's narration (gen
 
 ---
 
+## Resolved-First Candidate (`AI_TURN_STRATEGY=resolved_first`)
+
+Experimental, off by default. Instead of generating everything in parallel and repairing disagreements afterwards:
+
+1. `proposeMechanics`: combat, inventory and recovery agents (same gates and deadlines).
+2. Policies (`applyTurnPolicies`) and the engine apply the proposal once; that frozen state is what gets committed. Only the combat agent can start a fight (no prose-derived encounter inference).
+3. `buildResolvedTurnFacts` (`services/resolvedTurn.ts`) turns the frozen state into plain facts (roll outcome, HP, items, effects, enemy changes, fight start/end).
+4. `narrateResolved`: narration and choices run in parallel on the post-turn party/encounter plus `resolvedTurn`, and must not invent other mechanical changes. Narration streams only after mechanics are final.
+
+The shared finalizer, operation/revision guard and lifecycle are identical for both strategies. Providers without the staged methods fall back to `parallel`. Repairs and their status per strategy: `next-up-instructions/family-first-04-repair-inventory.md` (local). Comparison runner: see `MANAGE.md`.
+
 ## Key Files
 
 | File | Role |

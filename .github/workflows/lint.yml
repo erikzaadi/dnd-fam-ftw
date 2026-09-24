@@ -1,8 +1,12 @@
 # Lint GitHub Actions workflows, YAML files, shell scripts, and TypeScript/TSX.
 # actionlint validates workflow syntax, expressions, and shell scripts in run: blocks.
 # yamllint checks general YAML formatting.
-# ESLint + tsc check backend and frontend TypeScript (each workspace uses its own ESLint version).
-# Each job only runs when its relevant paths changed.
+# ESLint + tsc check shared, backend and frontend TypeScript (each package uses its own ESLint version).
+#
+# The workflow always runs so the aggregate "Lint result" check reports on every
+# change; individual jobs are skipped when their paths did not change. Shared,
+# root package, .nvmrc and workflow/action changes re-check every dependent package.
+# Deploy calls this workflow with run_all=true to verify the exact release SHA.
 
 name: Lint
 
@@ -10,27 +14,21 @@ on:
   push:
     branches:
       - main
-    paths:
-      - '.github/workflows/**'
-      - '*.yml'
-      - '*.yaml'
-      - 'backend/**'
-      - 'frontend/**'
-      - 'scripts/**'
   pull_request:
-    paths:
-      - '.github/workflows/**'
-      - '*.yml'
-      - '*.yaml'
-      - 'backend/**'
-      - 'frontend/**'
-      - 'scripts/**'
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      run_all:
+        description: Run every job regardless of changed paths
+        type: boolean
+        default: true
 
 jobs:
   changes:
+    if: ${{ !inputs.run_all }}
     runs-on: ubuntu-latest
     outputs:
+      shared: ${{ steps.filter.outputs.shared }}
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
       workflows: ${{ steps.filter.outputs.workflows }}
@@ -40,19 +38,34 @@ jobs:
         id: filter
         with:
           filters: |
+            common: &common
+              - 'package.json'
+              - 'package-lock.json'
+              - '.nvmrc'
+              - '.github/workflows/lint.yml'
+              - '.github/actions/**'
+            shared:
+              - *common
+              - 'packages/**'
             backend:
+              - *common
+              - 'packages/**'
               - 'backend/**'
             frontend:
+              - *common
+              - 'packages/**'
               - 'frontend/**'
             workflows:
-              - '.github/workflows/**'
+              - '.github/**'
               - '*.yml'
               - '*.yaml'
               - 'scripts/**'
 
   lint-workflows:
     needs: changes
-    if: needs.changes.outputs.workflows == 'true' || github.event_name == 'workflow_dispatch'
+    if: >-
+      always() &&
+      (inputs.run_all || needs.changes.outputs.workflows == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -68,49 +81,96 @@ jobs:
           pip install --quiet yamllint
           yamllint .github/workflows/
 
-  lint-backend:
+  lint-shared:
     needs: changes
-    if: needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch'
+    if: >-
+      always() &&
+      (inputs.run_all || needs.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version-file: .nvmrc
 
       - name: Install deps
-        run: cd backend && npm ci
+        run: npm ci --prefix packages/shared
 
       - name: ESLint
-        run: cd backend && npm run lint
+        run: npm run lint --prefix packages/shared
 
       - name: typecheck
-        run: cd backend && npx tsc --noEmit
+        run: npm run tsc --prefix packages/shared
+
+  lint-backend:
+    needs: changes
+    if: >-
+      always() &&
+      (inputs.run_all || needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install deps
+        run: npm ci --prefix packages/shared && npm ci --prefix backend
+
+      - name: ESLint
+        run: npm run lint --prefix backend
+
+      - name: typecheck
+        run: npm run tsc --prefix backend
 
   lint-frontend:
     needs: changes
-    if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
+    if: >-
+      always() &&
+      (inputs.run_all || needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version-file: .nvmrc
 
       - name: Install deps
-        run: cd frontend && npm ci
+        run: npm ci --prefix packages/shared && npm ci --prefix frontend
 
       - name: ESLint
-        run: cd frontend && npm run lint
+        run: npm run lint --prefix frontend
 
       - name: typecheck
-        run: cd frontend && npx tsc -b
+        run: npm run tsc --prefix frontend
+
+  # Stable required check for branch protection: always reports, and fails if any
+  # job that ran failed or was cancelled. Skipped jobs (unchanged paths) pass.
+  result:
+    name: Lint result
+    needs: [changes, lint-workflows, lint-shared, lint-backend, lint-frontend]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check job results
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          if echo "$RESULTS" | jq -e '[.[] | .result] | any(. == "failure" or . == "cancelled")' > /dev/null; then
+            echo "One or more lint jobs failed."
+            exit 1
+          fi
 
   notify:
-    needs: [lint-workflows, lint-backend, lint-frontend]
-    if: always() && (needs.lint-workflows.result != 'skipped' || needs.lint-backend.result != 'skipped' || needs.lint-frontend.result != 'skipped')  # yamllint disable-line rule:line-length
+    needs: [lint-workflows, lint-shared, lint-backend, lint-frontend]
+    if: >-
+      always() && !inputs.run_all &&
+      (needs.lint-workflows.result != 'skipped' || needs.lint-shared.result != 'skipped' ||
+       needs.lint-backend.result != 'skipped' || needs.lint-frontend.result != 'skipped')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

@@ -436,4 +436,7 @@ export const migrate = (db: DB): void => {
   if (!sessionColsAdventure.includes('adventure_plan')) {
     db.prepare("ALTER TABLE sessions ADD COLUMN adventure_plan TEXT").run();
   }
+
+  // Per-session turn lookups (history loads, and last-played ordering on the session list).
+  db.prepare("CREATE INDEX IF NOT EXISTS idx_turn_history_session_created ON turn_history(sessionId, createdAt)").run();
 };

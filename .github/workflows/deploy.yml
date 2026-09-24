@@ -1,7 +1,14 @@
 # Deploy workflow.
 # Triggered automatically on version tags (v*), or manually via workflow_dispatch.
-# Detects whether backend and/or frontend changed since last deploy,
-# and only deploys what changed. Tag pushes always deploy everything.
+#
+# - The exact SHA being deployed is verified first (lint + tests via the reusable
+#   workflows). A green run on a different SHA does not count.
+# - Tag pushes deploy both backend and frontend. Manual runs deploy what changed since
+#   the last deployed SHA; shared package, root package, .nvmrc and deploy workflow
+#   changes count for both. An unknown comparison SHA rebuilds conservatively.
+# - The backend ships as a versioned release directory; the service switches to it
+#   atomically and is rolled back automatically if it does not report the new version.
+# - Old hashed frontend assets are kept for a retention window so open tabs keep working.
 # Use force_* inputs to override change detection on manual runs.
 # See github-secrets.md (not committed) for required secrets.
 
@@ -25,15 +32,34 @@ on:
 env:
   AWS_REGION: eu-west-1
   SSM_PREFIX: /dnd-fam-ftw/prod
-  CURRENT_DIR: /opt/dnd-fam-ftw/current
+  APP_DIR: /opt/dnd-fam-ftw
   APP_ENV_FILE: /opt/dnd-fam-ftw/app.env
   SERVICE_NAME: dnd-fam-ftw
   SSH_USER: ubuntu
+  FRONTEND_ASSET_RETENTION_DAYS: 30
 
 jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+    with:
+      run_all: true
+    secrets: inherit
+
+  test:
+    uses: ./.github/workflows/test.yml
+    with:
+      run_all: true
+    secrets: inherit
+
   deploy:
+    needs: [lint, test]
     runs-on: ubuntu-latest
     environment: production
+    # One production mutation at a time (deploys and DB restores). Never cancel a
+    # deployment halfway through; a newer run waits instead.
+    concurrency:
+      group: production-mutation
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -42,7 +68,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version-file: .nvmrc
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
@@ -88,31 +114,48 @@ jobs:
 
       - name: Detect changes
         id: changes
+        env:
+          BACKEND_SHA: ${{ steps.last_deploy.outputs.backend_sha }}
+          FRONTEND_SHA: ${{ steps.last_deploy.outputs.frontend_sha }}
+          FORCE_BACKEND: ${{ inputs.force_backend }}
+          FORCE_FRONTEND: ${{ inputs.force_frontend }}
         run: |
           CURRENT="$GITHUB_SHA"
-          BACKEND_SHA="${{ steps.last_deploy.outputs.backend_sha }}"
-          FRONTEND_SHA="${{ steps.last_deploy.outputs.frontend_sha }}"
+          # Changes that affect both applications.
+          COMMON='packages/shared/|package\.json$|package-lock\.json$|\.nvmrc$|\.github/workflows/deploy\.yml$|\.github/actions/'
+
+          # Succeeds when files matching the pattern changed since base, or when base is
+          # unknown or no longer present in history (rebuild conservatively).
+          changed_since() {
+            local base="$1" pattern="$2"
+            if [[ -z "$base" || "$base" == "None" ]] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+              echo "Comparison SHA '${base:-none}' unavailable - rebuilding" >&2
+              return 0
+            fi
+            git diff --name-only "$base" "$CURRENT" | grep -Eq "^(${pattern})"
+          }
 
           DEPLOY_BACKEND=false
           DEPLOY_FRONTEND=false
-
-          if [[ "${{ inputs.force_backend }}" == "true" ]] || [[ -z "$BACKEND_SHA" ]]; then
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            echo "Tag release: deploying backend and frontend"
             DEPLOY_BACKEND=true
-          elif git diff --name-only "$BACKEND_SHA" "$CURRENT" | grep -q "^backend/"; then
+            DEPLOY_FRONTEND=true
+          fi
+          if [[ "$FORCE_BACKEND" == "true" ]] || changed_since "$BACKEND_SHA" "backend/|$COMMON"; then
             DEPLOY_BACKEND=true
           fi
-
-          if [[ "${{ inputs.force_frontend }}" == "true" ]] || [[ -z "$FRONTEND_SHA" ]]; then
-            DEPLOY_FRONTEND=true
-          elif git diff --name-only "$FRONTEND_SHA" "$CURRENT" | grep -q "^frontend/"; then
+          if [[ "$FORCE_FRONTEND" == "true" ]] || changed_since "$FRONTEND_SHA" "frontend/|$COMMON"; then
             DEPLOY_FRONTEND=true
           fi
 
           GIT_VERSION=$(git describe --tags --always)
+          RELEASE_ID="$(date -u +%Y%m%dT%H%M%SZ)-${GITHUB_SHA::12}"
           {
             echo "deploy_backend=$DEPLOY_BACKEND"
             echo "deploy_frontend=$DEPLOY_FRONTEND"
             echo "git_version=$GIT_VERSION"
+            echo "release_id=$RELEASE_ID"
           } >> "$GITHUB_OUTPUT"
           echo "Deploy - backend: $DEPLOY_BACKEND, frontend: $DEPLOY_FRONTEND, version: $GIT_VERSION"
 
@@ -121,33 +164,45 @@ jobs:
       - name: Build backend
         if: steps.changes.outputs.deploy_backend == 'true'
         run: |
-          npm install --prefix packages/shared
+          npm ci --prefix packages/shared
           npm run build --prefix packages/shared
           npm ci --prefix backend
           npm run build --prefix backend
           npm prune --prefix backend --omit=dev
 
-      - name: Sync backend to instance
+      - name: Upload backend release
         if: steps.changes.outputs.deploy_backend == 'true'
+        env:
+          HOST: ${{ env.SSH_USER }}@${{ secrets.LIGHTSAIL_HOST }}
+          RELEASE_ID: ${{ steps.changes.outputs.release_id }}
         run: |
-          rsync -avz --delete \
-            backend/dist/ "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}:$CURRENT_DIR/dist/"
-          rsync -avz --delete \
-            backend/public/ "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}:$CURRENT_DIR/public/"
-          rsync -avz --delete --copy-unsafe-links \
-            backend/node_modules/ "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}:$CURRENT_DIR/node_modules/"
-          rsync -avz \
-            backend/package.json \
-            backend/package-lock.json \
-            "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}:$CURRENT_DIR/"
+          RELEASE_DIR="$APP_DIR/releases/$RELEASE_ID"
+          # shellcheck disable=SC2029
+          PREVIOUS=$(ssh "$HOST" "bash -s -- prepare $RELEASE_ID" < scripts/deploy/remote-release.sh)
+          echo "Previous release: ${PREVIOUS:-none}"
 
-      - name: Write app.env and restart service
+          # Hard-link files unchanged since the running release to keep the upload small.
+          sync_dir() {
+            local src="$1" name="$2"
+            local link=()
+            if [[ -n "$PREVIOUS" ]]; then
+              link=(--link-dest="$PREVIOUS/$name")
+            fi
+            rsync -az --delete --copy-unsafe-links "${link[@]}" "$src/" "$HOST:$RELEASE_DIR/$name/"
+          }
+          sync_dir backend/dist dist
+          sync_dir backend/public public
+          sync_dir backend/node_modules node_modules
+          rsync -az backend/package.json backend/package-lock.json "$HOST:$RELEASE_DIR/"
+
+      - name: Write app.env and activate backend release
         if: steps.changes.outputs.deploy_backend == 'true'
         env:
           API_DOMAIN: ${{ secrets.API_DOMAIN }}
           FRONTEND_DOMAIN: ${{ secrets.FRONTEND_DOMAIN }}
           IMAGE_BUCKET_NAME: ${{ secrets.IMAGE_BUCKET_NAME }}
           LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          RELEASE_ID: ${{ steps.changes.outputs.release_id }}
         run: |
           SSM_PARAMS=$(aws ssm get-parameters-by-path \
             --path "$SSM_PREFIX" \
@@ -186,17 +241,36 @@ jobs:
             APP_ENV="${APP_ENV}"$'\n'"${key}=${value}"
           done <<< "$SSM_PARAMS"
 
+          # Keep the previous env file so a rollback can restore matching config.
           # shellcheck disable=SC2029
           echo "$APP_ENV" | ssh "$SSH_USER@$LIGHTSAIL_HOST" \
-            "sudo tee $APP_ENV_FILE > /dev/null && \
+            "if [ -f $APP_ENV_FILE ]; then sudo cp $APP_ENV_FILE $APP_ENV_FILE.previous; fi && \
+             sudo tee $APP_ENV_FILE > /dev/null && \
              sudo chmod 600 $APP_ENV_FILE && \
              sudo chown ubuntu:ubuntu $APP_ENV_FILE"
 
           # shellcheck disable=SC2029
-          ssh "$SSH_USER@$LIGHTSAIL_HOST" "sudo systemctl restart $SERVICE_NAME"
-          sleep 3
+          ssh "$SSH_USER@$LIGHTSAIL_HOST" "bash -s -- activate $RELEASE_ID" < scripts/deploy/remote-release.sh
+
+      - name: Verify backend release (roll back on failure)
+        if: steps.changes.outputs.deploy_backend == 'true'
+        env:
+          LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          EXPECTED_VERSION: ${{ steps.changes.outputs.git_version }}
+        run: |
           # shellcheck disable=SC2029
-          ssh "$SSH_USER@$LIGHTSAIL_HOST" "systemctl is-active $SERVICE_NAME"
+          if ssh "$SSH_USER@$LIGHTSAIL_HOST" "bash -s -- verify $EXPECTED_VERSION" < scripts/deploy/remote-release.sh; then
+            # shellcheck disable=SC2029
+            ssh "$SSH_USER@$LIGHTSAIL_HOST" "bash -s -- prune" < scripts/deploy/remote-release.sh
+            exit 0
+          fi
+          echo "New backend release is unhealthy - restoring previous config and release"
+          # shellcheck disable=SC2029
+          ssh "$SSH_USER@$LIGHTSAIL_HOST" \
+            "if [ -f $APP_ENV_FILE.previous ]; then sudo cp $APP_ENV_FILE.previous $APP_ENV_FILE; fi"
+          # shellcheck disable=SC2029
+          ssh "$SSH_USER@$LIGHTSAIL_HOST" "bash -s -- rollback" < scripts/deploy/remote-release.sh
+          exit 1
 
       # ── Frontend ─────────────────────────────────────────────────────────────
 
@@ -206,7 +280,7 @@ jobs:
           VITE_API_BASE_URL: https://${{ secrets.API_DOMAIN }}
           VITE_BASE_PATH: /
         run: |
-          npm install --prefix packages/shared
+          npm ci --prefix packages/shared
           npm run build --prefix packages/shared
           GIT_VER="${{ steps.changes.outputs.git_version }}"
           BUILD_TIME="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
@@ -215,14 +289,32 @@ jobs:
 
       - name: Sync frontend to S3
         if: steps.changes.outputs.deploy_frontend == 'true'
+        env:
+          BUCKET: ${{ secrets.FRONTEND_BUCKET_NAME }}
         run: |
-          aws s3 sync frontend/dist/assets/ s3://${{ secrets.FRONTEND_BUCKET_NAME }}/assets/ \
-            --cache-control "public, max-age=31536000, immutable" \
-            --delete
-          aws s3 sync frontend/dist/ s3://${{ secrets.FRONTEND_BUCKET_NAME }}/ \
+          # Hashed assets are immutable and are NOT deleted here: tabs opened before this
+          # release still load their chunks. Old assets are pruned after a retention window.
+          aws s3 sync frontend/dist/assets/ "s3://$BUCKET/assets/" \
+            --cache-control "public, max-age=31536000, immutable"
+          aws s3 sync frontend/dist/ "s3://$BUCKET/" \
             --exclude 'assets/*' \
             --cache-control "no-cache, no-store, must-revalidate" \
             --delete
+
+      - name: Prune expired frontend assets
+        if: steps.changes.outputs.deploy_frontend == 'true'
+        env:
+          BUCKET: ${{ secrets.FRONTEND_BUCKET_NAME }}
+        run: |
+          CUTOFF=$(date -u -d "$FRONTEND_ASSET_RETENTION_DAYS days ago" +%Y-%m-%dT%H:%M:%SZ)
+          aws s3api list-objects-v2 --bucket "$BUCKET" --prefix assets/ \
+            --query "Contents[?LastModified<'$CUTOFF'].Key" --output text \
+            | tr '\t' '\n' | while read -r key; do
+              [[ -z "$key" || "$key" == "None" ]] && continue
+              # Never remove an asset the release just deployed references.
+              [[ -e "frontend/dist/$key" ]] && continue
+              aws s3 rm "s3://$BUCKET/$key"
+            done
 
       - name: Invalidate CloudFront
         if: steps.changes.outputs.deploy_frontend == 'true'

@@ -535,7 +535,14 @@ export const sessionRepository = {
 
   async listSessions(namespaceId: string = 'local'): Promise<SessionListItem[]> {
     const db = getDb();
-    const rows = db.prepare('SELECT id, displayName, worldDescription, storySummary, dm_prep, difficulty, gameMode, game_over, preview_image_url, adventure_format, adventure_status FROM sessions WHERE namespace_id = ? ORDER BY createdAt DESC, id ASC').all(namespaceId) as { id: string; displayName: string; worldDescription: string | null; storySummary: string | null; dm_prep: string | null; difficulty: string; gameMode: string; game_over: number; preview_image_url: string | null; adventure_format: string | null; adventure_status: string | null }[];
+    // Last played first: the latest turn's time, or creation time for a session with no
+    // turns yet. Every session gets an opening turn, so new sessions sort by when they started.
+    const rows = db.prepare(`
+      SELECT id, displayName, worldDescription, storySummary, dm_prep, difficulty, gameMode, game_over, preview_image_url, adventure_format, adventure_status
+      FROM sessions s
+      WHERE namespace_id = ?
+      ORDER BY COALESCE((SELECT MAX(t.createdAt) FROM turn_history t WHERE t.sessionId = s.id), s.createdAt) DESC, s.createdAt DESC, s.id ASC
+    `).all(namespaceId) as { id: string; displayName: string; worldDescription: string | null; storySummary: string | null; dm_prep: string | null; difficulty: string; gameMode: string; game_over: number; preview_image_url: string | null; adventure_format: string | null; adventure_status: string | null }[];
     return rows.map(row => {
       const chars = db.prepare('SELECT id, name, class, species, avatarUrl, hp, max_hp FROM characters WHERE sessionId = ?').all(row.id) as { id: string; name: string; class: string; species: string; avatarUrl: string | null; hp: number; max_hp: number }[];
       return {

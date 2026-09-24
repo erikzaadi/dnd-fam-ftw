@@ -365,11 +365,34 @@ describe('action route lifecycle (R1/R3)', () => {
   it('rejects a confirmed preview once the story has moved on', async () => {
     await insertSessionState(makeTestSession({ id: 'route-preview' }));
     const { storeActionPreview } = await import('../../services/actionPreviewStore.js');
-    const previewId = storeActionPreview({ sessionId: 'route-preview', revision: 0, actingCharacterId: 'char-pip', interpretedAction: 'Juggle knives', stat: 'mischief', difficulty: 'hard', difficultyValue: 16 });
+    const previewId = storeActionPreview({ sessionId: 'route-preview', revision: 0, actingCharacterId: 'char-pip', kind: 'free_text', originalAction: 'Juggle knives', interpretedAction: 'Juggle knives', stat: 'mischief', difficulty: 'hard', difficultyValue: 16 });
     StateService.bumpRevision('route-preview');
     const res = await postAction('route-preview', { action: 'Juggle knives', statUsed: 'might', difficulty: 'easy', previewId });
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ error: 'stale_preview' });
+  });
+
+  it('rejects a confirmation whose text or kind no longer matches its preview', async () => {
+    await insertSessionState(makeTestSession({ id: 'route-preview-mismatch' }));
+    const { storeActionPreview } = await import('../../services/actionPreviewStore.js');
+    const previewId = storeActionPreview({ sessionId: 'route-preview-mismatch', revision: 0, actingCharacterId: 'char-pip', kind: 'free_text', originalAction: 'Juggle knives', interpretedAction: 'Pip juggles knives', stat: 'mischief', difficulty: 'hard', difficultyValue: 16 });
+    const edited = await postAction('route-preview-mismatch', { action: 'Throw the knives', statUsed: 'mischief', previewId, requestId: 'mismatch-1' });
+    expect(edited.status).toBe(409);
+    expect(await edited.json()).toMatchObject({ error: 'preview_mismatch' });
+    const asItem = await postAction('route-preview-mismatch', { action: 'Juggle knives', statUsed: 'none', actionType: 'use_item', itemId: 'knives', previewId, requestId: 'mismatch-2' });
+    expect(asItem.status).toBe(409);
+    expect(await asItem.json()).toMatchObject({ error: 'preview_mismatch' });
+    expect(operationRepository.getLatest('route-preview-mismatch')).toBeNull();
+  });
+
+  it('rejects a previewed item action once the item is gone, keeping it retryable', async () => {
+    await insertSessionState(makeTestSession({ id: 'route-preview-item' }));
+    const { storeActionPreview } = await import('../../services/actionPreviewStore.js');
+    const previewId = storeActionPreview({ sessionId: 'route-preview-item', revision: 0, actingCharacterId: 'char-pip', kind: 'item_use', originalAction: 'Drink the potion', interpretedAction: 'Pip drinks the healing potion', itemId: 'item-already-used', itemOwnerCharacterId: 'char-pip', stat: 'might', difficulty: 'normal' });
+    const res = await postAction('route-preview-item', { action: 'Pip drinks the healing potion', statUsed: 'none', previewId });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: 'item_unavailable' });
+    expect(operationRepository.getLatest('route-preview-item')).toBeNull();
   });
 
   it('resolves a suggestion by stable id with server-owned mechanics and rejects stale ids', async () => {

@@ -250,6 +250,28 @@ describe('StateService - Session CRUD', () => {
     expect(session?.storySummary).toBe('Summary from turn 10.');
   });
 
+  it('listSessions orders by last played, falling back to creation time', async () => {
+    const { namespaceId: ns } = StateService.createUser('list-order-test@test.com');
+    const db = getTestDb();
+    insertTestSession('sess-order-old', ns, 'Old But Played');
+    insertTestSession('sess-order-new', ns, 'New Never Played');
+    insertTestSession('sess-order-mid', ns, 'Mid Played Earlier');
+    db.prepare('UPDATE sessions SET createdAt = ? WHERE id = ?').run('2026-01-01 10:00:00', 'sess-order-old');
+    db.prepare('UPDATE sessions SET createdAt = ? WHERE id = ?').run('2026-03-01 10:00:00', 'sess-order-new');
+    db.prepare('UPDATE sessions SET createdAt = ? WHERE id = ?').run('2026-02-01 10:00:00', 'sess-order-mid');
+    const addTurn = (sessionId: string, createdAt: string) => {
+      db.prepare("INSERT INTO turn_history (sessionId, narration, imageSuggested, createdAt) VALUES (?, 'A turn.', 0, ?)").run(sessionId, createdAt);
+    };
+    addTurn('sess-order-old', '2026-01-01 10:00:00');
+    addTurn('sess-order-old', '2026-04-01 10:00:00');
+    addTurn('sess-order-mid', '2026-02-15 10:00:00');
+
+    expect((await StateService.listSessions(ns)).map(s => s.id)).toEqual(['sess-order-old', 'sess-order-new', 'sess-order-mid']);
+
+    addTurn('sess-order-mid', '2026-05-01 10:00:00');
+    expect((await StateService.listSessions(ns)).map(s => s.id)).toEqual(['sess-order-mid', 'sess-order-old', 'sess-order-new']);
+  });
+
   it('persists preview image URLs for getSession and listSessions', async () => {
     insertTestSession('sess-preview', 'local', 'Preview World');
     StateService.updateSessionPreviewImage('sess-preview', '/test-images/preview_sess-preview.png');

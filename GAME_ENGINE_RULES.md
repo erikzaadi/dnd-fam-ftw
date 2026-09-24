@@ -317,6 +317,59 @@ If `rescuesUsed >= rescueLimit` when the party wipes:
 
 On **zug-ma-geddon** the rescue limit is 0, so the very first wipe triggers game over with no intervention.
 
+A party wipe never resolves the adventure's finale in the same turn: rescue and game-over rules take precedence. Rescue, sanctuary and game over now run inside the operation of the turn that caused the wipe, so views stay busy until the follow-up turn is committed.
+
+---
+
+## Adventure Lifecycle (one evening vs long-lived)
+
+Sessions have an `adventureFormat` independent of difficulty, `gameMode` pacing and interaction mode:
+
+- `one_evening` (default for new sessions, including quick/instant start): a bounded chapter with an opening, a finale and an ending.
+- `long_lived` (the **Long-lived session** checkbox; also every session that existed before this feature): no automatic ending pressure. Players can still wrap up a chapter explicitly.
+
+State lives in `adventure_format`, `adventure_status` (`active` | `concluding` | `completed`, separate from `gameOver`), `adventure_arc` (JSON progress), `adventure_objective` (public) and `adventure_plan` (private DM payoff, never sent to clients). Logic: `backend/src/services/adventureLifecycleService.ts` (deterministic). Lifecycle is never inferred from narration text or story summaries.
+
+**Counting.** Only committed player actions count (normal, free-text and item turns). Initial, rescue, sanctuary, conclusion and chapter-start turns do not.
+
+**Pacing (initial tuning, P = starting party size).** `development` after `max(3, P)` actions, `finale` after `max(8, 2P)`, target resolution by `max(12, 3P)`. These are signals, not victory conditions.
+
+**Finale.** The first finale turn sets up the decisive moment. Later actions are decisive attempts. Narration proposes `objectiveOutcome`; the server accepts:
+- `resolved_success` only if the action succeeded (or needed no roll), or the finale encounter was defeated/fled/surrendered this turn;
+- `resolved_setback` only on a failed attempt after at least one earlier failed attempt (fail forward first);
+- with no proposal (fallback narration), a finale encounter resolved this turn counts as success.
+After `resolveBy + 2` actions without resolution, `continueOffered` is set and views offer **Keep playing** (switch to long-lived) or **End here with an epilogue**. No outcome is forced.
+
+**Ending.** A resolved finale sets status `concluding` atomically with that turn; the same operation then writes a `conclusion` turn (no choices, no roll, no actor rotation) and sets status `completed`. The epilogue uses only committed facts (objective, heroes' actual actions, battles, last scenes) and never DM Prep. If generation fails, a deterministic epilogue is used; if persistence fails, status stays `concluding` and **Finish the story** retries without duplicating it.
+
+**Player controls.** `POST /session/:id/adventure/wrap-up` requests a near-term finale (no AI call, no outcome). `POST /session/:id/adventure/end` ends now with an `ended_early` epilogue; it is allowed at the namespace turn limit. `POST /session/:id/adventure/continue` starts chapter N+1 (new arc and objective, same heroes and history, ending preserved) as one-evening or long-lived. `PATCH /session/:id { adventureFormat }` toggles long-lived; switching back to one evening starts a fresh budget from the current action count. Gameplay actions are rejected with `adventure_completed` once the chapter is ending or ended.
+
+---
+
+## Turn Paths
+
+Every gameplay write goes through `commitTurn` (atomic state + history + revision + operation result). Player turns also share one finalizer (`backend/src/services/turnFinalizer.ts`); the paths differ only in how the turn is resolved:
+
+| Path | Entry | Roll | Advances turn / rotates actor | Counts toward one-evening pacing | Suggestions after | Enrichment (image, summary) |
+|---|---|---|---|---|---|---|
+| Suggested choice | `POST /action` with `choiceId` (text equal to a label is free text, never a choice) | Yes, from the stored choice descriptor (stat, difficulty, bonuses) | Yes / yes | Yes | Yes | Yes |
+| Free text | `POST /action` (optionally with a `previewId`) | Yes, from the stored preview when confirmed (kind, actor, target, intent, stat, difficulty), else the submitted stat/difficulty | Yes / yes | Yes | Yes | Yes |
+| Item use / give | `POST /action` with `actionType` + `itemId`, or a `previewId` whose stored kind is an item action | No (deterministic effect) | Yes / yes | Yes | Yes | Yes (previously skipped: fixed) |
+| Opening turn | `POST /start`, instant start | No | Turn set to 2 / no | No | Yes | Scene image |
+| Rescue / sanctuary | Follow-up inside the operation that wiped the party | No | Yes / resets to first hero | No | Yes | Summary refresh |
+| Conclusion | Follow-up after a resolved finale, or `POST /adventure/end` | No | No / no | No | None | None |
+| Chapter start | `POST /adventure/continue` | No | Yes / no | No (new chapter counters) | Yes | None |
+
+Rules shared by all player turns (`turnActionInput.ts`): the session must not be game over or ending; item turns obey the namespace turn limit like any other turn; downed heroes cannot take rolled actions but items can be used on or by them; a stale `choiceId` or `previewId` is rejected with 409 instead of being guessed.
+
+A `previewId` takes precedence over everything else in the request: the confirmed preview is the action. Request fields that repeat the preview are ignored; fields that contradict it (different text, kind, item, actor, target, intent, or an added `choiceId`) get `409 preview_mismatch`. A previewed item action whose item or target is gone at confirmation gets `409 item_unavailable`. The player keeps the draft and previews again in every case.
+
+---
+
+## Operations and Revisions
+
+Every gameplay mutation is an operation (`session_operations` table): `action`, `start`, `end_here`, `continue_world`. The client sends a `requestId` (idempotency key) and `expectedRevision`. At most one operation per session is `accepted`/`running`; a second one gets `409 operation_in_progress`, a stale revision `409 stale_revision`, and replaying a request ID returns the stored operation without re-rolling. Turns commit atomically (`commitTurn`: state, history, choices, revision and operation result in one transaction). Operations still pending at startup are marked `failed` (`interrupted`). Settings, character edits and wrap-up are rejected while an operation is pending and bump the revision. Views reconcile from `GET /session/:id/snapshot` on every SSE (re)connect.
+
 ---
 
 ## Rolling Story Summary

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Session, TurnResult, FreeActionPreview, ImageReadyEvent } from '../../types';
+import type { Choice, Session, TurnResult, FreeActionPreview, ImageReadyEvent } from '../../types';
 import { apiFetch } from '../../lib/api';
 import { useSessionEvents } from '../../hooks/useSessionEvents';
 import { useSessionOperations } from '../useSessionOperations';
@@ -39,7 +39,6 @@ export function useCarSessionRuntime({
 
   const prevEncounterStatusRef = useRef<'none' | 'active' | 'defeated' | 'fled' | 'surrendered' | 'resolved' | string>('none');
   const sessionRef = useRef<Session | null>(null);
-  const historyRef = useRef<TurnResult[]>([]);
   const loadingRef = useRef(true);
   const onTurnErrorRef = useRef(onTurnError);
   onTurnErrorRef.current = onTurnError;
@@ -57,10 +56,6 @@ export function useCarSessionRuntime({
       prevEncounterStatusRef.current = 'none';
     }
   }, [session]);
-
-  useEffect(() => {
-    historyRef.current = history;
-  }, [history]);
 
   // Operation lifecycle shared with the ordinary Session page. Every (re)connection
   // reconciles, so a missed event never strands the view or replays an action.
@@ -218,7 +213,9 @@ export function useCarSessionRuntime({
     },
   });
 
-  const submitAction = useCallback(async (
+  // choiceId is set only by submitChoice: a suggestion is selected explicitly, never by
+  // text that happens to equal its label.
+  const sendAction = useCallback(async (
     action: string,
     statUsed: string = 'none',
     difficulty: string = 'normal',
@@ -226,7 +223,8 @@ export function useCarSessionRuntime({
     ownerCharId: string | null = null,
     itemId: string | null = null,
     targetCharId: string | null = null,
-    actionIntent?: string
+    actionIntent?: string,
+    choiceId?: number,
   ) => {
     if (!session) {
       return;
@@ -238,13 +236,10 @@ export function useCarSessionRuntime({
     const actionType = itemId ? (action === 'use item' ? 'use_item' : 'give_item') : undefined;
     // Confirming the last preview sends its server handle so mechanics are verified.
     const lastPreview = lastPreviewRef.current;
-    const previewId = lastPreview && (lastPreview.interpretedAction === action || lastPreview.originalAction === action)
+    const previewId = choiceId === undefined && lastPreview && (lastPreview.interpretedAction === action || lastPreview.originalAction === action)
       ? lastPreview.previewId
       : undefined;
     lastPreviewRef.current = null;
-    // Suggested choices are submitted by their stable id from the latest turn.
-    const latestChoices = historyRef.current[historyRef.current.length - 1]?.choices ?? [];
-    const choiceId = itemId ? undefined : latestChoices.find(choice => choice.label === action)?.id;
 
     try {
       const result = await ops.submit(`/session/${sessionId}/action`, {
@@ -274,6 +269,21 @@ export function useCarSessionRuntime({
       onTurnError('turn_failed', msg);
     }
   }, [session, sessionId, onTurnError, ops]);
+
+  const submitAction = useCallback((
+    action: string,
+    statUsed?: string,
+    difficulty?: string,
+    difficultyValue?: number | null,
+    ownerCharId?: string | null,
+    itemId?: string | null,
+    targetCharId?: string | null,
+    actionIntent?: string,
+  ) => sendAction(action, statUsed, difficulty, difficultyValue, ownerCharId, itemId, targetCharId, actionIntent), [sendAction]);
+
+  const submitChoice = useCallback((choice: Choice) => (
+    sendAction(choice.label, choice.stat, choice.difficulty, choice.difficultyValue ?? null, null, null, null, undefined, choice.id)
+  ), [sendAction]);
 
   // Session-management commands (spoken in car mode, typed in the terminal).
   const wrapUpAdventure = useCallback(async (): Promise<string | null> => {
@@ -360,6 +370,7 @@ export function useCarSessionRuntime({
     connectionState,
     prevEncounterStatus: prevEncounterStatusRef.current,
     submitAction,
+    submitChoice,
     previewAction,
     wrapUpAdventure,
     endAdventure,

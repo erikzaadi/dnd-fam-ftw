@@ -1,6 +1,15 @@
 # Restore a SQLite database backup from S3.
 # Manual only - never triggered automatically.
 #
+# target=drill (default) restores into a disposable copy on the server, runs the
+# app's migrations against it on a spare port, checks /health and verifies sessions
+# and history are readable, then deletes it. Production is untouched. Run a drill
+# before relying on a backup, and before any production restore.
+#
+# target=production verifies the backup's integrity first, keeps the pre-restore
+# database, stops the service only for the copy, and verifies startup, ownership and
+# readable sessions/history afterwards.
+#
 # Required secrets in the 'production' environment (shared with deploy workflow):
 #   AWS_ACCESS_KEY_ID     - from terraform output app_access_key_id
 #   AWS_SECRET_ACCESS_KEY - from terraform output app_secret_access_key
@@ -22,20 +31,43 @@ on:
         description: "Backup date to restore (YYYY-MM-DD, e.g. 2026-05-04)"
         type: string
         required: true
+      target:
+        description: "drill = disposable copy (safe); production = replace the live database"
+        type: choice
+        options:
+          - drill
+          - production
+        default: drill
 
 env:
   AWS_REGION: eu-west-1
   DB_PATH: /mnt/dnd-fam-ftw-data/app.db
+  APP_DIR: /opt/dnd-fam-ftw
+  APP_ENV_FILE: /opt/dnd-fam-ftw/app.env
   SERVICE_NAME: dnd-fam-ftw
   SSH_USER: ubuntu
+  DRILL_PORT: 3999
 
 jobs:
   restore:
     runs-on: ubuntu-latest
     environment: production
+    # Never overlap with a deploy (both restart the service).
+    concurrency:
+      group: production-mutation
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
+
+      - name: Validate inputs
+        env:
+          BACKUP_DATE: ${{ inputs.backup_date }}
+        run: |
+          if [[ ! "$BACKUP_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            echo "backup_date must be YYYY-MM-DD"
+            exit 1
+          fi
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
@@ -69,23 +101,65 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "${{ secrets.LIGHTSAIL_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Transfer backup to server
+      - name: Transfer and verify backup
         run: |
           scp "/tmp/$BACKUP_FILE" "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}:/tmp/$BACKUP_FILE"
+          # shellcheck disable=SC2029
+          ssh "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}" \
+            "cd $APP_DIR/current && node dist/scripts/backupDatabase.js verify /tmp/$BACKUP_FILE"
 
-      - name: Stop service, restore DB, restart service
+      - name: Restore drill (disposable copy)
+        if: inputs.target == 'drill'
         run: |
           # shellcheck disable=SC2029
           ssh "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}" "
-            set -e
+            set -euo pipefail
+            DRILL_DB=/tmp/restore-drill-\$(date -u +%s).db
+            cp /tmp/$BACKUP_FILE \"\$DRILL_DB\"
+            cd $APP_DIR/current
+            # Start the app on a spare port against the copy: proves migrations and startup.
+            SQLITE_DB_PATH=\"\$DRILL_DB\" PORT=$DRILL_PORT node --env-file=$APP_ENV_FILE dist/index.js > /tmp/restore-drill.log 2>&1 &
+            APP_PID=\$!
+            trap 'kill \$APP_PID 2>/dev/null || true; rm -f \"\$DRILL_DB\" /tmp/$BACKUP_FILE' EXIT
+            for i in \$(seq 1 20); do
+              if curl -sf --max-time 3 http://localhost:$DRILL_PORT/health > /dev/null; then
+                echo 'Drill app started'
+                break
+              fi
+              sleep 1
+            done
+            curl -sf --max-time 3 http://localhost:$DRILL_PORT/health || { cat /tmp/restore-drill.log; exit 1; }
+            kill \$APP_PID
+            wait \$APP_PID 2>/dev/null || true
+            node dist/scripts/backupDatabase.js verify \"\$DRILL_DB\"
+            echo 'Restore drill passed - production was not modified.'
+          "
+
+      - name: Restore production
+        if: inputs.target == 'production'
+        run: |
+          # shellcheck disable=SC2029
+          ssh "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}" "
+            set -euo pipefail
+            PRE_RESTORE=${DB_PATH}.pre-restore-\$(date -u +%Y%m%dT%H%M%SZ)
             sudo systemctl stop $SERVICE_NAME
-            sudo cp $DB_PATH ${DB_PATH}.pre-restore-$(date -u +\"%Y%m%dT%H%M%SZ\")
+            sudo cp $DB_PATH \"\$PRE_RESTORE\"
+            echo \"Kept pre-restore database at \$PRE_RESTORE\"
             sudo cp /tmp/$BACKUP_FILE $DB_PATH
+            sudo rm -f ${DB_PATH}-wal ${DB_PATH}-shm
             sudo chown ubuntu:ubuntu $DB_PATH
             rm /tmp/$BACKUP_FILE
             sudo systemctl start $SERVICE_NAME
-            sleep 3
+            for i in \$(seq 1 20); do
+              if curl -sf --max-time 3 http://localhost:3001/health > /dev/null; then
+                break
+              fi
+              sleep 1
+            done
             systemctl is-active $SERVICE_NAME
+            curl -sf --max-time 3 http://localhost:3001/health
+            test \"\$(stat -c %U $DB_PATH)\" = ubuntu
+            cd $APP_DIR/current && node dist/scripts/backupDatabase.js verify $DB_PATH
           "
 
       - name: Close SSH for this runner
