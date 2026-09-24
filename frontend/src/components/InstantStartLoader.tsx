@@ -88,7 +88,7 @@ export const InstantStartLoader = () => {
             <p className="text-amber-400 font-black uppercase italic tracking-tighter text-2xl md:text-3xl mb-3">
               Fate is deciding...
             </p>
-            <p className="text-slate-300 text-base font-medium transition-all duration-500 min-h-[1.5rem]">
+            <p data-testid="instant-start-pun" className="text-slate-300 text-base font-medium transition-all duration-500 min-h-[1.5rem]">
               {PUNS[punIndex]}
             </p>
           </div>

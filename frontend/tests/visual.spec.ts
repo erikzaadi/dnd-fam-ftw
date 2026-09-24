@@ -169,13 +169,11 @@ test('instant-start-loader', async ({ page }) => {
   // Wait for the loader to mount before freezing the pun text
   await expect(page.getByTestId('instant-start-loader')).toBeVisible({ timeout: 5_000 });
 
-  // Freeze the pun cycle at a stable value for the snapshot
-  await page.evaluate(() => {
-    const el = document.querySelector('[data-testid="instant-start-pun"]') ??
-      Array.from(document.querySelectorAll('p')).find(p => p.textContent?.includes('...'));
-    if (el) {
-      el.textContent = 'Consulting the ancient dice...';
-    }
+  // Freeze the pun cycle at a stable value for the snapshot (initial pun is random)
+  const pun = page.getByTestId('instant-start-pun');
+  await expect(pun).toBeVisible();
+  await pun.evaluate(el => {
+    el.textContent = 'Consulting the ancient dice...';
   });
 
   await screenshotViewports(page, 'instant-start-loader');
