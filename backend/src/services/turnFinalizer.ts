@@ -45,6 +45,8 @@ export type FinalizeTurnParams = {
   // Prefix for step logs (e.g. 'item-').
   stepLabel: string;
   diagnostics?: TurnDiagnostics;
+  // Extra writes committed in the same transaction as the turn (e.g. a solved riddle).
+  additionalWrites?: (revision: number, turnId: number) => void;
 };
 
 const logStep = (sessionId: string, step: string, start: number, details = ''): number => {
@@ -70,6 +72,7 @@ export const finalizeTurn = ({
   llmMs,
   stepLabel,
   diagnostics,
+  additionalWrites,
 }: FinalizeTurnParams): TurnActionResult => {
   let stepStart = Date.now();
   turnResult.lastAction = actionAttempt;
@@ -120,6 +123,7 @@ export const finalizeTurn = ({
     operationId,
     completeOperation: !pendingRecovery && !pendingConclusion,
     continuingPhase: pendingRecovery ? 'recovering' : 'concluding',
+    additionalWrites,
   });
   turnResult.id = turnId;
   newState.revision = revision;

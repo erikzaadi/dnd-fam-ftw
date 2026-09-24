@@ -238,6 +238,17 @@ On a successful trade action:
 - Backend removes the named item from the acting character's inventory, then grants the new item.
 - The AI must not suggest acquiring items the party already carries, including the item being granted in the same turn.
 
+### Riddles
+
+Riddle answers resolve against authoritative server state (`session_riddles`, `riddleService.ts`), not against the choices on screen.
+
+- **Recording.** When the latest turn offers riddle answer choices, the riddle is recorded with the answer from the choice flagged correct. Choices without that flag never establish an answer; the riddle is then recorded as "answer unknown".
+- **Privacy.** Answers and correctness never leave the server. Clients see `kind: 'riddle_answer'` on answer choices, meaning "no dice roll", nothing more.
+- **Judging.** Only the answer the player asserts counts, in their own words (for a confirmed preview, the original text, not the model's rewrite). "not a jailer" rules an answer out; it does not answer. Matching is whole-word after normalization ("The piano!", "a grand piano" match "a piano").
+- **Outcomes.** A correct or definite wrong answer resolves without a roll. A correct answer marks the riddle solved in the same commit as the turn; a wrong one leaves it open.
+- **No roll fallback.** While a riddle is open, an answer the server cannot judge (ambiguous, two answers at once, a known answer inside a longer action, an unknown answer) is sent back as a retryable 409 (`riddle_unclear` with a question, or `riddle_answer_unknown`). No turn is spent and the draft is kept. Clearly unrelated actions always proceed normally.
+- **Expiry.** An unanswered riddle expires 4 turns after it was posed, or when a new riddle replaces it. After that, answer-like text is an ordinary action.
+
 ### Rest and recovery
 
 Rest is represented as normal `perform` actions or special party-wipe recovery events, not as a separate action type.

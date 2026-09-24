@@ -439,4 +439,26 @@ export const migrate = (db: DB): void => {
 
   // Per-session turn lookups (history loads, and last-played ordering on the session list).
   db.prepare("CREATE INDEX IF NOT EXISTS idx_turn_history_session_created ON turn_history(sessionId, createdAt)").run();
+
+  // Authoritative riddle state, independent of suggested choices. Answers are
+  // server-only: never part of public session, history, or event payloads.
+  // status: active | solved | expired | abandoned. One row per posing turn.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS session_riddles (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      source_turn_id INTEGER NOT NULL,
+      source_turn_number INTEGER NOT NULL,
+      prompt TEXT,
+      canonical_answer TEXT,
+      aliases TEXT NOT NULL DEFAULT '[]',
+      wrong_answers TEXT NOT NULL DEFAULT '[]',
+      answer_known INTEGER NOT NULL DEFAULT 1,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_session_riddles_source ON session_riddles(session_id, source_turn_id);
+    CREATE INDEX IF NOT EXISTS idx_session_riddles_status ON session_riddles(session_id, status);
+  `);
 };

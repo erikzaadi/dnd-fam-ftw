@@ -7,7 +7,8 @@ import type { NarrationStreamCallbacks } from '../providers/ai/narration/Narrati
 import { GameEngine } from './gameEngine.js';
 import { StateService } from './stateService.js';
 import { compileDmPrepPremise } from './dmPrepCompilationService.js';
-import { resolveRiddleAnswer } from './riddleService.js';
+import { assessRiddleAction, ensureActiveRiddle, toRiddleAttempt } from './riddleService.js';
+import { riddleRepository } from '../repositories/riddleRepository.js';
 import {
   CHARACTER_EDGE_BONUS,
   CHOICE_ITEM_BONUS,
@@ -25,7 +26,7 @@ import { repairEncounterNameIfNeeded } from './encounterNameRepairService.js';
 import { checkTurnResultConsistency } from './turnResultConsistencyService.js';
 import { buildRollNarration } from './rollNarrationService.js';
 import { buildAdventureDirective } from './adventureLifecycleService.js';
-import { isRejection, normalizeTurnAction, rejectTurnAction, validateTurnAction, type TurnAction, type TurnActionRequest } from './turnActionInput.js';
+import { isRejection, normalizeTurnAction, rejectTurnAction, toRiddleActionInput, validateTurnAction, type TurnAction, type TurnActionRequest } from './turnActionInput.js';
 import { finalizeTurn, type TurnActionResult } from './turnFinalizer.js';
 import { alignTurnWithResolvedEncounter, stripChoicesTargetingDefeatedEnemies } from './turnRepairs.js';
 
@@ -209,7 +210,13 @@ const resolveRolledTurn = async (
   };
   const bonusPreview = submittedChoice ? submittedChoicePreview : toFreeActionBonusPreview(inferredFreeActionBonuses);
   broadcastUpdate(sessionId, 'dm_narrating', { action: actionText, statUsed, difficulty, difficultyValue, character, operationId, ...bonusPreview });
-  const actionAttempt: ActionAttempt = resolveRiddleAnswer(actionText, latestChoices) ?? GameEngine.resolveAction(
+  // validateTurnAction already rejected unclear answers; here an answer resolves without a roll.
+  const riddleAssessment = assessRiddleAction(
+    toRiddleActionInput(action),
+    ensureActiveRiddle({ id: sessionId, turn: session.turn, lastChoices: latestChoices }),
+  );
+  const solvedRiddleId = riddleAssessment.type === 'answer' && riddleAssessment.correct ? riddleAssessment.riddleId : undefined;
+  const actionAttempt: ActionAttempt = riddleAssessment.type === 'answer' ? toRiddleAttempt(actionText, riddleAssessment.correct) : GameEngine.resolveAction(
     character,
     actionText,
     statUsed,
@@ -330,6 +337,10 @@ const resolveRolledTurn = async (
     llmMs,
     stepLabel: '',
     diagnostics,
+    // A correct answer closes the riddle atomically with the turn that answered it.
+    ...(solvedRiddleId && { additionalWrites: () => {
+      riddleRepository.setStatus(solvedRiddleId, 'solved'); 
+    } }),
   });
 };
 

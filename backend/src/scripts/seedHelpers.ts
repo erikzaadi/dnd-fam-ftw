@@ -11,6 +11,7 @@ export interface SessionSeed {
 export function deleteSession(db: DB, id: string): void {
   db.prepare('DELETE FROM turn_choices WHERE turnId IN (SELECT id FROM turn_history WHERE sessionId = ?)').run(id);
   db.prepare('DELETE FROM turn_history WHERE sessionId = ?').run(id);
+  db.prepare('DELETE FROM session_riddles WHERE session_id = ?').run(id);
   db.prepare('DELETE FROM inventory WHERE characterId IN (SELECT id FROM characters WHERE sessionId = ?)').run(id);
   db.prepare('DELETE FROM characters WHERE sessionId = ?').run(id);
   db.prepare('DELETE FROM sessions WHERE id = ?').run(id);

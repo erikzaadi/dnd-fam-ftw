@@ -11,6 +11,7 @@ import { registerSessionIdParam } from '../middleware/sessionParam.js';
 import { devLog } from '../lib/devLog.js';
 import { storeActionPreview } from '../services/actionPreviewStore.js';
 import { StateService } from '../services/stateService.js';
+import { assessRiddleAction, ensureActiveRiddle, RIDDLE_ANSWER_UNKNOWN_MESSAGE } from '../services/riddleService.js';
 
 const suggestStatBodySchema = z.object({
   action: z.string().min(1),
@@ -54,6 +55,19 @@ export const createStatSuggestionRouter = () => {
     const sessionId = req.params.id as string;
     let stepStart = Date.now();
     const session = req.session!;
+    // Riddle answers are judged on the player's own words before any model call. An
+    // answer the server cannot judge comes back as a retryable error with a question.
+    const riddle = body.action && !body.intent
+      ? assessRiddleAction({ kind: 'free_text', text: body.action }, ensureActiveRiddle(session))
+      : { type: 'not_answer' as const };
+    if (riddle.type === 'unclear') {
+      res.status(409).json({ error: 'riddle_unclear', message: riddle.question });
+      return;
+    }
+    if (riddle.type === 'answer_unknown') {
+      res.status(409).json({ error: 'riddle_answer_unknown', message: RIDDLE_ANSWER_UNKNOWN_MESSAGE });
+      return;
+    }
     devLog.log(`[PreviewAction] start session=${sessionId} hasAction=${body.action ? 'true' : 'false'} intent=${body.intent ?? 'custom'} encounter=${session.encounterState?.status ?? 'none'}`);
     const encounterContext = session.encounterState?.status === 'active'
       ? buildEncounterContextFromEnemies(session.encounterState.enemies)
@@ -80,7 +94,10 @@ export const createStatSuggestionRouter = () => {
       stat: suggestion.stat,
       difficulty,
       ...(difficultyValue !== undefined && { difficultyValue }),
-      warnings: buildFreeActionWarnings(interpretedAction, session),
+      warnings: [
+        ...(riddle.type === 'answer' ? ['Riddle answer: no dice roll, the riddle decides.'] : []),
+        ...buildFreeActionWarnings(interpretedAction, session),
+      ],
       ...(suggestion.narration !== undefined && { narration: suggestion.narration }),
       ...(suggestion.helperBonus !== undefined && { helperBonus: suggestion.helperBonus }),
       ...(suggestion.helperCharacterName !== undefined && { helperCharacterName: suggestion.helperCharacterName }),

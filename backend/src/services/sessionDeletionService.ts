@@ -59,5 +59,6 @@ export const deleteSessionWithAssets = async (id: string): Promise<void> => {
 
   db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
   db.prepare('DELETE FROM turn_history WHERE sessionId = ?').run(id);
+  db.prepare('DELETE FROM session_riddles WHERE session_id = ?').run(id);
   operationRepository.deleteForSession(id);
 };

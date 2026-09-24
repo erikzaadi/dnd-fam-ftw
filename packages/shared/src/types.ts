@@ -415,7 +415,7 @@ export interface SessionOperation {
 }
 
 // 409 responses from mutation endpoints. All are retryable after the client refreshes.
-export type OperationConflictCode = 'operation_in_progress' | 'stale_revision' | 'request_id_conflict' | 'adventure_completed' | 'stale_preview' | 'preview_mismatch' | 'item_unavailable';
+export type OperationConflictCode = 'operation_in_progress' | 'stale_revision' | 'request_id_conflict' | 'adventure_completed' | 'stale_preview' | 'preview_mismatch' | 'item_unavailable' | 'riddle_unclear' | 'riddle_answer_unknown';
 
 export interface OperationAcceptedResponse {
   queued: boolean;
