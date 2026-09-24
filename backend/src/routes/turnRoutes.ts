@@ -12,7 +12,7 @@ import { acceptSessionOperation, respondIfKnownRequest, respondToAcceptance, run
 import { resolvePartyRecovery } from '../services/partyRecoveryService.js';
 import { concludeAdventure } from '../services/adventureConclusionService.js';
 import { operationRepository, toPublicOperation } from '../repositories/operationRepository.js';
-import { toPublicSession } from '../services/sessionProjection.js';
+import { toPublicSession, toPublicTurn } from '../services/sessionProjection.js';
 import { DIFFICULTY_VALUES, STAT_VALUES, type SessionSnapshot } from '../types.js';
 
 const MAX_ACTION_LENGTH = 600;
@@ -56,7 +56,7 @@ const readCoherentSnapshot = async (sessionId: string): Promise<SessionSnapshot 
       return null;
     }
     if (StateService.getRevision(sessionId) === before) {
-      return { revision: before, session: toPublicSession(session), history, activeOperation, latestOperation };
+      return { revision: before, session: toPublicSession(session), history: history.map(toPublicTurn), activeOperation, latestOperation };
     }
   }
   return null;
@@ -204,7 +204,7 @@ export const createTurnRouter = () => {
 
   router.get('/session/:id/history', asyncHandler(async (req, res) => {
     const history = await StateService.getTurnHistory(req.params.id as string);
-    res.json(history);
+    res.json(history.map(toPublicTurn));
   }));
 
   return router;

@@ -362,6 +362,36 @@ describe('action route lifecycle (R1/R3)', () => {
     expect(operationRepository.getLatest('route-invalid')).toBeNull();
   });
 
+  it('never sends riddle correctness to clients, only the public riddle marker', async () => {
+    const riddleChoices = [
+      { label: 'Answer: a piano', difficulty: 'normal' as const, stat: 'magic' as const, difficultyValue: 12, riddleAnswer: 'a piano', riddleCorrect: true },
+      { label: 'Answer: a jailer', difficulty: 'normal' as const, stat: 'magic' as const, difficultyValue: 12, riddleAnswer: 'a jailer', riddleCorrect: false },
+      { label: 'Search the door frame', difficulty: 'easy' as const, stat: 'mischief' as const, difficultyValue: 8 },
+    ];
+    await insertSessionState(makeTestSession({ id: 'route-riddle-private' }));
+    await StateService.addTurnResult('route-riddle-private', { ...makeTurn('The door sings a riddle.'), choices: riddleChoices }, null);
+    resetMockNarrationProvider({ ...FIXED_NARRATION_OUTPUT, choices: riddleChoices } as typeof FIXED_NARRATION_OUTPUT);
+
+    const events = await waitForConnected('route-riddle-private', async () => {
+      await postAction('route-riddle-private', { action: 'Hum at the door', statUsed: 'magic', requestId: 'riddle-private-1' });
+    }, event => event.type === 'turn_complete');
+    const complete = events.find(e => e.type === 'turn_complete')!;
+    const bodies = [
+      JSON.stringify(complete),
+      await (await fetch(`${baseUrl}/session/route-riddle-private/history`)).text(),
+      await (await fetch(`${baseUrl}/session/route-riddle-private/snapshot`)).text(),
+      await (await fetch(`${baseUrl}/session/route-riddle-private`)).text(),
+    ];
+    for (const body of bodies) {
+      expect(body).not.toContain('riddleAnswer');
+      expect(body).not.toContain('riddleCorrect');
+      expect(body).toContain('"kind":"riddle_answer"');
+    }
+    // The server still resolves riddles from its own copy.
+    const stored = await StateService.getTurnHistory('route-riddle-private');
+    expect(stored[0].choices[0]).toMatchObject({ riddleAnswer: 'a piano', riddleCorrect: true });
+  });
+
   it('rejects a confirmed preview once the story has moved on', async () => {
     await insertSessionState(makeTestSession({ id: 'route-preview' }));
     const { storeActionPreview } = await import('../../services/actionPreviewStore.js');

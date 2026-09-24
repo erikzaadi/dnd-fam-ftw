@@ -1,8 +1,8 @@
 import { EventEmitter } from 'events';
 import type { Request, Response } from 'express';
 import { devLog } from '../lib/devLog.js';
-import { toPublicSession } from '../services/sessionProjection.js';
-import type { Session } from '../types.js';
+import { toPublicSession, toPublicTurn } from '../services/sessionProjection.js';
+import type { Session, TurnResult } from '../types.js';
 
 const eventEmitter = new EventEmitter();
 const HEARTBEAT_INTERVAL_MS = 25000;
@@ -61,10 +61,14 @@ export const broadcastUpdate = (sessionId: string, type: string, payload: Record
   if (type !== 'narration_chunk') {
     devLog.log(`[Broadcast] ${type} session=${sessionId}`);
   }
-  // Every session object sent to viewers goes through the public projection.
-  const safePayload = payload.session && typeof payload.session === 'object'
-    ? { ...payload, session: toPublicSession(payload.session as Session) }
-    : payload;
+  // Every session and turn object sent to viewers goes through the public projection.
+  const safePayload: Record<string, unknown> = { ...payload };
+  if (payload.session && typeof payload.session === 'object') {
+    safePayload.session = toPublicSession(payload.session as Session);
+  }
+  if (payload.turnResult && typeof payload.turnResult === 'object') {
+    safePayload.turnResult = toPublicTurn(payload.turnResult as TurnResult);
+  }
   eventEmitter.emit('update', { sessionId, type, ...safePayload });
 };
 

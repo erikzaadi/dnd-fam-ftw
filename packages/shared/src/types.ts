@@ -211,6 +211,11 @@ export interface Choice {
   stat: Stat;
   difficultyValue?: number;
   narration?: string;
+  // Public marker: this choice answers a riddle, so it resolves without a roll.
+  // Whether it is the right answer is never sent to clients.
+  kind?: 'riddle_answer';
+  // Server-only. Stripped from every payload by toPublicChoice (backend
+  // sessionProjection.ts); moves out of the shared type with authoritative riddle state.
   riddleAnswer?: string;
   riddleCorrect?: boolean;
   flavor?: ChoiceFlavor;

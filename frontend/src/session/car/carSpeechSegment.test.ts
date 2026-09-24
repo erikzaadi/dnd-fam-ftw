@@ -161,7 +161,7 @@ describe('carSpeechSegment', () => {
         ],
       } as unknown as Session;
       const choices = [
-        { label: 'Answer: a river', difficulty: 'normal' as const, stat: 'mischief' as const, riddleAnswer: 'a river' },
+        { label: 'Answer: a river', difficulty: 'normal' as const, stat: 'mischief' as const, kind: 'riddle_answer' as const },
       ];
       expect(buildChoicesSegment(choices, session)).toBe('Option 1: Answer: a river. A riddle answer, no roll needed.');
     });

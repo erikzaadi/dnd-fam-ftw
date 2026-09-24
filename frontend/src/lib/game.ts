@@ -59,6 +59,6 @@ export function computeChoiceOdds(choice: Choice, activeCharacter: Character | n
     target,
     prob: calcSuccessProb(statTotal, target),
     riskLabel: RISK_LABELS[choice.difficulty] ?? RISK_LABELS.normal,
-    isRiddleAnswer: !!choice.riddleAnswer,
+    isRiddleAnswer: choice.kind === 'riddle_answer',
   };
 }

@@ -285,8 +285,8 @@ describe('ActionDock speech input', () => {
       turn: {
         ...TURN,
         choices: [
-          { label: 'Answer: a river', stat: 'mischief', difficulty: 'normal', difficultyValue: 12, riddleAnswer: 'a river', riddleCorrect: true },
-          { label: 'Answer: a shadow', stat: 'mischief', difficulty: 'normal', difficultyValue: 12, riddleAnswer: 'a shadow', riddleCorrect: false },
+          { label: 'Answer: a river', stat: 'mischief', difficulty: 'normal', difficultyValue: 12, kind: 'riddle_answer' },
+          { label: 'Answer: a shadow', stat: 'mischief', difficulty: 'normal', difficultyValue: 12, kind: 'riddle_answer' },
           { label: 'Ask for a hint', stat: 'mischief', difficulty: 'easy', difficultyValue: 8 },
         ],
       },

@@ -82,6 +82,6 @@ describe('computeChoiceOdds', () => {
   });
 
   it('flags riddle answers', () => {
-    expect(computeChoiceOdds(makeChoice({ riddleAnswer: 'a river' }), makeChar(), []).isRiddleAnswer).toBe(true);
+    expect(computeChoiceOdds(makeChoice({ kind: 'riddle_answer' }), makeChar(), []).isRiddleAnswer).toBe(true);
   });
 });
