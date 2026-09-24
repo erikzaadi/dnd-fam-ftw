@@ -6,11 +6,12 @@ dotenv.config({ path: path.join(import.meta.dirname, '../../.env') });
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import { getConfig, isAuthEnabled } from './config/env.js';
+import { getConfig, getTurnStrategy, isAuthEnabled } from './config/env.js';
 import { authMiddleware } from './middleware/auth.js';
 import { getImageStorageProvider } from './providers/storage/storageProviderFactory.js';
 import { getOpenAIMaxRetries, getPreviewReasoningEffort } from './providers/ai/openAiClient.js';
 import { StateService } from './services/stateService.js';
+import { reconcileInterruptedOperations } from './services/sessionOperationService.js';
 import { createAuthRouter } from './routes/authRoutes.js';
 import { createEventsRouter } from './routes/eventsRoutes.js';
 import { createGameRouter } from './routes/gameRoutes.js';
@@ -73,6 +74,7 @@ if (!hasCloudAI && process.env.NODE_ENV !== 'test' && process.env.TEST_AI_MOCK !
 try {
   getPreviewReasoningEffort();
   getOpenAIMaxRetries();
+  console.log(`[Config] Turn strategy: ${getTurnStrategy()}`);
 } catch (err) {
   console.error(`FATAL: ${err instanceof Error ? err.message : String(err)}`);
   process.exit(1);
@@ -80,6 +82,9 @@ try {
 
 // Bootstrap admin user if ADMIN_EMAIL is set and auth is enabled
 StateService.initialize();
+// Operations still pending from a previous process never committed; fail them
+// explicitly so clients stop waiting and can retry as a new operation.
+reconcileInterruptedOperations();
 if (isAuthEnabled()) {
   console.log(`[Auth] Enabled - Google OAuth active, callback: ${config.GOOGLE_CALLBACK_URL}`);
   if (config.ADMIN_EMAIL) {

@@ -184,6 +184,22 @@ describe('handleEncounterStart', () => {
 });
 
 describe('inferOrganicEncounterStart', () => {
+  it('never turns the chapter objective item into an enemy', () => {
+    // Regression: "the knotted charm bursts into vibrant light" started a fight against the quest item.
+    const narration = 'Zara and Finn weave their talents flawlessly - the knotted charm bursts into vibrant light in Zara\'s grasp. Shadows twist as the battle erupts.';
+    const input = { narration, currentTensionLevel: 'high' as const, actionAttempt: 'Coordinate with your ally to claim Shubb\'s charm' };
+    expect(inferOrganicEncounterStart(input, undefined)?.name).toBe('Knotted Charm');
+    expect(inferOrganicEncounterStart({
+      ...input,
+      protectedNames: ['Stop the sheep-balloon stampede and retrieve Shubb\u2019s knotted charm, which unlocks the magical tower.'],
+    }, undefined)).toBeNull();
+  });
+
+  it('never turns a carried item into an enemy', () => {
+    const input = { narration: 'The moon lantern bursts into silver flame as the cavern shakes.', currentTensionLevel: 'high' as const };
+    expect(inferOrganicEncounterStart({ ...input, protectedNames: ['Moon Lantern'] }, undefined)).toBeNull();
+  });
+
   it('creates a small organic encounter from high-danger combat narration', () => {
     const proposal = inferOrganicEncounterStart({
       narration: 'A bandit springs from behind the cracked pillar and attacks.',

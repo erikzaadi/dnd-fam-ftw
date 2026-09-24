@@ -1,7 +1,11 @@
-import { Character, SessionState, ActionAttempt, InventoryItem, Choice, type CharacterBuff, type Stat, type Difficulty, type TensionLevel } from '../types.js';
+import { Character, SessionState, ActionAttempt, InventoryItem, Choice, type CharacterBuff, type Stat, type Difficulty, type TensionLevel, type TurnResult } from '../types.js';
 import { createId } from '../lib/ids.js';
 import { handleEncounterStart, applyEncounterUpdate, computeImpactDamage, computeEnemyDamage, inferOrganicEncounterStart, inferSeededEncounterStart, resolveEncounterSeed } from './encounterService.js';
 import type { EncounterStartProposal, EncounterUpdateProposal } from '../providers/ai/narration/narrationSchemas.js';
+
+// What a turn proposes before engine validation: narration/choices plus suggested
+// state changes. Structurally a TurnResult; scene changes are optional extras.
+export type TurnProposal = Partial<TurnResult> & { newScene?: string; newSceneId?: string };
 
 export class GameEngine {
   private static DIFFICULTIES = {
@@ -513,6 +517,13 @@ export class GameEngine {
     };
   }
 
+  // Typed entry point for applying a turn's AI proposal. updateState still reads the
+  // proposal defensively (every field is validated with typeof/Array.isArray), so the
+  // one unchecked conversion lives here instead of at every caller.
+  public static applyTurnProposal(state: SessionState, actionAttempt: ActionAttempt, proposal: TurnProposal): SessionState {
+    return this.updateState(state, actionAttempt, proposal as unknown as Record<string, unknown>);
+  }
+
   public static updateState(state: SessionState, actionAttempt: ActionAttempt, aiSuggestedChanges?: Record<string, unknown>): SessionState {
     const newState: SessionState = JSON.parse(JSON.stringify(state));
     newState.turn += 1;
@@ -788,6 +799,10 @@ export class GameEngine {
           currentTensionLevel: typeof aiSuggestedChanges?.currentTensionLevel === 'string' ? aiSuggestedChanges.currentTensionLevel as TensionLevel : null,
           suggestedDamage: typeof aiSuggestedChanges?.suggestedDamage === 'number' ? aiSuggestedChanges.suggestedDamage : null,
           npcs: newState.npcs,
+          protectedNames: [
+            ...(newState.adventure?.objective ? [newState.adventure.objective] : []),
+            ...newState.party.flatMap(c => c.inventory.map(item => item.name)),
+          ],
         };
         const inferredEncounterStart = inferSeededEncounterStart(
           inferenceInput,

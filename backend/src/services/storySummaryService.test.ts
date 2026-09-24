@@ -185,7 +185,7 @@ describe('StorySummaryService.maybeUpdate candidate derivation', () => {
     vi.restoreAllMocks();
     getSessionSpy = vi.spyOn(StateService, 'getSession');
     getTurnHistorySpy = vi.spyOn(StateService, 'getTurnHistory');
-    updateSummarySpy = vi.spyOn(StateService, 'updateStorySummary').mockResolvedValue(undefined);
+    updateSummarySpy = vi.spyOn(StateService, 'updateStorySummary').mockResolvedValue(true);
     callSummarizeSpy = vi.spyOn(
       StorySummaryService as unknown as {
         callSummarize: (prompt: string, maxTokens?: number, timeoutMs?: number, label?: string) => Promise<string>;
@@ -242,7 +242,7 @@ describe('StorySummaryService.maybeUpdate candidate derivation', () => {
     expect(promptPassed).not.toContain('Dead Skeleton');
 
     expect(promptPassed).toContain('The party\'s current location is: "The Frozen Caves"');
-    expect(updateSummarySpy).toHaveBeenCalledWith('sess-123', 'NEW_SUMMARY');
+    expect(updateSummarySpy).toHaveBeenCalledWith('sess-123', 'NEW_SUMMARY', 5);
   });
 
   it('returns empty frozen villains if encounter is active', async () => {

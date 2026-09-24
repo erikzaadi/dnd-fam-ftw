@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Session, TurnResult, Character, ImageReadyEvent, ActionAttempt, HpChange } from '../types';
 import { apiUrl } from '../lib/api';
-import { audioManager } from '../audio/audioManager';
 import { devLog } from '../lib/devLog';
 
 const SSE_STALE_TIMEOUT_MS = 60000;
@@ -24,21 +23,36 @@ interface NarratingPayload {
   flavor?: string;
 }
 
+// Operation metadata attached by the server to lifecycle events.
+export interface OperationEventMeta {
+  operationId?: string;
+  revision?: number;
+  // The committed turn wiped the party; a rescue turn follows in the same operation.
+  recovering?: boolean;
+  // The committed turn resolved the chapter; the ending follows in the same operation.
+  concluding?: boolean;
+}
+
 interface SessionEventHandlers {
   sessionId: string;
   onConnected?: () => void;
+  onSessionUpdated?: (revision: number, changes: Partial<Session>) => void;
   onNarrating: (payload: NarratingPayload) => void;
   onNarrationChunk?: (text: string, field: 'rollNarration' | 'narration') => void;
   onRollNarrationDone?: (rollNarration: string | null, actionResult?: ActionAttempt['actionResult'], hpChanges?: HpChange[]) => void;
   onNarrationStreamingDone?: (narration: string, rollNarration: string | null) => void;
   onNarrationChunkAbort?: () => void;
-  onTurnComplete: (session: Session, turnResult: TurnResult | null) => void;
-  onTurnError: (error: string, message: string) => void;
+  onTurnComplete: (session: Session, turnResult: TurnResult | null, meta?: OperationEventMeta) => void;
+  onTurnError: (error: string, message: string, meta?: OperationEventMeta) => void;
   onImageReady: (event: ImageReadyEvent) => void;
-  onIntervention: (narration: string, session: Session | null, turnResult: TurnResult | null) => void;
-  onSanctuaryRecovery: (narration: string, session: Session | null, turnResult: TurnResult | null) => void;
+  onIntervention: (narration: string, session: Session | null, turnResult: TurnResult | null, meta?: OperationEventMeta) => void;
+  onSanctuaryRecovery: (narration: string, session: Session | null, turnResult: TurnResult | null, meta?: OperationEventMeta) => void;
   onPartyUpdate: (session: Session | null) => void;
-  onGameOver: (session: Session) => void;
+  onGameOver: (session: Session, meta?: OperationEventMeta) => void;
+  // The adventure's ending was committed (a conclusion turn with no choices).
+  onAdventureConcluded?: (session: Session, turnResult: TurnResult | null, meta?: OperationEventMeta) => void;
+  // An ending is being written (end-here request, or a resolved finale).
+  onAdventureConcluding?: () => void;
 }
 
 export type ConnectionState = 'connected' | 'reconnecting' | 'disconnected';
@@ -46,6 +60,7 @@ export type ConnectionState = 'connected' | 'reconnecting' | 'disconnected';
 export const useSessionEvents = ({
   sessionId,
   onConnected,
+  onSessionUpdated,
   onNarrating,
   onNarrationChunk,
   onRollNarrationDone,
@@ -58,6 +73,8 @@ export const useSessionEvents = ({
   onSanctuaryRecovery,
   onPartyUpdate,
   onGameOver,
+  onAdventureConcluded,
+  onAdventureConcluding,
 }: SessionEventHandlers) => {
   const [connectionState, setConnectionState] = useState<ConnectionState>('connected');
   const setConnectionStateRef = useRef(setConnectionState);
@@ -90,6 +107,12 @@ export const useSessionEvents = ({
         if (data.type !== 'narration_chunk') {
           devLog.log(`[SSE] ${data.type ?? 'message'}`, data);
         }
+        const meta: OperationEventMeta = {
+          ...(data.operationId && { operationId: data.operationId }),
+          ...(typeof data.revision === 'number' && { revision: data.revision }),
+          ...(data.recovering && { recovering: true }),
+          ...(data.concluding && { concluding: true }),
+        };
         if (data.type === 'connected') {
           onConnected?.();
         } else if (data.type === 'narration_chunk') {
@@ -117,14 +140,13 @@ export const useSessionEvents = ({
 	    flavor: data.flavor,
 	  });
         } else if (data.type === 'turn_complete') {
-          if (data.session?.encounterState?.status === 'active') {
-            audioManager.setTension('high');
-          } else if (data.turnResult?.currentTensionLevel) {
-            audioManager.setTension(data.turnResult.currentTensionLevel);
-          }
-          onTurnComplete(data.session, data.turnResult ?? null);
+          onTurnComplete(data.session, data.turnResult ?? null, meta);
         } else if (data.type === 'turn_error') {
-          onTurnError(data.error ?? 'turn_failed', data.message ?? 'Something went wrong. Please try again.');
+          onTurnError(data.error ?? 'turn_failed', data.message ?? 'Something went wrong. Please try again.', meta);
+        } else if (data.type === 'session_updated') {
+          if (typeof data.revision === 'number') {
+            onSessionUpdated?.(data.revision, data.changes ?? {});
+          }
         } else if (data.type === 'image_ready') {
           onImageReady(data as ImageReadyEvent);
         } else if (data.type === 'intervention') {
@@ -132,20 +154,23 @@ export const useSessionEvents = ({
             data.turnResult?.narration ?? 'A mysterious force saved the party!',
             data.session ?? null,
             data.turnResult ?? null,
+            meta,
           );
         } else if (data.type === 'sanctuary_recovery') {
           onSanctuaryRecovery(
             data.turnResult?.narration ?? 'The party found sanctuary...',
             data.session ?? null,
             data.turnResult ?? null,
+            meta,
           );
         } else if (data.type === 'party_update') {
-          if (data.session?.encounterState?.status === 'active') {
-            audioManager.setTension('high');
-          }
           onPartyUpdate(data.session ?? null);
         } else if (data.type === 'game_over') {
-          onGameOver(data.session);
+          onGameOver(data.session, meta);
+        } else if (data.type === 'adventure_concluding') {
+          onAdventureConcluding?.();
+        } else if (data.type === 'adventure_concluded') {
+          onAdventureConcluded?.(data.session, data.turnResult ?? null, meta);
         }
       };
 

@@ -3,6 +3,7 @@ import path from 'path';
 import { getConfig } from '../config/env.js';
 import { getDb } from '../persistence/database.js';
 import { getImageStorageProvider } from '../providers/storage/storageProviderFactory.js';
+import { operationRepository } from '../repositories/operationRepository.js';
 
 export const deleteSessionWithAssets = async (id: string): Promise<void> => {
   const db = getDb();
@@ -58,4 +59,5 @@ export const deleteSessionWithAssets = async (id: string): Promise<void> => {
 
   db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
   db.prepare('DELETE FROM turn_history WHERE sessionId = ?').run(id);
+  operationRepository.deleteForSession(id);
 };

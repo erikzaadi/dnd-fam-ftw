@@ -88,6 +88,8 @@ export const TerminalMode: React.FC = () => {
     actionPreview,
     clearPreview,
     previewThinking,
+    wrapUpAdventure,
+    endAdventure,
   } = useCarSessionRuntime({
     sessionId: id || '',
     onTurnComplete: (updatedSession, turn) => {
@@ -377,6 +379,8 @@ export const TerminalMode: React.FC = () => {
       addLogEntry('system', '  where are we      - Recaps location and situations');
       addLogEntry('system', '  options           - Re-list options for this turn');
       addLogEntry('system', '  repeat story      - Output latest DM description');
+      addLogEntry('system', '  wrap up           - Ask the DM to head for the finale');
+      addLogEntry('system', '  end here          - End the adventure now with an epilogue');
       addLogEntry('system', '  clear             - Clear this terminal screen');
     } else if (intent.type === 'status') {
       if (session) {
@@ -411,6 +415,12 @@ export const TerminalMode: React.FC = () => {
       } else {
         addLogEntry('system', 'No story narration to repeat.');
       }
+    } else if (intent.type === 'wrap-up') {
+      const error = await wrapUpAdventure();
+      addLogEntry('system', error ?? 'Finale requested. The story will head for its ending soon.');
+    } else if (intent.type === 'end-here') {
+      const error = await endAdventure();
+      addLogEntry('system', error ?? 'Ending the adventure here. The DM is writing the epilogue...');
     } else if (intent.type === 'custom') {
       setActionPreviewText(intent.text);
       addLogEntry('system', `Interpreting custom action: "${intent.text}"...`);
@@ -418,7 +428,7 @@ export const TerminalMode: React.FC = () => {
     } else {
       addLogEntry('system', 'Unknown command. Type "help" for a list of valid commands.');
     }
-  }, [addLogEntry, actionPreviewText, actionPreview, clearPreview, submitAction, history, previewAction, session]);
+  }, [addLogEntry, actionPreviewText, actionPreview, clearPreview, submitAction, history, previewAction, session, wrapUpAdventure, endAdventure]);
 
   const handleHelp = useCallback(() => {
     void executeCommand('help');

@@ -1,14 +1,12 @@
-import { broadcastSessionChanged, broadcastUpdate } from '../realtime/sessionEvents.js';
+import { broadcastUpdate } from '../realtime/sessionEvents.js';
 import { devLog } from '../lib/devLog.js';
-import type { ActionAttempt, AIInput, Difficulty, SessionState, Stat } from '../types.js';
+import type { ActionAttempt, AIInput, Choice, SessionState, Stat, TurnResult } from '../types.js';
 import { AiDmService, toNarrationInput } from './aiDmService.js';
 import { DmTurnOrchestrator } from './dmTurnOrchestrator.js';
 import type { NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
 import { GameEngine } from './gameEngine.js';
 import { StateService } from './stateService.js';
-import { queueCompletedTurnSideEffects } from './turnSideEffectService.js';
 import { compileDmPrepPremise } from './dmPrepCompilationService.js';
-import { computeBuffChanges, computeEncounterEnemyChanges, computeHpChanges, computeInventoryChanges } from './turnChangeService.js';
 import { resolveRiddleAnswer } from './riddleService.js';
 import {
   CHARACTER_EDGE_BONUS,
@@ -19,10 +17,27 @@ import {
   toFreeActionBonusPreview,
 } from './freeActionInferenceService.js';
 import { buildSceneMomentum, buildScenePressure } from './sceneMomentumService.js';
-import { dropRedundantBuffAdds, ensureSuccessfulEnchantmentSuggestion, ensureSuccessfulHealingSuggestion, ensureSuccessfulSupportSuggestion, inferActionIntent, isNoFailureDamageAction, suppressFailedSupportDamage } from './freeActionPolicyService.js';
+import { inferActionIntent, isNoFailureDamageAction } from './freeActionPolicyService.js';
+import { getTurnStrategy } from '../config/env.js';
+import { applyTurnPolicies, createTurnDiagnostics } from './turnDiagnostics.js';
+import { generateResolvedFirstTurn } from './resolvedFirstTurnService.js';
 import { repairEncounterNameIfNeeded } from './encounterNameRepairService.js';
 import { checkTurnResultConsistency } from './turnResultConsistencyService.js';
 import { buildRollNarration } from './rollNarrationService.js';
+import { lookupActionPreview } from './actionPreviewStore.js';
+import { buildAdventureDirective } from './adventureLifecycleService.js';
+import { isRejection, normalizeTurnAction, rejectTurnAction, validateTurnAction, type TurnAction, type TurnActionRequest } from './turnActionInput.js';
+import { finalizeTurn, type TurnActionResult } from './turnFinalizer.js';
+import { alignTurnWithResolvedEncounter, stripChoicesTargetingDefeatedEnemies } from './turnRepairs.js';
+
+// Stable entry points for routes and tests.
+export type { TurnActionRequest, TurnActionRejection } from './turnActionInput.js';
+export { validateTurnActionRequest } from './turnActionInput.js';
+export type { TurnActionResult } from './turnFinalizer.js';
+
+export type TurnActionOptions = {
+  operationId?: string;
+};
 
 const logTurnStep = (sessionId: string, step: string, start: number, details = ''): number => {
   const now = Date.now();
@@ -30,330 +45,128 @@ const logTurnStep = (sessionId: string, step: string, start: number, details = '
   return now;
 };
 
-const getTurnEncounterId = (previousSession: SessionState, newState: SessionState): string | undefined => {
-  if (previousSession.encounterState?.status === 'active') {
-    return previousSession.encounterState.id;
-  }
-  if (newState.encounterState?.status === 'active' && previousSession.encounterState?.id !== newState.encounterState.id) {
-    return newState.encounterState.id;
-  }
-  return undefined;
-};
-
-const encounterResolutionVerb = (status: string | undefined): string => {
-  if (status === 'fled') {
-    return 'breaks and flees';
-  }
-  if (status === 'surrendered') {
-    return 'drops its guard and surrenders';
-  }
-  return 'collapses, defeated';
-};
-
-type PostEncounterLoot = {
-  characterName: string;
-  itemName: string;
-};
-
-
-
-const sentenceCase = (text: string): string => {
-  const trimmed = text.trim();
-  if (!trimmed) {
-    return trimmed;
-  }
-  return `${trimmed.charAt(0).toLowerCase()}${trimmed.slice(1)}`;
-};
-
-const extractNextPromisedBeat = (storySummary: string | undefined): string | null => {
-  if (!storySummary) {
-    return null;
-  }
-  const match = /NEXT PROMISED BEAT:\s*([^\n]+)/i.exec(storySummary);
-  const beat = match?.[1]?.trim().replace(/[.?!]+$/g, '');
-  return beat || null;
-};
-
-const buildPostEncounterFollowThrough = (session: SessionState): string => {
-  const nextBeat = extractNextPromisedBeat(session.storySummary);
-  if (nextBeat) {
-    return ` Now the party can ${sentenceCase(nextBeat)}.`;
-  }
-  return ' A clue, route, or decision waits beyond the battlefield.';
-};
-
-const getPostEncounterLoot = (previousSession: SessionState, newState: SessionState): PostEncounterLoot[] =>
-  computeInventoryChanges(previousSession.party, newState.party)
-    .filter(change => change.type === 'added')
-    .map(change => ({ characterName: change.characterName, itemName: change.itemName }));
-
-const buildLootNarration = (addedLoot: PostEncounterLoot[]): string => {
-  if (addedLoot.length === 0) {
-    return '';
-  }
-  const claims = addedLoot.map(change => `${change.characterName} claims ${change.itemName}`);
-  const hums = addedLoot.length === 1
-    ? ` ${addedLoot[0].itemName} still hums with usable magic.`
-    : ' The new spoils still hum with usable magic.';
-  return ` ${claims.join(', ')} from the aftermath.${hums}`;
-};
-
-const alignTurnWithResolvedEncounter = (
-  previousSession: SessionState,
-  newState: SessionState,
-  turnResult: Awaited<ReturnType<typeof AiDmService.generateTurnResult>>,
-): void => {
-  if (previousSession.encounterState?.status !== 'active' || newState.encounterState?.status === 'active') {
+const compileDmPrepIfMissing = (sessionId: string, session: SessionState): void => {
+  if (!session.dmPrep || session.compiledDmPrep) {
     return;
   }
-  if (!newState.encounterState || previousSession.encounterState.id !== newState.encounterState.id) {
-    return;
-  }
-
-  const resolvedEnemies = previousSession.encounterState.enemies.flatMap(beforeEnemy => {
-    const afterEnemy = newState.encounterState?.enemies.find(e => e.id === beforeEnemy.id);
-    if (beforeEnemy.status === 'active' && afterEnemy && afterEnemy.status !== 'active') {
-      return [{ beforeEnemy, afterEnemy }];
+  devLog.log(`[DmPrepCompile] no compiled premise found for session=${sessionId} dmPrepChars=${session.dmPrep.length} - compiling in background`);
+  compileDmPrepPremise(session.dmPrep).then(compiled => {
+    if (compiled) {
+      devLog.log(`[DmPrepCompile] compiled premise stored for session=${sessionId} chars=${compiled.length}`);
+      StateService.patchSession(sessionId, { compiledDmPrep: compiled }).catch(err => {
+        devLog.warn(`[DmPrepCompile] failed to store compiled premise for session=${sessionId}`, err);
+      });
     }
-    return [];
+  }).catch(err => {
+    devLog.warn(`[DmPrepCompile] compilation failed for session=${sessionId}`, err);
   });
-  if (resolvedEnemies.length === 0) {
-    return;
-  }
-
-  const enemyNames = resolvedEnemies.map(e => e.afterEnemy.name || e.beforeEnemy.name).join(', ');
-  const status = newState.encounterState.status;
-  const resolution = encounterResolutionVerb(status);
-  const addedLoot = getPostEncounterLoot(previousSession, newState);
-  const lootNarration = buildLootNarration(addedLoot);
-  const followThrough = buildPostEncounterFollowThrough(previousSession);
-  turnResult.narration = `${enemyNames} ${resolution}.${lootNarration} The immediate fight is over.${followThrough}`;
-  turnResult.currentTensionLevel = status === 'defeated' ? 'medium' : turnResult.currentTensionLevel;
-  // AI choices for this turn already point forward - let stripChoicesTargetingDefeatedEnemies
-  // clean up any stale enemy references rather than replacing with generic fallbacks.
-  newState.lastChoices = turnResult.choices;
 };
 
-const stripChoicesTargetingDefeatedEnemies = (
-  newState: SessionState,
-  turnResult: Awaited<ReturnType<typeof AiDmService.generateTurnResult>>,
-): boolean => {
-  // Defeated terms come from the live encounter (updated statuses cover both active
-  // and just-resolved fights) plus the most recently archived encounter, so the turn
-  // right after resolution moves the encounter to pastEncounters is still covered.
-  const lastArchived = newState.pastEncounters?.[newState.pastEncounters.length - 1];
-  const defeatedTerms = new Set([
-    ...(newState.encounterState?.enemies ?? [])
-      .filter(e => e.status !== 'active')
-      .flatMap(e => [e.name, ...(e.aliases ?? [])].map(t => t.toLowerCase())),
-    ...(!newState.encounterState && lastArchived
-      ? lastArchived.enemies.flatMap(e => [e.name, ...(e.aliases ?? [])].map(t => t.toLowerCase()))
-      : []),
-  ]);
-  if (defeatedTerms.size === 0) {
-    return false;
-  }
-  const activeEnemies = (newState.encounterState?.enemies ?? []).filter(e => e.status === 'active');
-  let changed = false;
-  let replacedCount = 0;
-  const fixedChoices = turnResult.choices.map(choice => {
-    const lower = `${choice.label} ${choice.narration ?? ''}`.toLowerCase();
-    if (![...defeatedTerms].some(term => lower.includes(term))) {
-      return choice;
-    }
-    changed = true;
-    const target = activeEnemies[0];
-    // Vary replacements so multiple stripped choices don't render as identical buttons
-    const variants = target
-      ? [
-        { label: `Press the attack on the ${target.name}`, narration: `Keep the pressure on the ${target.name} while the moment allows.` },
-        { label: `Find an opening against the ${target.name}`, narration: `Watch the ${target.name} for a weakness to exploit.` },
-        { label: `Throw the ${target.name} off balance`, narration: `Disrupt the ${target.name} before they can regroup.` },
-      ]
-      : [
-        { label: 'Hold position and stay ready', narration: 'Brace and stay alert for what comes next.' },
-        { label: 'Scan the area for the next threat', narration: 'Sweep the surroundings before moving on.' },
-        { label: 'Regroup with the party', narration: 'Pull together and plan the next move.' },
-      ];
-    const replacement = variants[replacedCount % variants.length];
-    replacedCount++;
-    devLog.warn(`[Guard] choice targets defeated enemy - replacing. original="${choice.label}" new="${replacement.label}"`);
-    return {
-      label: replacement.label,
-      difficulty: choice.difficulty,
-      stat: choice.stat,
-      difficultyValue: choice.difficultyValue,
-      narration: replacement.narration,
-      flavor: 'standard' as const,
-    };
-  });
-  if (changed) {
-    turnResult.choices = fixedChoices;
-    newState.lastChoices = fixedChoices;
-  }
-  return changed;
+type ResolutionContext = {
+  sessionId: string;
+  namespaceId: string | undefined;
+  operationId?: string;
+  session: SessionState;
+  history: TurnResult[];
+  latestChoices: Choice[];
+  turnStart: number;
+  stepStart: number;
 };
 
-export interface TurnActionRequest {
-  action: string;
-  statUsed: string;
-  difficulty?: string;
-  difficultyValue?: number | null;
-  itemId?: string;
-  characterId?: string;
-  ownerCharId?: string;
-  targetCharacterId?: string;
-  targetCharId?: string;
-  actionType?: 'use_item' | 'give_item';
-  actionIntent?: string;
-}
-
-export type TurnActionResult =
-  | {
-      ok: true;
-      body: {
-        actionAttempt: ActionAttempt;
-        turnResult: Awaited<ReturnType<typeof AiDmService.generateTurnResult>>;
-        session: SessionState;
-      };
-      queueSideEffects?: () => void;
-    }
-  | {
-      ok: false;
-      status: number;
-      body: Record<string, unknown>;
-    };
-
-export const executeTurnAction = async (
-  sessionId: string,
-  namespaceId: string | undefined,
-  request: TurnActionRequest,
+// Item use/give: deterministic effect first, then narration of it. Item turns advance
+// the turn and rotate the actor like any other turn (see GAME_ENGINE_RULES.md).
+const resolveItemTurn = async (
+  ctx: ResolutionContext,
+  action: Extract<TurnAction, { kind: 'item_use' | 'item_give' }>,
 ): Promise<TurnActionResult> => {
-  const turnStart = Date.now();
-  let stepStart = turnStart;
-  const {
-    action,
-    statUsed,
-    difficulty,
-    difficultyValue,
-    itemId,
-    actionIntent,
-  } = request;
-  const characterId = request.characterId ?? request.ownerCharId;
-  const targetCharacterId = request.targetCharacterId ?? request.targetCharId;
-  const actionType = request.actionType ?? (itemId && action === 'use item'
-    ? 'use_item'
-    : itemId && action === 'give item'
-      ? 'give_item'
-      : undefined);
-
-  const sessionNamespace = StateService.getSessionNamespaceId(sessionId);
-  if (!sessionNamespace || sessionNamespace !== (namespaceId ?? 'local')) {
-    logTurnStep(sessionId, 'namespace-miss', stepStart);
-    return { ok: false, status: 404, body: { error: 'Session not found' } };
-  }
-  const session = await StateService.getSession(sessionId);
-  stepStart = logTurnStep(sessionId, 'load-session', stepStart);
-  if (!session) {
-    return { ok: false, status: 404, body: { error: 'Session not found' } };
-  }
-
-  if (session.dmPrep && !session.compiledDmPrep) {
-    devLog.log(`[DmPrepCompile] no compiled premise found for session=${sessionId} dmPrepChars=${session.dmPrep.length} - compiling in background`);
-    compileDmPrepPremise(session.dmPrep).then(compiled => {
-      if (compiled) {
-        devLog.log(`[DmPrepCompile] compiled premise stored for session=${sessionId} chars=${compiled.length}`);
-        StateService.patchSession(sessionId, { compiledDmPrep: compiled }).catch(err => {
-          devLog.warn(`[DmPrepCompile] failed to store compiled premise for session=${sessionId}`, err);
-        });
-      }
-    }).catch(err => {
-      devLog.warn(`[DmPrepCompile] compilation failed for session=${sessionId}`, err);
-    });
-  }
-
-  const actingCharId = characterId || session.activeCharacterId;
+  const { sessionId, session, history, operationId } = ctx;
+  let stepStart = ctx.stepStart;
+  // Item effects are deterministic already; resolved_first does not cover item turns yet.
+  const diagnostics = createTurnDiagnostics('parallel');
+  const actingCharId = action.actorId;
   const character = session.party.find(c => c.id === actingCharId) || session.party[0];
-  if (!character) {
-    return { ok: false, status: 400, body: { error: 'No character in session' } };
+  const targetId = action.targetCharacterId || actingCharId;
+  const { newState: itemState, actionAttempt: itemAttempt, error } = action.kind === 'item_use'
+    ? GameEngine.applyItemUse(session, actingCharId, action.itemId, targetId)
+    : GameEngine.applyGiveItem(session, actingCharId, action.itemId, targetId);
+  if (error) {
+    return rejectTurnAction(400, { error: 'item_action_failed', message: error });
   }
+  stepStart = logTurnStep(sessionId, 'item-apply', stepStart, `kind=${action.kind}`);
 
-  if (actionType === 'use_item' || actionType === 'give_item') {
-    if (!itemId) {
-      return { ok: false, status: 400, body: { error: 'Missing itemId' } };
-    }
+  const nextCharIdForItem = GameEngine.getNextActiveCharacter(itemState.party, actingCharId);
+  const scenePressure = buildScenePressure(history, itemAttempt, itemState.scene);
+  const sceneMomentum = buildSceneMomentum(history, itemAttempt, itemState, scenePressure);
+  const itemDirective = buildAdventureDirective(session);
+  const aiInput: AIInput = { ...itemState, ...itemAttempt, activeCharacterId: nextCharIdForItem, characterId: actingCharId, scenePressure, sceneMomentum, lastChoices: ctx.latestChoices, ...(itemDirective && { adventureDirective: itemDirective }) };
+  broadcastUpdate(sessionId, 'dm_narrating', { action: action.text, statUsed: 'none', character, operationId });
+  stepStart = logTurnStep(sessionId, 'item-pre-llm', stepStart);
+  const itemLlmStart = Date.now();
+  const turnResult = await AiDmService.generateTurnResult(aiInput);
+  const itemLlmMs = Date.now() - itemLlmStart;
+  logTurnStep(sessionId, 'item-llm', stepStart, `retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
 
-    const targetId = targetCharacterId || actingCharId;
-    const { newState: itemState, actionAttempt: itemAttempt, error } = actionType === 'use_item'
-      ? GameEngine.applyItemUse(session, actingCharId, itemId, targetId)
-      : GameEngine.applyGiveItem(session, actingCharId, itemId, targetId);
-
-    if (error) {
-      return { ok: false, status: 400, body: { error } };
-    }
-    stepStart = logTurnStep(sessionId, 'item-apply', stepStart, `actionType=${actionType}`);
-
-    const nextCharIdForItem = GameEngine.getNextActiveCharacter(itemState.party, actingCharId);
-    const itemHistory = await StateService.getTurnHistory(sessionId);
-    stepStart = logTurnStep(sessionId, 'item-history', stepStart, `history=${itemHistory.length}`);
-    const scenePressure = buildScenePressure(itemHistory, itemAttempt, itemState.scene);
-    const sceneMomentum = buildSceneMomentum(itemHistory, itemAttempt, itemState, scenePressure);
-    const itemLatestChoices = itemHistory[itemHistory.length - 1]?.choices ?? itemState.lastChoices;
-    const aiInput: AIInput = { ...itemState, ...itemAttempt, activeCharacterId: nextCharIdForItem, characterId: actingCharId, scenePressure, sceneMomentum, lastChoices: itemLatestChoices };
-    broadcastUpdate(sessionId, 'dm_narrating', { action, statUsed, difficulty, difficultyValue, character });
-    stepStart = logTurnStep(sessionId, 'item-pre-llm', stepStart);
-    const itemLlmStart = Date.now();
-    const turnResult = await AiDmService.generateTurnResult(aiInput);
-    const itemLlmMs = Date.now() - itemLlmStart;
-    stepStart = logTurnStep(sessionId, 'item-llm', stepStart, `retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
-
-    checkTurnResultConsistency(turnResult, itemState, itemAttempt);
-    const newState = GameEngine.updateState(itemState, itemAttempt, turnResult as unknown as Record<string, unknown>);
-    await repairEncounterNameIfNeeded(itemState, newState, {
-      narration: turnResult.narration,
-      actionAttempt: itemAttempt.actionAttempt,
-    });
-    alignTurnWithResolvedEncounter(itemState, newState, turnResult);
-    stripChoicesTargetingDefeatedEnemies(newState, turnResult);
-    await StateService.updateSession(sessionId, newState);
-    stepStart = logTurnStep(sessionId, 'item-update-session', stepStart);
-    turnResult.lastAction = itemAttempt;
-    turnResult.characterId = actingCharId;
-    turnResult.encounterId = getTurnEncounterId(itemState, newState);
-    turnResult.hpChanges = computeHpChanges(session.party, newState.party);
-    turnResult.inventoryChanges = computeInventoryChanges(session.party, newState.party);
-    turnResult.buffChanges = computeBuffChanges(session.party, newState.party);
-    turnResult.encounterEnemyChanges = computeEncounterEnemyChanges(itemState.encounterState, newState.encounterState);
-    turnResult.id = await StateService.addTurnResult(sessionId, turnResult, actingCharId);
-    logTurnStep(sessionId, 'item-add-turn', stepStart, `turnId=${turnResult.id}`);
-    broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
-    broadcastSessionChanged(namespaceId, sessionId, 'updated');
-    logTurnStep(sessionId, 'item-total', turnStart, `turnId=${turnResult.id}`);
-    console.log(`[Metrics] turn_complete session=${sessionId} turn=${itemState.turn} workflow=agentic totalMs=${Date.now() - turnStart} llmMs=${itemLlmMs} retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false} choicesFailed=${turnResult.choicesFailed ?? false} choicesEscalated=${turnResult.choicesEscalated ?? false}`);
-    return { ok: true, body: { actionAttempt: itemAttempt, turnResult, session: newState } };
+  diagnostics.stage('generation', itemLlmStart);
+  checkTurnResultConsistency(turnResult, itemState, itemAttempt);
+  const newState = GameEngine.applyTurnProposal(itemState, itemAttempt, turnResult);
+  await repairEncounterNameIfNeeded(itemState, newState, {
+    narration: turnResult.narration,
+    actionAttempt: itemAttempt.actionAttempt,
+  });
+  const itemNarrationBeforeAlign = turnResult.narration;
+  alignTurnWithResolvedEncounter(itemState, newState, turnResult);
+  if (turnResult.narration !== itemNarrationBeforeAlign) {
+    diagnostics.repair('align_resolved_encounter_narration');
   }
-
-  if (character.status === 'downed') {
-    return { ok: false, status: 400, body: { error: 'downed', message: `${character.name} is downed and cannot act.` } };
+  if (stripChoicesTargetingDefeatedEnemies(newState, turnResult)) {
+    diagnostics.repair('strip_defeated_enemy_choices');
   }
+  // Diffs are computed against the pre-item session so the item's own effect is reported.
+  return finalizeTurn({
+    sessionId,
+    namespaceId: ctx.namespaceId,
+    operationId,
+    previousSession: session,
+    newState,
+    turnResult,
+    actingCharId,
+    actionAttempt: itemAttempt,
+    turnStart: ctx.turnStart,
+    llmMs: itemLlmMs,
+    stepLabel: 'item-',
+    diagnostics,
+  });
+};
 
-  const limits = StateService.getNamespaceLimits(namespaceId ?? 'local');
-  if (limits.maxTurns !== null && session.turn > limits.maxTurns) {
-    return {
-      ok: false,
-      status: 403,
-      body: { error: 'turn_limit', message: `This session has reached its limit of ${limits.maxTurns} turn(s). The adventure must end here.` },
-    };
-  }
-
-  const history = await StateService.getTurnHistory(sessionId);
-  stepStart = logTurnStep(sessionId, 'load-history', stepStart, `history=${history.length}`);
-  const latestChoices = history[history.length - 1]?.choices ?? session.lastChoices;
+// Suggested choices and free text: roll, generate, repair.
+const resolveRolledTurn = async (
+  ctx: ResolutionContext,
+  action: Extract<TurnAction, { kind: 'choice' | 'free_text' }>,
+): Promise<TurnActionResult> => {
+  const { sessionId, session, history, latestChoices, operationId } = ctx;
+  let stepStart = ctx.stepStart;
+  const diagnostics = createTurnDiagnostics(getTurnStrategy());
+  const actionText = action.text;
+  const actingCharId = action.actorId;
+  const character = session.party.find(c => c.id === actingCharId) || session.party[0];
+  const submittedChoice = action.kind === 'choice' ? action.choice : undefined;
   const recentChoiceLabels = [...new Set(
     history.slice(-5, -1).flatMap(h => h.choices.map(c => c.label))
   )];
-  const submittedChoice = latestChoices.find(choice => choice.label === action);
-  const inferredFreeActionBonuses: InferredFreeActionBonuses = submittedChoice ? {} : inferFreeActionBonuses(action, character, session);
+
+  // Mechanics come from server-owned records: the stored choice descriptor for a
+  // suggested action, or the stored preview for a confirmed free action. Client
+  // echoes are a fallback for unpreviewed free text only.
+  const storedPreview = action.kind === 'free_text' && action.previewId
+    ? lookupActionPreview(action.previewId, sessionId, session.revision ?? 0, character.id)
+    : null;
+  const { statUsed, difficulty, difficultyValue } = action.kind === 'choice'
+    ? { statUsed: action.choice.stat as Stat | 'none', difficulty: action.choice.difficulty, difficultyValue: action.choice.difficultyValue }
+    : storedPreview?.status === 'valid'
+      ? { statUsed: storedPreview.preview.stat as Stat | 'none', difficulty: storedPreview.preview.difficulty, difficultyValue: storedPreview.preview.difficultyValue }
+      : { statUsed: action.statUsed, difficulty: action.difficulty, difficultyValue: action.difficultyValue };
+
+  const inferredFreeActionBonuses: InferredFreeActionBonuses = submittedChoice ? {} : inferFreeActionBonuses(actionText, character, session);
   const helperCharacter = submittedChoice?.flavor === 'combo' && submittedChoice.helperCharacterName
     ? session.party.find(c =>
       c.name === submittedChoice.helperCharacterName &&
@@ -376,7 +189,7 @@ export const executeTurnAction = async (
     sessionId,
     'prepare-action',
     stepStart,
-    `choice=${submittedChoice ? 'true' : 'false'} intent=${actionIntent ?? 'none'} helper=${helperCharacter ? 'true' : 'false'} item=${choiceItem ? 'true' : 'false'}`,
+    `kind=${action.kind} preview=${storedPreview?.status ?? 'none'} intent=${action.actionIntent ?? 'none'} helper=${helperCharacter ? 'true' : 'false'} item=${choiceItem ? 'true' : 'false'}`,
   );
   const submittedChoicePreview = {
     ...(helperCharacter && {
@@ -400,13 +213,13 @@ export const executeTurnAction = async (
     }),
   };
   const bonusPreview = submittedChoice ? submittedChoicePreview : toFreeActionBonusPreview(inferredFreeActionBonuses);
-  broadcastUpdate(sessionId, 'dm_narrating', { action, statUsed, difficulty, difficultyValue, character, ...bonusPreview });
-  const actionAttempt = resolveRiddleAnswer(action, latestChoices) ?? GameEngine.resolveAction(
+  broadcastUpdate(sessionId, 'dm_narrating', { action: actionText, statUsed, difficulty, difficultyValue, character, operationId, ...bonusPreview });
+  const actionAttempt: ActionAttempt = resolveRiddleAnswer(actionText, latestChoices) ?? GameEngine.resolveAction(
     character,
-    action,
-    statUsed as Stat | 'none',
-    (difficulty || 'normal') as Difficulty,
-    difficultyValue ?? undefined,
+    actionText,
+    statUsed,
+    difficulty,
+    difficultyValue,
     helperCharacter ? { name: helperCharacter.name, bonus: COMBO_HELPER_BONUS } : undefined,
     choiceItem && choiceItemOwner ? { name: choiceItem.name, ownerName: choiceItemOwner.name, bonus: CHOICE_ITEM_BONUS } : undefined,
     characterEdge,
@@ -414,9 +227,10 @@ export const executeTurnAction = async (
   const nextCharId = GameEngine.getNextActiveCharacter(session.party, actingCharId);
   const scenePressure = buildScenePressure(history, actionAttempt, session.scene);
   const sceneMomentum = buildSceneMomentum(history, actionAttempt, session, scenePressure);
-  const effectiveActionIntent = actionIntent ?? inferActionIntent(action, session);
-  const aiInput: AIInput = { ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId, scenePressure, sceneMomentum, ...(effectiveActionIntent && { actionIntent: effectiveActionIntent }), lastChoices: latestChoices, ...(recentChoiceLabels.length > 0 && { recentChoiceLabels }) };
-  const targetCharName = targetCharacterId ? session.party.find(c => c.id === targetCharacterId)?.name : undefined;
+  const effectiveActionIntent = action.actionIntent ?? inferActionIntent(actionText, session);
+  const adventureDirective = buildAdventureDirective(session);
+  const aiInput: AIInput = { ...(adventureDirective && { adventureDirective }), ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId, scenePressure, sceneMomentum, ...(effectiveActionIntent && { actionIntent: effectiveActionIntent }), lastChoices: latestChoices, ...(recentChoiceLabels.length > 0 && { recentChoiceLabels }) };
+  const targetCharName = action.targetCharacterId ? session.party.find(c => c.id === action.targetCharacterId)?.name : undefined;
   stepStart = logTurnStep(
     sessionId,
     'build-ai-input',
@@ -424,7 +238,7 @@ export const executeTurnAction = async (
     `scenePressure=${scenePressure.kind} momentum=${sceneMomentum.directive}`,
   );
 
-  const earlyHpChange = isNoFailureDamageAction(action, effectiveActionIntent)
+  const earlyHpChange = isNoFailureDamageAction(actionText, effectiveActionIntent)
     ? null
     : GameEngine.computeDeterministicHpChange(session, actingCharId, actionAttempt);
   if (actionAttempt.actionResult.statUsed !== 'none') {
@@ -432,72 +246,143 @@ export const executeTurnAction = async (
       rollNarration: buildRollNarration(actionAttempt.actionResult) || null,
       actionResult: actionAttempt.actionResult,
       hpChanges: earlyHpChange ? [earlyHpChange] : undefined,
+      operationId,
     });
   }
   devLog.log(`[Turn] llm-start session=${sessionId} turn=${session.turn}`);
   const llmStart = Date.now();
   const streamCallbacks: NarrationStreamCallbacks = {
-    onChunk: (text, field) => broadcastUpdate(sessionId, 'narration_chunk', { text, field }),
-    onStreamingDone: (narration, rollNarration) => broadcastUpdate(sessionId, 'narration_streaming_done', { narration, rollNarration }),
-    onAbort: () => broadcastUpdate(sessionId, 'narration_chunk_abort', {}),
+    onChunk: (text, field) => {
+      if (field === 'narration' && diagnostics.record.firstNarrationMs === undefined) {
+        diagnostics.record.firstNarrationMs = Date.now() - ctx.turnStart;
+      }
+      broadcastUpdate(sessionId, 'narration_chunk', { text, field, operationId });
+    },
+    onStreamingDone: (narration, rollNarration) => broadcastUpdate(sessionId, 'narration_streaming_done', { narration, rollNarration, operationId }),
+    onAbort: () => broadcastUpdate(sessionId, 'narration_chunk_abort', { operationId }),
   };
-  let turnResult = await AiDmService.generateTurnResult(aiInput, streamCallbacks);
-  const llmMs = Date.now() - llmStart;
-  stepStart = logTurnStep(sessionId, 'llm', stepStart, `retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
-  devLog.log(`[Turn] llm-done session=${sessionId} retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
-  turnResult = ensureSuccessfulHealingSuggestion(session, actionAttempt, turnResult);
-  turnResult = ensureSuccessfulEnchantmentSuggestion(session, actionAttempt, turnResult);
-  turnResult = ensureSuccessfulSupportSuggestion(session, actionAttempt, turnResult, effectiveActionIntent, targetCharName);
-  turnResult = dropRedundantBuffAdds(session, turnResult, effectiveActionIntent);
-  turnResult = suppressFailedSupportDamage(actionAttempt, turnResult, effectiveActionIntent);
-  checkTurnResultConsistency(turnResult, session, actionAttempt);
-  stepStart = logTurnStep(sessionId, 'post-llm-guards', stepStart);
-  const newState = GameEngine.updateState(session, actionAttempt, turnResult as unknown as Record<string, unknown>);
-  await repairEncounterNameIfNeeded(session, newState, {
-    narration: turnResult.narration,
-    actionAttempt: actionAttempt.actionAttempt,
-  });
-  alignTurnWithResolvedEncounter(session, newState, turnResult);
-  const choicesHadDefeatedRefs = stripChoicesTargetingDefeatedEnemies(newState, turnResult);
-  if (choicesHadDefeatedRefs && !turnResult.choicesFailed) {
-    devLog.log(`[Guard] choices-rerun start session=${sessionId}`);
-    const updatedNarrationInput = toNarrationInput({ ...aiInput, encounterState: newState.encounterState ?? undefined });
-    const rerunChoices = await new DmTurnOrchestrator().rerunChoices(updatedNarrationInput);
-    if (rerunChoices !== null) {
-      turnResult.choices = rerunChoices;
-      newState.lastChoices = rerunChoices;
-      devLog.log(`[Guard] choices-rerun done session=${sessionId}`);
+
+  // Plan 4 comparison: resolved_first freezes mechanics before narration; parallel is
+  // the production comparator. Both share policies and the finalizer.
+  const resolvedFirst = diagnostics.record.strategy === 'resolved_first'
+    ? await generateResolvedFirstTurn({
+      session,
+      aiInput,
+      actionAttempt,
+      actingCharId,
+      actionIntent: effectiveActionIntent,
+      targetCharName,
+      streamCallbacks,
+      diagnostics,
+    })
+    : null;
+  if (diagnostics.record.strategy === 'resolved_first' && !resolvedFirst) {
+    diagnostics.record.strategy = 'parallel';
+  }
+
+  let turnResult: TurnResult;
+  let newState: SessionState;
+  if (resolvedFirst) {
+    ({ turnResult, newState } = resolvedFirst);
+    stepStart = logTurnStep(sessionId, 'resolved-first', stepStart, `failed=${turnResult.narrationFailed ?? false}`);
+  } else {
+    turnResult = await AiDmService.generateTurnResult(aiInput, streamCallbacks);
+    stepStart = logTurnStep(sessionId, 'llm', stepStart, `retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
+    diagnostics.stage('generation', llmStart);
+    devLog.log(`[Turn] llm-done session=${sessionId} retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
+    turnResult = applyTurnPolicies(session, actionAttempt, turnResult, effectiveActionIntent, targetCharName, diagnostics);
+    checkTurnResultConsistency(turnResult, session, actionAttempt);
+    stepStart = logTurnStep(sessionId, 'post-llm-guards', stepStart);
+    newState = GameEngine.applyTurnProposal(session, actionAttempt, turnResult);
+    await repairEncounterNameIfNeeded(session, newState, {
+      narration: turnResult.narration,
+      actionAttempt: actionAttempt.actionAttempt,
+    });
+    const narrationBeforeAlign = turnResult.narration;
+    alignTurnWithResolvedEncounter(session, newState, turnResult);
+    if (turnResult.narration !== narrationBeforeAlign) {
+      diagnostics.repair('align_resolved_encounter_narration');
+    }
+    const choicesHadDefeatedRefs = stripChoicesTargetingDefeatedEnemies(newState, turnResult);
+    if (choicesHadDefeatedRefs) {
+      diagnostics.repair('strip_defeated_enemy_choices');
+    }
+    if (choicesHadDefeatedRefs && !turnResult.choicesFailed) {
+      devLog.log(`[Guard] choices-rerun start session=${sessionId}`);
+      const updatedNarrationInput = toNarrationInput({ ...aiInput, encounterState: newState.encounterState ?? undefined });
+      const rerunChoices = await new DmTurnOrchestrator().rerunChoices(updatedNarrationInput);
+      if (rerunChoices !== null) {
+        turnResult.choices = rerunChoices;
+        newState.lastChoices = rerunChoices;
+        diagnostics.repair('choices_rerun');
+        devLog.log(`[Guard] choices-rerun done session=${sessionId}`);
+      }
     }
   }
-  await StateService.updateSession(sessionId, newState);
-  stepStart = logTurnStep(sessionId, 'update-session', stepStart);
+  const llmMs = Date.now() - llmStart;
+  logTurnStep(sessionId, 'guards', stepStart);
 
-  turnResult.lastAction = actionAttempt;
-  turnResult.characterId = actingCharId;
-  turnResult.encounterId = getTurnEncounterId(session, newState);
-  turnResult.hpChanges = computeHpChanges(session.party, newState.party);
-  turnResult.inventoryChanges = computeInventoryChanges(session.party, newState.party);
-  turnResult.buffChanges = computeBuffChanges(session.party, newState.party);
-  turnResult.encounterEnemyChanges = computeEncounterEnemyChanges(session.encounterState, newState.encounterState);
-  stepStart = logTurnStep(sessionId, 'compute-diffs', stepStart);
+  return finalizeTurn({
+    sessionId,
+    namespaceId: ctx.namespaceId,
+    operationId,
+    previousSession: session,
+    newState,
+    turnResult,
+    actingCharId,
+    actionAttempt,
+    turnStart: ctx.turnStart,
+    llmMs,
+    stepLabel: '',
+    diagnostics,
+  });
+};
 
-  turnResult.id = await StateService.addTurnResult(sessionId, turnResult, actingCharId);
-  logTurnStep(sessionId, 'add-turn', stepStart, `turnId=${turnResult.id}`);
-  devLog.log(`[Turn] broadcast session=${sessionId} turnId=${turnResult.id}`);
-  broadcastUpdate(sessionId, 'turn_complete', { session: newState, turnResult });
-  broadcastSessionChanged(namespaceId, sessionId, 'updated');
-  logTurnStep(sessionId, 'total', turnStart, `turnId=${turnResult.id}`);
-  console.log(`[Metrics] turn_complete session=${sessionId} turn=${session.turn} workflow=agentic totalMs=${Date.now() - turnStart} llmMs=${llmMs} retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false} choicesFailed=${turnResult.choicesFailed ?? false} choicesEscalated=${turnResult.choicesEscalated ?? false}`);
+export const executeTurnAction = async (
+  sessionId: string,
+  namespaceId: string | undefined,
+  request: TurnActionRequest,
+  options: TurnActionOptions = {},
+): Promise<TurnActionResult> => {
+  const turnStart = Date.now();
+  let stepStart = turnStart;
 
-  return {
-    ok: true,
-    body: { actionAttempt, turnResult, session: newState },
-    queueSideEffects: () => queueCompletedTurnSideEffects({
-      sessionId,
-      namespaceId,
-      previousSession: session,
-      newState,
-      turnResult,
-    }),
+  const sessionNamespace = StateService.getSessionNamespaceId(sessionId);
+  if (!sessionNamespace || sessionNamespace !== (namespaceId ?? 'local')) {
+    logTurnStep(sessionId, 'namespace-miss', stepStart);
+    return rejectTurnAction(404, { error: 'Session not found' });
+  }
+  const session = await StateService.getSession(sessionId);
+  stepStart = logTurnStep(sessionId, 'load-session', stepStart);
+  if (!session) {
+    return rejectTurnAction(404, { error: 'Session not found' });
+  }
+  const history = await StateService.getTurnHistory(sessionId);
+  stepStart = logTurnStep(sessionId, 'load-history', stepStart, `history=${history.length}`);
+  const latestChoices = history[history.length - 1]?.choices ?? session.lastChoices;
+
+  const action = normalizeTurnAction(request, session, latestChoices);
+  if (isRejection(action)) {
+    return action;
+  }
+  const rejection = validateTurnAction(session, namespaceId, action);
+  if (rejection) {
+    return rejection;
+  }
+
+  compileDmPrepIfMissing(sessionId, session);
+
+  const ctx: ResolutionContext = {
+    sessionId,
+    namespaceId,
+    operationId: options.operationId,
+    session,
+    history,
+    latestChoices,
+    turnStart,
+    stepStart,
   };
+  return action.kind === 'item_use' || action.kind === 'item_give'
+    ? resolveItemTurn(ctx, action)
+    : resolveRolledTurn(ctx, action);
 };

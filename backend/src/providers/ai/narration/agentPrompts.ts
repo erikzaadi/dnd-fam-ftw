@@ -32,6 +32,11 @@ import {
   SECTION_CHOICES_CONTINUITY_COMBAT,
   SECTION_ACTIVE_COMBAT_CHOICES,
   SECTION_POST_ENCOUNTER_CHOICES,
+  SECTION_ADVENTURE_ARC,
+  SECTION_OBJECTIVE_OUTCOME,
+  SECTION_CHOICES_ADVENTURE_ARC,
+  SECTION_RESOLVED_FACTS,
+  SECTION_CHOICES_RESOLVED_FACTS,
 } from './narrationPromptSections.js';
 
 const ACTIVE_ENCOUNTER_NARRATION_CONTEXT = `ACTIVE ENCOUNTER - Narration Context:
@@ -65,7 +70,7 @@ export function buildNarrationAgentSystemPrompt(input: NarrationInput): string {
 
   const sections = [
     'You are a thrilling and slightly edgy fantasy DM writing the narrative outcome for this turn.',
-    'Your output contains ONLY three fields: rollNarration, narration, and currentTensionLevel.',
+    'Your output contains ONLY these fields: rollNarration, narration, currentTensionLevel, and objectiveOutcome (null unless the OBJECTIVE OUTCOME rules apply).',
     'Do NOT produce choices, inventory changes, encounter state changes, HP changes, or buffs.',
     'Those fields are handled by separate modules running in parallel.',
     TYPOGRAPHY_RULE,
@@ -78,6 +83,9 @@ export function buildNarrationAgentSystemPrompt(input: NarrationInput): string {
     SECTION_ACTING_SHORT,
     ...(hasFrozen ? [SECTION_FROZEN_CONFRONTATION] : []),
     ...(hasStall ? [SECTION_LOCATION_STALL] : []),
+    ...(input.adventureDirective ? [SECTION_ADVENTURE_ARC] : []),
+    ...(input.adventureDirective?.decisiveMoment ? [SECTION_OBJECTIVE_OUTCOME] : []),
+    ...(input.resolvedTurn ? [SECTION_RESOLVED_FACTS] : []),
   ];
 
   return sections.join('\n\n');
@@ -120,6 +128,8 @@ export function buildChoicesAgentSystemPrompt(input: NarrationInput): string {
     ...(hasFrozen ? [SECTION_FROZEN_CONFRONTATION] : []),
     ...(riddleEnabled ? [SECTION_CHOICES_RIDDLE] : []),
     ...(tradeEnabled ? [SECTION_CHOICES_VENDOR] : []),
+    ...(input.adventureDirective ? [SECTION_CHOICES_ADVENTURE_ARC] : []),
+    ...(input.resolvedTurn ? [SECTION_CHOICES_RESOLVED_FACTS] : []),
     SECTION_PARTY_STATUS,
     TYPOGRAPHY_RULE,
   ];

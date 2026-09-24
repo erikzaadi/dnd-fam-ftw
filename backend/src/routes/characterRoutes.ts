@@ -12,6 +12,8 @@ import type { Character } from '../types.js';
 import { parseBody } from './routeValidation.js';
 import { registerSessionIdParam } from '../middleware/sessionParam.js';
 import { runBackground } from '../middleware/runBackground.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
+import { applyGuardedSessionMutation } from '../services/sessionMutationService.js';
 
 const characterDataSchema = z.object({
   name: z.string().min(1),
@@ -86,8 +88,15 @@ export const createCharacterRouter = () => {
     if (!session.activeCharacterId) {
       session.activeCharacterId = character.id;
     }
-    await StateService.updateSession(sessionId, session);
-    broadcastUpdate(sessionId, 'party_update', { session });
+    const mutation = applyGuardedSessionMutation(sessionId, undefined, () => {
+      sessionRepository.updateSessionSync(sessionId, session);
+    });
+    if (!mutation.ok) {
+      res.status(mutation.status).json(mutation.body);
+      return;
+    }
+    session.revision = mutation.revision;
+    broadcastUpdate(sessionId, 'party_update', { session, revision: mutation.revision });
     broadcastSessionChanged(req.namespaceId, sessionId, 'updated');
     res.json(character);
 
@@ -138,8 +147,15 @@ export const createCharacterRouter = () => {
     }
 
     session.party[charIndex] = updatedChar;
-    await StateService.updateSession(sessionId, session);
-    broadcastUpdate(sessionId, 'party_update', { session });
+    const mutation = applyGuardedSessionMutation(sessionId, undefined, () => {
+      sessionRepository.updateSessionSync(sessionId, session);
+    });
+    if (!mutation.ok) {
+      res.status(mutation.status).json(mutation.body);
+      return;
+    }
+    session.revision = mutation.revision;
+    broadcastUpdate(sessionId, 'party_update', { session, revision: mutation.revision });
     broadcastSessionChanged(req.namespaceId, sessionId, 'updated');
     res.json(updatedChar);
 
@@ -184,8 +200,19 @@ export const createCharacterRouter = () => {
     const { sessionId, charId } = req.params;
     const session = req.session!;
 
-    StateService.deleteCharacter(charId as string);
-    broadcastUpdate(sessionId as string, 'party_update', { session });
+    if (!session.party.some(c => c.id === charId)) {
+      res.status(404).json({ error: 'Character not found' });
+      return;
+    }
+    const mutation = applyGuardedSessionMutation(sessionId as string, undefined, () => {
+      StateService.deleteCharacter(charId as string);
+    });
+    if (!mutation.ok) {
+      res.status(mutation.status).json(mutation.body);
+      return;
+    }
+    const updated = await StateService.getSession(sessionId as string);
+    broadcastUpdate(sessionId as string, 'party_update', { session: updated ?? session, revision: mutation.revision });
     broadcastSessionChanged(req.namespaceId, sessionId as string, 'updated');
     triggerPreviewRegen(sessionId as string, req.namespaceId);
     res.json({ success: true });

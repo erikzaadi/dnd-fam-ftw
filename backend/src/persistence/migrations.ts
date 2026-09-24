@@ -373,4 +373,67 @@ export const migrate = (db: DB): void => {
   if (!userColsFull.includes('lastLogin')) {
     db.prepare("ALTER TABLE users ADD COLUMN lastLogin DATETIME").run();
   }
+
+  // Session revision: bumped by every authoritative gameplay or settings mutation.
+  // Clients send it back as expectedRevision so stale submissions are rejected.
+  const sessionColsRevision = (db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[]).map(r => r.name);
+  if (!sessionColsRevision.includes('revision')) {
+    db.prepare("ALTER TABLE sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 0").run();
+  }
+  // Turn number the stored story summary was built from, so late summaries never overwrite newer ones.
+  if (!sessionColsRevision.includes('story_summary_turn')) {
+    db.prepare("ALTER TABLE sessions ADD COLUMN story_summary_turn INTEGER NOT NULL DEFAULT 0").run();
+  }
+
+  // Durable operation ledger: one row per accepted client request. The partial unique
+  // index is the per-session mutation guard (at most one accepted/running operation).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS session_operations (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      namespace_id TEXT NOT NULL,
+      request_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      payload_hash TEXT NOT NULL,
+      status TEXT NOT NULL,
+      phase TEXT,
+      base_revision INTEGER NOT NULL,
+      result_revision INTEGER,
+      turn_id INTEGER,
+      error_code TEXT,
+      error_message TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_session_operations_request ON session_operations(session_id, request_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_session_operations_active ON session_operations(session_id) WHERE status IN ('accepted', 'running');
+  `);
+
+  const turnColsOperation = (db.prepare("PRAGMA table_info(turn_history)").all() as { name: string }[]).map(r => r.name);
+  if (!turnColsOperation.includes('operation_id')) {
+    db.prepare("ALTER TABLE turn_history ADD COLUMN operation_id TEXT").run();
+  }
+
+  // Adventure lifecycle. The column default is deliberately 'long_lived': existing
+  // sessions must never be retroactively rushed toward an ending. New sessions get
+  // 'one_evening' from the creation code instead (see sessionRepository.createSession).
+  const sessionColsAdventure = (db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[]).map(r => r.name);
+  if (!sessionColsAdventure.includes('adventure_format')) {
+    db.prepare("ALTER TABLE sessions ADD COLUMN adventure_format TEXT NOT NULL DEFAULT 'long_lived'").run();
+  }
+  if (!sessionColsAdventure.includes('adventure_status')) {
+    db.prepare("ALTER TABLE sessions ADD COLUMN adventure_status TEXT NOT NULL DEFAULT 'active'").run();
+  }
+  // Public progress JSON (phase, counters, participating heroes). Written only by commits.
+  if (!sessionColsAdventure.includes('adventure_arc')) {
+    db.prepare("ALTER TABLE sessions ADD COLUMN adventure_arc TEXT").run();
+  }
+  // Public chapter objective, stored once per chapter.
+  if (!sessionColsAdventure.includes('adventure_objective')) {
+    db.prepare("ALTER TABLE sessions ADD COLUMN adventure_objective TEXT").run();
+  }
+  // Private chapter payoff / DM intent. Never sent to clients.
+  if (!sessionColsAdventure.includes('adventure_plan')) {
+    db.prepare("ALTER TABLE sessions ADD COLUMN adventure_plan TEXT").run();
+  }
 };

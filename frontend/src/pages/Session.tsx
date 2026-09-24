@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Session, Character, TurnResult, FreeActionPreview } from '../types';
 import { apiFetch, imgSrc } from '../lib/api';
-import { useSessionEvents } from '../hooks/useSessionEvents';
+import { useSessionEvents, type OperationEventMeta } from '../hooks/useSessionEvents';
+import { useSessionOperations } from '../session/useSessionOperations';
 import { PageLoader } from '../components/PageLoader';
 import { CharacterPopup } from '../components/CharacterPopup';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -30,8 +31,13 @@ import { useOnboardingTutorial } from '../hooks/useOnboardingTutorial';
 import { OriginView } from '../components/OriginView';
 import { buildEncounterLookup, countEncounterTurns, getTurnEncounter, patchEncounterEnemyAvatar, patchEncounterAreaImage } from '../lib/encounters';
 import { devLog } from '../lib/devLog';
+import { AdventurePanel } from '../components/game/AdventurePanel';
+import { AdventureEnding } from '../components/game/AdventureEnding';
+import { findConclusionTurn, isAdventureCompleted, isAdventureConcluding, requestWrapUp, setAdventureFormat } from '../session/adventureActions';
 
 interface LastSubmittedAction {
+  previewId?: string;
+  choiceId?: number;
   label: string;
   stat: string;
   char: Character | null;
@@ -94,6 +100,8 @@ export const SessionPage = () => {
   const [gearOpen, setGearOpen] = useState(false);
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
   const [showOrigin, setShowOrigin] = useState(false);
+  const [continuingWorld, setContinuingWorld] = useState(false);
+  const [endingError, setEndingError] = useState<string | null>(null);
   const showBannerRef = useRef(showBanner);
   showBannerRef.current = showBanner;
   const [storyFocusRequest, setStoryFocusRequest] = useState(0);
@@ -103,6 +111,8 @@ export const SessionPage = () => {
   });
   const historyRef = useRef<TurnResult[]>(history);
   historyRef.current = history;
+  const loadingRef = useRef(loading);
+  loadingRef.current = loading;
   const displayTurnRef = useRef<TurnResult | null>(null);
   const previewPartyBoostActionRef = useRef<() => void>(() => undefined);
 
@@ -144,12 +154,57 @@ export const SessionPage = () => {
     }
   }, []);
 
+  const clearPendingTurnUi = useCallback(() => {
+    setLoading(false);
+    setLastSubmittedAction(null);
+    setRollResult(null);
+    setConsequencesPending(false);
+    hasEarlyRollRef.current = false;
+  }, []);
+
+  // Operation lifecycle shared with the car/terminal runtime: revision, pending
+  // operation, follow-up turns, snapshot reconciliation and guarded submission.
+  // Every (re)connection reconciles, so a missed event never strands the view.
+  const ops = useSessionOperations({
+    sessionId: id,
+    onSnapshot: snapshot => {
+      setSession(snapshot.session);
+      const wasEmpty = historyRef.current.length === 0;
+      const prevLastId = historyRef.current[historyRef.current.length - 1]?.id;
+      const nextLastId = snapshot.history[snapshot.history.length - 1]?.id;
+      if (snapshot.history.length > 0 || wasEmpty) {
+        setHistory(snapshot.history);
+        if (historyRef.current.length !== snapshot.history.length || prevLastId !== nextLastId) {
+          setViewedTurnIdx(snapshot.history.length - 1);
+        }
+      }
+      if (wasEmpty && snapshot.history.length === 1) {
+        setShowOrigin(true);
+      }
+    },
+    setBusy: busy => {
+      if (busy) {
+        setLoading(true);
+      }
+    },
+    isBusy: () => loadingRef.current,
+    onWaitEnded: failed => {
+      // Drafts live in separate state and are left untouched.
+      clearPendingTurnUi();
+      if (failed) {
+        setActionError(failed.errorMessage ?? 'Something went wrong. Please try again.');
+      }
+    },
+  });
+  const revisionRef = ops.revisionRef;
+
   const joinSession = useCallback(async (sessionId: string) => {
     const res = await apiFetch(`/session/${sessionId}`);
     if (!res.ok) {
       navigate('/'); return;
     }
     const data = await res.json();
+    revisionRef.current = Math.max(revisionRef.current, data.revision ?? 0);
     setSession(data);
     const hRes = await apiFetch(`/session/${data.id}/history`);
     const hData = await hRes.json();
@@ -165,23 +220,7 @@ export const SessionPage = () => {
     if (latestTurn && !latestTurn.imageUrl && !data.savingsMode) {
       setImageLoading(true);
     }
-  }, [navigate]);
-
-  const refetchHistory = useCallback(async (sessionId: string) => {
-    const hRes = await apiFetch(`/session/${sessionId}/history`);
-    if (!hRes.ok) {
-      return;
-    }
-    const hData: TurnResult[] = await hRes.json();
-    if (hData.length === 0) {
-      return;
-    }
-    setHistory(hData);
-    setViewedTurnIdx(hData.length - 1);
-    if (hData.length === 1) {
-      setShowOrigin(true);
-    }
-  }, []);
+  }, [navigate, revisionRef]);
 
   useEffect(() => {
     if (id) {
@@ -328,14 +367,46 @@ export const SessionPage = () => {
     navigate(`/session/${id}/terminal`);
   });
 
+  const applyRecoveryTurn = (updatedSession: Session | null, turnResult: TurnResult | null, meta?: OperationEventMeta) => {
+    ops.onOperationEnded(meta);
+    setLoading(false);
+    if (updatedSession) {
+      setSession(updatedSession);
+    }
+    if (turnResult) {
+      setHistory(prev => {
+        if (turnResult.id && prev.some(t => t.id === turnResult.id)) {
+          return prev;
+        }
+        const u = [...prev, turnResult];
+        setViewedTurnIdx(u.length - 1);
+        return u;
+      });
+    }
+  };
+
   const { connectionState } = useSessionEvents({
     sessionId: id!,
     onConnected: () => {
-      if (historyRef.current.length === 0 && id) {
-        void refetchHistory(id);
-      }
+      void ops.reconcile();
     },
-    onGameOver: (updatedSession) => {
+    onAdventureConcluding: () => {
+      setLoading(true);
+    },
+    onAdventureConcluded: (updatedSession, turnResult, meta) => {
+      // Music settles for the ending; the tension effect below follows this state.
+      setCurrentTensionLevel('low');
+      applyRecoveryTurn(updatedSession, turnResult, meta);
+      setContinuingWorld(false);
+    },
+    onSessionUpdated: (revision, changes) => {
+      ops.noteRevision(revision);
+      setSession(prev => prev ? { ...prev, ...changes, revision } : prev);
+      // Previews were computed against the old settings; the player re-previews.
+      setGearActionPreview(null);
+    },
+    onGameOver: (updatedSession, meta) => {
+      ops.onOperationEnded(meta);
       setSession(updatedSession);
     },
     onNarrating: ({ action, statUsed, difficulty, difficultyValue, character, ...preview }) => {
@@ -401,7 +472,8 @@ export const SessionPage = () => {
       // Roll result and consequencesPending stay as-is - the roll is valid, only the narration is retrying.
       // onTurnComplete will arrive after the retry and handle cleanup via the normal early-roll path.
     },
-    onTurnError: (_error, message) => {
+    onTurnError: (_error, message, meta) => {
+      ops.onOperationEnded(meta);
       setLoading(false);
       setLastSubmittedAction(null);
       setRollResult(null);
@@ -410,8 +482,12 @@ export const SessionPage = () => {
       setActionError(message);
       recordTimingEvent('unlock');
     },
-    onTurnComplete: (updatedSession, turnResult) => {
+    onTurnComplete: (updatedSession, turnResult, meta) => {
+      // Stays locked when the rescue turn (intervention/sanctuary_recovery) or the
+      // ending (adventure_concluded) still follows in the same operation.
+      ops.onTurnCommitted(meta);
       recordTimingEvent('turn_complete');
+      setContinuingWorld(false);
       setLastSubmittedAction(null);
       setCustomAction('');
       if (turnResult?.currentTensionLevel) {
@@ -450,7 +526,7 @@ export const SessionPage = () => {
         }
         setConsequencesPending(false);
         setTimeout(() => {
-          setLoading(false);
+          setLoading(ops.isAwaitingFollowUp());
           setRollResult(null);
           requestStoryFocus();
           recordTimingEvent('unlock');
@@ -494,13 +570,13 @@ export const SessionPage = () => {
           }
         }, 600);
         setTimeout(() => {
-          setLoading(false);
+          setLoading(ops.isAwaitingFollowUp());
           setRollResult(null);
           requestStoryFocus();
           recordTimingEvent('unlock');
         }, 600);
       } else {
-        setLoading(false);
+        setLoading(ops.isAwaitingFollowUp());
         recordTimingEvent('unlock');
         if (turnResult) {
           setHistory(prev => {
@@ -545,36 +621,19 @@ export const SessionPage = () => {
         } : prev);
       }
     },
-    onIntervention: (narration, updatedSession, turnResult) => {
+    onIntervention: (narration, updatedSession, turnResult, meta) => {
+      applyRecoveryTurn(updatedSession, turnResult, meta);
       setInterventionBanner(narration);
-      if (updatedSession) {
-        setSession(updatedSession);
-      }
-      if (turnResult) {
-        setHistory(prev => {
-          const u = [...prev, turnResult];
-          setViewedTurnIdx(u.length - 1);
-          return u;
-        });
-      }
       setTimeout(() => setInterventionBanner(null), 8000);
     },
-    onSanctuaryRecovery: (narration, updatedSession, turnResult) => {
+    onSanctuaryRecovery: (narration, updatedSession, turnResult, meta) => {
+      applyRecoveryTurn(updatedSession, turnResult, meta);
       setSanctuaryBanner(narration);
-      if (updatedSession) {
-        setSession(updatedSession);
-      }
-      if (turnResult) {
-        setHistory(prev => {
-          const u = [...prev, turnResult];
-          setViewedTurnIdx(u.length - 1);
-          return u;
-        });
-      }
       setTimeout(() => setSanctuaryBanner(null), 10000);
     },
     onPartyUpdate: (updatedSession) => {
       if (updatedSession) {
+        ops.noteRevision(updatedSession.revision);
         setSession(updatedSession);
       } else {
         joinSession(id!);
@@ -619,32 +678,29 @@ export const SessionPage = () => {
     audioManager.stopNarrating();
     narrationTtsService.stopNarration();
     try {
-      const res = await apiFetch(`/session/${id}/action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action,
-          statUsed,
-          difficulty,
-          difficultyValue,
-          characterId: ownerCharId ?? undefined,
-          actionType,
-          itemId: itemId ?? undefined,
-          targetCharacterId: targetCharId ?? undefined,
-          ...(actionIntent && { actionIntent }),
-        }),
+      const result = await ops.submit(`/session/${id}/action`, {
+        action,
+        statUsed,
+        difficulty,
+        difficultyValue,
+        characterId: ownerCharId ?? undefined,
+        actionType,
+        itemId: itemId ?? undefined,
+        targetCharacterId: targetCharId ?? undefined,
+        ...(actionIntent && { actionIntent }),
+        ...(preview.previewId && { previewId: preview.previewId }),
+        ...(preview.choiceId !== undefined && { choiceId: preview.choiceId }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || 'Action failed');
+      if (result.kind === 'accepted') {
+        // Turn is queued - the outcome arrives via turn_complete SSE (or turn_error).
+        return;
       }
-      // Turn is queued - result arrives via turn_complete SSE (or turn_error on failure)
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setActionError(err.message);
-      } else {
-        setActionError('An unexpected error occurred');
-      }
+      // A 409 refreshes the snapshot inside ops.submit; the typed draft stays in the action box.
+      setActionError(result.message);
+      setLoading(false);
+      setLastSubmittedAction(null);
+    } catch {
+      setActionError('Could not reach the realm. Check your connection and try again.');
       setLoading(false);
       setLastSubmittedAction(null);
     }
@@ -814,6 +870,7 @@ export const SessionPage = () => {
     }
     setGearPreviewSubmitting(true);
     const preview: Partial<LastSubmittedAction> = {
+      ...(gearActionPreview.previewId !== undefined && { previewId: gearActionPreview.previewId }),
       ...(gearActionPreview.helperBonus !== undefined && { helperBonus: gearActionPreview.helperBonus }),
       ...(gearActionPreview.helperCharacterName !== undefined && { helperCharacterName: gearActionPreview.helperCharacterName }),
       ...(gearActionPreview.choiceItemBonus !== undefined && { choiceItemBonus: gearActionPreview.choiceItemBonus }),
@@ -835,6 +892,71 @@ export const SessionPage = () => {
     }
     setCustomAction(gearActionPreview.interpretedAction);
     setGearActionPreview(null);
+  };
+
+  const handleWrapUp = async () => {
+    if (!session) {
+      return;
+    }
+    const result = await requestWrapUp(session.id, revisionRef.current);
+    if (!result.ok) {
+      setActionError(result.message);
+      return;
+    }
+    revisionRef.current = Math.max(revisionRef.current, result.revision);
+    setSession(prev => prev && result.adventure ? { ...prev, adventure: result.adventure, revision: result.revision } : prev);
+  };
+
+  const handleToggleLongLived = async (longLived: boolean) => {
+    if (!session) {
+      return;
+    }
+    const result = await setAdventureFormat(session.id, longLived ? 'long_lived' : 'one_evening', revisionRef.current);
+    if (!result.ok) {
+      setActionError(result.message);
+      return;
+    }
+    revisionRef.current = Math.max(revisionRef.current, result.revision);
+    setSession(prev => prev && result.adventure ? { ...prev, adventure: result.adventure, revision: result.revision } : prev);
+  };
+
+  const handleEndHere = () => {
+    if (!session) {
+      return;
+    }
+    setConfirmDialog({
+      message: 'End tonight\'s adventure here? The DM will tell how things stand, without another roll.',
+      confirmLabel: 'End here',
+      onConfirm: () => {
+        void (async () => {
+          setActionError(null);
+          setLoading(true);
+          const result = await ops.submit(`/session/${session.id}/adventure/end`, {}, { expectsFollowUp: true });
+          if (result.kind === 'accepted') {
+            return;
+          }
+          setLoading(false);
+          setActionError(result.message);
+        })();
+      },
+    });
+  };
+
+  const handleContinueWorld = async (format: 'one_evening' | 'long_lived') => {
+    if (!session) {
+      return;
+    }
+    setEndingError(null);
+    setContinuingWorld(true);
+    setLoading(true);
+    const result = await ops.submit(`/session/${session.id}/adventure/continue`, { adventureFormat: format });
+    if (result.kind === 'accepted') {
+      // The new chapter's opening arrives via turn_complete.
+      return;
+    }
+    setLoading(false);
+    setContinuingWorld(false);
+    setEndingError(result.message);
   };
 
   if (!session) {
@@ -874,6 +996,26 @@ export const SessionPage = () => {
           </button>
         </div>
       </div>
+    );
+  }
+
+  if (isAdventureCompleted(session) && !continuingWorld) {
+    return (
+      <AdventureEnding
+        session={session}
+        conclusion={findConclusionTurn(session, history)}
+        continuing={continuingWorld}
+        error={endingError}
+        onContinue={format => {
+          void handleContinueWorld(format);
+        }}
+        onViewChronicle={() => navigate(`/session/${session.id}/recap`)}
+        onHome={() => {
+          audioManager.stopMusic();
+          narrationTtsService.stopNarration();
+          navigate('/');
+        }}
+      />
     );
   }
 
@@ -1042,6 +1184,28 @@ export const SessionPage = () => {
             </button>
           </div>
           <div className="flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col gap-2">
+            {session.adventure && session.adventure.status === 'active' && (
+              <AdventurePanel
+                adventure={session.adventure}
+                disabled={loading || previewThinking}
+                onWrapUp={() => {
+                  void handleWrapUp();
+                }}
+                onEndHere={handleEndHere}
+                onToggleLongLived={longLived => {
+                  void handleToggleLongLived(longLived);
+                }}
+              />
+            )}
+            {isAdventureConcluding(session) && !loading && (
+              <button
+                type="button"
+                onClick={handleEndHere}
+                className="rounded-2xl bg-amber-600 py-3 text-sm font-black uppercase tracking-widest text-slate-950 hover:bg-amber-500"
+              >
+                  Finish the story
+              </button>
+            )}
             {session.encounterState?.status === 'active' && (
               <EncounterPanel
                 encounter={session.encounterState}
@@ -1061,6 +1225,7 @@ export const SessionPage = () => {
                 sessionId={session.id}
                 customAction={customAction}
                 setCustomAction={setCustomAction}
+                revision={session.revision}
                 error={actionError}
                 onSubmit={submitAction}
                 onShowPartyGear={() => setShowFullInventory(true)}
@@ -1143,6 +1308,28 @@ export const SessionPage = () => {
             <DmDecisionRecapPanel lastSubmittedAction={lastSubmittedAction} ttsSettings={ttsSettings} rollResult={rollResult} consequencesPending={consequencesPending} />
           ) : (
             <div className="flex h-full min-h-0 flex-col gap-2">
+              {session.adventure && session.adventure.status === 'active' && (
+                <AdventurePanel
+                  adventure={session.adventure}
+                  disabled={loading || previewThinking}
+                  onWrapUp={() => {
+                    void handleWrapUp();
+                  }}
+                  onEndHere={handleEndHere}
+                  onToggleLongLived={longLived => {
+                    void handleToggleLongLived(longLived);
+                  }}
+                />
+              )}
+              {isAdventureConcluding(session) && !loading && (
+                <button
+                  type="button"
+                  onClick={handleEndHere}
+                  className="rounded-2xl bg-amber-600 py-3 text-sm font-black uppercase tracking-widest text-slate-950 hover:bg-amber-500"
+                >
+                  Finish the story
+                </button>
+              )}
               {session.encounterState?.status === 'active' && (
                 <EncounterPanel
                   encounter={session.encounterState}
@@ -1162,6 +1349,7 @@ export const SessionPage = () => {
                   sessionId={session.id}
                   customAction={customAction}
                   setCustomAction={setCustomAction}
+                  revision={session.revision}
                   error={actionError}
                   onSubmit={submitAction}
                   onShowPartyGear={() => setShowFullInventory(true)}

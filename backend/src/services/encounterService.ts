@@ -305,6 +305,25 @@ const contextualOrganicEnemyName = (text: string): string => {
   return 'Shadow Ambusher';
 };
 
+const PROTECTED_WORD_MIN_LENGTH = 4;
+
+// True when every significant word of the candidate appears in something the party is
+// protecting or pursuing (the chapter objective, carried items). "The knotted charm
+// bursts into light" must never turn the quest item into an enemy.
+export const isProtectedEncounterName = (candidate: string, protectedTexts: string[] | undefined): boolean => {
+  if (!protectedTexts?.length) {
+    return false;
+  }
+  const words = candidate.toLowerCase().split(/[^a-z0-9']+/).filter(word => word.length >= PROTECTED_WORD_MIN_LENGTH);
+  if (words.length === 0) {
+    return false;
+  }
+  return protectedTexts.some(text => {
+    const haystack = text.toLowerCase();
+    return words.every(word => new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(haystack));
+  });
+};
+
 const extractOrganicEnemyName = (text: string, actionAttempt?: string | null, npcs?: string[]): string | null => {
   if (npcs && npcs.length > 0) {
     const lowerAction = actionAttempt?.toLowerCase() ?? '';
@@ -431,6 +450,8 @@ export const inferOrganicEncounterStart = (
     currentTensionLevel?: TensionLevel | null;
     suggestedDamage?: number | null;
     npcs?: string[];
+    // Objective and carried item names: never inferred as enemies.
+    protectedNames?: string[];
   },
   currentEncounter: EncounterState | undefined,
 ): EncounterStartProposal | null => {
@@ -450,7 +471,7 @@ export const inferOrganicEncounterStart = (
   ].join(' ');
 
   const enemyName = extractOrganicEnemyName(haystack, input.actionAttempt, input.npcs);
-  if (!enemyName) {
+  if (!enemyName || isProtectedEncounterName(enemyName, input.protectedNames)) {
     return null;
   }
   const traits = inferOrganicTraits(haystack, enemyName);

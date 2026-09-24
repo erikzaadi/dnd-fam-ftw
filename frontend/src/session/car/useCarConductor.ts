@@ -59,6 +59,9 @@ interface UseCarConductorProps {
   clearPreview: () => void;
   ttsSettings: TtsSettings;
   hasTts: boolean;
+  // Session management. Resolve to an error message, or null on success.
+  wrapUpAdventure?: () => Promise<string | null>;
+  endAdventure?: () => Promise<string | null>;
 }
 
 export function useCarConductor({
@@ -74,6 +77,8 @@ export function useCarConductor({
   clearPreview,
   ttsSettings,
   hasTts,
+  wrapUpAdventure,
+  endAdventure,
 }: UseCarConductorProps) {
   const [conductorState, setConductorState] = useState<ConductorState>('idle');
   const [isPaused, setIsPaused] = useState(false);
@@ -425,6 +430,19 @@ export function useCarConductor({
       } else {
         await speakTempText('Nothing to retry. What do you do?');
       }
+      return;
+    }
+
+    if (intent.type === 'wrap-up') {
+      const error = wrapUpAdventure ? await wrapUpAdventure() : 'Wrapping up is not available here.';
+      await speakTempText(error ?? 'Got it. The story will head for its finale soon.');
+      return;
+    }
+
+    if (intent.type === 'end-here') {
+      addToTranscriptLog('Interpreted: End the adventure here');
+      const error = endAdventure ? await endAdventure() : 'Ending is not available here.';
+      await speakTempText(error ?? 'Ending the adventure here. The storyteller is writing the epilogue.');
       return;
     }
 

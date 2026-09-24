@@ -1,4 +1,4 @@
-import { SessionState, TurnResult, type Character, type GameMode } from '../types.js';
+import { SessionState, TurnResult, type AdventureFormat, type Character, type GameMode } from '../types.js';
 import { initializeDatabase } from '../persistence/database.js';
 import { characterRepository } from '../repositories/characterRepository.js';
 import { inviteRequestRepository, type InviteRequest } from '../repositories/inviteRequestRepository.js';
@@ -17,8 +17,8 @@ export class StateService {
     initializeDatabase();
   }
 
-  public static async createSession(worldDescription?: string, difficulty: string = 'normal', savingsMode: boolean = false, namespaceId: string = 'local', gameMode: GameMode = 'balanced', dmPrep?: string, initialDisplayName?: string, initialId?: string): Promise<SessionState> {
-    return sessionRepository.createSession(worldDescription, difficulty, savingsMode, namespaceId, gameMode, dmPrep, initialDisplayName, initialId);
+  public static async createSession(worldDescription?: string, difficulty: string = 'normal', savingsMode: boolean = false, namespaceId: string = 'local', gameMode: GameMode = 'balanced', dmPrep?: string, initialDisplayName?: string, initialId?: string, adventureFormat: AdventureFormat = 'one_evening'): Promise<SessionState> {
+    return sessionRepository.createSession(worldDescription, difficulty, savingsMode, namespaceId, gameMode, dmPrep, initialDisplayName, initialId, adventureFormat);
   }
 
   public static async getSession(id: string): Promise<SessionState | undefined> {
@@ -73,12 +73,20 @@ export class StateService {
     return turnHistoryRepository.getTurnHistory(id);
   }
 
-  public static async updateStorySummary(sessionId: string, summary: string): Promise<void> {
-    return sessionRepository.updateStorySummary(sessionId, summary);
+  public static async updateStorySummary(sessionId: string, summary: string, sourceTurn?: number): Promise<boolean> {
+    return sessionRepository.updateStorySummary(sessionId, summary, sourceTurn);
   }
 
-  public static async updateLatestTurnImage(sessionId: string, imageUrl: string, storageKey: string, storageProvider: string): Promise<void> {
-    return turnHistoryRepository.updateLatestTurnImage(sessionId, imageUrl, storageKey, storageProvider);
+  public static async updateTurnImage(sessionId: string, turnId: number, imageUrl: string, storageKey: string, storageProvider: string): Promise<boolean> {
+    return turnHistoryRepository.updateTurnImage(sessionId, turnId, imageUrl, storageKey, storageProvider);
+  }
+
+  public static getRevision(id: string): number | undefined {
+    return sessionRepository.getRevision(id);
+  }
+
+  public static bumpRevision(id: string): number {
+    return sessionRepository.bumpRevision(id);
   }
 
   public static async addTurnResult(id: string, turn: TurnResult, characterId: string | null): Promise<number> {

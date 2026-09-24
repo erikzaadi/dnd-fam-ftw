@@ -296,3 +296,25 @@ describe('ActionDock speech input', () => {
     expect(screen.getAllByText('No roll')).toHaveLength(2);
   });
 });
+
+describe('ActionDock numbers toggle', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('shows a plain risk word by default and hides roll targets and odds', () => {
+    renderDock();
+    expect(screen.getByText('Risky')).toBeInTheDocument();
+    expect(screen.queryByText(/^vs \d+$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^\d+%$/)).not.toBeInTheDocument();
+  });
+
+  it('reveals the arithmetic on tap and remembers the choice', async () => {
+    renderDock();
+    await userEvent.click(screen.getByRole('button', { name: 'Show the numbers' }));
+    expect(screen.getAllByText(/^vs \d+$/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/^\d+%$/).length).toBe(3);
+    expect(window.localStorage.getItem('dnd-fam-ftw:action-dock:show-numbers')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Hide the numbers' })).toHaveAttribute('aria-pressed', 'true');
+  });
+});

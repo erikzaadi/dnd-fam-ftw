@@ -42,7 +42,8 @@ if ! command -v node &> /dev/null; then
 fi
 
 echo "[setup] Creating app directories..."
-sudo mkdir -p "$CURRENT_DIR"
+# Releases live in releases/<id>; the first deploy creates the current -> release symlink.
+sudo mkdir -p "$APP_DIR/releases"
 sudo chown -R ubuntu:ubuntu "$APP_DIR"
 
 echo "[setup] Writing systemd service..."

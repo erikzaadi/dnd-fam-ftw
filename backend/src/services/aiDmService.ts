@@ -213,6 +213,7 @@ export function toNarrationInput(input: AIInput): NarrationInput {
       : {}),
     interventionRescue: input.interventionRescue,
     sanctuaryRecovery: input.sanctuaryRecovery,
+    ...(input.adventureDirective && { adventureDirective: input.adventureDirective }),
   };
 }
 
@@ -256,6 +257,7 @@ export class AiDmService {
         suggestedDamage: output.suggestedDamage ?? null,
         suggestedEncounterStart: output.suggestedEncounterStart ?? null,
         suggestedEncounterUpdate: output.suggestedEncounterUpdate ?? null,
+        objectiveOutcome: output.objectiveOutcome ?? null,
         narrationRetried: output.narrationRetried ?? false,
         narrationFailed: output.narrationFailed ?? false,
         choicesFailed: (output as DmTurnOrchestratorResult).choicesFailed ?? false,

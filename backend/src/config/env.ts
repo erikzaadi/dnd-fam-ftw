@@ -56,3 +56,19 @@ function parse(): AppConfig {
     APP_VERSION: process.env.APP_VERSION ?? 'dev',
   };
 }
+
+// Turn pipeline strategy (plan 4 comparison). 'parallel' is the production
+// comparator; 'resolved_first' resolves mechanics before narration and choices.
+// Read on every call (not cached) so evaluations and tests can switch it.
+export type TurnStrategy = 'parallel' | 'resolved_first';
+
+export function getTurnStrategy(): TurnStrategy {
+  const raw = process.env.AI_TURN_STRATEGY?.trim();
+  if (!raw || raw === 'parallel') {
+    return 'parallel';
+  }
+  if (raw === 'resolved_first') {
+    return 'resolved_first';
+  }
+  throw new Error(`[Config] Invalid AI_TURN_STRATEGY: "${raw}". Must be "parallel" or "resolved_first".`);
+}

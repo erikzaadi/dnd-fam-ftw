@@ -14,6 +14,8 @@ export type SpeechIntent =
   | { type: 'gear'; transcript: string }
   | { type: 'encounter'; transcript: string }
   | { type: 'where-are-we'; transcript: string }
+  | { type: 'wrap-up'; transcript: string }
+  | { type: 'end-here'; transcript: string }
   | { type: 'custom'; text: string; transcript: string };
 
 const CHOICE_PHRASES: Record<0 | 1 | 2 | 3, string[]> = {
@@ -38,6 +40,9 @@ const COMMAND_PHRASES: Record<Exclude<SpeechIntent['type'], 'choice' | 'custom'>
   gear: ['gear', 'inventory', 'items', 'bag', 'my gear', 'show items'],
   encounter: ['encounter', 'enemies', 'monsters', 'who are we fighting', 'enemy status', 'encounter info'],
   'where-are-we': ['where are we', 'location', 'scene', 'where am i', 'current location', 'recap location'],
+  // Session management: deliberately multi-word so ordinary actions never trigger them.
+  'wrap-up': ['wrap up', 'wrap up our adventure', 'wrap up the adventure', 'start the finale', 'lets wrap up'],
+  'end-here': ['end here', 'end the adventure', 'end the adventure here', 'end here with an epilogue', 'finish the story'],
 };
 
 const normalize = (text: string) => text

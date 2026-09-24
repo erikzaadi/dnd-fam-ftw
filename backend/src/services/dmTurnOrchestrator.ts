@@ -1,7 +1,7 @@
 import { zodResponseFormat } from 'openai/helpers/zod';
 import type { CompletionUsage } from 'openai/resources/completions';
 import type { ZodType } from 'zod';
-import type { NarrationChoice, NarrationInput, NarrationOutput, NarrationProvider, NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
+import type { MechanicsProposal, NarrationChoice, NarrationInput, NarrationOutput, NarrationProvider, NarrationStreamCallbacks, ResolvedPresentation } from '../providers/ai/narration/NarrationProvider.js';
 import { buildNarrationFallback } from '../providers/ai/narration/narrationFallback.js';
 import { buildNarrationUserContent } from '../providers/ai/narration/narrationPrompt.js';
 import { isTradeTurn } from '../providers/ai/narration/narrationPrompt.js';
@@ -68,11 +68,22 @@ async function withDeadline<T>(
   deadlineMs: number,
   diagnostics: AgentDiagnostic[],
   retryOnce = false,
+  // When set, the deadline does not fire before this promise settles. Used to let a
+  // choices retry keep working while narration is still streaming: the turn waits
+  // for narration anyway, so the extra time costs players nothing.
+  extendUntil?: Promise<unknown>,
 ): Promise<T> {
   const controller = new AbortController();
   const start = Date.now();
   let retried = false;
   let deadlineTimer: ReturnType<typeof setTimeout> | null = null;
+  let extensionSettled = !extendUntil;
+  let finished = false;
+  void extendUntil?.then(() => {
+    extensionSettled = true;
+  }, () => {
+    extensionSettled = true;
+  });
   try {
     const result = await Promise.race([
       (async () => {
@@ -91,12 +102,24 @@ async function withDeadline<T>(
         }
       })(),
       new Promise<never>((_, reject) => {
-        deadlineTimer = setTimeout(() => {
+        const expire = () => {
+          if (finished) {
+            return;
+          }
           controller.abort();
           reject(new Error('agent-deadline'));
+        };
+        deadlineTimer = setTimeout(() => {
+          if (extensionSettled || !extendUntil) {
+            expire();
+            return;
+          }
+          const fireAfterExtension = () => expire();
+          extendUntil.then(fireAfterExtension, fireAfterExtension);
         }, deadlineMs);
       }),
     ]);
+    finished = true;
     if (deadlineTimer !== null) {
       clearTimeout(deadlineTimer);
     }
@@ -106,6 +129,7 @@ async function withDeadline<T>(
     diagnostics.push({ agent: name, durationMs, status });
     return result;
   } catch (err) {
+    finished = true;
     const durationMs = Date.now() - start;
     const isTimeout = err instanceof Error && err.message === 'agent-deadline';
     const status: AgentDiagnostic['status'] = isTimeout ? 'timeout' : 'fallback';
@@ -307,6 +331,16 @@ function choicesUserContent(input: NarrationInput): string {
         ...(item.tags?.length && { tags: item.tags }),
       })),
     recentHistory: input.recentHistory?.slice(-3),
+    ...(input.resolvedTurn && { resolvedTurn: { facts: input.resolvedTurn.facts, encounter: input.resolvedTurn.encounter } }),
+    // The private payoff stays with narration so it cannot leak into button labels.
+    ...(input.adventureDirective && {
+      adventureDirective: {
+        phase: input.adventureDirective.phase,
+        objective: input.adventureDirective.objective,
+        // Choices are for the next hero only; other heroes' spotlight is narration's job.
+        ...(input.nextCharacterName && input.adventureDirective.heroesAwaitingSpotlight?.includes(input.nextCharacterName) && { nextHeroNeedsSpotlight: true }),
+      },
+    }),
   });
 }
 
@@ -696,7 +730,13 @@ export type ChoicesFlowResult = {
 // exercise the same deadlines, retries, and repairs.
 export async function runChoicesWithRetry(
   input: NarrationInput,
-  options: { diagnostics?: AgentDiagnostic[]; observer?: ChoicesFlowObserver } = {},
+  options: {
+    diagnostics?: AgentDiagnostic[];
+    observer?: ChoicesFlowObserver;
+    // Settles when the parallel narration call finishes. Retries may run until then
+    // (past their own deadline) because the turn cannot complete earlier anyway.
+    narrationSettled?: Promise<unknown>;
+  } = {},
 ): Promise<ChoicesFlowResult> {
   const diagnostics = options.diagnostics ?? [];
   const observer = options.observer;
@@ -750,6 +790,8 @@ export async function runChoicesWithRetry(
       null,
       choicesRetryDeadlineMs,
       diagnostics,
+      false,
+      options.narrationSettled,
     );
     const best = corrected ?? first;
     return {
@@ -767,6 +809,8 @@ export async function runChoicesWithRetry(
     choicesFallback,
     choicesRetryDeadlineMs,
     diagnostics,
+    false,
+    options.narrationSettled,
   );
   // The retry runs exactly when the first attempt failed, so the final
   // choices are fallback only if the retry itself failed.
@@ -913,15 +957,16 @@ export class DmTurnOrchestrator implements NarrationProvider {
     const relaxedDeadlines = !!(input.isFirstTurn || input.interventionRescue || input.sanctuaryRecovery);
     const narrationDeadlineMs = relaxedDeadlines ? 8000 : 6000;
 
+    const narrationPromise = withDeadline(
+      'narration',
+      (signal) => callNarrationAgent(input, gatedCallbacks, signal),
+      narrationFallback,
+      narrationDeadlineMs,
+      diagnostics,
+    );
     const [narration, choicesFlow, combat, inventory, recovery] = await Promise.all([
-      withDeadline(
-        'narration',
-        (signal) => callNarrationAgent(input, gatedCallbacks, signal),
-        narrationFallback,
-        narrationDeadlineMs,
-        diagnostics,
-      ),
-      runChoicesWithRetry(input, { diagnostics }),
+      narrationPromise,
+      runChoicesWithRetry(input, { diagnostics, narrationSettled: narrationPromise }),
       runCombat
         ? withDeadline('combat', (signal) => callCombatAgent(input, signal), combatFallback, 2500, diagnostics, true)
         : Promise.resolve(combatFallback),
@@ -950,6 +995,8 @@ export class DmTurnOrchestrator implements NarrationProvider {
       narration: cleanText(narration.narration),
       rollNarration: narration.rollNarration ? cleanText(narration.rollNarration) : undefined,
       currentTensionLevel: narration.currentTensionLevel,
+      // Only a decisive finale turn may report progress on the chapter objective.
+      objectiveOutcome: input.adventureDirective?.decisiveMoment && !narrationUsedFallback ? (narration.objectiveOutcome ?? null) : null,
       choices: toPlayerChoices(choicesFlow.choices, input),
       suggestedDamage: combat.suggestedDamage ?? null,
       suggestedEncounterStart: (combat.suggestedEncounterStart ?? null) as NarrationOutput['suggestedEncounterStart'],
@@ -962,6 +1009,72 @@ export class DmTurnOrchestrator implements NarrationProvider {
       suggestedBuffAdd: (recovery.suggestedBuffAdd ?? null) as NarrationOutput['suggestedBuffAdd'],
       suggestedBuffRemove: recovery.suggestedBuffRemove ?? null,
       narrationRetried: false,
+      narrationFailed: narrationUsedFallback,
+      choicesFailed: choicesFlow.usedFallback,
+      choicesEscalated: choicesFlow.escalated,
+      agentDiagnostics: diagnostics,
+    };
+  }
+
+  // resolved_first stage 1: mechanical proposals only, with the same gates and
+  // deadlines the parallel comparator uses.
+  async proposeMechanics(input: NarrationInput): Promise<MechanicsProposal> {
+    const diagnostics: AgentDiagnostic[] = [];
+    const runCombat = shouldRunCombatAgent(input);
+    const runInventory = shouldRunInventoryAgent(input);
+    const runRecovery = shouldRunRecoveryAgent(input);
+    const [combat, inventory, recovery] = await Promise.all([
+      runCombat
+        ? withDeadline<CombatAgentOutput>('combat', (signal) => callCombatAgent(input, signal), { suggestedDamage: null, suggestedEncounterStart: null, suggestedEncounterUpdate: null }, 2500, diagnostics, true)
+        : Promise.resolve<CombatAgentOutput>({ suggestedDamage: null, suggestedEncounterStart: null, suggestedEncounterUpdate: null }),
+      runInventory
+        ? withDeadline<InventoryAgentOutput>('inventory', (signal) => callInventoryAgent(input, signal), { suggestedInventoryAdd: null, suggestedInventoryRemove: null, suggestedInventoryUpdate: null }, 2500, diagnostics, true)
+        : Promise.resolve<InventoryAgentOutput>({ suggestedInventoryAdd: null, suggestedInventoryRemove: null, suggestedInventoryUpdate: null }),
+      runRecovery
+        ? withDeadline<RecoveryAgentOutput>('recovery', (signal) => callRecoveryAgent(input, signal), { suggestedRevive: null, suggestedHeal: null, suggestedBuffAdd: null, suggestedBuffRemove: null }, 3000, diagnostics, true)
+        : Promise.resolve<RecoveryAgentOutput>({ suggestedRevive: null, suggestedHeal: null, suggestedBuffAdd: null, suggestedBuffRemove: null }),
+    ]);
+    devLog.log(`[Orchestrator] resolved-first mechanics combat=${runCombat} inventory=${runInventory} recovery=${runRecovery}`);
+    return {
+      suggestedDamage: combat.suggestedDamage ?? null,
+      suggestedEncounterStart: (combat.suggestedEncounterStart ?? null) as NarrationOutput['suggestedEncounterStart'],
+      suggestedEncounterUpdate: (combat.suggestedEncounterUpdate ?? null) as NarrationOutput['suggestedEncounterUpdate'],
+      suggestedInventoryAdd: (inventory.suggestedInventoryAdd ?? null) as NarrationOutput['suggestedInventoryAdd'],
+      suggestedInventoryRemove: inventory.suggestedInventoryRemove ?? null,
+      suggestedInventoryUpdate: (inventory.suggestedInventoryUpdate ?? null) as NarrationOutput['suggestedInventoryUpdate'],
+      suggestedRevive: recovery.suggestedRevive ?? null,
+      suggestedHeal: (recovery.suggestedHeal ?? null) as NarrationOutput['suggestedHeal'],
+      suggestedBuffAdd: (recovery.suggestedBuffAdd ?? null) as NarrationOutput['suggestedBuffAdd'],
+      suggestedBuffRemove: recovery.suggestedBuffRemove ?? null,
+      agentDiagnostics: diagnostics,
+    };
+  }
+
+  // resolved_first stage 2: narration and choices from frozen facts (input.resolvedTurn
+  // and the post-turn party/encounter). Streams only after mechanics are final, so
+  // nothing a player hears can contradict the committed outcome.
+  async narrateResolved(input: NarrationInput, callbacks?: NarrationStreamCallbacks): Promise<ResolvedPresentation> {
+    const diagnostics: AgentDiagnostic[] = [];
+    const fallbackOutput = buildNarrationFallback(input);
+    const narrationDeadlineMs = input.isFirstTurn || input.interventionRescue || input.sanctuaryRecovery ? 8000 : 6000;
+    const narrationPromise = withDeadline<NarrationAgentOutput>(
+      'narration',
+      (signal) => callNarrationAgent(input, callbacks, signal),
+      { narration: fallbackOutput.narration, currentTensionLevel: fallbackOutput.currentTensionLevel },
+      narrationDeadlineMs,
+      diagnostics,
+    );
+    const [narration, choicesFlow] = await Promise.all([
+      narrationPromise,
+      runChoicesWithRetry(input, { diagnostics, narrationSettled: narrationPromise }),
+    ]);
+    const narrationUsedFallback = diagnostics.some(d => d.agent === 'narration' && (d.status === 'fallback' || d.status === 'timeout'));
+    return {
+      narration: cleanText(narration.narration),
+      rollNarration: narration.rollNarration ? cleanText(narration.rollNarration) : undefined,
+      currentTensionLevel: narration.currentTensionLevel,
+      objectiveOutcome: input.adventureDirective?.decisiveMoment && !narrationUsedFallback ? (narration.objectiveOutcome ?? null) : null,
+      choices: toPlayerChoices(choicesFlow.choices, input),
       narrationFailed: narrationUsedFallback,
       choicesFailed: choicesFlow.usedFallback,
       choicesEscalated: choicesFlow.escalated,

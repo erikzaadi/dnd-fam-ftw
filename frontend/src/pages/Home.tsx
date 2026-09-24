@@ -343,6 +343,11 @@ const WorldCard = ({
               FALLEN
             </span>
           )}
+          {!session.gameOver && session.adventureStatus === 'completed' && (
+            <span className="text-[10px] font-black uppercase tracking-widest text-amber-300 border border-amber-700/50 bg-amber-900/20 px-1.5 py-0.5 rounded-full flex-shrink-0">
+              THE END
+            </span>
+          )}
         </span>
         {/* Info toggle */}
         {hasDetails && (

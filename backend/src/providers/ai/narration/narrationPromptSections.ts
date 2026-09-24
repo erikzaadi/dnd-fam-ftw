@@ -18,6 +18,31 @@ TENSION ESCALATION:
 - Escalate tension over turns according to \`gameMode\` -if things are too quiet for too long, "do something interesting" (a surprise attack, a sudden environmental hazard, a dramatic revelation).
 - If \`isFirstTurn\` is false, never write another realm-opening intro. Start from \`actionAttempt\`, \`actionResult\`, and \`recentHistory\` and show what changed.`;
 
+export const SECTION_ADVENTURE_ARC = `ADVENTURE ARC (\`adventureDirective\`, private backend guidance - translate into story, never quote it):
+- \`adventureDirective.instruction\` says where this chapter is in its arc. Follow it this turn.
+- \`adventureDirective.objective\` is the player-facing chapter goal. Keep it visible in the fiction.
+- \`adventureDirective.chapterPayoff\` is a private DM note: steer toward it, never reveal it verbatim, and never reveal secrets just to create closure.
+- \`adventureDirective.heroesAwaitingSpotlight\` names heroes who have not had a moment yet: give them a concrete reason to matter.
+- Never grant a victory, item, or rescue that the action result did not earn.`;
+
+export const SECTION_OBJECTIVE_OUTCOME = `OBJECTIVE OUTCOME (only when \`adventureDirective.decisiveMoment\` is true):
+Set \`objectiveOutcome\` to exactly one of:
+- "resolved_success": the action succeeded AND your narration shows the chapter objective achieved.
+- "resolved_setback": the action failed AND the finale ends with a meaningful setback the party must live with.
+- "advanced": the party made progress toward the objective but it is not settled yet.
+- "none": the action did not address the objective.
+Your narration must match the value you choose. When unsure, use "advanced".`;
+
+export const SECTION_CHOICES_ADVENTURE_ARC = `ADVENTURE ARC (\`adventureDirective\`): all choices are still for \`nextCharacterName\`. Let them point toward \`adventureDirective.objective\` where it fits the scene. When \`adventureDirective.phase\` is "finale", at least one choice must directly attempt the decisive moment for the objective. When \`adventureDirective.nextHeroNeedsSpotlight\` is true, make at least one choice a moment only \`nextCharacterName\` could pull off. Never quote directive wording in labels.`;
+
+export const SECTION_RESOLVED_FACTS = `RESOLVED FACTS (\`resolvedTurn\`, CRITICAL - overrides any instinct to invent consequences):
+- The game has ALREADY decided this turn's mechanics. \`resolvedTurn.facts\` lists everything that changed, and \`party\` / \`encounterState\` already show the state AFTER the turn.
+- Narrate those facts vividly and accurately: the roll outcome, every HP change, every item gained or lost, every effect, every enemy hit, defeat or flight, and whether a fight started or ended.
+- Do NOT invent any other mechanical change: no extra damage or healing, no new items or loot, no revived heroes, no defeated or fleeing enemies, no new fight, unless it is listed in the facts.
+- Descriptive color (sounds, weather, expressions, jokes, NPC reactions) is free.`;
+
+export const SECTION_CHOICES_RESOLVED_FACTS = `RESOLVED FACTS (\`resolvedTurn\`): the turn's consequences are final and \`party\` / \`encounterState\` already show the state after it. Build choices for what the next hero can do NOW: never target an enemy listed as defeated, fled or surrendered, never rely on an item that was lost, and if a fight just started, make at least 2 choices combat-ready.`;
+
 export const SECTION_MOMENTUM_DIRECTIVES = `MOMENTUM DIRECTIVES (private backend guidance - translate each into story events, never quote directive language in narration):
 - If \`sceneMomentum.directive\` is "victory_exit": the encounter or difficult challenge is already resolved. State the victory or completion, then automatically carry the party into the next beat. Do NOT spend a whole turn asking whether they leave. At least 2 choices must be about what the party does in the new beat.
 - If \`sceneMomentum.directive\` is "close_combat": end the current fight decisively with surrender, retreat, defeat, or a finishing beat that opens the next route. Do not extend the same enemy loop.

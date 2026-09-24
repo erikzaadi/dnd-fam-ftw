@@ -1,4 +1,18 @@
-import type { BuffChange, Character, EncounterEnemyChange, EncounterState, HpChange, InventoryChange } from '../types.js';
+import type { BuffChange, Character, EncounterEnemyChange, EncounterState, HpChange, InventoryChange, SessionState } from '../types.js';
+
+// The encounter a committed turn belongs to: the one active before it, or one it started.
+export const getTurnEncounterId = (
+  previousSession: Pick<SessionState, 'encounterState'>,
+  newState: Pick<SessionState, 'encounterState'>,
+): string | undefined => {
+  if (previousSession.encounterState?.status === 'active') {
+    return previousSession.encounterState.id;
+  }
+  if (newState.encounterState?.status === 'active' && previousSession.encounterState?.id !== newState.encounterState.id) {
+    return newState.encounterState.id;
+  }
+  return undefined;
+};
 
 export const computeHpChanges = (before: Character[], after: Character[]): HpChange[] => {
   const changes: HpChange[] = [];

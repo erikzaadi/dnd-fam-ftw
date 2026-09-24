@@ -1,4 +1,4 @@
-import type { NarrationInput, NarrationOutput, NarrationProvider } from './NarrationProvider.js';
+import type { MechanicsProposal, NarrationInput, NarrationOutput, NarrationProvider, ResolvedPresentation } from './NarrationProvider.js';
 
 const choices = [
   { label: 'Press the attack', difficulty: 'normal' as const, stat: 'might' as const, difficultyValue: 12, narration: 'Keep the pressure on with a bold move.' },
@@ -35,6 +35,39 @@ export class MockNarrationProvider implements NarrationProvider {
       suggestedDamage: null,
       suggestedEncounterStart: null,
       suggestedEncounterUpdate: null,
+      // Deterministic finale for E2E: a successful decisive attempt resolves the chapter.
+      objectiveOutcome: input.adventureDirective?.decisiveMoment
+        ? (input.actionResult.success ? 'resolved_success' : 'advanced')
+        : null,
+    };
+  }
+
+  // resolved_first stages, deterministic for E2E runs with AI_TURN_STRATEGY=resolved_first.
+  async proposeMechanics(input: NarrationInput): Promise<MechanicsProposal> {
+    const full = await this.generateTurn(input);
+    return {
+      suggestedDamage: full.suggestedDamage,
+      suggestedEncounterStart: full.suggestedEncounterStart,
+      suggestedEncounterUpdate: full.suggestedEncounterUpdate,
+      suggestedInventoryAdd: full.suggestedInventoryAdd,
+      suggestedInventoryRemove: full.suggestedInventoryRemove,
+      suggestedInventoryUpdate: full.suggestedInventoryUpdate,
+      suggestedRevive: full.suggestedRevive,
+      suggestedHeal: full.suggestedHeal,
+      suggestedBuffAdd: full.suggestedBuffAdd,
+      suggestedBuffRemove: full.suggestedBuffRemove,
+    };
+  }
+
+  async narrateResolved(input: NarrationInput): Promise<ResolvedPresentation> {
+    const full = await this.generateTurn(input);
+    const factLine = input.resolvedTurn?.facts[0] ?? '';
+    return {
+      narration: `${full.narration} ${factLine}`.trim(),
+      rollNarration: full.rollNarration,
+      currentTensionLevel: full.currentTensionLevel,
+      choices: full.choices,
+      objectiveOutcome: full.objectiveOutcome,
     };
   }
 }

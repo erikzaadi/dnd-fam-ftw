@@ -15,7 +15,7 @@ const DIFFICULTY_INFO: Record<string, { color: string; desc: string }> = {
 };
 
 const PACING_INFO: Record<string, string> = {
-  cinematic: 'Rich story, world-building, and character moments. Combat is rare and meaningful. Best for long sessions.',
+  cinematic: 'Rich story, world-building, and character moments. Combat is rare and meaningful. A slower narrative rhythm.',
   balanced: 'A mix of story and action. Expect a challenge every 4-5 turns. The default experience.',
   fast: 'High stakes from the start. A fight or challenge appears every 2 turns. Little breathing room.',
   'zug-ma-geddon': 'STRAIGHT TO BATTLE. Every turn is chaos. High tension, always. Not for the faint of heart.',
@@ -31,6 +31,7 @@ const PACING_OPTIONS: { id: GameMode; icon: string; label: string }[] = [
 export const CreateSession = () => {
   const [worldDescription, setWorldDescription] = useState("");
   const [dmPrep, setDmPrep] = useState("");
+  const [longLived, setLongLived] = useState(false);
   const [showDmPrep, setShowDmPrep] = useState(false);
   const [difficulty, setDifficulty] = useState("normal");
   const [gameMode, setGameMode] = useState<GameMode>(() => loadFirstRunPreferences().preferredGameMode);
@@ -83,7 +84,7 @@ export const CreateSession = () => {
     const res = await apiFetch('/session/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ worldDescription, difficulty, gameMode, dmPrep: dmPrep || undefined })
+      body: JSON.stringify({ worldDescription, difficulty, gameMode, dmPrep: dmPrep || undefined, adventureFormat: longLived ? 'long_lived' : 'one_evening' })
     });
     const data = await res.json().catch(() => ({}));
     setIsLoading(false);
@@ -180,9 +181,23 @@ export const CreateSession = () => {
               </div>
             )}
           </div>
+          <div className="rounded-[28px] border border-slate-800 bg-black/20 p-4 text-left">
+            <p className="text-sm text-slate-300">
+              {longLived
+                ? 'A world that keeps going across game nights, with no automatic ending.'
+                : 'An adventure for tonight, with a beginning, a finale, and an ending.'}
+            </p>
+            <label className="mt-3 flex items-start gap-3 text-sm text-slate-400">
+              <input type="checkbox" checked={longLived} onChange={e => setLongLived(e.target.checked)} className="mt-1" />
+              <span>
+                <span className="font-black text-slate-200">Long-lived session</span>
+                <span className="block text-xs">Keep this world going across game nights. You can still wrap up a chapter whenever you like.</span>
+              </span>
+            </label>
+          </div>
           <div className="rounded-2xl border border-slate-800 bg-black/30 px-4 py-3 text-sm text-slate-400">
             <span className="font-black uppercase tracking-widest text-amber-400">Selected:</span>{' '}
-            {difficulty} difficulty, {PACING_OPTIONS.find(option => option.id === gameMode)?.label ?? gameMode} pacing
+            {difficulty} difficulty, {PACING_OPTIONS.find(option => option.id === gameMode)?.label ?? gameMode} pacing, {longLived ? 'long-lived world' : 'one evening'}
           </div>
           {error && (
             <div className="flex items-center justify-between gap-4 px-6 py-3 bg-rose-950/60 border border-rose-700 rounded-2xl text-rose-300 text-sm">

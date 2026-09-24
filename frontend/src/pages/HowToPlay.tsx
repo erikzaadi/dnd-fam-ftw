@@ -39,7 +39,7 @@ export const HowToPlay = () => {
           <div className="bg-slate-900/80 border-2 border-slate-800 rounded-[32px] p-6 md:p-10 space-y-10">
             <Section title="The Goal">
               <p className="text-slate-300 text-lg leading-relaxed">
-                You and your party are heroes in a realm of the AI's imagination. Each turn the AI Dungeon Master narrates what's happening and offers three choices. Pick one (or type your own), roll the dice, and see what happens. There's no win condition, just the story.
+                You and your party are heroes in a realm of the AI's imagination. Each turn the AI Dungeon Master narrates what's happening and offers three choices. Pick one (or type your own), roll the dice, and see what happens. By default an adventure fits one evening: it opens with a clear goal, builds toward a finale, and ends with an epilogue about what every hero did.
               </p>
               <p className="text-slate-400 text-base mt-3 leading-relaxed">
                 Victories should move the adventure forward. When a fight or hard challenge is resolved, the story should carry you into the next clue, route, reward, threat, or decision instead of lingering on the finished scene.
@@ -184,6 +184,15 @@ export const HowToPlay = () => {
                   <strong className="text-rose-400">No rescues left 💀</strong> - The campaign is over. How many chances you get depends on difficulty: easy is unlimited, normal gets 2, hard gets 1, and zug-ma-geddon gives you none.
                 </div>
               </div>
+            </Section>
+
+            <Section title="📖 One Evening or a Long Saga">
+              <p className="text-slate-300 text-lg leading-relaxed">
+                New adventures are made for tonight, with a beginning, a finale, and an ending. After everyone has had a few turns the story heads for its finale; a hero's successful move at the decisive moment wins it, and a failed one has consequences (the story can still end with a hard-won lesson). If the finale runs long, you choose: keep playing, or end with an epilogue.
+              </p>
+              <p className="text-slate-400 text-base mt-3 leading-relaxed">
+                Tick <strong>Long-lived session</strong> to keep a world going across game nights with no automatic ending. Open <strong>Story</strong> during play to <strong>Wrap up our adventure</strong> (the DM steers to a finale soon) or <strong>End here with an epilogue</strong> (stop now, no extra roll). A finished adventure can <strong>Continue this world</strong> as a new chapter with the same heroes. In car mode say "wrap up" or "end here".
+              </p>
             </Section>
 
             <Section title="Turns">

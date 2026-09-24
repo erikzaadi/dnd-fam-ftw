@@ -36,21 +36,29 @@ npm ci
 npm run build
 cd "$ROOT_DIR"
 
-echo "[backend] Syncing to $LIGHTSAIL_HOST..."
+RELEASE_ID="$(date -u +%Y%m%dT%H%M%SZ)-$(git rev-parse --short=12 HEAD)"
+RELEASE_DIR="$APP_DIR/releases/$RELEASE_ID"
+REMOTE_RELEASE="$SCRIPT_DIR/remote-release.sh"
+
+echo "[backend] Preparing release $RELEASE_ID on $LIGHTSAIL_HOST..."
+# shellcheck disable=SC2029
+ssh "$SSH_USER@$LIGHTSAIL_HOST" "bash -s -- prepare $RELEASE_ID" < "$REMOTE_RELEASE" > /dev/null
+
+echo "[backend] Syncing release files..."
 rsync -avz --delete \
   --exclude='node_modules/' \
-  "$BACKEND_DIR/dist/" "$SSH_USER@$LIGHTSAIL_HOST:$CURRENT_DIR/dist/"
+  "$BACKEND_DIR/dist/" "$SSH_USER@$LIGHTSAIL_HOST:$RELEASE_DIR/dist/"
 rsync -avz --delete \
-  "$BACKEND_DIR/public/" "$SSH_USER@$LIGHTSAIL_HOST:$CURRENT_DIR/public/"
+  "$BACKEND_DIR/public/" "$SSH_USER@$LIGHTSAIL_HOST:$RELEASE_DIR/public/"
 rsync -avz \
   "$BACKEND_DIR/package.json" \
   "$BACKEND_DIR/package-lock.json" \
-  "$SSH_USER@$LIGHTSAIL_HOST:$CURRENT_DIR/"
+  "$SSH_USER@$LIGHTSAIL_HOST:$RELEASE_DIR/"
 
-echo "[backend] Installing production dependencies on instance..."
+echo "[backend] Installing production dependencies in the release..."
 ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
   "$SSH_USER@$LIGHTSAIL_HOST" \
-  "bash -lc 'cd $CURRENT_DIR && npm ci --omit=dev --no-audit --no-fund'"
+  "bash -lc 'cd $RELEASE_DIR && npm ci --omit=dev --no-audit --no-fund'"
 
 echo "[backend] Pulling secrets from SSM..."
 SSM_PARAMS=$(aws ssm get-parameters-by-path \
@@ -95,18 +103,26 @@ while IFS=$'\t' read -r name value; do
   APP_ENV="${APP_ENV}"$'\n'"${key}=${value}"
 done <<< "$SSM_PARAMS"
 
-echo "[backend] Writing app.env to instance..."
+echo "[backend] Writing app.env to instance (previous kept as app.env.previous)..."
 # shellcheck disable=SC2029
-echo "$APP_ENV" | ssh "$SSH_USER@$LIGHTSAIL_HOST" "sudo tee $APP_ENV_FILE > /dev/null && sudo chmod 600 $APP_ENV_FILE && sudo chown ubuntu:ubuntu $APP_ENV_FILE"
+echo "$APP_ENV" | ssh "$SSH_USER@$LIGHTSAIL_HOST" "if [ -f $APP_ENV_FILE ]; then sudo cp $APP_ENV_FILE $APP_ENV_FILE.previous; fi && sudo tee $APP_ENV_FILE > /dev/null && sudo chmod 600 $APP_ENV_FILE && sudo chown ubuntu:ubuntu $APP_ENV_FILE"
 
-echo "[backend] Restarting service..."
+echo "[backend] Activating release $RELEASE_ID..."
 # shellcheck disable=SC2029
-ssh "$SSH_USER@$LIGHTSAIL_HOST" "sudo systemctl restart $SERVICE_NAME"
+ssh "$SSH_USER@$LIGHTSAIL_HOST" "bash -s -- activate $RELEASE_ID" < "$REMOTE_RELEASE"
 
-echo "[backend] Waiting for service to come up..."
-sleep 3
+echo "[backend] Verifying version $GIT_VERSION..."
 # shellcheck disable=SC2029
-ssh "$SSH_USER@$LIGHTSAIL_HOST" "systemctl is-active $SERVICE_NAME"
+if ! ssh "$SSH_USER@$LIGHTSAIL_HOST" "bash -s -- verify $GIT_VERSION" < "$REMOTE_RELEASE"; then
+  echo "[backend] New release is unhealthy - rolling back release and app.env"
+  # shellcheck disable=SC2029
+  ssh "$SSH_USER@$LIGHTSAIL_HOST" "if [ -f $APP_ENV_FILE.previous ]; then sudo cp $APP_ENV_FILE.previous $APP_ENV_FILE; fi"
+  # shellcheck disable=SC2029
+  ssh "$SSH_USER@$LIGHTSAIL_HOST" "bash -s -- rollback" < "$REMOTE_RELEASE"
+  exit 1
+fi
+# shellcheck disable=SC2029
+ssh "$SSH_USER@$LIGHTSAIL_HOST" "bash -s -- prune" < "$REMOTE_RELEASE"
 
 echo ""
 echo "[backend] Deploy complete."

@@ -24,7 +24,9 @@ export default defineConfig({
   reporter: process.env.CI ? [['github'], ['list']] : 'html',
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${FRONTEND_PORT}`,
-    trace: 'on-first-retry',
+    // retries are 0, so on-first-retry never recorded anything; keep traces for failures.
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
   },
   webServer: [
     {

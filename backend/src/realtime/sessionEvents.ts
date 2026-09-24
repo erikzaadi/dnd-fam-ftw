@@ -1,6 +1,8 @@
 import { EventEmitter } from 'events';
 import type { Request, Response } from 'express';
 import { devLog } from '../lib/devLog.js';
+import { toPublicSession } from '../services/sessionProjection.js';
+import type { Session } from '../types.js';
 
 const eventEmitter = new EventEmitter();
 const HEARTBEAT_INTERVAL_MS = 25000;
@@ -59,7 +61,17 @@ export const broadcastUpdate = (sessionId: string, type: string, payload: Record
   if (type !== 'narration_chunk') {
     devLog.log(`[Broadcast] ${type} session=${sessionId}`);
   }
-  eventEmitter.emit('update', { sessionId, type, ...payload });
+  // Every session object sent to viewers goes through the public projection.
+  const safePayload = payload.session && typeof payload.session === 'object'
+    ? { ...payload, session: toPublicSession(payload.session as Session) }
+    : payload;
+  eventEmitter.emit('update', { sessionId, type, ...safePayload });
+};
+
+// Settings or lifecycle changed outside a turn. Views apply the patch and discard
+// previews computed against an older revision.
+export const broadcastSessionUpdated = (sessionId: string, revision: number, changes: Record<string, unknown>) => {
+  broadcastUpdate(sessionId, 'session_updated', { revision, changes });
 };
 
 export const broadcastSessionListUpdate = (namespaceId: string | undefined, type: string, payload: Record<string, unknown>) => {

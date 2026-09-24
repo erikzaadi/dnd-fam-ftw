@@ -30,9 +30,15 @@ interface ActionDockProps {
   onSubmit: (label: string, stat: string, diff: string, difficultyValue?: number, ownerCharId?: string | null, itemId?: string | null, targetCharId?: string | null, preview?: ActionPreviewBonuses) => Promise<void> | void;
   onShowPartyGear: () => void;
   onCharacterClick?: (char: Character) => void;
+  // Session revision; a change invalidates any open preview computed against the old state.
+  revision?: number;
 }
 
 interface ActionPreviewBonuses {
+  // Server handle for a confirmed free-action preview; the server re-derives mechanics from it.
+  previewId?: string;
+  // Stable id of the suggested choice; the server resolves mechanics from its stored descriptor.
+  choiceId?: number;
   helperBonus?: number;
   helperCharacterName?: string;
   choiceItemBonus?: number;
@@ -47,6 +53,25 @@ const RISK_MAP: Record<string, { label: string; color: string }> = {
   easy: { label: 'Favorable', color: 'text-emerald-400' },
   normal: { label: 'Risky', color: 'text-amber-400' },
   hard: { label: 'Tough', color: 'text-rose-400' },
+};
+
+const SHOW_NUMBERS_STORAGE_KEY = 'dnd-fam-ftw:action-dock:show-numbers';
+
+// Per-viewer preference; storage can be unavailable (private mode), so default quietly.
+const loadShowNumbers = (): boolean => {
+  try {
+    return window.localStorage.getItem(SHOW_NUMBERS_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+};
+
+const saveShowNumbers = (value: boolean): void => {
+  try {
+    window.localStorage.setItem(SHOW_NUMBERS_STORAGE_KEY, String(value));
+  } catch {
+    // Preference just won't persist.
+  }
 };
 
 const CHOICE_FLAVOR_BADGES: Record<string, { label: string; className: string }> = {
@@ -71,10 +96,27 @@ export const ActionDock = ({
   onSubmit,
   onShowPartyGear,
   onCharacterClick,
+  revision,
 }: ActionDockProps) => {
   const [statThinking, setStatThinking] = useState(false);
   const [expandedStat, setExpandedStat] = useState<string | null>(null);
   const [freeActionPreview, setFreeActionPreview] = useState<FreeActionPreview | null>(null);
+  // Family-first: the story, the hero and a plain risk word lead; roll targets, stacked
+  // bonuses and odds are one tap away for players who want the arithmetic.
+  const [showNumbers, setShowNumbers] = useState(loadShowNumbers);
+  const toggleShowNumbers = useCallback(() => {
+    setShowNumbers(prev => {
+      saveShowNumbers(!prev);
+      return !prev;
+    });
+  }, []);
+  const [previewRevision, setPreviewRevision] = useState(revision);
+  // The story moved on while a preview was open: close it. The typed draft is kept
+  // in the action box, so the player can re-preview against the current scene.
+  if (previewRevision !== revision) {
+    setPreviewRevision(revision);
+    setFreeActionPreview(null);
+  }
   const [previewSubmitting, setPreviewSubmitting] = useState(false);
   const choiceButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -98,6 +140,7 @@ export const ActionDock = ({
       ? choiceItemOwner.inventory.find(item => item.name === choice.itemName)
       : null;
     const preview: ActionPreviewBonuses = {
+      ...(choice.id !== undefined && { choiceId: choice.id }),
       ...(hasActiveHelper && { helperBonus: COMBO_HELPER_BONUS, helperCharacterName: choice.helperCharacterName }),
       ...(choiceItem && choiceItemOwner && { choiceItemBonus: CHOICE_ITEM_BONUS, choiceItemName: choiceItem.name, choiceItemOwnerName: choiceItemOwner.name }),
       ...(choice.flavor === 'spotlight' && { characterBonus: CHARACTER_EDGE_BONUS, characterBonusLabel: 'spotlight', flavor: 'spotlight' }),
@@ -160,6 +203,7 @@ export const ActionDock = ({
     }
     setPreviewSubmitting(true);
     const preview: ActionPreviewBonuses = {
+      ...(freeActionPreview.previewId !== undefined && { previewId: freeActionPreview.previewId }),
       ...(freeActionPreview.helperBonus !== undefined && { helperBonus: freeActionPreview.helperBonus }),
       ...(freeActionPreview.helperCharacterName !== undefined && { helperCharacterName: freeActionPreview.helperCharacterName }),
       ...(freeActionPreview.choiceItemBonus !== undefined && { choiceItemBonus: freeActionPreview.choiceItemBonus }),
@@ -215,6 +259,10 @@ export const ActionDock = ({
     const intent = parseSpeechIntent(transcript);
     if (intent.type === 'choice' && turn?.choices[intent.index]) {
       await submitSuggestedChoice(intent.index);
+      return;
+    }
+    // Session-management phrases are not adventure actions; the Story controls handle them.
+    if (intent.type === 'wrap-up' || intent.type === 'end-here') {
       return;
     }
 
@@ -463,7 +511,17 @@ export const ActionDock = ({
             {/* Action cards */}
             {turn?.choices && turn.choices.length > 0 && (
               <div className="flex flex-col gap-2">
-                <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 px-1">Choose an Action</div>
+                <div className="flex items-center justify-between gap-2 px-1">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Choose an Action</div>
+                  <button
+                    type="button"
+                    onClick={toggleShowNumbers}
+                    aria-pressed={showNumbers}
+                    className="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:border-slate-500 hover:text-slate-300"
+                  >
+                    {showNumbers ? 'Hide the numbers' : 'Show the numbers'}
+                  </button>
+                </div>
                 {turn.choices.map((choice, i) => {
                   const flavorBadge = choice.flavor && choice.flavor !== 'standard' ? CHOICE_FLAVOR_BADGES[choice.flavor] : null;
                   const risk = RISK_MAP[choice.difficulty] ?? RISK_MAP.normal;
@@ -517,21 +575,27 @@ export const ActionDock = ({
                           ) : (
                             <>
                               <StatImg stat={choice.stat} size="4" tooltip className="rounded-xl" />
-                              <span className="text-xs font-black">
-                                <span className={(statBonus + buffBonus) > 0 ? 'text-amber-400' : (statBonus + buffBonus) < 0 ? 'text-rose-300' : (STAT_TEXT_COLORS[choice.stat] ?? 'text-slate-300')}>{statTotal}</span>
-                                <span className="text-slate-400"> vs {target}</span>
-                              </span>
+                              {showNumbers && (
+                                <>
+                                  <span className="text-xs font-black">
+                                    <span className={(statBonus + buffBonus) > 0 ? 'text-amber-400' : (statBonus + buffBonus) < 0 ? 'text-rose-300' : (STAT_TEXT_COLORS[choice.stat] ?? 'text-slate-300')}>{statTotal}</span>
+                                    <span className="text-slate-400"> vs {target}</span>
+                                  </span>
 			      {helperBonus > 0 && (
-                                <span className="text-xs font-black text-cyan-300">+{formatHelperBonusLabel(helperBonus, choice.helperCharacterName)}</span>
+                                    <span className="text-xs font-black text-cyan-300">+{formatHelperBonusLabel(helperBonus, choice.helperCharacterName)}</span>
 			      )}
 			      {choiceItemBonus > 0 && (
-                                <span className="text-xs font-black text-amber-300">+{formatChoiceItemBonusLabel(choiceItemBonus, choice.itemName)}</span>
+                                    <span className="text-xs font-black text-amber-300">+{formatChoiceItemBonusLabel(choiceItemBonus, choice.itemName)}</span>
 			      )}
 			      {characterBonus > 0 && (
-                                <span className="text-xs font-black text-fuchsia-300">+{formatCharacterBonusLabel(characterBonus, characterBonusLabel)}</span>
+                                    <span className="text-xs font-black text-fuchsia-300">+{formatCharacterBonusLabel(characterBonus, characterBonusLabel)}</span>
 			      )}
+                                </>
+                              )}
                               <span className={`text-xs font-semibold uppercase tracking-wider ${risk.color}`}>{risk.label}</span>
-                              <span className="text-xs text-slate-500 font-medium ml-auto">{prob}%</span>
+                              {showNumbers && (
+                                <span className="text-xs text-slate-500 font-medium ml-auto">{prob}%</span>
+                              )}
                             </>
                           )}
                         </div>

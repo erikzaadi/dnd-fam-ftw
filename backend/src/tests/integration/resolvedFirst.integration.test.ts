@@ -1,0 +1,113 @@
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { GameEngine } from '../../services/gameEngine.js';
+import { StateService } from '../../services/stateService.js';
+import { executeTurnAction } from '../../services/turnService.js';
+import {
+  mockGenerateTurn,
+  mockNarrateResolved,
+  mockProposeMechanics,
+  resetMockNarrationProvider,
+  resetStagedMockNarrationProvider,
+} from './mockNarrationProvider.js';
+import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
+
+vi.mock('../../providers/ai/AiProviderFactory.js', async () => {
+  const { createStagedMockNarrationProvider } = await import('./mockNarrationProvider.js');
+  return {
+    createNarrationProvider: vi.fn(() => createStagedMockNarrationProvider()),
+    createChatClientForTier: vi.fn(),
+  };
+});
+
+let paths: IntegrationTestPaths;
+
+beforeAll(() => {
+  paths = setupIntegrationEnvironment('resolved-first');
+});
+
+beforeEach(() => {
+  resetMockNarrationProvider();
+  resetStagedMockNarrationProvider();
+  process.env.AI_TURN_STRATEGY = 'resolved_first';
+  vi.spyOn(GameEngine, 'rollDice').mockReturnValue({ roll: 15, total: 19 });
+});
+
+afterEach(() => {
+  delete process.env.AI_TURN_STRATEGY;
+  vi.restoreAllMocks();
+});
+
+afterAll(() => {
+  cleanupIntegrationEnvironment(paths);
+});
+
+describe('resolved_first strategy (plan 4 candidate)', () => {
+  it('freezes mechanics before narration and narrates from the resolved facts', async () => {
+    await insertSessionState(makeTestSession({ id: 'rf-loot' }));
+    mockProposeMechanics.mockResolvedValueOnce({
+      suggestedDamage: null,
+      suggestedEncounterStart: null,
+      suggestedEncounterUpdate: null,
+      suggestedInventoryAdd: { name: 'Silver Ladle', description: 'Shiny', statBonuses: {} },
+      suggestedInventoryRemove: null,
+      suggestedInventoryUpdate: null,
+      suggestedRevive: null,
+      suggestedHeal: null,
+      suggestedBuffAdd: null,
+      suggestedBuffRemove: null,
+    });
+
+    const result = await executeTurnAction('rf-loot', 'local', { action: 'Search the pantry', statUsed: 'mischief' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    // Order: mechanics first, presentation second, no parallel monolith call.
+    expect(mockProposeMechanics).toHaveBeenCalledTimes(1);
+    expect(mockNarrateResolved).toHaveBeenCalledTimes(1);
+    expect(mockGenerateTurn).not.toHaveBeenCalled();
+    expect(mockProposeMechanics.mock.invocationCallOrder[0]).toBeLessThan(mockNarrateResolved.mock.invocationCallOrder[0]);
+
+    // Narration saw the frozen outcome: the loot fact and the post-turn inventory.
+    const presentationInput = mockNarrateResolved.mock.calls[0][0];
+    expect(presentationInput.resolvedTurn?.facts.join(' ')).toContain('gained the item "Silver Ladle"');
+    expect(presentationInput.inventory.map(item => item.name)).toContain('Silver Ladle');
+
+    // The committed state is exactly the frozen one.
+    const stored = await StateService.getSession('rf-loot');
+    expect(stored?.party.find(c => c.id === 'char-pip')?.inventory.map(i => i.name)).toEqual(['Silver Ladle']);
+    expect(result.body.turnResult.inventoryChanges).toEqual([{ characterName: 'Pip', itemName: 'Silver Ladle', type: 'added' }]);
+    expect(result.diagnostics).toMatchObject({ strategy: 'resolved_first' });
+    expect(result.diagnostics?.stages.map(s => s.stage)).toEqual(['mechanics', 'resolve', 'presentation']);
+  });
+
+  it('never starts a fight from narration prose; only a combat proposal can', async () => {
+    await insertSessionState(makeTestSession({ id: 'rf-no-prose-fight' }));
+    mockNarrateResolved.mockResolvedValueOnce({
+      narration: 'A goblin chef bursts out of the pantry, swinging a ladle!',
+      currentTensionLevel: 'high',
+      choices: [],
+      objectiveOutcome: null,
+    });
+
+    const result = await executeTurnAction('rf-no-prose-fight', 'local', { action: 'Open the pantry', statUsed: 'might' });
+    expect(result.ok).toBe(true);
+    expect((await StateService.getSession('rf-no-prose-fight'))?.encounterState).toBeUndefined();
+  });
+
+  it('falls back to the parallel comparator when the provider has no staged methods', async () => {
+    const factory = await import('../../providers/ai/AiProviderFactory.js');
+    const { createMockNarrationProvider } = await import('./mockNarrationProvider.js');
+    vi.mocked(factory.createNarrationProvider).mockImplementation(() => createMockNarrationProvider());
+    await insertSessionState(makeTestSession({ id: 'rf-fallback' }));
+
+    const result = await executeTurnAction('rf-fallback', 'local', { action: 'Hum a tune', statUsed: 'magic' });
+    expect(result.ok).toBe(true);
+    expect(mockGenerateTurn).toHaveBeenCalledTimes(1);
+    expect(mockProposeMechanics).not.toHaveBeenCalled();
+    if (result.ok) {
+      expect(result.diagnostics?.strategy).toBe('parallel');
+    }
+  });
+});

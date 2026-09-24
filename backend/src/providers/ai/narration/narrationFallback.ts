@@ -36,6 +36,10 @@ const sceneNoun = (scene: string): string => {
 };
 
 const nextBeat = (input: NarrationInput, scene: string): string => {
+  // Fallback text still honors the chapter arc so a failed narration call cannot drift away from the finale.
+  if (input.adventureDirective?.phase === 'finale' && input.adventureDirective.objective) {
+    return `The decisive moment is close: ${cleanLabel(input.adventureDirective.objective).toLowerCase()}.`;
+  }
   if (input.sceneMomentum?.suggestedNextBeat && !isInternalGuidance(input.sceneMomentum.suggestedNextBeat)) {
     return input.sceneMomentum.suggestedNextBeat;
   }

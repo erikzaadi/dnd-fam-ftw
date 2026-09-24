@@ -7,6 +7,9 @@ test('mechanics showcase shows action bonuses and inventory changes in Chronicle
   await openSeedSession(page, SESSION_ID);
 
   await expect(page.getByText('Team Up', { exact: true })).toBeVisible();
+  // Roll arithmetic is behind the numbers toggle by default.
+  await expect(page.getByText('+2 help (Zara)', { exact: true })).not.toBeVisible();
+  await page.getByRole('button', { name: 'Show the numbers' }).click();
   await expect(page.getByText('+2 help (Zara)', { exact: true })).toBeVisible();
   await expect(page.getByText('with Zara', { exact: true })).toBeVisible();
 

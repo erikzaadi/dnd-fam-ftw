@@ -1,28 +1,38 @@
 import { Router } from 'express';
 import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
-import { broadcastSessionChanged, broadcastSessionListUpdate, broadcastUpdate } from '../realtime/sessionEvents.js';
+import { broadcastSessionChanged, broadcastSessionListUpdate, broadcastSessionUpdated, broadcastUpdate } from '../realtime/sessionEvents.js';
 import { buildInstantStartParty, runInstantStartBackground } from '../services/instantStartService.js';
 import { pickWorldSeed } from '../data/instantStartArchetypes.js';
 import { createQuickStartId } from '../lib/ids.js';
-import { AiDmService } from '../services/aiDmService.js';
 import { ImageService } from '../services/imageService.js';
 import { SettingsService } from '../services/settingsService.js';
 import { StateService } from '../services/stateService.js';
 import { refreshDmPrepImageBriefAndPreview, triggerPreviewRegen } from '../services/sessionPreviewService.js';
 import { StorySummaryService } from '../services/storySummaryService.js';
 import { RealmOriginStoryService } from '../services/realmOriginStoryService.js';
-import { GAME_MODE_VALUES, type GameMode } from '../types.js';
+import { ADVENTURE_FORMAT_VALUES, GAME_MODE_VALUES, type GameMode } from '../types.js';
+import { changeAdventureFormat } from '../services/adventureLifecycleService.js';
+import { ensureEveningObjective, refreshChapterPayoff } from '../services/adventureObjectiveService.js';
 import { sendRateLimitResponse } from './routeErrors.js';
 import { booleanBodySchema, parseBody } from './routeValidation.js';
 import { registerSessionIdParam } from '../middleware/sessionParam.js';
 import { runBackground } from '../middleware/runBackground.js';
+import { sessionRepository, type SessionPatch } from '../repositories/sessionRepository.js';
+import { operationRepository } from '../repositories/operationRepository.js';
+import { applyGuardedSessionMutation } from '../services/sessionMutationService.js';
+import { acceptSessionOperation, respondToAcceptance, runSessionOperation } from '../services/sessionOperationService.js';
+import { generateAndCommitInitialTurn } from '../services/initialTurnService.js';
+import { attachTurnImage } from '../services/turnSideEffectService.js';
+import { toPublicSession } from '../services/sessionProjection.js';
 
 const createSessionBodySchema = z.object({
   worldDescription: z.string().optional(),
   difficulty: z.string().optional(),
   gameMode: z.enum(GAME_MODE_VALUES).optional(),
   dmPrep: z.string().optional(),
+  // Omitted by older clients: new sessions still default to one evening.
+  adventureFormat: z.enum(ADVENTURE_FORMAT_VALUES).optional(),
 });
 
 const patchSessionBodySchema = z.object({
@@ -30,6 +40,8 @@ const patchSessionBodySchema = z.object({
   gameMode: z.string().optional(),
   dmPrep: z.string().optional(),
   worldDescription: z.string().optional(),
+  adventureFormat: z.enum(ADVENTURE_FORMAT_VALUES).optional(),
+  expectedRevision: z.number().int().min(0).optional(),
 });
 
 const regenerateDmPrepBodySchema = z.object({
@@ -92,10 +104,18 @@ export const createSessionRouter = () => {
     session.activeCharacterId = session.party[0].id;
     await StateService.updateSession(session.id, session);
 
+    // Accept the opening turn as an operation before responding, so a player who opens
+    // the session immediately sees it pending instead of an empty, actionable stage.
+    const acceptance = acceptSessionOperation({
+      sessionId: session.id,
+      namespaceId: req.namespaceId,
+      kind: 'start',
+      payload: { kind: 'start' },
+    });
     broadcastSessionChanged(req.namespaceId, session.id, 'created');
     res.json({ id: session.id, savingsMode });
 
-    void runInstantStartBackground(session.id, session, req.namespaceId, seed);
+    void runInstantStartBackground(session.id, session, req.namespaceId, seed, acceptance.type === 'accepted' ? acceptance.operation : null);
   }));
 
   router.delete('/session/:id', asyncHandler(async (req, res) => {
@@ -111,6 +131,7 @@ export const createSessionRouter = () => {
       return;
     }
     const { worldDescription, difficulty, gameMode, dmPrep } = body;
+    const adventureFormat = body.adventureFormat ?? 'one_evening';
     try {
       const limits = StateService.getNamespaceLimits(req.namespaceId);
       if (limits.maxSessions !== null) {
@@ -121,10 +142,15 @@ export const createSessionRouter = () => {
         }
       }
       const savingsMode = !SettingsService.get().imagesEnabled;
-      const session = await StateService.createSession(worldDescription, difficulty, savingsMode, req.namespaceId, gameMode, dmPrep || undefined);
+      const session = await StateService.createSession(worldDescription, difficulty, savingsMode, req.namespaceId, gameMode, dmPrep || undefined, undefined, undefined, adventureFormat);
       broadcastSessionChanged(req.namespaceId, session.id, 'created');
       if (dmPrep) {
         refreshDmPrepImageBriefAndPreview(session.id, dmPrep, req.namespaceId);
+        if (adventureFormat === 'one_evening') {
+          // Explicit format wins over prose about campaign length: long notes become
+          // a bounded chapter within that world.
+          runBackground(`evening-objective session=${session.id}`, () => ensureEveningObjective(session.id));
+        }
       } else {
         runBackground(`campaign-brief session=${session.id}`, async () => {
           await StorySummaryService.generateCampaignBrief(
@@ -133,7 +159,7 @@ export const createSessionRouter = () => {
             session.displayName,
             difficulty,
             gameMode,
-            { onMediaReady: () => triggerPreviewRegen(session.id, req.namespaceId) },
+            { onMediaReady: () => triggerPreviewRegen(session.id, req.namespaceId), adventureFormat },
           );
         });
         triggerPreviewRegen(session.id, req.namespaceId);
@@ -148,17 +174,25 @@ export const createSessionRouter = () => {
   }));
 
   router.get('/session/:id', asyncHandler(async (req, res) => {
-    res.json(req.session);
+    res.json(toPublicSession(req.session!));
   }));
 
   router.patch('/session/:id', asyncHandler(async (req, res) => {
     const session = req.session!;
+    const sessionId = req.params.id as string;
     const body = parseBody(req, res, patchSessionBodySchema);
     if (!body) {
       return;
     }
-    const { difficulty, gameMode, dmPrep, worldDescription } = body;
-    const patch: { difficulty?: string; gameMode?: string; dmPrep?: string | null; worldDescription?: string | null } = {};
+    const { difficulty, gameMode, dmPrep, worldDescription, adventureFormat, expectedRevision } = body;
+    if (adventureFormat !== undefined && (!session.adventure || session.adventure.status !== 'active')) {
+      res.status(409).json({ error: 'adventure_completed', message: 'The format of a finished adventure can be chosen when continuing the world.' });
+      return;
+    }
+    const nextAdventure = adventureFormat !== undefined && session.adventure
+      ? changeAdventureFormat(session.adventure, adventureFormat)
+      : undefined;
+    const patch: SessionPatch = {};
     if (difficulty !== undefined) {
       patch.difficulty = difficulty;
     }
@@ -171,19 +205,41 @@ export const createSessionRouter = () => {
     if (worldDescription !== undefined) {
       patch.worldDescription = worldDescription || null;
     }
-    await StateService.patchSession(req.params.id as string, patch);
-    broadcastSessionChanged(req.namespaceId, req.params.id as string, 'updated');
+    const mutation = applyGuardedSessionMutation(sessionId, expectedRevision, () => {
+      sessionRepository.patchSessionSync(sessionId, patch);
+      if (nextAdventure) {
+        sessionRepository.writeAdventureSync(sessionId, nextAdventure);
+      }
+    });
+    if (!mutation.ok) {
+      res.status(mutation.status).json(mutation.body);
+      return;
+    }
+    broadcastSessionChanged(req.namespaceId, sessionId, 'updated');
+    broadcastSessionUpdated(sessionId, mutation.revision, {
+      ...(patch.difficulty !== undefined && { difficulty: patch.difficulty }),
+      ...(patch.gameMode !== undefined && { gameMode: patch.gameMode }),
+      ...(nextAdventure && { adventure: nextAdventure }),
+    });
+    if (nextAdventure?.format === 'one_evening' && !nextAdventure.objective) {
+      runBackground(`evening-objective session=${sessionId}`, () => ensureEveningObjective(sessionId));
+    }
     if (dmPrep !== undefined) {
-      refreshDmPrepImageBriefAndPreview(req.params.id as string, dmPrep || null, req.namespaceId);
-    } else {
-      triggerPreviewRegen(req.params.id as string, req.namespaceId);
+      refreshDmPrepImageBriefAndPreview(sessionId, dmPrep || null, req.namespaceId);
+      // Mid-adventure DM Prep edits recompile only future intent, never progress.
+      runBackground(`chapter-payoff session=${sessionId}`, () => refreshChapterPayoff(sessionId));
+    } else if (worldDescription !== undefined) {
+      // Settings-only patches (difficulty, pacing) never regenerate art.
+      triggerPreviewRegen(sessionId, req.namespaceId);
     }
     res.json({
       id: session.id,
+      revision: mutation.revision,
       difficulty: patch.difficulty ?? session.difficulty,
       gameMode: patch.gameMode ?? session.gameMode,
       dmPrep: patch.dmPrep !== undefined ? patch.dmPrep : session.dmPrep,
       worldDescription: patch.worldDescription !== undefined ? (patch.worldDescription ?? undefined) : session.worldDescription,
+      ...(nextAdventure && { adventure: nextAdventure }),
     });
   }));
 
@@ -217,7 +273,7 @@ export const createSessionRouter = () => {
       session.displayName,
       difficulty,
       gameMode,
-      { mediaMode: 'inline' },
+      { mediaMode: 'inline', adventureFormat: session.adventure?.format },
     );
     if (!brief) {
       res.status(500).json({ error: 'Failed to generate campaign brief' });
@@ -237,46 +293,62 @@ export const createSessionRouter = () => {
       return;
     }
 
-    let initialTurn;
-    try {
-      initialTurn = await AiDmService.generateTurnResult({ ...session, characterId: '', actionAttempt: "Adventure begins!", actionResult: { success: true, roll: 20, statUsed: 'none' } });
-    } catch (error: unknown) {
-      if (sendRateLimitResponse(res, error)) {
+    // Starting is an operation like any other: a second concurrent start is rejected
+    // by the session guard instead of generating a duplicate opening turn.
+    const acceptance = acceptSessionOperation({
+      sessionId,
+      namespaceId: req.namespaceId,
+      kind: 'start',
+      payload: { kind: 'start' },
+    });
+    if (acceptance.type !== 'accepted') {
+      respondToAcceptance(res, acceptance);
+      return;
+    }
+    const operation = acceptance.operation;
+
+    const started: { result?: NonNullable<Awaited<ReturnType<typeof generateAndCommitInitialTurn>>> } = {};
+    await runSessionOperation(operation, async () => {
+      const result = await generateAndCommitInitialTurn({ sessionId, operationId: operation.id });
+      if (!result) {
+        return { error: 'not_found', message: 'Session not found' };
+      }
+      started.result = result;
+    });
+    const finished = operationRepository.get(sessionId, operation.id);
+    if (!started.result || finished?.status !== 'completed') {
+      if (finished?.errorCode === 'rate_limit') {
+        res.status(429).json({ error: 'rate_limit', message: finished.errorMessage });
         return;
       }
-      throw error;
+      res.status(500).json({ error: finished?.errorCode ?? 'turn_failed', message: finished?.errorMessage ?? 'Could not start the adventure. Please try again.' });
+      return;
     }
-    initialTurn.id = await StateService.addTurnResult(sessionId, initialTurn, null);
-    session.turn = Math.max(session.turn, 2);
-    session.lastChoices = initialTurn.choices;
-    await StateService.updateSession(sessionId, session);
-    broadcastUpdate(sessionId, 'turn_complete', { session, turnResult: initialTurn });
+    const { turn: initialTurn, state } = started.result;
     res.json({ success: true });
 
-    if (!session.savingsMode) {
+    if (!session.savingsMode && initialTurn.id) {
+      const turnId = initialTurn.id;
       if (session.previewImageUrl) {
-        await StateService.updateLatestTurnImage(sessionId, session.previewImageUrl, '', '');
-        broadcastUpdate(sessionId, 'image_ready', { target: 'scene', imageUrl: session.previewImageUrl, turnId: initialTurn.id ?? 0 });
+        await attachTurnImage(sessionId, turnId, { url: session.previewImageUrl, storageKey: '', storageProvider: '' });
       } else {
-        const capturedTurnId = initialTurn.id ?? 0;
         runBackground(`start-image session=${sessionId}`, async () => {
           const result = await ImageService.generateImage(
             initialTurn.imagePrompt || 'A fantasy realm establishing scene',
             sessionId,
-            session.turn,
+            state.turn,
             undefined,
             undefined,
             {
-              worldDescription: session.worldDescription,
-              dmPrepImageBrief: session.dmPrepImageBrief,
-              party: session.party,
-              activeCharacterId: session.activeCharacterId,
+              worldDescription: state.worldDescription,
+              dmPrepImageBrief: state.dmPrepImageBrief,
+              party: state.party,
+              activeCharacterId: state.activeCharacterId,
               currentTensionLevel: initialTurn.currentTensionLevel,
             },
           );
           if (result) {
-            await StateService.updateLatestTurnImage(sessionId, result.url, result.storageKey, result.storageProvider);
-            broadcastUpdate(sessionId, 'image_ready', { target: 'scene', imageUrl: result.url, turnId: capturedTurnId });
+            await attachTurnImage(sessionId, turnId, result);
           }
         });
       }

@@ -218,9 +218,9 @@ describe('StateService - Session CRUD', () => {
     expect(fs.existsSync(legacyAvatarPath)).toBe(false);
   });
 
-  it('updateLatestTurnImage updates only the most recent turn', async () => {
+  it('updateTurnImage attaches the image to the exact turn, not the latest one', async () => {
     insertTestSession('sess-img-update', 'local', 'Image World');
-    await StateService.addTurnResult('sess-img-update', {
+    const firstId = await StateService.addTurnResult('sess-img-update', {
       narration: 'First turn.', imagePrompt: 'a forest', imageSuggested: true, imageUrl: null,
       choices: [], lastAction: null, turnType: 'normal',
     }, null);
@@ -228,10 +228,26 @@ describe('StateService - Session CRUD', () => {
       narration: 'Second turn.', imagePrompt: 'a cave', imageSuggested: true, imageUrl: null,
       choices: [], lastAction: null, turnType: 'normal',
     }, null);
-    await StateService.updateLatestTurnImage('sess-img-update', 'http://example.com/img.png', 'img-key-123', 'local');
+    // A late image for the first turn must not land on the newer second turn.
+    const attached = await StateService.updateTurnImage('sess-img-update', firstId, 'http://example.com/img.png', 'img-key-123', 'local');
     const history = await StateService.getTurnHistory('sess-img-update');
-    expect(history[history.length - 1].imageUrl).toBe('http://example.com/img.png');
-    expect(history[0].imageUrl).toBeNull();
+    expect(attached).toBe(true);
+    expect(history[0].imageUrl).toBe('http://example.com/img.png');
+    expect(history[1].imageUrl).toBeNull();
+  });
+
+  it('updateTurnImage reports a missing turn instead of writing elsewhere', async () => {
+    insertTestSession('sess-img-missing', 'local', 'Image World');
+    const attached = await StateService.updateTurnImage('sess-img-missing', 999999, 'http://example.com/img.png', 'img-key-123', 'local');
+    expect(attached).toBe(false);
+  });
+
+  it('updateStorySummary ignores a summary built from an older turn', async () => {
+    insertTestSession('sess-summary-version', 'local', 'Summary World');
+    expect(await StateService.updateStorySummary('sess-summary-version', 'Summary from turn 10.', 10)).toBe(true);
+    expect(await StateService.updateStorySummary('sess-summary-version', 'Late summary from turn 5.', 5)).toBe(false);
+    const session = await StateService.getSession('sess-summary-version');
+    expect(session?.storySummary).toBe('Summary from turn 10.');
   });
 
   it('persists preview image URLs for getSession and listSessions', async () => {

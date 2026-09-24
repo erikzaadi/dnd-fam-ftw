@@ -46,7 +46,9 @@ type TurnHistoryRow = {
 
 const mapTurnHistoryRow = (row: TurnHistoryRow): TurnResult => {
   const db = getDb();
-  const choices = db.prepare('SELECT * FROM turn_choices WHERE turnId = ?').all(row.id) as {
+  const choices = db.prepare('SELECT * FROM turn_choices WHERE turnId = ? ORDER BY id').all(row.id) as {
+    id: number;
+    turnId: number;
     label: string;
     difficulty: Difficulty;
     stat: Stat;
@@ -109,7 +111,7 @@ const mapTurnHistoryRow = (row: TurnHistoryRow): TurnResult => {
     imageSuggested: !!row.imageSuggested,
     imageUrl,
     characterId: row.characterId || undefined,
-    choices: choices.map(({ difficultyValue, narration, riddleAnswer, riddleCorrect, flavor, helperCharacterName, itemOwnerName, itemName, environmentFeature, ...choice }) => ({
+    choices: choices.map(({ turnId: _turnId, difficultyValue, narration, riddleAnswer, riddleCorrect, flavor, helperCharacterName, itemOwnerName, itemName, environmentFeature, ...choice }) => ({
       ...choice,
       ...(difficultyValue != null && { difficultyValue }),
       ...(narration != null && { narration }),
@@ -143,16 +145,24 @@ export const turnHistoryRepository = {
     return rows.map(mapTurnHistoryRow);
   },
 
-  async updateLatestTurnImage(sessionId: string, imageUrl: string, storageKey: string, storageProvider: string): Promise<void> {
+  // Attaches an image to one exact turn. Returns false when the turn no longer exists
+  // (for example the session was deleted while the image was generating).
+  async updateTurnImage(sessionId: string, turnId: number, imageUrl: string, storageKey: string, storageProvider: string): Promise<boolean> {
     const db = getDb();
-    db.prepare('UPDATE turn_history SET imageUrl = ?, image_storage_key = ?, image_storage_provider = ? WHERE id = (SELECT MAX(id) FROM turn_history WHERE sessionId = ?)')
-      .run(imageUrl, storageKey || null, storageProvider || null, sessionId);
+    const result = db.prepare('UPDATE turn_history SET imageUrl = ?, image_storage_key = ?, image_storage_provider = ? WHERE id = ? AND sessionId = ?')
+      .run(imageUrl, storageKey || null, storageProvider || null, turnId, sessionId);
+    return result.changes > 0;
   },
 
   async addTurnResult(sessionId: string, turn: TurnResult, characterId: string | null): Promise<number> {
+    return turnHistoryRepository.insertTurnResultSync(sessionId, turn, characterId);
+  },
+
+  // Synchronous so it can participate in commitTurn's transaction.
+  insertTurnResultSync(sessionId: string, turn: TurnResult, characterId: string | null, operationId?: string): number {
     const db = getDb();
     const action = turn.lastAction ?? null;
-    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, encounterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionChoiceItemBonus, actionChoiceItemName, actionChoiceItemOwnerName, actionCharacterBonus, actionCharacterBonusLabel, actionBuffBonus, actionBuffBonusLabel, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges, narrationRetried, narrationFailed, narrationValidationError, narrationRetryValidationError, encounterEnemyChanges, buffChanges, choicesFailed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    const info = db.prepare('INSERT INTO turn_history (sessionId, characterId, encounterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionChoiceItemBonus, actionChoiceItemName, actionChoiceItemOwnerName, actionCharacterBonus, actionCharacterBonusLabel, actionBuffBonus, actionBuffBonusLabel, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges, narrationRetried, narrationFailed, narrationValidationError, narrationRetryValidationError, encounterEnemyChanges, buffChanges, choicesFailed, operation_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(sessionId, characterId || null, turn.encounterId ?? null, turn.narration, turn.rollNarration || null, turn.imagePrompt, turn.imageSuggested ? 1 : 0, turn.imageUrl || null,
         action?.actionAttempt ?? null,
         action?.actionResult?.statUsed ?? null,
@@ -183,11 +193,12 @@ export const turnHistoryRepository = {
         turn.encounterEnemyChanges && turn.encounterEnemyChanges.length > 0 ? JSON.stringify(turn.encounterEnemyChanges) : null,
         turn.buffChanges && turn.buffChanges.length > 0 ? JSON.stringify(turn.buffChanges) : null,
         turn.choicesFailed ? 1 : 0,
+        operationId ?? null,
       );
 
     const turnId = info.lastInsertRowid;
     for (const choice of (turn.choices ?? [])) {
-      db.prepare('INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue, narration, riddleAnswer, riddleCorrect, flavor, helperCharacterName, itemOwnerName, itemName, environmentFeature) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      const choiceInfo = db.prepare('INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue, narration, riddleAnswer, riddleCorrect, flavor, helperCharacterName, itemOwnerName, itemName, environmentFeature) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
         .run(
           turnId,
           choice.label,
@@ -203,6 +214,8 @@ export const turnHistoryRepository = {
           choice.itemName ?? null,
           choice.environmentFeature ?? null,
         );
+      // Hand the stable id back so the broadcast turn can be answered by choice id.
+      choice.id = Number(choiceInfo.lastInsertRowid);
     }
     return Number(turnId);
   },

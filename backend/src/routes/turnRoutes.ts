@@ -3,26 +3,64 @@ import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
 import { StateService } from '../services/stateService.js';
-import { executeTurnAction } from '../services/turnService.js';
+import { executeTurnAction, validateTurnActionRequest } from '../services/turnService.js';
 import { parseBody } from './routeValidation.js';
 import { sendRateLimitResponse } from './routeErrors.js';
 import { registerSessionIdParam } from '../middleware/sessionParam.js';
-import { broadcastUpdate } from '../realtime/sessionEvents.js';
 import { runBackground } from '../middleware/runBackground.js';
+import { acceptSessionOperation, respondIfKnownRequest, respondToAcceptance, runSessionOperation } from '../services/sessionOperationService.js';
+import { resolvePartyRecovery } from '../services/partyRecoveryService.js';
+import { concludeAdventure } from '../services/adventureConclusionService.js';
+import { operationRepository, toPublicOperation } from '../repositories/operationRepository.js';
+import { toPublicSession } from '../services/sessionProjection.js';
+import { DIFFICULTY_VALUES, STAT_VALUES, type SessionSnapshot } from '../types.js';
+
+const MAX_ACTION_LENGTH = 600;
 
 const actionBodySchema = z.object({
-  action: z.string(),
-  statUsed: z.string(),
-  difficulty: z.string().optional(),
-  difficultyValue: z.number().nullish(),
-  itemId: z.string().optional(),
-  characterId: z.string().optional(),
-  ownerCharId: z.string().optional(),
-  targetCharacterId: z.string().optional(),
-  targetCharId: z.string().optional(),
+  action: z.string().trim().min(1).max(MAX_ACTION_LENGTH),
+  statUsed: z.enum([...STAT_VALUES, 'none']),
+  difficulty: z.enum(DIFFICULTY_VALUES).optional(),
+  difficultyValue: z.number().int().min(1).max(30).nullish(),
+  itemId: z.string().max(100).optional(),
+  characterId: z.string().max(100).optional(),
+  ownerCharId: z.string().max(100).optional(),
+  targetCharacterId: z.string().max(100).optional(),
+  targetCharId: z.string().max(100).optional(),
   actionType: z.enum(['use_item', 'give_item']).optional(),
-  actionIntent: z.string().optional(),
+  actionIntent: z.string().max(60).optional(),
+  previewId: z.string().max(100).optional(),
+  // Stable id of a suggestion from the latest turn; older ids are rejected as stale.
+  choiceId: z.number().int().positive().optional(),
+  // Client-generated idempotency key. Replaying it returns the original operation.
+  requestId: z.string().min(1).max(100).optional(),
+  // Revision the client acted on. Omitted by legacy clients.
+  expectedRevision: z.number().int().min(0).optional(),
 });
+
+// Reads session, history and operation state until the revision is stable, so a
+// reconnecting client never mixes a newer session with older history (or vice versa).
+const readCoherentSnapshot = async (sessionId: string): Promise<SessionSnapshot | null> => {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const before = StateService.getRevision(sessionId);
+    if (before === undefined) {
+      return null;
+    }
+    const [session, history] = await Promise.all([
+      StateService.getSession(sessionId),
+      StateService.getTurnHistory(sessionId),
+    ]);
+    const activeOperation = toPublicOperation(operationRepository.getActive(sessionId));
+    const latestOperation = toPublicOperation(operationRepository.getLatest(sessionId));
+    if (!session) {
+      return null;
+    }
+    if (StateService.getRevision(sessionId) === before) {
+      return { revision: before, session: toPublicSession(session), history, activeOperation, latestOperation };
+    }
+  }
+  return null;
+};
 
 export const createTurnRouter = () => {
   const router = Router();
@@ -90,31 +128,78 @@ export const createTurnRouter = () => {
       return;
     }
     const sessionId = req.params.id as string;
+    const { requestId, expectedRevision, ...request } = body;
 
-    // Respond immediately; the LLM call and all state updates happen in the background.
-    // The client receives turn data via turn_complete SSE and errors via turn_error SSE.
-    res.status(202).json({ queued: true });
+    if (respondIfKnownRequest(res, { sessionId, namespaceId: req.namespaceId, kind: 'action', requestId, payload: request })) {
+      return;
+    }
+    // Validate before acceptance so obvious rejections never occupy the session guard.
+    const rejection = validateTurnActionRequest(req.session!, req.namespaceId, request);
+    if (rejection) {
+      res.status(rejection.status).json(rejection.body);
+      return;
+    }
 
-    runBackground(`action session=${sessionId} action="${body.action}"`, async () => {
-      let result;
-      try {
-        result = await executeTurnAction(sessionId, req.namespaceId, body);
-      } catch (error: unknown) {
-        const isRateLimit = (error as { status?: number })?.status === 429;
-        broadcastUpdate(sessionId, 'turn_error', {
-          error: isRateLimit ? 'rate_limit' : 'turn_failed',
-          message: isRateLimit
-            ? 'The AI is overwhelmed with requests. Wait a moment and try again.'
-            : 'Something went wrong. Please try again.',
-        });
-        return;
-      }
+    const operation = respondToAcceptance(res, acceptSessionOperation({
+      sessionId,
+      namespaceId: req.namespaceId,
+      kind: 'action',
+      requestId,
+      expectedRevision,
+      payload: request,
+    }));
+    if (!operation) {
+      return;
+    }
+
+    // The client receives turn data via turn_complete SSE and errors via turn_error SSE,
+    // and can always recover the outcome from /snapshot or the operation endpoint.
+    runBackground(`action session=${sessionId} operation=${operation.id}`, () => runSessionOperation(operation, async () => {
+      const result = await executeTurnAction(sessionId, req.namespaceId, request, { operationId: operation.id });
       if (!result.ok) {
-        broadcastUpdate(sessionId, 'turn_error', result.body);
-        return;
+        return {
+          error: String(result.body.error ?? 'turn_failed'),
+          message: String(result.body.message ?? result.body.error ?? 'Something went wrong. Please try again.'),
+        };
+      }
+      if (result.pendingConclusion) {
+        await concludeAdventure({
+          sessionId,
+          namespaceId: req.namespaceId,
+          operationId: operation.id,
+          resolution: result.pendingConclusion,
+        });
+      }
+      if (result.pendingRecovery) {
+        await resolvePartyRecovery({
+          sessionId,
+          namespaceId: req.namespaceId,
+          operationId: operation.id,
+          outcome: result.pendingRecovery,
+          wipedState: result.body.session,
+          revision: result.revision,
+        });
       }
       result.queueSideEffects?.();
-    });
+    }));
+  }));
+
+  router.get('/session/:id/snapshot', asyncHandler(async (req, res) => {
+    const snapshot = await readCoherentSnapshot(req.params.id as string);
+    if (!snapshot) {
+      res.status(503).json({ error: 'snapshot_unavailable', message: 'The session is changing quickly. Try again.' });
+      return;
+    }
+    res.json(snapshot);
+  }));
+
+  router.get('/session/:id/operations/:operationId', asyncHandler(async (req, res) => {
+    const operation = operationRepository.get(req.params.id as string, req.params.operationId as string);
+    if (!operation) {
+      res.status(404).json({ error: 'Operation not found' });
+      return;
+    }
+    res.json(toPublicOperation(operation));
   }));
 
   router.get('/session/:id/history', asyncHandler(async (req, res) => {

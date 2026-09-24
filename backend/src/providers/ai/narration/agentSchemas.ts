@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { TENSION_LEVEL_VALUES } from '../../../types.js';
+import { OBJECTIVE_OUTCOME_VALUES, TENSION_LEVEL_VALUES } from '../../../types.js';
 import type { AgentErrorKind, AgentDiagnostic } from '@dnd-fam-ftw/shared';
 
 export type { AgentErrorKind, AgentDiagnostic };
@@ -22,7 +22,7 @@ import {
 //
 // Agent      | Owns                                                                          | Must Not Own
 // -----------|-------------------------------------------------------------------------------|---------------------------------------------
-// Narration  | rollNarration, narration, currentTensionLevel                                 | choices, inventory, HP, buffs, encounter mutation
+// Narration  | rollNarration, narration, currentTensionLevel, objectiveOutcome               | choices, inventory, HP, buffs, encounter mutation
 // Choices    | choices                                                                       | narration, inventory, HP, buffs, encounter mutation
 // Combat     | suggestedDamage, suggestedEncounterStart, suggestedEncounterUpdate            | narration, choices, inventory, HP healing, buffs
 // Inventory  | suggestedInventoryAdd, suggestedInventoryRemove, suggestedInventoryUpdate     | narration, choices, HP, buffs, encounter mutation
@@ -33,6 +33,8 @@ export const narrationAgentOutputSchema = z.object({
   rollNarration: z.string().optional().nullable(),
   narration: z.string().min(1),
   currentTensionLevel: z.enum(TENSION_LEVEL_VALUES).default('medium'),
+  // Proposal only: the server accepts a resolution when committed facts support it.
+  objectiveOutcome: z.enum(OBJECTIVE_OUTCOME_VALUES).optional().nullable(),
 });
 
 export type NarrationAgentOutput = z.infer<typeof narrationAgentOutputSchema>;

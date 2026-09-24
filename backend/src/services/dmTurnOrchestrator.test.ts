@@ -919,6 +919,61 @@ describe('runChoicesWithRetry', () => {
     }
   });
 
+  it('lets the choices retry run past its deadline until narration settles', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveRetry!: (value: unknown) => void;
+      mocks.stream
+        .mockReturnValueOnce({ on: vi.fn(), finalChatCompletion: vi.fn(() => new Promise(() => {})) })
+        .mockReturnValueOnce({ on: vi.fn(), finalChatCompletion: vi.fn(() => new Promise(resolve => {
+          resolveRetry = resolve;
+        })) });
+      let resolveNarration!: () => void;
+      const narrationSettled = new Promise<void>(resolve => {
+        resolveNarration = resolve;
+      });
+
+      const promise = runChoicesWithRetry(baseInput(), { narrationSettled });
+      // First attempt times out at 3500 ms; the retry's own 3000 ms deadline passes at 6500 ms.
+      await vi.advanceTimersByTimeAsync(7000);
+      // Narration is still streaming, so the retry is still allowed to answer.
+      resolveRetry(makeChoicesCompletion());
+      const result = await promise;
+      resolveNarration();
+
+      expect(result.usedFallback).toBe(false);
+      expect(result.diagnostics.map(d => d.status)).toEqual(['timeout', 'ok']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('times the choices retry out once narration has settled', async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.stream.mockReturnValue({ on: vi.fn(), finalChatCompletion: vi.fn(() => new Promise(() => {})) });
+      let resolveNarration!: () => void;
+      const narrationSettled = new Promise<void>(resolve => {
+        resolveNarration = resolve;
+      });
+
+      let settled = false;
+      const promise = runChoicesWithRetry(baseInput(), { narrationSettled }).then((result) => {
+        settled = true;
+        return result;
+      });
+      await vi.advanceTimersByTimeAsync(7000);
+      expect(settled).toBe(false);
+      resolveNarration();
+      const result = await promise;
+
+      expect(result.usedFallback).toBe(true);
+      expect(result.diagnostics.map(d => d.status)).toEqual(['timeout', 'timeout']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('uses the relaxed 5000 ms initial deadline on first turns', async () => {
     vi.useFakeTimers();
     try {

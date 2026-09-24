@@ -34,6 +34,20 @@ export type {
   Capabilities,
   FreeActionPreview,
   OpenAiTtsVoice,
+  SessionOperation,
+  SessionOperationKind,
+  SessionOperationStatus,
+  SessionOperationPhase,
+  OperationConflictCode,
+  OperationAcceptedResponse,
+  SessionSnapshot,
+  AdventureFormat,
+  AdventureStatus,
+  AdventurePhase,
+  AdventureResolution,
+  AdventureArcState,
+  AdventureProgress,
+  ObjectiveOutcome,
 } from '@dnd-fam-ftw/shared';
 
 export {

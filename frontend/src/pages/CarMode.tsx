@@ -33,6 +33,8 @@ export const CarMode = () => {
     actionPreview,
     clearPreview,
     previewThinking,
+    wrapUpAdventure,
+    endAdventure,
   } = useCarSessionRuntime({
     sessionId: id || '',
     onTurnComplete: () => {},
@@ -68,6 +70,8 @@ export const CarMode = () => {
     clearPreview,
     ttsSettings,
     hasTts: capabilities.hasTts,
+    wrapUpAdventure,
+    endAdventure,
   });
 
   useEffect(() => {

@@ -31,3 +31,37 @@ export const resetMockNarrationProvider = (output: NarrationOutput = FIXED_NARRA
 export const createMockNarrationProvider = (): NarrationProvider => ({
   generateTurn: mockGenerateTurn,
 });
+
+// Staged provider for the resolved_first strategy: scripted mechanics, then
+// presentation. Lets tests assert what narration saw without any AI spend.
+export const mockProposeMechanics = vi.fn<NonNullable<NarrationProvider['proposeMechanics']>>();
+export const mockNarrateResolved = vi.fn<NonNullable<NarrationProvider['narrateResolved']>>();
+
+export const resetStagedMockNarrationProvider = (): void => {
+  mockProposeMechanics.mockReset();
+  mockNarrateResolved.mockReset();
+  mockProposeMechanics.mockResolvedValue({
+    suggestedDamage: null,
+    suggestedEncounterStart: null,
+    suggestedEncounterUpdate: null,
+    suggestedInventoryAdd: null,
+    suggestedInventoryRemove: null,
+    suggestedInventoryUpdate: null,
+    suggestedRevive: null,
+    suggestedHeal: null,
+    suggestedBuffAdd: null,
+    suggestedBuffRemove: null,
+  });
+  mockNarrateResolved.mockResolvedValue({
+    narration: FIXED_NARRATION_OUTPUT.narration,
+    currentTensionLevel: 'medium',
+    choices: FIXED_NARRATION_OUTPUT.choices,
+    objectiveOutcome: null,
+  });
+};
+
+export const createStagedMockNarrationProvider = (): NarrationProvider => ({
+  generateTurn: mockGenerateTurn,
+  proposeMechanics: mockProposeMechanics,
+  narrateResolved: mockNarrateResolved,
+});

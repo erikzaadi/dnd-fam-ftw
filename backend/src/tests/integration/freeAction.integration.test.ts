@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { GameEngine } from '../../services/gameEngine.js';
 import { StateService } from '../../services/stateService.js';
 import { executeTurnAction } from '../../services/turnService.js';
 import { FIXED_NARRATION_OUTPUT, mockGenerateTurn, resetMockNarrationProvider } from './mockNarrationProvider.js';
@@ -98,6 +99,8 @@ describe('executeTurnAction free action integration', () => {
       },
     });
     await insertSessionState(session);
+    // A natural 1 always fails, which made this test flaky (~5%): pin a success.
+    const rollSpy = vi.spyOn(GameEngine, 'rollDice').mockReturnValue({ roll: 15, total: 20 });
 
     const result = await executeTurnAction('free-action-resolved-encounter-session', 'local', {
       action: 'Pip strikes the Ambusher with a precise blade thrust',
@@ -105,6 +108,7 @@ describe('executeTurnAction free action integration', () => {
       difficulty: 'easy',
       difficultyValue: 1,
     });
+    rollSpy.mockRestore();
 
     expect(result.ok).toBe(true);
     if (!result.ok) {

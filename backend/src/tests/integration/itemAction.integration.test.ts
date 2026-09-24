@@ -107,3 +107,32 @@ describe('executeTurnAction item action turn_complete metrics', () => {
     log.mockRestore();
   });
 });
+
+describe('executeTurnAction item action limits', () => {
+  it('applies the namespace turn limit to item turns like any other turn', async () => {
+    await insertSessionState(makeTestSession({
+      id: 'item-action-limit-session',
+      turn: 3,
+      party: [{
+        ...makeTestSession().party[0],
+        inventory: [{ id: 'potion-3', name: 'Healing Potion', description: 'Restores 3 HP', healValue: 3, consumable: true, transferable: true }],
+      }],
+      activeCharacterId: 'char-pip',
+    }));
+    StateService.setNamespaceLimits('local', null, 2);
+    try {
+      const result = await executeTurnAction('item-action-limit-session', 'local', {
+        action: 'use item',
+        statUsed: 'none',
+        actionType: 'use_item',
+        itemId: 'potion-3',
+        characterId: 'char-pip',
+      });
+      expect(result).toMatchObject({ ok: false, status: 403, body: { error: 'turn_limit' } });
+      expect(mockGenerateTurn).not.toHaveBeenCalled();
+      expect((await StateService.getSession('item-action-limit-session'))?.party[0].inventory).toHaveLength(1);
+    } finally {
+      StateService.setNamespaceLimits('local', null, null);
+    }
+  });
+});

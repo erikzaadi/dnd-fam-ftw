@@ -13,7 +13,7 @@ vi.mock('./storySummaryService.js', () => ({
 
 vi.mock('./stateService.js', () => ({
   StateService: {
-    updateLatestTurnImage: vi.fn().mockResolvedValue(undefined),
+    updateTurnImage: vi.fn().mockResolvedValue(true),
     patchEncounterEnemyAvatar: vi.fn().mockResolvedValue(undefined),
     patchEncounterAreaImage: vi.fn().mockResolvedValue(undefined),
   },

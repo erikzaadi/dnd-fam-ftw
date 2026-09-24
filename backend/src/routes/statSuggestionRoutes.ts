@@ -9,6 +9,8 @@ import type { FreeActionPreview } from '@dnd-fam-ftw/shared';
 import { buildFreeActionWarnings, getFreeActionDifficulty } from '../services/freeActionPolicyService.js';
 import { registerSessionIdParam } from '../middleware/sessionParam.js';
 import { devLog } from '../lib/devLog.js';
+import { storeActionPreview } from '../services/actionPreviewStore.js';
+import { StateService } from '../services/stateService.js';
 
 const suggestStatBodySchema = z.object({
   action: z.string().min(1),
@@ -94,6 +96,21 @@ export const createStatSuggestionRouter = () => {
       ...(suggestion.likelyEnemyName !== undefined && { likelyEnemyName: suggestion.likelyEnemyName }),
       ...(suggestion.weakPointMatch !== undefined && { weakPointMatch: suggestion.weakPointMatch }),
     };
+    // Bind the mechanics to the revision the preview was computed against. Revision is
+    // re-read now: if the story moved while the preview was thinking, the handle is
+    // already stale and confirmation will ask for a fresh preview.
+    const previewRevision = session.revision ?? 0;
+    if (StateService.getRevision(sessionId) === previewRevision) {
+      preview.previewId = storeActionPreview({
+        sessionId,
+        revision: previewRevision,
+        actingCharacterId: session.activeCharacterId,
+        interpretedAction,
+        stat: suggestion.stat,
+        difficulty,
+        ...(difficultyValue !== undefined && { difficultyValue }),
+      });
+    }
     devLog.log(`[PreviewAction] response session=${sessionId} durationMs=${Date.now() - stepStart} totalMs=${Date.now() - start}`);
     res.json(preview);
   }));

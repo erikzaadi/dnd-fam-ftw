@@ -244,5 +244,5 @@ export function buildLocationSegment(session: Session, latestTurn?: TurnResult):
 // Cachable static prompts
 export const CHOOSE_ACTION_PROMPT = "What do you do? Say option one, two, three, or say a custom action.";
 export const CONFIRM_ACTION_PROMPT = "Say confirm, cancel, or try again.";
-export const HELP_TEXT = "Voice commands: options, repeat story, status, party, gear, encounter, where are we, pause, resume, cancel, confirm, or say an option number.";
+export const HELP_TEXT = "Voice commands: options, repeat story, status, party, gear, encounter, where are we, pause, resume, cancel, confirm, wrap up, end here, or say an option number.";
 export const ORIENTATION_PROMPT = "Say one, two, or three for the main options, or speak freely for a custom action. Say help at any time for voice commands.";

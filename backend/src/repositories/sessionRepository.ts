@@ -1,7 +1,8 @@
 import { createId } from '../lib/ids.js';
 import { getDb } from '../persistence/database.js';
 import { generateSessionDisplayName } from '../services/sessionNameService.js';
-import { SessionState, InventoryItem, type Choice, type GameMode, type EncounterState, type EncounterSeed } from '../types.js';
+import { SessionState, InventoryItem, type AdventureFormat, type AdventureProgress, type AdventureStatus, type Character, type Choice, type GameMode, type EncounterState, type EncounterSeed } from '../types.js';
+import { buildAdventureProgress, createInitialArc, parseArc, serializeArc } from '../services/adventureLifecycleService.js';
 
 export type SessionListItem = {
   id: string;
@@ -12,6 +13,8 @@ export type SessionListItem = {
   difficulty: string;
   gameMode: string;
   gameOver?: boolean;
+  adventureFormat?: AdventureFormat;
+  adventureStatus?: AdventureStatus;
   previewImageUrl?: string;
   party: {
     id: string;
@@ -41,6 +44,49 @@ export type SessionPatch = {
   originStoryGeneratedAt?: string | null;
 };
 
+const writeInventorySync = (char: Character): void => {
+  const db = getDb();
+  db.prepare('DELETE FROM inventory WHERE characterId = ?').run(char.id);
+  for (const item of (char.inventory ?? [])) {
+    db.prepare('INSERT INTO inventory (characterId, itemId, name, description, statBonuses, healValue, transferable, consumable, tags, effect, charges, condition, boundToCharacterId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(
+        char.id,
+        item.id,
+        item.name,
+        item.description,
+        item.statBonuses ? JSON.stringify(item.statBonuses) : null,
+        item.healValue ?? null,
+        item.transferable != null ? (item.transferable ? 1 : 0) : null,
+        item.consumable != null ? (item.consumable ? 1 : 0) : null,
+        item.tags && item.tags.length > 0 ? JSON.stringify(item.tags) : null,
+        item.effect ?? null,
+        item.charges ?? null,
+        item.condition ?? null,
+        item.boundToCharacterId ?? null,
+      );
+  }
+};
+
+// Keeps enemy avatars and area images that background jobs stored after the
+// gameplay snapshot was read.
+export const mergeEncounterMedia = (next: EncounterState, current: EncounterState[]): EncounterState => {
+  const stored = current.find(enc => enc.id === next.id);
+  if (!stored) {
+    return next;
+  }
+  return {
+    ...next,
+    enemies: next.enemies.map(enemy => {
+      const storedEnemy = stored.enemies.find(e => e.id === enemy.id);
+      return !enemy.avatarUrl && storedEnemy?.avatarUrl ? { ...enemy, avatarUrl: storedEnemy.avatarUrl } : enemy;
+    }),
+    areas: next.areas.map(area => {
+      const storedArea = stored.areas.find(a => a.id === area.id);
+      return !area.imageUrl && storedArea?.imageUrl ? { ...area, imageUrl: storedArea.imageUrl } : area;
+    }),
+  };
+};
+
 export const sessionRepository = {
   async createSession(
     worldDescription?: string,
@@ -51,13 +97,17 @@ export const sessionRepository = {
     dmPrep?: string,
     initialDisplayName?: string,
     initialId?: string,
+    // New sessions default to one evening; the column default (long_lived) only applies
+    // to sessions that existed before the lifecycle was introduced.
+    adventureFormat: AdventureFormat = 'one_evening',
   ): Promise<SessionState> {
     const db = getDb();
     const id = initialId ?? createId();
     const displayName = initialDisplayName ?? await generateSessionDisplayName(worldDescription);
+    const arc = createInitialArc();
 
-    db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, turn, tone, displayName, difficulty, gameMode, useLocalAI, savingsMode, namespace_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, "A New Realm", "start-1", worldDescription || null, dmPrep || null, null, 1, "thrilling adventure", displayName, difficulty, gameMode, 0, savingsMode ? 1 : 0, namespaceId);
+    db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, turn, tone, displayName, difficulty, gameMode, useLocalAI, savingsMode, namespace_id, adventure_format, adventure_status, adventure_arc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, "A New Realm", "start-1", worldDescription || null, dmPrep || null, null, 1, "thrilling adventure", displayName, difficulty, gameMode, 0, savingsMode ? 1 : 0, namespaceId, adventureFormat, 'active', serializeArc(arc));
 
     return {
       id,
@@ -81,6 +131,8 @@ export const sessionRepository = {
       interventionState: { rescuesUsed: 0 },
       storySummary: '',
       gameOver: false,
+      revision: 0,
+      adventure: buildAdventureProgress({ format: adventureFormat, status: 'active', arc, partySize: 0 }),
     };
   },
 
@@ -114,6 +166,12 @@ export const sessionRepository = {
       origin_story_image_storage_key: string | null;
       origin_story_image_storage_provider: string | null;
       origin_story_generated_at: string | null;
+      revision: number | null;
+      adventure_format: string | null;
+      adventure_status: string | null;
+      adventure_arc: string | null;
+      adventure_objective: string | null;
+      adventure_plan: string | null;
     } | undefined;
     if (!row) {
       return undefined;
@@ -212,15 +270,16 @@ export const sessionRepository = {
           return [];
         }
         const choiceRows = db.prepare(
-          'SELECT label, difficulty, stat, difficultyValue, narration, riddleAnswer, riddleCorrect, flavor, helperCharacterName, itemOwnerName, itemName, environmentFeature FROM turn_choices WHERE turnId = ? ORDER BY rowid'
+          'SELECT id, label, difficulty, stat, difficultyValue, narration, riddleAnswer, riddleCorrect, flavor, helperCharacterName, itemOwnerName, itemName, environmentFeature FROM turn_choices WHERE turnId = ? ORDER BY rowid'
         ).all(lastTurn.id) as {
-          label: string; difficulty: string; stat: string;
+          id: number; label: string; difficulty: string; stat: string;
           difficultyValue: number | null; narration: string | null;
           riddleAnswer: string | null; riddleCorrect: number | null;
           flavor: string | null; helperCharacterName: string | null;
           itemOwnerName: string | null; itemName: string | null; environmentFeature: string | null;
         }[];
         return choiceRows.map(c => ({
+          id: c.id,
           label: c.label,
           difficulty: c.difficulty as Choice['difficulty'],
           stat: c.stat as Choice['stat'],
@@ -250,7 +309,87 @@ export const sessionRepository = {
       previewImageUrl: row.preview_image_url || undefined,
       originStory: row.origin_story || undefined,
       originStoryImageUrl: row.origin_story_image_url || undefined,
+      revision: row.revision ?? 0,
+      adventure: buildAdventureProgress({
+        format: (row.adventure_format as AdventureFormat | null) ?? 'long_lived',
+        status: (row.adventure_status as AdventureStatus | null) ?? 'active',
+        arc: parseArc(row.adventure_arc),
+        objective: row.adventure_objective,
+        partySize: characters.length,
+      }),
+      ...(row.adventure_plan && { adventurePlan: row.adventure_plan }),
     };
+  },
+
+  // Format, status and progress for settings/lifecycle mutations outside a turn.
+  writeAdventureSync(id: string, progress: AdventureProgress): void {
+    getDb().prepare('UPDATE sessions SET adventure_format = ?, adventure_status = ?, adventure_arc = ? WHERE id = ?')
+      .run(progress.format, progress.status, serializeArc(progress), id);
+  },
+
+  // Stores the chapter objective once. Returns false if one was already set.
+  setAdventureObjectiveIfMissing(id: string, objective: string, plan: string | null): boolean {
+    const result = getDb().prepare('UPDATE sessions SET adventure_objective = ?, adventure_plan = COALESCE(?, adventure_plan) WHERE id = ? AND (adventure_objective IS NULL OR adventure_objective = \'\')')
+      .run(objective, plan, id);
+    return result.changes > 0;
+  },
+
+  // Private future intent only; never touches the public objective or progress.
+  setAdventurePlan(id: string, plan: string | null): void {
+    getDb().prepare('UPDATE sessions SET adventure_plan = ? WHERE id = ?').run(plan, id);
+  },
+
+  // New chapter: clears the previous chapter's objective and private plan.
+  clearAdventureObjectiveSync(id: string): void {
+    getDb().prepare('UPDATE sessions SET adventure_objective = NULL, adventure_plan = NULL WHERE id = ?').run(id);
+  },
+
+  getRevision(id: string): number | undefined {
+    const row = getDb().prepare('SELECT revision FROM sessions WHERE id = ?').get(id) as { revision: number } | undefined;
+    return row?.revision;
+  },
+
+  // Increments the session revision. Use for settings/character mutations outside commitTurn.
+  bumpRevision(id: string): number {
+    const db = getDb();
+    db.prepare('UPDATE sessions SET revision = revision + 1 WHERE id = ?').run(id);
+    return (db.prepare('SELECT revision FROM sessions WHERE id = ?').get(id) as { revision: number } | undefined)?.revision ?? 0;
+  },
+
+  // Gameplay-owned columns only. Media (avatars, encounter art), settings and the story
+  // summary have their own writers, so a turn computed from an older snapshot cannot
+  // overwrite media or summaries that finished while the turn was generating.
+  writeGameplayStateSync(id: string, state: SessionState): void {
+    const db = getDb();
+    const rescuesUsed = state.interventionState?.rescuesUsed ?? 0;
+    const current = db.prepare('SELECT encounter_state, past_encounters FROM sessions WHERE id = ?').get(id) as { encounter_state: string | null; past_encounters: string | null } | undefined;
+    const currentEncounters = [
+      ...(current?.encounter_state ? [JSON.parse(current.encounter_state) as EncounterState] : []),
+      ...(current?.past_encounters ? JSON.parse(current.past_encounters) as EncounterState[] : []),
+    ];
+    const encounterState = state.encounterState ? mergeEncounterMedia(state.encounterState, currentEncounters) : null;
+    const pastEncounters = (state.pastEncounters ?? []).map(enc => mergeEncounterMedia(enc, currentEncounters));
+    db.prepare('UPDATE sessions SET scene = ?, sceneId = ?, turn = ?, activeCharacterId = ?, tone = ?, interventionUsed = ?, rescues_used = ?, game_over = ?, encounter_state = ?, past_encounters = ? WHERE id = ?')
+      .run(state.scene, state.sceneId, state.turn, state.activeCharacterId, state.tone, rescuesUsed > 0 ? 1 : 0, rescuesUsed, state.gameOver ? 1 : 0,
+        encounterState ? JSON.stringify(encounterState) : null,
+        pastEncounters.length > 0 ? JSON.stringify(pastEncounters) : null,
+        id);
+    // Chapter progress changes atomically with the turn. Format is a setting and is
+    // not written from a gameplay snapshot.
+    if (state.adventure) {
+      db.prepare('UPDATE sessions SET adventure_status = ?, adventure_arc = ? WHERE id = ?')
+        .run(state.adventure.status, serializeArc(state.adventure), id);
+    }
+
+    for (const char of state.party) {
+      db.prepare(`INSERT INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt, status, avatar_storage_key, avatar_storage_provider, history, gender, buffs)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET name = excluded.name, class = excluded.class, species = excluded.species, quirk = excluded.quirk,
+          hp = excluded.hp, max_hp = excluded.max_hp, might = excluded.might, magic = excluded.magic, mischief = excluded.mischief,
+          status = excluded.status, history = excluded.history, gender = excluded.gender, buffs = excluded.buffs`)
+        .run(char.id, id, char.name, char.class, char.species, char.quirk, char.hp, char.max_hp, char.stats.might, char.stats.magic, char.stats.mischief, char.avatarUrl || null, char.avatarPrompt || null, char.status ?? 'active', char.avatarStorageKey || null, char.avatarStorageProvider || null, char.history || null, char.gender || null, char.buffs && char.buffs.length > 0 ? JSON.stringify(char.buffs) : null);
+      writeInventorySync(char);
+    }
   },
 
   getSessionNamespaceId(id: string): string | undefined {
@@ -265,6 +404,12 @@ export const sessionRepository = {
   },
 
   async updateSession(id: string, state: SessionState): Promise<void> {
+    sessionRepository.updateSessionSync(id, state);
+  },
+
+  // Full write including media and settings. Only for session setup paths (creation,
+  // character assembly); gameplay uses commitTurn/writeGameplayStateSync.
+  updateSessionSync(id: string, state: SessionState): void {
     const db = getDb();
     const rescuesUsed = state.interventionState?.rescuesUsed ?? 0;
     const encounterStateJson = state.encounterState != null ? JSON.stringify(state.encounterState) : null;
@@ -276,25 +421,7 @@ export const sessionRepository = {
       db.prepare('INSERT OR REPLACE INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt, status, avatar_storage_key, avatar_storage_provider, history, gender, buffs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
         .run(char.id, id, char.name, char.class, char.species, char.quirk, char.hp, char.max_hp, char.stats.might, char.stats.magic, char.stats.mischief, char.avatarUrl || null, char.avatarPrompt || null, char.status ?? 'active', char.avatarStorageKey || null, char.avatarStorageProvider || null, char.history || null, char.gender || null, char.buffs && char.buffs.length > 0 ? JSON.stringify(char.buffs) : null);
 
-      db.prepare('DELETE FROM inventory WHERE characterId = ?').run(char.id);
-      for (const item of (char.inventory ?? [])) {
-        db.prepare('INSERT INTO inventory (characterId, itemId, name, description, statBonuses, healValue, transferable, consumable, tags, effect, charges, condition, boundToCharacterId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-          .run(
-            char.id,
-            item.id,
-            item.name,
-            item.description,
-            item.statBonuses ? JSON.stringify(item.statBonuses) : null,
-            item.healValue ?? null,
-            item.transferable != null ? (item.transferable ? 1 : 0) : null,
-            item.consumable != null ? (item.consumable ? 1 : 0) : null,
-            item.tags && item.tags.length > 0 ? JSON.stringify(item.tags) : null,
-            item.effect ?? null,
-            item.charges ?? null,
-            item.condition ?? null,
-            item.boundToCharacterId ?? null,
-          );
-      }
+      writeInventorySync(char);
     }
   },
 
@@ -304,6 +431,10 @@ export const sessionRepository = {
   },
 
   async patchSession(id: string, fields: SessionPatch): Promise<void> {
+    sessionRepository.patchSessionSync(id, fields);
+  },
+
+  patchSessionSync(id: string, fields: SessionPatch): void {
     const db = getDb();
     const colMap: Record<string, string> = {
       difficulty: 'difficulty',
@@ -404,7 +535,7 @@ export const sessionRepository = {
 
   async listSessions(namespaceId: string = 'local'): Promise<SessionListItem[]> {
     const db = getDb();
-    const rows = db.prepare('SELECT id, displayName, worldDescription, storySummary, dm_prep, difficulty, gameMode, game_over, preview_image_url FROM sessions WHERE namespace_id = ? ORDER BY createdAt DESC, id ASC').all(namespaceId) as { id: string; displayName: string; worldDescription: string | null; storySummary: string | null; dm_prep: string | null; difficulty: string; gameMode: string; game_over: number; preview_image_url: string | null }[];
+    const rows = db.prepare('SELECT id, displayName, worldDescription, storySummary, dm_prep, difficulty, gameMode, game_over, preview_image_url, adventure_format, adventure_status FROM sessions WHERE namespace_id = ? ORDER BY createdAt DESC, id ASC').all(namespaceId) as { id: string; displayName: string; worldDescription: string | null; storySummary: string | null; dm_prep: string | null; difficulty: string; gameMode: string; game_over: number; preview_image_url: string | null; adventure_format: string | null; adventure_status: string | null }[];
     return rows.map(row => {
       const chars = db.prepare('SELECT id, name, class, species, avatarUrl, hp, max_hp FROM characters WHERE sessionId = ?').all(row.id) as { id: string; name: string; class: string; species: string; avatarUrl: string | null; hp: number; max_hp: number }[];
       return {
@@ -416,6 +547,8 @@ export const sessionRepository = {
         difficulty: row.difficulty,
         gameMode: row.gameMode,
         gameOver: !!row.game_over || undefined,
+        adventureFormat: (row.adventure_format as AdventureFormat | null) ?? 'long_lived',
+        adventureStatus: (row.adventure_status as AdventureStatus | null) ?? 'active',
         previewImageUrl: row.preview_image_url || undefined,
         party: chars.map(c => ({ ...c, avatarUrl: c.avatarUrl || undefined })),
       };
@@ -439,9 +572,17 @@ export const sessionRepository = {
     return row.count;
   },
 
-  async updateStorySummary(sessionId: string, summary: string): Promise<void> {
+  // sourceTurn is the session turn the summary was built from. A late result built
+  // from an older turn never replaces a newer summary.
+  async updateStorySummary(sessionId: string, summary: string, sourceTurn?: number): Promise<boolean> {
     const db = getDb();
-    db.prepare('UPDATE sessions SET storySummary = ? WHERE id = ?').run(summary, sessionId);
+    if (sourceTurn === undefined) {
+      db.prepare('UPDATE sessions SET storySummary = ? WHERE id = ?').run(summary, sessionId);
+      return true;
+    }
+    const result = db.prepare('UPDATE sessions SET storySummary = ?, story_summary_turn = ? WHERE id = ? AND story_summary_turn <= ?')
+      .run(summary, sourceTurn, sessionId, sourceTurn);
+    return result.changes > 0;
   },
 
   cloneOnboardingSession(namespaceId: string): string {
@@ -461,9 +602,11 @@ export const sessionRepository = {
 
     const newSessionId = createId();
 
-    db.prepare(`INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, dm_prep_encounters, turn, activeCharacterId, tone, displayName, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, rescues_used, game_over, storySummary, preview_image_url, namespace_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?)`)
-      .run(newSessionId, session.scene, session.sceneId, session.worldDescription, session.dm_prep, session.dm_prep_image_brief, session.dm_prep_encounters, session.turn, '', session.tone, session.displayName, session.difficulty, session.gameMode, session.savingsMode, 0, session.storySummary, session.preview_image_url, namespaceId);
+    // The onboarding tutorial follows its own scripted flow: explicitly long-lived so
+    // it never gains one-evening finale pressure.
+    db.prepare(`INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, dm_prep_encounters, turn, activeCharacterId, tone, displayName, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, rescues_used, game_over, storySummary, preview_image_url, namespace_id, adventure_format, adventure_status, adventure_arc)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, 'long_lived', 'active', ?)`)
+      .run(newSessionId, session.scene, session.sceneId, session.worldDescription, session.dm_prep, session.dm_prep_image_brief, session.dm_prep_encounters, session.turn, '', session.tone, session.displayName, session.difficulty, session.gameMode, session.savingsMode, 0, session.storySummary, session.preview_image_url, namespaceId, serializeArc(createInitialArc()));
 
     const chars = db.prepare('SELECT * FROM characters WHERE sessionId = ? ORDER BY rowid ASC').all(templateId) as {
       id: string; name: string; class: string; species: string; quirk: string;

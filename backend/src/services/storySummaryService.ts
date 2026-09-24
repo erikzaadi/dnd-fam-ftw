@@ -3,7 +3,8 @@ import { runBackground } from '../middleware/runBackground.js';
 import { StateService } from './stateService.js';
 import { ImageService } from './imageService.js';
 import { compileDmPrepPremise } from './dmPrepCompilationService.js';
-import type { EncounterSeed } from '../types.js';
+import type { AdventureFormat, EncounterSeed } from '../types.js';
+import { ONE_EVENING_BRIEF_INSTRUCTIONS, parseEveningObjectiveFromBrief, storeEveningObjective } from './adventureObjectiveService.js';
 
 const SUMMARY_INTERVAL = 5;
 
@@ -71,6 +72,8 @@ type GenerateCampaignBriefOptions = {
   // Used by instant-start to keep heavy image/LLM work from competing with the
   // first-turn narration call for API throughput.
   mediaGate?: Promise<void>;
+  // one_evening briefs also define tonight's bounded objective and private payoff.
+  adventureFormat?: AdventureFormat;
 };
 
 const tryParseJsonArray = (text: string): EncounterSeed[] | null => {
@@ -171,15 +174,19 @@ export class StorySummaryService {
 
       const summary = await this.callSummarize(prompt);
       if (summary) {
-        await StateService.updateStorySummary(sessionId, summary);
-        console.log(`[Summary] Updated at turn ${turn} for session ${sessionId}`);
+        const stored = await StateService.updateStorySummary(sessionId, summary, turn);
+        if (stored) {
+          console.log(`[Summary] Updated at turn ${turn} for session ${sessionId}`);
+        } else {
+          console.log(`[Summary] Discarded stale summary from turn ${turn} for session ${sessionId}`);
+        }
       }
     } catch (err) {
       console.warn('[Summary] maybeUpdate failed:', err);
     }
   }
 
-  static async updateAfterIntervention(sessionId: string, interventionNarration: string): Promise<void> {
+  static async updateAfterIntervention(sessionId: string, interventionNarration: string, sourceTurn?: number): Promise<void> {
     try {
       const session = await StateService.getSession(sessionId);
       if (!session) {
@@ -192,8 +199,7 @@ CRITICAL: The party has just been rescued or moved to a new location. Explicitly
 Focus only on the current situation and the essential journey, ignoring defeated or bypassed enemies from the past.`;
 
       const summary = await this.callSummarize(prompt);
-      if (summary) {
-        await StateService.updateStorySummary(sessionId, summary);
+      if (summary && await StateService.updateStorySummary(sessionId, summary, sourceTurn ?? session.turn)) {
         console.log(`[Summary] Updated after intervention for session ${sessionId}`);
       }
     } catch (err) {
@@ -242,7 +248,8 @@ ENCOUNTERS: (one combat, one exploration challenge, one social challenge, one ma
 TREASURE: (2-3 thematic rewards or items that feel tied to the world)
 STAGES: Early - | Mid - | Climax -
 DM NOTE: (one pacing rule and one fail-forward rule for this campaign)
-
+${options.adventureFormat === 'one_evening' ? `${ONE_EVENING_BRIEF_INSTRUCTIONS}
+` : ''}
 Be specific: invent names, places, visual details, clues, and recurring motifs. This guides the AI Dungeon Master turn by turn. Keep it playful, adventurous, and safe for a family table.
 
 After the prose sections above, append one machine-readable block:
@@ -269,6 +276,12 @@ The JSON block must be a valid JSON array with no extra text or prose inside it.
       if (raw) {
         const { brief, seeds } = parseEncounterSeeds(raw);
         await StateService.patchSession(sessionId, { dmPrep: brief });
+        if (options.adventureFormat === 'one_evening') {
+          const tonight = parseEveningObjectiveFromBrief(brief);
+          if (tonight) {
+            storeEveningObjective(sessionId, tonight);
+          }
+        }
         const compiled = await compileDmPrepPremise(brief);
         if (compiled) {
           await StateService.patchSession(sessionId, { compiledDmPrep: compiled });
