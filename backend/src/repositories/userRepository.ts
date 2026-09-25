@@ -1,5 +1,5 @@
 import { createId } from '../lib/ids.js';
-import { getDb } from '../persistence/database.js';
+import { getDb, runInTransaction } from '../persistence/database.js';
 import { canonicalEmail } from '../lib/email.js';
 
 export type UserRecord = {
@@ -32,31 +32,30 @@ export const userRepository = {
     return row?.created_at ?? null;
   },
 
-  // User + private namespace + membership in one transaction. Callers that need more
-  // in the same transaction (self-service signup) wrap this in their own; SQLite nests
-  // it as a savepoint.
+  // User + private namespace + membership in one transaction. Inside a caller's
+  // transaction (self-service signup) it joins that one instead.
   createUser(email: string, namespaceName?: string, role: string = 'member', tier: string = 'unlimited'): { userId: string; namespaceId: string } {
     const db = getDb();
     const namespaceId = createId();
     const userId = createId();
     const nsName = namespaceName ?? email.trim().split('@')[0];
-    db.transaction(() => {
+    runInTransaction(() => {
       db.prepare('INSERT INTO namespaces (id, name, tier) VALUES (?, ?, ?)').run(namespaceId, nsName, tier);
       db.prepare('INSERT INTO users (id, email, email_canonical, namespace_id, role) VALUES (?, ?, ?, ?, ?)')
         .run(userId, email.trim(), canonicalEmail(email), namespaceId, role);
       db.prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(userId, namespaceId);
-    })();
+    });
     return { userId, namespaceId };
   },
 
   createUserInExistingNamespace(email: string, namespaceId: string, role: string = 'member'): { userId: string; namespaceId: string } {
     const db = getDb();
     const userId = createId();
-    db.transaction(() => {
+    runInTransaction(() => {
       db.prepare('INSERT INTO users (id, email, email_canonical, namespace_id, role) VALUES (?, ?, ?, ?, ?)')
         .run(userId, email.trim(), canonicalEmail(email), namespaceId, role);
       db.prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(userId, namespaceId);
-    })();
+    });
     return { userId, namespaceId };
   },
 
@@ -100,7 +99,7 @@ export const userRepository = {
     }
     // All-or-nothing, and nothing left behind that could bind to a later account
     // with the same email (sign-in codes, pending signup notices).
-    db.transaction(() => {
+    runInTransaction(() => {
       db.prepare('DELETE FROM user_namespaces WHERE user_id = ?').run(user.id);
       db.prepare('DELETE FROM users WHERE id = ?').run(user.id);
       db.prepare('DELETE FROM auth_email_challenges WHERE email_canonical = ?').run(canonicalEmail(email));
@@ -114,7 +113,7 @@ export const userRepository = {
           db.prepare('DELETE FROM namespaces WHERE id = ?').run(user.namespace_id);
         }
       }
-    })();
+    });
     return true;
   },
 

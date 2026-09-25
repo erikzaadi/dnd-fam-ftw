@@ -20,3 +20,11 @@ export const getDb = (): DB => {
   }
   return db;
 };
+
+// Runs fn in a transaction, or inside the caller's open one. libsql's transaction()
+// always issues BEGIN and cannot nest, so building blocks that may run inside a larger
+// transaction (e.g. account creation during sign-in) use this.
+export const runInTransaction = <T>(fn: () => T): T => {
+  const database = getDb();
+  return database.inTransaction ? fn() : database.transaction(fn)();
+};

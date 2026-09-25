@@ -157,13 +157,13 @@ describe('CLI namespaces', () => {
     expect(stdout).toMatch(/max-turns:\s+50/);
   });
 
-  it('set-limits with --max-sessions null removes the limit', () => {
+  it('set-limits with --max-sessions null falls back to the tier default', () => {
     const nsId = cli('namespaces', 'create', 'Unlimit Realm').stdout.match(/namespaceId:\s*(\S+)/)?.[1];
     expect(nsId).toBeTruthy();
     cli('namespaces', 'set-limits', nsId!, '--max-sessions=5');
     const { stdout, status } = cli('namespaces', 'set-limits', nsId!, '--max-sessions', 'null');
     expect(status).toBe(0);
-    expect(stdout).toContain('max-sessions: unlimited');
+    expect(stdout).toContain('max-sessions: tier default');
   });
 
   it('set-limits with no flags shows current limits', () => {
