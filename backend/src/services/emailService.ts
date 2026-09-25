@@ -1,5 +1,6 @@
 import { getConfig } from '../config/env.js';
 import { emailOutboxRepository } from '../repositories/emailOutboxRepository.js';
+import type { KofiPaymentOutcome } from '../repositories/kofiPaymentRepository.js';
 import { getEmailProvider } from '../providers/email/emailProviderFactory.js';
 import type { OutgoingEmail } from '../providers/email/EmailProvider.js';
 
@@ -107,6 +108,51 @@ export function enqueueLimitRequestNotice(notice: LimitRequestNotice): void {
     textBody: `A group asked for higher limits.\n\n${lines.join('\n')}\n\nApprove with: ${approve}\n`,
     htmlBody: `<!doctype html><html><body style="font-family:sans-serif"><p>A group asked for higher limits.</p><ul>${lines.map(line => `<li>${escapeHtml(line)}</li>`).join('')}</ul><p>Approve with: <code>${escapeHtml(approve)}</code></p></body></html>`,
   }, notice.requestedAt.getTime());
+}
+
+export interface KofiPaymentNotice {
+  transactionId: string;
+  type: string;
+  fromName: string | null;
+  email: string | null;
+  amount: string | null;
+  message: string | null;
+  outcome: KofiPaymentOutcome;
+  namespaceId: string | null;
+  namespaceName: string | null;
+  supporterUntil: number | null;
+  receivedAt: Date;
+}
+
+const KOFI_OUTCOME_TEXT: Record<KofiPaymentOutcome, string> = {
+  upgraded: 'The group is now a supporter.',
+  already_upgraded: 'The group already has a tier that does not expire; nothing changed.',
+  no_account: 'No account uses this email. Find the group by hand and use cli namespaces tier <id> supporter.',
+};
+
+export function enqueueKofiPaymentNotice(notice: KofiPaymentNotice): void {
+  const recipient = ownerNoticeRecipient();
+  if (!recipient) {
+    return;
+  }
+  const lines = [
+    `Type: ${notice.type}`,
+    `Amount: ${notice.amount ?? 'unknown'}`,
+    `From: ${notice.fromName ?? 'unknown'} <${notice.email ?? 'no email'}>`,
+    `Message: ${notice.message ?? '(none)'}`,
+    `Group: ${notice.namespaceId ? `${notice.namespaceName ?? notice.namespaceId} (${notice.namespaceId})` : '(no matching account)'}`,
+    ...(notice.supporterUntil ? [`Supporter until: ${new Date(notice.supporterUntil).toISOString()}`] : []),
+    `Ko-fi transaction: ${notice.transactionId}`,
+    `Received: ${notice.receivedAt.toISOString()}`,
+  ];
+  const outcome = KOFI_OUTCOME_TEXT[notice.outcome];
+  emailOutboxRepository.enqueue({
+    eventKey: `kofi:${notice.transactionId}`,
+    recipient,
+    subject: 'A Ko-fi supporter helped the realm',
+    textBody: `A Ko-fi payment arrived. ${outcome}\n\n${lines.join('\n')}\n`,
+    htmlBody: `<!doctype html><html><body style="font-family:sans-serif"><p>A Ko-fi payment arrived. ${escapeHtml(outcome)}</p><ul>${lines.map(line => `<li>${escapeHtml(line)}</li>`).join('')}</ul></body></html>`,
+  }, notice.receivedAt.getTime());
 }
 
 export interface InviteRequestNotice {

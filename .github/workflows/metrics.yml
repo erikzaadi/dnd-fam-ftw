@@ -255,6 +255,44 @@ jobs:
             echo "count=$COUNT"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Gather donations
+        id: donations
+        env:
+          SINCE: ${{ steps.window.outputs.since }}
+        run: |
+          # Falls back to an empty list so the report still goes out if the deployed
+          # release predates the donations command.
+          # shellcheck disable=SC2029
+          DONATIONS=$(ssh "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}" \
+            "bash -lc 'cd $CURRENT_DIR && node --env-file=$APP_ENV_FILE dist/scripts/cli.js donations list --since \"$SINCE\" --json'" \
+            || echo '[]')
+          COUNT=$(echo "$DONATIONS" | jq 'length' 2>/dev/null || echo 0)
+          MESSAGE="Ko-fi donations since last report: 0"
+          if [ "${COUNT:-0}" -gt 0 ]; then
+            TOTALS=$(echo "$DONATIONS" | jq -r '
+              group_by(.currency // "?")
+              | map("\((map(.amount // "0" | tonumber? // 0) | add * 100 | round / 100)) \(.[0].currency // "?")")
+              | join(", ")')
+            # First 5 only: Pushover messages are capped at 1024 characters.
+            ENTRIES=$(echo "$DONATIONS" | jq -r '
+              .[0:5][] | "\(.from_name // "anonymous") \(.amount // "?") \(.currency // "") (\(
+                if .outcome == "upgraded" then "supporter until \(.supporter_until / 1000 | todate | .[0:10]) for \(.namespace_name // .namespace_id)"
+                elif .outcome == "already_upgraded" then "already upgraded: \(.namespace_name // .namespace_id)"
+                else "no matching account: \(.email_canonical // "no email")" end))"' | paste -sd ';' - | sed 's/;/; /g')
+            UNMATCHED=$(echo "$DONATIONS" | jq '[.[] | select(.outcome == "no_account")] | length')
+            MESSAGE="Ko-fi donations since last report ($COUNT, $TOTALS): $ENTRIES"
+            if [ "$COUNT" -gt 5 ]; then
+              MESSAGE="$MESSAGE; +$((COUNT - 5)) more"
+            fi
+            if [ "$UNMATCHED" -gt 0 ]; then
+              MESSAGE="$MESSAGE. $UNMATCHED need a manual tier change."
+            fi
+          fi
+          {
+            echo "count=$COUNT"
+            echo "message=$MESSAGE"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Generate AI summary
         id: summary
         env:
@@ -330,6 +368,7 @@ jobs:
           NEW_NAMESPACES: ${{ steps.new_namespaces.outputs.message }}
           NEW_NAMESPACES_COUNT: ${{ steps.new_namespaces.outputs.count }}
           TOP_NAMESPACE: ${{ steps.top_namespace.outputs.message }}
+          DONATIONS: ${{ steps.donations.outputs.message }}
         run: |
           MSG="$SUMMARY"
           MSG=$(printf '%s\n\n%s' "$MSG" "$SESSION_GROWTH")
@@ -342,6 +381,7 @@ jobs:
             MSG=$(printf '%s\n%s' "$MSG" "$NEW_NAMESPACES")
           fi
           MSG=$(printf '%s\n%s' "$MSG" "$TOP_NAMESPACE")
+          MSG=$(printf '%s\n%s' "$MSG" "$DONATIONS")
           if [ "${INVITES_COUNT:-0}" -gt 0 ]; then
             EMAILS=$(echo "$INVITES_JSON" | jq -r '.[].email' | paste -sd ', ')
             MSG=$(printf '%s\n\nPending invites (%s): %s' "$MSG" "$INVITES_COUNT" "$EMAILS")

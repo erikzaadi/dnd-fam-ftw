@@ -5,6 +5,9 @@ import type { LimitRequestErrorResponse, NamespaceUsageResponse } from '../types
 const formatReset = (iso: string): string =>
   new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
+const formatDate = (iso: string): string =>
+  new Date(iso).toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' });
+
 const Meter = ({ label, used, limit, hint }: { label: string; used: number; limit: number; hint: string }) => {
   const ratio = limit > 0 ? Math.min(1, used / limit) : 1;
   const spent = used >= limit;
@@ -23,7 +26,8 @@ const Meter = ({ label, used, limit, hint }: { label: string; used: number; limi
 };
 
 // "Support the realm" (donation link) and "Ask for more" (a note to the owner, who can
-// raise the group's tier). Donations never unlock anything automatically.
+// raise the group's tier). With Ko-fi matching on, a donation from the sign-in email
+// raises the tier for donationUpgradeDays.
 const MoreAdventures = ({ usage, onRequested }: { usage: NamespaceUsageResponse; onRequested: () => void }) => {
   const [asking, setAsking] = useState(false);
   const [note, setNote] = useState('');
@@ -95,6 +99,11 @@ const MoreAdventures = ({ usage, onRequested }: { usage: NamespaceUsageResponse;
           </div>
         </div>
       ) : null}
+      {usage.supportUrl && usage.donationUpgradeDays !== null && (
+        <p className="text-xs text-slate-500">
+          Donating with the email you sign in with gives your group higher limits for {usage.donationUpgradeDays} days.
+        </p>
+      )}
       <div className="flex flex-col sm:flex-row gap-2">
         {usage.supportUrl && (
           <a
@@ -155,6 +164,9 @@ export const YourRealm = () => {
           {usage.tierLabel}
         </span>
       </div>
+      {usage.tierExpiresAt && (
+        <p className="text-sm text-slate-400">Thank you for supporting the realm! Your higher limits last until {formatDate(usage.tierExpiresAt)}.</p>
+      )}
 
       {unlimited ? (
         <p className="text-sm text-slate-400">Your realm has no daily limits. Adventure as much as you like.</p>

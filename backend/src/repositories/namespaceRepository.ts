@@ -9,6 +9,7 @@ export type NamespaceListItem = {
   max_sessions: number | null;
   max_turns: number | null;
   tier: string;
+  tier_expires_at: number | null;
   created_at: string;
 };
 
@@ -17,7 +18,7 @@ export const namespaceRepository = {
     const db = getDb();
     return db.prepare(`
       SELECT
-        n.id, n.name, n.created_at, n.max_sessions, n.max_turns, n.tier,
+        n.id, n.name, n.created_at, n.max_sessions, n.max_turns, n.tier, n.tier_expires_at,
         COUNT(DISTINCT un.user_id) as user_count,
         COUNT(DISTINCT s.id) as session_count
       FROM namespaces n
@@ -75,13 +76,14 @@ export const namespaceRepository = {
     return { maxSessions: row?.max_sessions ?? null, maxTurns: row?.max_turns ?? null };
   },
 
-  getNamespaceTier(namespaceId: string): string | null {
-    const row = getDb().prepare('SELECT tier FROM namespaces WHERE id = ?').get(namespaceId) as { tier: string } | undefined;
-    return row?.tier ?? null;
+  getNamespaceTier(namespaceId: string): { tier: string; expiresAt: number | null } | null {
+    const row = getDb().prepare('SELECT tier, tier_expires_at FROM namespaces WHERE id = ?').get(namespaceId) as { tier: string; tier_expires_at: number | null } | undefined;
+    return row ? { tier: row.tier, expiresAt: row.tier_expires_at } : null;
   },
 
-  setNamespaceTier(namespaceId: string, tier: string): boolean {
-    return getDb().prepare('UPDATE namespaces SET tier = ? WHERE id = ?').run(tier, namespaceId).changes > 0;
+  // Owner-set tiers (CLI, approved limit requests) never expire.
+  setNamespaceTier(namespaceId: string, tier: string, expiresAt: number | null = null): boolean {
+    return getDb().prepare('UPDATE namespaces SET tier = ?, tier_expires_at = ? WHERE id = ?').run(tier, expiresAt, namespaceId).changes > 0;
   },
 
   setNamespaceLimits(namespaceId: string, maxSessions: number | null, maxTurns: number | null): boolean {

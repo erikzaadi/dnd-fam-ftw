@@ -24,6 +24,7 @@ import { createNamespaceRouter } from './routes/namespaceRoutes.js';
 import { createSettingsRouter } from './routes/settingsRoutes.js';
 import { createSystemRouter } from './routes/systemRoutes.js';
 import { createTtsRouter } from './routes/ttsRoutes.js';
+import { createWebhookRouter } from './routes/webhookRoutes.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -119,6 +120,7 @@ if (isAuthEnabled()) {
 app.use(createSystemRouter({ config, hasCloudAI }));
 app.use(createAuthRouter({ isProduction }));
 app.use(createTtsRouter());
+app.use(createWebhookRouter());
 
 // Apply auth middleware to all routes except /auth/* and /health.
 app.use((req, res, next) => {

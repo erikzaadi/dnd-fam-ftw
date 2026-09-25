@@ -605,4 +605,28 @@ export const migrate = (db: DB): void => {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS idx_limit_requests_open ON limit_requests(namespace_id) WHERE status = 'pending';
   `);
+
+  // Ko-fi donations. A matched donation makes the donor's group a supporter until
+  // tier_expires_at (epoch ms; NULL = no expiry). One row per Ko-fi transaction keeps
+  // webhook retries idempotent.
+  const namespaceColsExpiry = (db.prepare("PRAGMA table_info(namespaces)").all() as { name: string }[]).map(r => r.name);
+  if (!namespaceColsExpiry.includes('tier_expires_at')) {
+    db.prepare("ALTER TABLE namespaces ADD COLUMN tier_expires_at INTEGER").run();
+  }
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS kofi_payments (
+      transaction_id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      email_canonical TEXT,
+      from_name TEXT,
+      amount TEXT,
+      currency TEXT,
+      message TEXT,
+      outcome TEXT NOT NULL,
+      namespace_id TEXT,
+      supporter_until INTEGER,
+      kofi_timestamp TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
 };

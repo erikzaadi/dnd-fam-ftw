@@ -7,6 +7,7 @@ import { toSqliteTimestamp } from '../repositories/usageRepository.js';
 import { dispatchOutbox, enqueueLimitRequestNotice } from '../services/emailService.js';
 import { parseBody } from './routeValidation.js';
 import { StateService } from '../services/stateService.js';
+import { KOFI_SUPPORTER_DAYS } from '../services/kofiWebhookService.js';
 import { checkPictureBudget, getDailyUsage, getEffectiveLimits, nextUtcReset, tierLabel } from '../services/usageLimitService.js';
 import type { LimitRequestErrorResponse, NamespaceUsageResponse } from '../types.js';
 
@@ -35,6 +36,7 @@ export const createNamespaceRouter = () => {
     const body: NamespaceUsageResponse = {
       tier: limits.tier,
       tierLabel: tierLabel(limits.tier),
+      tierExpiresAt: limits.tierExpiresAt !== null ? new Date(limits.tierExpiresAt).toISOString() : null,
       limits: {
         textCreditsPerDay: limits.textCreditsPerDay,
         picturesPerDay: limits.picturesPerDay,
@@ -46,6 +48,7 @@ export const createNamespaceRouter = () => {
       resetsAt: nextUtcReset().toISOString(),
       picturesPaused: checkPictureBudget(req.namespaceId) !== null,
       supportUrl: getConfig().SUPPORT_URL,
+      donationUpgradeDays: getConfig().KOFI_VERIFICATION_TOKEN ? KOFI_SUPPORTER_DAYS : null,
       limitRequest: null,
     };
     const open = limitRequestRepository.getOpen(req.namespaceId);

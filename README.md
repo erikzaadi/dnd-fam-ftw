@@ -367,7 +367,7 @@ When auth is enabled, each user gets their own namespace (isolated sessions). Us
 ./dnd-fam-ftw-prod-cli invite-requests list
 ```
 
-Sign-in is Google and/or passwordless email codes (Amazon SES). With `SIGNUP_MODE=open`, anyone with a verified email gets a private realm on the `free` tier (daily adventure energy and pictures, a few realms); existing and CLI-created groups are `unlimited`. Players see their allowance under **Your Realm** in Settings and can ask for more or support the hosting via `SUPPORT_URL` (e.g. Ko-fi).
+Sign-in is Google and/or passwordless email codes (Amazon SES). With `SIGNUP_MODE=open`, anyone with a verified email gets a private realm on the `free` tier (daily adventure energy and pictures, a few realms); existing and CLI-created groups are `unlimited`. Players see their allowance under **Your Realm** in Settings and can ask for more or support the hosting via `SUPPORT_URL` (e.g. Ko-fi). With `KOFI_VERIFICATION_TOKEN`, a Ko-fi payment from a player's sign-in email raises their group to `supporter` for 90 days (see `MANAGE.md`).
 
 Users with multiple namespace access will see a picker screen after login. For the full command reference see **[MANAGE.md](MANAGE.md)**.
 

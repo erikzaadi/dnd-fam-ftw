@@ -15,6 +15,8 @@ export interface TierLimits {
 
 export interface EffectiveLimits extends TierLimits {
   tier: UsageTier;
+  // Epoch ms when a time-limited tier falls back to free; null if it never does.
+  tierExpiresAt: number | null;
 }
 
 export interface DailyUsage {
@@ -85,9 +87,16 @@ export function getTierLimits(tier: UsageTier): TierLimits {
   return { ...DEFAULT_TIER_LIMITS[tier], ...getTierOverrides()[tier] };
 }
 
-export function getNamespaceTier(namespaceId: string): UsageTier {
-  const tier = namespaceRepository.getNamespaceTier(namespaceId);
-  return isUsageTier(tier) ? tier : 'unlimited';
+export function getNamespaceTier(namespaceId: string, now: number = Date.now()): UsageTier {
+  const record = namespaceRepository.getNamespaceTier(namespaceId);
+  if (!record || !isUsageTier(record.tier)) {
+    return 'unlimited';
+  }
+  // A time-limited upgrade (Ko-fi donation) falls back to free once it runs out.
+  if (record.expiresAt !== null && record.expiresAt <= now) {
+    return 'free';
+  }
+  return record.tier;
 }
 
 // Per-namespace max_sessions / max_turns (set via CLI) override the tier defaults.
@@ -95,8 +104,10 @@ export function getEffectiveLimits(namespaceId: string): EffectiveLimits {
   const tier = getNamespaceTier(namespaceId);
   const tierLimits = getTierLimits(tier);
   const overrides = namespaceRepository.getNamespaceLimits(namespaceId);
+  const expiresAt = namespaceRepository.getNamespaceTier(namespaceId)?.expiresAt ?? null;
   return {
     tier,
+    tierExpiresAt: tier === 'free' ? null : expiresAt,
     ...tierLimits,
     maxSessions: overrides.maxSessions ?? tierLimits.maxSessions,
     maxTurns: overrides.maxTurns ?? tierLimits.maxTurns,

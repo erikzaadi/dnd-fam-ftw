@@ -16,6 +16,7 @@
  *   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
  *   limit-requests  list [--status <s>] [--json] | approve <id> [--tier <tier>] | deny <id>
  *   email-outbox    list [--status <s>] [--json] | retry <id> | send-test <address>
+ *   donations       list [--outcome <o>] [--since <ISO date>] [--json]
  */
 
 import path from 'path';
@@ -32,6 +33,8 @@ import { StorySummaryService } from '../services/storySummaryService.js';
 import { getConfig } from '../config/env.js';
 import { emailOutboxRepository, type EmailOutboxStatus } from '../repositories/emailOutboxRepository.js';
 import { limitRequestRepository, type LimitRequestStatus } from '../repositories/limitRequestRepository.js';
+import { kofiPaymentRepository, type KofiPaymentOutcome } from '../repositories/kofiPaymentRepository.js';
+import { toSqliteTimestamp } from '../repositories/usageRepository.js';
 import { getEmailProvider } from '../providers/email/emailProviderFactory.js';
 import { USAGE_TIERS, getEffectiveLimits, isUsageTier, tierLabel } from '../services/usageLimitService.js';
 
@@ -183,14 +186,17 @@ case 'namespaces': {
       console.log('No namespaces found.');
     } else {
       const col = (s: string | number, w: number) => String(s).padEnd(w);
-      console.log(`\n${col('ID', 12)} ${col('Name', 24)} ${col('Tier', 10)} ${col('Users', 7)} ${col('Sessions', 10)} ${col('Limits', 22)} Created`);
-      console.log('-'.repeat(106));
+      console.log(`\n${col('ID', 12)} ${col('Name', 24)} ${col('Tier', 26)} ${col('Users', 7)} ${col('Sessions', 10)} ${col('Limits', 22)} Created`);
+      console.log('-'.repeat(122));
       for (const n of ns) {
         const limits = [
           n.max_sessions != null ? `sess<=${n.max_sessions}` : null,
           n.max_turns != null ? `turns<=${n.max_turns}` : null,
         ].filter(Boolean).join(', ') || 'tier default';
-        console.log(`${col(n.id, 12)} ${col(n.name, 24)} ${col(n.tier, 10)} ${col(n.user_count, 7)} ${col(n.session_count, 10)} ${col(limits, 22)} ${n.created_at}`);
+        const tier = n.tier_expires_at != null
+          ? `${n.tier}${n.tier_expires_at <= Date.now() ? ' (expired)' : ` until ${new Date(n.tier_expires_at).toISOString().slice(0, 10)}`}`
+          : n.tier;
+        console.log(`${col(n.id, 12)} ${col(n.name, 24)} ${col(tier, 26)} ${col(n.user_count, 7)} ${col(n.session_count, 10)} ${col(limits, 22)} ${n.created_at}`);
       }
       console.log();
     }
@@ -361,6 +367,9 @@ case 'namespaces': {
       const effective = getEffectiveLimits(id);
       const format = (value: number | null) => value ?? 'unlimited';
       console.log(`Namespace "${ns.name}" (${id}): ${effective.tier} (${tierLabel(effective.tier)})`);
+      if (effective.tierExpiresAt !== null) {
+        console.log(`  expires:          ${new Date(effective.tierExpiresAt).toISOString()} (then free)`);
+      }
       console.log(`  text credits/day: ${format(effective.textCreditsPerDay)}`);
       console.log(`  pictures/day:     ${format(effective.picturesPerDay)}`);
       console.log(`  max-sessions:     ${format(effective.maxSessions)}`);
@@ -371,7 +380,7 @@ case 'namespaces': {
       fail(`Unknown tier "${tier}". Use one of: ${USAGE_TIERS.join(', ')}`);
     }
     StateService.setNamespaceTier(id, tier);
-    console.log(`Namespace "${ns.name}" (${id}) is now ${tier} (${tierLabel(tier)}).`);
+    console.log(`Namespace "${ns.name}" (${id}) is now ${tier} (${tierLabel(tier)}), with no expiry.`);
     break;
   }
   default:
@@ -386,7 +395,7 @@ namespaces <sub-command> [args]
   add-user <nsId> <email>             Grant user access to a namespace
   remove-user <nsId> <email>          Remove user access from a namespace
   set-limits <id> [--max-sessions N] [--max-turns N]  Set or view per-namespace overrides (null = tier default)
-  tier <id> [free|supporter|unlimited]  View effective limits or change the usage tier
+  tier <id> [free|supporter|unlimited]  View effective limits or change the usage tier (clears any donation expiry)
 
 Options:
   --json   Output as JSON (list and sessions only)
@@ -1214,6 +1223,54 @@ email-outbox <sub-command>
   break;
 }
 
+// ── donations ─────────────────────────────────────────────────────────────────
+
+case 'donations': {
+  switch (subcommand) {
+  case 'list': {
+    const outcomes: KofiPaymentOutcome[] = ['upgraded', 'already_upgraded', 'no_account'];
+    const outcomeArg = parseArgValue(allArgs.find(a => a === '--outcome' || a.startsWith('--outcome=')));
+    if (outcomeArg && !(outcomes as string[]).includes(outcomeArg)) {
+      fail(`Usage: cli donations list [--outcome ${outcomes.join('|')}] [--since <ISO date>] [--json]`);
+    }
+    const sinceArg = parseArgValue(allArgs.find(a => a === '--since' || a.startsWith('--since=')));
+    const sinceDate = sinceArg ? new Date(sinceArg) : null;
+    if (sinceDate && isNaN(sinceDate.getTime())) {
+      fail(`Invalid --since date: ${sinceArg}`);
+    }
+    const rows = kofiPaymentRepository.list({
+      outcome: outcomeArg as KofiPaymentOutcome | undefined,
+      since: sinceDate ? toSqliteTimestamp(sinceDate) : undefined,
+    });
+    if (jsonMode) {
+      process.stdout.write(JSON.stringify(rows, null, 2) + '\n');
+    } else if (rows.length === 0) {
+      console.log('No Ko-fi payments recorded.');
+    } else {
+      console.table(rows.map(row => ({
+        received: row.created_at,
+        type: row.type,
+        amount: [row.amount, row.currency].filter(Boolean).join(' '),
+        from: row.from_name ?? '',
+        email: row.email_canonical ?? '',
+        outcome: row.outcome,
+        namespace: row.namespace_name ?? row.namespace_id ?? '',
+        until: row.supporter_until ? new Date(row.supporter_until).toISOString().slice(0, 10) : '',
+      })));
+    }
+    break;
+  }
+  default:
+    console.log(`
+donations <sub-command>
+  list [--outcome upgraded|already_upgraded|no_account] [--since <ISO date>] [--json]
+       Ko-fi payments received by /webhooks/kofi, newest first. no_account payments
+       need a manual "cli namespaces tier <id> supporter".
+`);
+  }
+  break;
+}
+
 // ── default ───────────────────────────────────────────────────────────────────
 
 default:
@@ -1232,6 +1289,7 @@ Resources:
   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
   limit-requests  list [--status <s>] [--json] | approve <id> [--tier <tier>] | deny <id>
   email-outbox    list [--status <s>] [--json] | retry <id> | send-test <address>
+  donations       list [--outcome <o>] [--since <ISO date>] [--json]
 
 Run cli <resource> for sub-command help.
 

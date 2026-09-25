@@ -30,6 +30,8 @@ export type AppConfig = {
   SIGNUP_NOTIFY_EMAIL?: string;
   // Donation page (e.g. Ko-fi) shown in Your Realm. Unset hides the button.
   SUPPORT_URL: string | null;
+  // Ko-fi webhook verification token (Ko-fi > Settings > API). Unset disables /webhooks/kofi.
+  KOFI_VERIFICATION_TOKEN?: string;
 };
 
 export type EmailProviderName = 'none' | 'ses' | 'capture';
@@ -227,6 +229,7 @@ function parse(): AppConfig {
     EMAIL_CODE_HMAC_SECRET: process.env.EMAIL_CODE_HMAC_SECRET || undefined,
     SIGNUP_NOTIFY_EMAIL: process.env.SIGNUP_NOTIFY_EMAIL?.trim() || process.env.ADMIN_EMAIL?.trim() || undefined,
     SUPPORT_URL: parseSupportUrl(),
+    KOFI_VERIFICATION_TOKEN: process.env.KOFI_VERIFICATION_TOKEN?.trim() || undefined,
   };
 }
 

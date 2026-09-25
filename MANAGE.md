@@ -140,7 +140,7 @@ View and manage invite requests from people without an account (Google or email 
 
 ### limit-requests
 
-"Ask for more" requests from limited (`free`/`supporter`) groups, sent from **Your Realm** in Settings with an optional note. One open request per group, at most 3 per day; each new request emails `SIGNUP_NOTIFY_EMAIL` (default `ADMIN_EMAIL`). Approving sets the group's tier. Donations through `SUPPORT_URL` (e.g. a Ko-fi page) never change limits automatically: match a donation to a request by hand and approve it.
+"Ask for more" requests from limited (`free`/`supporter`) groups, sent from **Your Realm** in Settings with an optional note. One open request per group, at most 3 per day; each new request emails `SIGNUP_NOTIFY_EMAIL` (default `ADMIN_EMAIL`). Approving sets the group's tier (with no expiry). With `KOFI_VERIFICATION_TOKEN` set, a Ko-fi payment from a player's sign-in email closes their open request automatically (see [donations](#donations)); otherwise match a donation to a request by hand and approve it.
 
 ```bash
 ./dnd-fam-ftw-cli limit-requests list                      # pending requests
@@ -149,6 +149,18 @@ View and manage invite requests from people without an account (Google or email 
 ./dnd-fam-ftw-cli limit-requests approve <id> --tier unlimited
 ./dnd-fam-ftw-cli limit-requests deny <id>
 ```
+
+### donations
+
+Ko-fi payments received by `POST /webhooks/kofi` (enabled by `KOFI_VERIFICATION_TOKEN`). Every payment type (donation, subscription, shop order, commission) counts. When the Ko-fi email matches a user's sign-in email (canonical match), that user's primary group becomes `supporter` for 90 days, extended from the current expiry when it is still a supporter, and any open "ask for more" request is approved. After the expiry the group falls back to `free` on its own. `unlimited` groups and supporters set by hand (no expiry) are left alone. Payments with no matching account are recorded as `no_account` for a manual `namespaces tier <id> supporter`. Each payment emails `SIGNUP_NOTIFY_EMAIL`; webhook retries are ignored by Ko-fi transaction id. `namespaces tier` always clears a donation expiry.
+
+```bash
+./dnd-fam-ftw-cli donations list                          # newest 200 payments
+./dnd-fam-ftw-cli donations list --outcome no_account     # need a manual tier change
+./dnd-fam-ftw-cli donations list --since 2026-09-01 --json
+```
+
+Ko-fi setup: Ko-fi > Settings > API > Webhooks, set the URL to `https://<api domain>/webhooks/kofi`, copy the verification token into the `KOFI_VERIFICATION_TOKEN` SSM parameter (SecureString), redeploy the backend, then use "Send Single Donation Test" (an unknown test email shows up as `no_account`).
 
 ### email-outbox
 
@@ -174,6 +186,7 @@ Operator notification emails (new signups, invite requests, and "ask for more" r
 | `EMAIL_CODE_HMAC_SECRET` | Key for hashing sign-in codes. Unset: derived from `JWT_SECRET`. |
 | `SIGNUP_NOTIFY_EMAIL` | Where new-signup and "ask for more" notices go (defaults to `ADMIN_EMAIL`). |
 | `SUPPORT_URL` | Donation page (https, e.g. `https://ko-fi.com/<you>`) behind the "Support the realm" button in Your Realm. Unset hides the button. |
+| `KOFI_VERIFICATION_TOKEN` | Ko-fi webhook verification token. Enables `POST /webhooks/kofi` (90-day supporter upgrade for a matching sign-in email). Unset: the endpoint returns 404. |
 
 Email sign-in sends an 8-digit code valid for 10 minutes, usable only in the browser that asked for it, 5 attempts per code, 60 seconds between resends, 5 sends per address and 20 per IP per hour. Google sign-in never creates accounts: new players create their account with an email code first, after which "Continue with Google" works for the same address. Login cookies last 30 days and are renewed automatically when a signed-in player uses the app with less than a week left. New signups are also paused while `DAILY_SPEND_LIMIT_USD` is exceeded.
 
@@ -384,6 +397,7 @@ Email, signup, and usage settings are **SSM parameters** under the SSM prefix (d
 | `EMAIL_FROM` | `terraform output -raw email_from` |
 | `SIGNUP_MODE` | `invite_only` (default when absent) or `open` |
 | `SUPPORT_URL` | optional, e.g. `https://ko-fi.com/<you>` |
+| `KOFI_VERIFICATION_TOKEN` | optional, SecureString, from Ko-fi > Settings > API |
 | `DAILY_SPEND_LIMIT_USD` | optional, e.g. `3` |
 | `SIGNUP_DAILY_CAP` | optional, default 25 |
 | `SIGNUP_NOTIFY_EMAIL` | optional, default `ADMIN_EMAIL` |
@@ -438,7 +452,7 @@ GitHub Actions handles automated deploys. Workflows live in `.github/workflows/`
 | `deploy.yml` | `v*` tag, manual | First runs `lint.yml` and `test.yml` (all jobs) on the exact SHA. Tags deploy backend and frontend; manual runs deploy what changed since the last deployed SHA (shared package, root package files, `.nvmrc` and the deploy workflow count for both; an unknown comparison SHA rebuilds). Backend ships as a versioned release with automatic rollback. Shares the `production-mutation` concurrency group with restores and is never cancelled mid-run. |
 | `lint.yml` | Push, PR, manual, called by deploy | Lint + typecheck for shared, backend, frontend, workflows and shell scripts. Always reports the stable **Lint result** check (use it for branch protection). |
 | `test.yml` | Push, PR, manual, called by deploy | Backend unit + integration, frontend unit, E2E (failure traces uploaded as artifacts). Always reports the stable **Test result** check. |
-| `metrics.yml` | Sunday 10:00 UTC, manual | Gathers usage metrics + pending invite requests, AI summary via Pushover |
+| `metrics.yml` | Sunday 10:00 UTC, manual | Gathers usage metrics, Ko-fi donations since the last report, and pending invite requests; AI summary via Pushover |
 | `visual-snapshots.yml` | `v*` tag, manual | Runs Playwright visual snapshot tests against a seeded prod instance; compare against S3 baselines. First run: dispatch with `update_snapshots=true` to generate baselines. |
 | `renew-cert.yml` | Scheduled (monthly) | Renews the Let's Encrypt cert via `certbot renew` |
 | `backup-db.yml` | Daily 02:00 UTC, manual | Consistent copy via `VACUUM INTO` (`dist/scripts/backupDatabase.js`), integrity-checked, uploaded with a metadata JSON (app version, schema summary, counts) to `s3://<SNAPSHOTS_BUCKET_NAME>/db-backups/`. Retention follows the bucket lifecycle rule (90 days). Recovery point: up to ~24h. Requires a backend release that contains the backup script. |

@@ -10,12 +10,14 @@ vi.mock('../lib/api', () => ({ apiFetch: mocks.apiFetch }));
 const usage = (overrides: Partial<NamespaceUsageResponse>): NamespaceUsageResponse => ({
   tier: 'free',
   tierLabel: 'Adventurer',
+  tierExpiresAt: null,
   limits: { textCreditsPerDay: 150, picturesPerDay: 20, maxSessions: 3, maxTurns: 100 },
   today: { textCredits: 40, pictures: 20 },
   sessionCount: 1,
   resetsAt: '2026-09-26T00:00:00.000Z',
   picturesPaused: true,
   supportUrl: null,
+  donationUpgradeDays: null,
   limitRequest: null,
   ...overrides,
 });
@@ -52,6 +54,13 @@ describe('YourRealm', () => {
     const support = await screen.findByRole('link', { name: 'Support the realm' });
     expect(support.getAttribute('href')).toBe('https://ko-fi.com/example');
     expect(screen.getByRole('button', { name: 'Ask for more' })).toBeTruthy();
+  });
+
+  it('explains donation matching and shows when a donation upgrade ends', async () => {
+    respond(usage({ tier: 'supporter', tierLabel: 'Patron of the Realm', tierExpiresAt: '2026-12-25T12:00:00.000Z', supportUrl: 'https://ko-fi.com/example', donationUpgradeDays: 90 }));
+    render(<YourRealm />);
+    expect(await screen.findByText(/higher limits last until/)).toBeTruthy();
+    expect(screen.getByText('Donating with the email you sign in with gives your group higher limits for 90 days.')).toBeTruthy();
   });
 
   it('hides the support link when none is configured and shows a pending request', async () => {

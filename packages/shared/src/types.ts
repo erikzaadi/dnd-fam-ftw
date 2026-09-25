@@ -478,6 +478,8 @@ export type UsageLimitKind = 'text' | 'pictures' | 'sessions' | 'turns';
 export interface NamespaceUsageResponse {
   tier: UsageTier;
   tierLabel: string;
+  // When a donation upgrade runs out (ISO), or null for tiers that do not expire.
+  tierExpiresAt: string | null;
   limits: {
     textCreditsPerDay: number | null;
     picturesPerDay: number | null;
@@ -495,6 +497,9 @@ export interface NamespaceUsageResponse {
   picturesPaused: boolean;
   // Donation page for "Support the realm", or null when not configured.
   supportUrl: string | null;
+  // Days of higher limits a donation from the sign-in email grants, or null when
+  // donations are not matched automatically.
+  donationUpgradeDays: number | null;
   // The group's open "Ask for more" request, if any.
   limitRequest: { status: 'pending'; createdAt: string } | null;
 }
