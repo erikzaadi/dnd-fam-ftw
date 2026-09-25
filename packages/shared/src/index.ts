@@ -56,6 +56,8 @@ export type {
   Session,
   AppSettings,
   Capabilities,
+  ActionClarification,
+  PreviewClarification,
   FreeActionPreview,
   SessionOperationKind,
   SessionOperationStatus,

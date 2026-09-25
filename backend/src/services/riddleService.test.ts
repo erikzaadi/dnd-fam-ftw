@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Choice } from '../types.js';
 import type { StoredRiddle } from '../repositories/riddleRepository.js';
-import { assessRiddleAction, toRiddleAttempt } from './riddleService.js';
+import { assessRiddleAction, syncRiddleChoices, toRiddleAttempt } from './riddleService.js';
 
 const riddle: StoredRiddle = {
   id: 'r1',
@@ -13,6 +13,7 @@ const riddle: StoredRiddle = {
   wrongAnswers: ['a jailer'],
   answerKnown: true,
   status: 'active',
+  source: 'narration',
 };
 
 const text = (value: string) => assessRiddleAction({ kind: 'free_text', text: value }, riddle);
@@ -110,9 +111,79 @@ describe('assessRiddleAction: choices and state', () => {
   });
 });
 
+describe('assessRiddleAction: replies to a riddle question', () => {
+  const reply = (draft: string, answer: string, question = 'Is that your answer to the riddle?') =>
+    assessRiddleAction({ kind: 'free_text', text: draft, clarifications: [{ question, answer }] }, riddle);
+
+  it('confirms the draft as the answer on "yes"', () => {
+    expect(reply('I play the piano with a flourish', 'Yes!')).toEqual({ type: 'answer', riddleId: 'r1', correct: true });
+    expect(reply('I play the piano with a flourish', 'that\'s my answer')).toEqual({ type: 'answer', riddleId: 'r1', correct: true });
+    expect(reply('a lighthouse', 'yep')).toEqual({ type: 'answer', riddleId: 'r1', correct: false });
+  });
+
+  it('makes the draft an ordinary action on "no"', () => {
+    expect(reply('I play the piano with a flourish', 'No')).toEqual({ type: 'not_answer' });
+  });
+
+  it('takes any other reply as the answer itself', () => {
+    expect(reply('not a jailer', 'a piano')).toEqual({ type: 'answer', riddleId: 'r1', correct: true });
+    expect(reply('not a jailer', 'Yes, a piano!')).toEqual({ type: 'answer', riddleId: 'r1', correct: true });
+    expect(reply('a piano or a jailer', 'the jailer')).toEqual({ type: 'answer', riddleId: 'r1', correct: false });
+  });
+
+  it('keeps asking when the reply still does not settle it', () => {
+    expect(reply('a piano or a jailer', 'yes')).toMatchObject({ type: 'unclear' });
+  });
+
+  it('ignores replies when the draft is already clear', () => {
+    expect(reply('a piano', 'no')).toEqual({ type: 'answer', riddleId: 'r1', correct: true });
+  });
+});
+
 describe('toRiddleAttempt', () => {
   it('resolves without a roll', () => {
     expect(toRiddleAttempt('a piano', true).actionResult).toMatchObject({ success: true, roll: 0, statUsed: 'none' });
     expect(toRiddleAttempt('a jailer', false).actionResult).toMatchObject({ success: false, roll: 0, statUsed: 'none' });
+  });
+});
+
+describe('syncRiddleChoices', () => {
+  const key = { canonicalAnswer: 'a piano', aliases: ['piano'] };
+  const guessedRiver = choice({ label: 'Answer: a river', riddleAnswer: 'a river', riddleCorrect: true });
+  const guessedPiano = choice({ label: 'Say: a grand piano!', riddleAnswer: 'a grand piano', riddleCorrect: false });
+  const hint = choice({ label: 'Ask for a hint', stat: 'mischief' });
+  const scout = choice({ label: 'Scout the hall', stat: 'might' });
+  const keepOrder = () => 0.9;
+
+  it('makes the narrated answer the correct choice and the agent\'s other guess the wrong one', () => {
+    expect(syncRiddleChoices([guessedRiver, guessedPiano, hint], key, keepOrder)).toEqual([
+      { ...guessedPiano, riddleAnswer: 'a piano', riddleCorrect: true },
+      { ...guessedRiver, riddleCorrect: false },
+      hint,
+    ]);
+  });
+
+  it('adds a correct answer choice when the agent offered none, keeping three choices', () => {
+    const synced = syncRiddleChoices([hint, scout, choice({ label: 'Rest' })], key, keepOrder);
+    expect(synced).toHaveLength(3);
+    expect(synced[0]).toMatchObject({ label: 'Answer: a piano', riddleAnswer: 'a piano', riddleCorrect: true });
+    expect(synced.slice(1)).toEqual([hint, scout]);
+  });
+
+  it('does not always put the right answer first', () => {
+    const synced = syncRiddleChoices([guessedRiver, guessedPiano, hint], key, () => 0.1);
+    expect(synced[0].riddleCorrect).toBe(false);
+    expect(synced[1].riddleCorrect).toBe(true);
+  });
+
+  it('turns answer choices into ordinary actions when no riddle is open', () => {
+    const synced = syncRiddleChoices([guessedRiver, hint], null);
+    expect(synced[0]).toEqual({ label: 'Answer: a river', difficulty: 'normal', stat: 'magic' });
+    expect(synced[1]).toEqual(hint);
+  });
+
+  it('leaves choices alone when the answer is unknown, and adds nothing to an empty list', () => {
+    expect(syncRiddleChoices([guessedRiver, hint], 'unknown')).toEqual([guessedRiver, hint]);
+    expect(syncRiddleChoices([], key)).toEqual([]);
   });
 });

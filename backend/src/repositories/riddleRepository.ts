@@ -3,6 +3,7 @@ import { getDb } from '../persistence/database.js';
 import { withTransaction } from '../persistence/transaction.js';
 
 export type RiddleStatus = 'active' | 'solved' | 'expired' | 'abandoned';
+export type RiddleSource = 'narration' | 'choices';
 
 // Server-only riddle state. Never serialize into public payloads.
 export type StoredRiddle = {
@@ -16,6 +17,7 @@ export type StoredRiddle = {
   wrongAnswers: string[];
   answerKnown: boolean;
   status: RiddleStatus;
+  source: RiddleSource;
 };
 
 type RiddleRow = {
@@ -29,6 +31,7 @@ type RiddleRow = {
   wrong_answers: string;
   answer_known: number;
   status: RiddleStatus;
+  source: RiddleSource;
 };
 
 const parseList = (raw: string): string[] => {
@@ -51,6 +54,7 @@ const fromRow = (row: RiddleRow): StoredRiddle => ({
   wrongAnswers: parseList(row.wrong_answers),
   answerKnown: !!row.answer_known,
   status: row.status,
+  source: row.source,
 });
 
 export type NewRiddle = Omit<StoredRiddle, 'id' | 'status'>;
@@ -79,8 +83,8 @@ export const riddleRepository = {
       db.prepare("UPDATE session_riddles SET status = 'expired', updated_at = CURRENT_TIMESTAMP WHERE session_id = ? AND status = 'active'")
         .run(riddle.sessionId);
       const id = createId();
-      db.prepare(`INSERT INTO session_riddles (id, session_id, source_turn_id, source_turn_number, prompt, canonical_answer, aliases, wrong_answers, answer_known, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`)
+      db.prepare(`INSERT INTO session_riddles (id, session_id, source_turn_id, source_turn_number, prompt, canonical_answer, aliases, wrong_answers, answer_known, source, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`)
         .run(
           id,
           riddle.sessionId,
@@ -91,9 +95,22 @@ export const riddleRepository = {
           JSON.stringify(riddle.aliases),
           JSON.stringify(riddle.wrongAnswers),
           riddle.answerKnown ? 1 : 0,
+          riddle.source,
         );
       return { ...riddle, id, status: 'active' };
     });
+  },
+
+  getById(id: string): StoredRiddle | null {
+    const row = getDb().prepare('SELECT * FROM session_riddles WHERE id = ?').get(id) as RiddleRow | undefined;
+    return row ? fromRow(row) : null;
+  },
+
+  // Fills in a late-found answer. Only an active riddle still missing its answer changes.
+  setAnswer(id: string, answer: { canonicalAnswer: string; aliases: string[] }): boolean {
+    const result = getDb().prepare("UPDATE session_riddles SET canonical_answer = ?, aliases = ?, answer_known = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'active' AND answer_known = 0")
+      .run(answer.canonicalAnswer, JSON.stringify(answer.aliases), id);
+    return result.changes > 0;
   },
 
   // Only moves an active riddle: a riddle already solved or expired stays as it is.

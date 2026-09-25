@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Choice, Session, TurnResult, FreeActionPreview } from '../../types';
 import type { TtsSettings } from '../../tts/ttsTypes';
-import { parseSpeechIntent } from '../../stt/speechIntent';
+import { parseSpeechIntent, QUESTION_PASSTHROUGH_INTENTS } from '../../stt/speechIntent';
+import { isDropQuestionCommand, type ClarificationThread } from '../../lib/previewAction';
 import { useSpeechRecognition } from '../../stt/useSpeechRecognition';
 import { narrationTtsService } from '../../tts/narrationTtsService';
 import {
@@ -59,6 +60,9 @@ interface UseCarConductorProps {
   submitChoice: (choice: Choice) => Promise<void>;
   previewAction: (actionText: string) => Promise<void>;
   clearPreview: () => void;
+  // An open DM question about the draft: the next utterance answers it.
+  clarification?: ClarificationThread | null;
+  clearClarification?: () => void;
   ttsSettings: TtsSettings;
   hasTts: boolean;
   // Session management. Resolve to an error message, or null on success.
@@ -78,6 +82,8 @@ export function useCarConductor({
   submitChoice,
   previewAction,
   clearPreview,
+  clarification = null,
+  clearClarification,
   ttsSettings,
   hasTts,
   wrapUpAdventure,
@@ -351,6 +357,24 @@ export function useCarConductor({
     const intent = parseSpeechIntent(transcript);
 
     addToTranscriptLog(`You: "${transcript}"`);
+
+    // An open DM question: "yes" and "no" are answers here, not confirm/cancel.
+    if (clarification && !QUESTION_PASSTHROUGH_INTENTS.has(intent.type)) {
+      if (isDropQuestionCommand(transcript)) {
+        addToTranscriptLog('Interpreted: Start Over');
+        clearClarification?.();
+        confirmingActionRef.current = null;
+        await speakTempText('Okay, starting over. What do you do?');
+      } else if (intent.type === 'repeat' || intent.type === 'options') {
+        await speakTempText(`The DM asks: ${clarification.question}`);
+      } else {
+        const reply = transcript.trim();
+        addToTranscriptLog(`Interpreted answer: ${reply}`);
+        confirmingActionRef.current = reply;
+        await previewAction(reply);
+      }
+      return;
+    }
 
     if (intent.type === 'choice') {
       if (confirmingActionRef.current) {
@@ -662,6 +686,14 @@ export function useCarConductor({
     };
   }, []);
 
+  // Speaks a DM question or a retryable explanation from the preview, then listens.
+  // The player is no longer confirming anything: the next utterance is theirs.
+  const speakDmMessage = useCallback(async (text: string) => {
+    confirmingActionRef.current = null;
+    addToTranscriptLog(`DM: ${text}`);
+    await speakTempText(text);
+  }, [addToTranscriptLog, speakTempText]);
+
   return {
     conductorState,
     isPaused,
@@ -672,6 +704,7 @@ export function useCarConductor({
     speakFullStorySequence,
     speakOptionsAndPrompt,
     speakRollNarration,
+    speakDmMessage,
     sttError,
     sttStatus: sttState.status,
     recognizedTranscript: 'transcript' in sttState ? sttState.transcript : '',

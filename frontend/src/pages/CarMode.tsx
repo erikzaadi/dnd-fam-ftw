@@ -20,6 +20,7 @@ export const CarMode = () => {
   const noAiTts = !capabilities.hasTts;
 
   const speakRollNarrationRef = useRef<((text: string) => Promise<void>) | null>(null);
+  const speakDmMessageRef = useRef<((text: string) => Promise<void>) | null>(null);
 
   const {
     session,
@@ -36,6 +37,8 @@ export const CarMode = () => {
     previewThinking,
     wrapUpAdventure,
     endAdventure,
+    clarification,
+    clearClarification,
   } = useCarSessionRuntime({
     sessionId: id || '',
     onTurnComplete: () => {},
@@ -44,6 +47,12 @@ export const CarMode = () => {
     onNarrating: () => {},
     onPendingRollNarration: useCallback((text: string) => {
       void speakRollNarrationRef.current?.(text);
+    }, []),
+    onClarification: useCallback((question: string) => {
+      void speakDmMessageRef.current?.(`The DM asks: ${question}`);
+    }, []),
+    onPreviewNotice: useCallback((message: string) => {
+      void speakDmMessageRef.current?.(message);
     }, []),
   });
 
@@ -56,6 +65,7 @@ export const CarMode = () => {
     speakFullStorySequence,
     speakOptionsAndPrompt,
     speakRollNarration,
+    speakDmMessage,
     sttError,
     recognizedTranscript,
   } = useCarConductor({
@@ -70,6 +80,8 @@ export const CarMode = () => {
     submitChoice,
     previewAction,
     clearPreview,
+    clarification,
+    clearClarification,
     ttsSettings,
     hasTts: capabilities.hasTts,
     wrapUpAdventure,
@@ -79,6 +91,10 @@ export const CarMode = () => {
   useEffect(() => {
     speakRollNarrationRef.current = speakRollNarration;
   }, [speakRollNarration]);
+
+  useEffect(() => {
+    speakDmMessageRef.current = speakDmMessage;
+  }, [speakDmMessage]);
 
   if (!id) {
     return null;

@@ -58,6 +58,8 @@ describe('CarMode', () => {
       submitAction: vi.fn(),
       submitChoice: vi.fn(),
       previewAction: vi.fn(),
+      clarification: null,
+      clearClarification: vi.fn(),
       actionPreview: null,
       clearPreview: vi.fn(),
       previewThinking: false,

@@ -10,6 +10,7 @@ import {
   SECTION_DRAMA_ROLL,
   SECTION_CONTINUITY_SHORT,
   SECTION_ACTING_SHORT,
+  SECTION_POSED_RIDDLE,
   SECTION_CHOICES_ACTOR,
   SECTION_CHOICES_FORMAT,
   SECTION_CHOICES_RIDDLE,
@@ -70,7 +71,7 @@ export function buildNarrationAgentSystemPrompt(input: NarrationInput): string {
 
   const sections = [
     'You are a thrilling and slightly edgy fantasy DM writing the narrative outcome for this turn.',
-    'Your output contains ONLY these fields: rollNarration, narration, currentTensionLevel, and objectiveOutcome (null unless the OBJECTIVE OUTCOME rules apply).',
+    'Your output contains ONLY these fields: rollNarration, narration, currentTensionLevel, objectiveOutcome (null unless the OBJECTIVE OUTCOME rules apply), posesRiddle, and riddle (see POSED RIDDLES).',
     'Do NOT produce choices, inventory changes, encounter state changes, HP changes, or buffs.',
     'Those fields are handled by separate modules running in parallel.',
     TYPOGRAPHY_RULE,
@@ -81,6 +82,7 @@ export function buildNarrationAgentSystemPrompt(input: NarrationInput): string {
     ...(hasDramaRoll ? [SECTION_DRAMA_ROLL] : []),
     SECTION_CONTINUITY_SHORT,
     SECTION_ACTING_SHORT,
+    SECTION_POSED_RIDDLE,
     ...(hasFrozen ? [SECTION_FROZEN_CONFRONTATION] : []),
     ...(hasStall ? [SECTION_LOCATION_STALL] : []),
     ...(input.adventureDirective ? [SECTION_ADVENTURE_ARC] : []),

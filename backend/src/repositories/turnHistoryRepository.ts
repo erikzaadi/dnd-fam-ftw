@@ -225,6 +225,11 @@ export const turnHistoryRepository = {
     return db.prepare('SELECT narration, actionAttempt FROM turn_history WHERE characterId = ? ORDER BY id').all(characterId) as { narration: string; actionAttempt: string | null }[];
   },
 
+  getNarration(turnId: number): string | null {
+    const row = getDb().prepare('SELECT narration FROM turn_history WHERE id = ?').get(turnId) as { narration: string } | undefined;
+    return row?.narration ?? null;
+  },
+
   getLatestTurnId(sessionId: string): number | null {
     const row = getDb().prepare('SELECT id FROM turn_history WHERE sessionId = ? ORDER BY id DESC LIMIT 1').get(sessionId) as { id: number } | undefined;
     return row?.id ?? null;

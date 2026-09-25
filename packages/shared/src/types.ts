@@ -393,7 +393,8 @@ export interface SessionPreview {
   party: { id: string; name: string; class: string; species: string; avatarUrl?: string; hp: number; max_hp: number }[];
 }
 
-export type SessionOperationKind = 'action' | 'start' | 'wrap_up' | 'end_here' | 'continue_world';
+// riddle_recovery: server-initiated, closes a riddle whose answer could not be found.
+export type SessionOperationKind = 'action' | 'start' | 'wrap_up' | 'end_here' | 'continue_world' | 'riddle_recovery';
 export type SessionOperationStatus = 'accepted' | 'running' | 'completed' | 'failed';
 // resolving: normal turn work. recovering: rescue/sanctuary follow-up after a party wipe.
 // concluding: generating a finale or epilogue.
@@ -415,7 +416,7 @@ export interface SessionOperation {
 }
 
 // 409 responses from mutation endpoints. All are retryable after the client refreshes.
-export type OperationConflictCode = 'operation_in_progress' | 'stale_revision' | 'request_id_conflict' | 'adventure_completed' | 'stale_preview' | 'preview_mismatch' | 'item_unavailable' | 'riddle_unclear' | 'riddle_answer_unknown';
+export type OperationConflictCode = 'operation_in_progress' | 'stale_revision' | 'request_id_conflict' | 'adventure_completed' | 'stale_preview' | 'preview_mismatch' | 'item_unavailable' | 'riddle_unclear' | 'riddle_answer_unknown' | 'clarification_limit';
 
 export interface OperationAcceptedResponse {
   queued: boolean;
@@ -482,6 +483,21 @@ export const OPENAI_TTS_VOICES_GPT4O_ONLY = new Set<OpenAiTtsVoice>(['cedar', 'm
 export const OPENAI_TTS_DEFAULT_VOICE: OpenAiTtsVoice = 'cedar';
 
 export type SessionListEventType = 'connected' | 'heartbeat' | 'session_changed' | 'preview_image_available' | 'instant_start_ready';
+
+// One question-and-answer round about a draft action. The client carries the whole
+// exchange with the original draft, so the server can read them together.
+export interface ActionClarification {
+  question: string;
+  answer: string;
+}
+
+// Returned by /preview-action instead of a preview when the server needs one more
+// detail. Nothing is stored or mutated; the player answers and previews again.
+export interface PreviewClarification {
+  kind: 'clarification';
+  question: string;
+  previewRevision: number;
+}
 
 export interface FreeActionPreview {
   // Server-issued handle binding this preview's mechanics to the session revision.

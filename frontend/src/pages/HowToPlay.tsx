@@ -44,6 +44,9 @@ export const HowToPlay = () => {
               <p className="text-slate-400 text-base mt-3 leading-relaxed">
                 Victories should move the adventure forward. When a fight or hard challenge is resolved, the story should carry you into the next clue, route, reward, threat, or decision instead of lingering on the finished scene.
               </p>
+              <p className="text-slate-400 text-base mt-3 leading-relaxed">
+                Riddles are answered in your own words, with no dice roll: the riddle decides. If the DM cannot tell what you mean, it asks you a short question first. Just answer it ("yes", "the goblin") and your action carries on. Nothing happens and no turn is spent until you confirm.
+              </p>
             </Section>
 
             <Section title="🎲 Die Hard: Rolling the Dice">

@@ -1,13 +1,14 @@
 import { broadcastUpdate } from '../realtime/sessionEvents.js';
 import { devLog } from '../lib/devLog.js';
-import type { ActionAttempt, AIInput, Choice, SessionState, Stat, TurnResult } from '../types.js';
+import type { ActionAttempt, AIInput, Choice, NarratedRiddle, ServerTurnResult, SessionState, Stat, TurnResult } from '../types.js';
 import { AiDmService, toNarrationInput } from './aiDmService.js';
 import { DmTurnOrchestrator } from './dmTurnOrchestrator.js';
 import type { NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
 import { GameEngine } from './gameEngine.js';
 import { StateService } from './stateService.js';
 import { compileDmPrepPremise } from './dmPrepCompilationService.js';
-import { assessRiddleAction, ensureActiveRiddle, toRiddleAttempt } from './riddleService.js';
+import { assessRiddleAction, ensureActiveRiddle, syncRiddleChoices, toRiddleAttempt } from './riddleService.js';
+import { extractRiddleAnswer } from './riddleRepairService.js';
 import { riddleRepository } from '../repositories/riddleRepository.js';
 import {
   CHARACTER_EDGE_BONUS,
@@ -20,7 +21,7 @@ import {
 import { buildSceneMomentum, buildScenePressure } from './sceneMomentumService.js';
 import { inferActionIntent, isNoFailureDamageAction } from './freeActionPolicyService.js';
 import { getTurnStrategy } from '../config/env.js';
-import { applyTurnPolicies, createTurnDiagnostics } from './turnDiagnostics.js';
+import { applyTurnPolicies, createTurnDiagnostics, type TurnDiagnostics } from './turnDiagnostics.js';
 import { generateResolvedFirstTurn } from './resolvedFirstTurnService.js';
 import { repairEncounterNameIfNeeded } from './encounterNameRepairService.js';
 import { checkTurnResultConsistency } from './turnResultConsistencyService.js';
@@ -138,6 +139,18 @@ const resolveItemTurn = async (
   });
 };
 
+// A riddle posed by narration without a usable answer gets one bounded extraction
+// call before the commit. If that fails too, the riddle is recorded as answer unknown.
+const completeNarratedRiddle = async (turnResult: ServerTurnResult, diagnostics: TurnDiagnostics): Promise<NarratedRiddle | null> => {
+  const narrated = turnResult.narrationFailed ? null : turnResult.narratedRiddle ?? null;
+  if (!narrated || narrated.canonicalAnswer) {
+    return narrated;
+  }
+  const extracted = await extractRiddleAnswer(turnResult.narration, narrated.prompt);
+  diagnostics.repair(extracted ? 'riddle_answer_extracted' : 'riddle_answer_unknown');
+  return extracted ? { ...narrated, ...extracted } : narrated;
+};
+
 // Suggested choices and free text: roll, generate, repair.
 const resolveRolledTurn = async (
   ctx: ResolutionContext,
@@ -211,10 +224,8 @@ const resolveRolledTurn = async (
   const bonusPreview = submittedChoice ? submittedChoicePreview : toFreeActionBonusPreview(inferredFreeActionBonuses);
   broadcastUpdate(sessionId, 'dm_narrating', { action: actionText, statUsed, difficulty, difficultyValue, character, operationId, ...bonusPreview });
   // validateTurnAction already rejected unclear answers; here an answer resolves without a roll.
-  const riddleAssessment = assessRiddleAction(
-    toRiddleActionInput(action),
-    ensureActiveRiddle({ id: sessionId, turn: session.turn, lastChoices: latestChoices }),
-  );
+  const activeRiddle = ensureActiveRiddle({ id: sessionId, turn: session.turn, lastChoices: latestChoices });
+  const riddleAssessment = assessRiddleAction(toRiddleActionInput(action), activeRiddle);
   const solvedRiddleId = riddleAssessment.type === 'answer' && riddleAssessment.correct ? riddleAssessment.riddleId : undefined;
   const actionAttempt: ActionAttempt = riddleAssessment.type === 'answer' ? toRiddleAttempt(actionText, riddleAssessment.correct) : GameEngine.resolveAction(
     character,
@@ -282,7 +293,7 @@ const resolveRolledTurn = async (
     diagnostics.record.strategy = 'parallel';
   }
 
-  let turnResult: TurnResult;
+  let turnResult: ServerTurnResult;
   let newState: SessionState;
   if (resolvedFirst) {
     ({ turnResult, newState } = resolvedFirst);
@@ -321,6 +332,16 @@ const resolveRolledTurn = async (
       }
     }
   }
+  // Riddles: the narration that posed one owns its answer. Answer choices are rebuilt
+  // to match whichever riddle is open after this turn, or turned into plain actions.
+  const narratedRiddle = await completeNarratedRiddle(turnResult, diagnostics);
+  const openRiddle = narratedRiddle ?? (activeRiddle && activeRiddle.id !== solvedRiddleId ? activeRiddle : null);
+  turnResult.choices = syncRiddleChoices(
+    turnResult.choices,
+    !openRiddle ? null : openRiddle.canonicalAnswer ? { canonicalAnswer: openRiddle.canonicalAnswer, aliases: openRiddle.aliases } : 'unknown',
+  );
+  newState.lastChoices = turnResult.choices;
+
   const llmMs = Date.now() - llmStart;
   logTurnStep(sessionId, 'guards', stepStart);
 
@@ -337,10 +358,26 @@ const resolveRolledTurn = async (
     llmMs,
     stepLabel: '',
     diagnostics,
-    // A correct answer closes the riddle atomically with the turn that answered it.
-    ...(solvedRiddleId && { additionalWrites: () => {
-      riddleRepository.setStatus(solvedRiddleId, 'solved'); 
-    } }),
+    // Riddle state moves atomically with the turn: a correct answer closes the open
+    // riddle, and a riddle posed by this turn's narration becomes the active one.
+    additionalWrites: (_revision, turnId) => {
+      if (solvedRiddleId) {
+        riddleRepository.setStatus(solvedRiddleId, 'solved');
+      }
+      if (narratedRiddle) {
+        riddleRepository.activate({
+          sessionId,
+          sourceTurnId: turnId,
+          sourceTurnNumber: newState.turn,
+          ...(narratedRiddle.prompt && { prompt: narratedRiddle.prompt }),
+          ...(narratedRiddle.canonicalAnswer && { canonicalAnswer: narratedRiddle.canonicalAnswer }),
+          aliases: narratedRiddle.aliases,
+          wrongAnswers: turnResult.choices.filter(choice => choice.riddleCorrect === false).map(choice => choice.riddleAnswer as string),
+          answerKnown: !!narratedRiddle.canonicalAnswer,
+          source: 'narration',
+        });
+      }
+    },
   });
 };
 

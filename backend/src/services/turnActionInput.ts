@@ -1,6 +1,7 @@
 import type { Choice, Difficulty, SessionState, Stat } from '../types.js';
 import { lookupActionPreview, type StoredActionPreview } from './actionPreviewStore.js';
 import { assessRiddleAction, ensureActiveRiddle, RIDDLE_ANSWER_UNKNOWN_MESSAGE, type RiddleActionInput } from './riddleService.js';
+import { scheduleRiddleRecovery } from './riddleRecoveryService.js';
 import { StateService } from './stateService.js';
 
 // Wire format of POST /session/:id/action. Kept for compatibility: older clients send
@@ -171,7 +172,11 @@ export const isRejection = (value: TurnAction | TurnActionRejection): value is T
 export const toRiddleActionInput = (action: Extract<TurnAction, { kind: 'choice' | 'free_text' }>): RiddleActionInput =>
   action.kind === 'choice'
     ? { kind: 'choice', choice: action.choice }
-    : { kind: 'free_text', text: action.preview?.originalAction ?? action.text };
+    : {
+      kind: 'free_text',
+      text: action.preview?.originalAction ?? action.text,
+      ...(action.preview?.clarifications?.length && { clarifications: action.preview.clarifications }),
+    };
 
 // Cheap state checks shared by the route (before acceptance) and the worker (after the
 // session is reloaded). Every action kind goes through the same access, limit,
@@ -226,11 +231,14 @@ export const validateTurnAction = (
 
   // While a riddle is open, an answer attempt never falls through to a stat roll:
   // anything the server cannot judge is sent back with the draft kept.
-  const riddle = assessRiddleAction(toRiddleActionInput(action), ensureActiveRiddle(session));
+  const activeRiddle = ensureActiveRiddle(session);
+  const riddle = assessRiddleAction(toRiddleActionInput(action), activeRiddle);
   if (riddle.type === 'unclear') {
     return rejectTurnAction(409, { error: 'riddle_unclear', message: riddle.question });
   }
   if (riddle.type === 'answer_unknown') {
+    // Recovery either finds the answer or closes the riddle with a DM beat.
+    scheduleRiddleRecovery(session.id, namespaceId ?? 'local', activeRiddle);
     return rejectTurnAction(409, { error: 'riddle_answer_unknown', message: RIDDLE_ANSWER_UNKNOWN_MESSAGE });
   }
 

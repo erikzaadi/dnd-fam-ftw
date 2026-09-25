@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ComponentProps } from 'react';
+import { useState, type ComponentProps } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionDock } from './ActionDock';
 import type { Character, TurnResult } from '../../types';
@@ -316,5 +316,85 @@ describe('ActionDock numbers toggle', () => {
     expect(screen.getAllByText(/^\d+%$/).length).toBe(3);
     expect(window.localStorage.getItem('dnd-fam-ftw:action-dock:show-numbers')).toBe('true');
     expect(screen.getByRole('button', { name: 'Hide the numbers' })).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
+describe('ActionDock clarification', () => {
+  const QUESTION = 'Is "piano" your answer to the riddle?';
+
+  // The draft is a controlled prop; keep it in state so the box behaves like the real page.
+  const StatefulDock = ({ initial, onSubmit }: { initial: string; onSubmit: ComponentProps<typeof ActionDock>['onSubmit'] }) => {
+    const [text, setText] = useState(initial);
+    return (
+      <ActionDock
+        turn={TURN}
+        loading={false}
+        activeCharacter={ACTIVE_CHAR}
+        isDown={false}
+        party={[ACTIVE_CHAR]}
+        sessionId="session-1"
+        customAction={text}
+        setCustomAction={setText}
+        error={null}
+        onSubmit={onSubmit}
+        onShowPartyGear={vi.fn()}
+      />
+    );
+  };
+
+  beforeEach(() => {
+    mocks.apiFetch.mockReset();
+  });
+
+  it('shows the question with the draft, then sends the reply together with the draft', async () => {
+    mocks.apiFetch
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ kind: 'clarification', question: QUESTION, previewRevision: 3 }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ originalAction: 'I play the piano', interpretedAction: 'Alice answers: a piano', stat: 'magic', difficulty: 'normal', warnings: ['Riddle answer: no dice roll, the riddle decides.'], previewId: 'p1' }),
+      });
+    const onSubmit = vi.fn();
+    render(<StatefulDock initial="I play the piano" onSubmit={onSubmit} />);
+
+    await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
+    expect(await screen.findByText(QUESTION)).toBeInTheDocument();
+    expect(screen.getByText('About: “I play the piano”')).toBeInTheDocument();
+    const box = screen.getByPlaceholderText('Your answer...');
+    expect(box).toHaveValue('');
+    expect(screen.queryByRole('button', { name: /^confirm$/i })).not.toBeInTheDocument();
+
+    await userEvent.type(box, 'Yes!');
+    await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
+
+    const body = JSON.parse(mocks.apiFetch.mock.calls[1][1].body as string);
+    expect(body).toEqual({ action: 'I play the piano', supports: ['clarification'], clarifications: [{ question: QUESTION, answer: 'Yes!' }] });
+    await userEvent.click(await screen.findByRole('button', { name: /^confirm$/i }));
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith('Alice answers: a piano', 'magic', 'normal', undefined, undefined, undefined, undefined, { previewId: 'p1' });
+    });
+    expect(screen.queryByText(QUESTION)).not.toBeInTheDocument();
+  });
+
+  it('puts the draft back on Start over', async () => {
+    mocks.apiFetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ kind: 'clarification', question: QUESTION, previewRevision: 3 }) });
+    render(<StatefulDock initial="I play the piano" onSubmit={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /start over/i }));
+
+    expect(screen.queryByText(QUESTION)).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Describe a different action...')).toHaveValue('I play the piano');
+  });
+
+  it('shows a retryable explanation instead of a failed preview, keeping the draft', async () => {
+    mocks.apiFetch.mockResolvedValueOnce({ ok: false, status: 409, json: async () => ({ error: 'riddle_answer_unknown', message: 'The DM is still puzzling over that riddle. Try again in a moment.' }) });
+    render(<StatefulDock initial="The answer is a piano" onSubmit={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
+
+    expect(await screen.findByText('The DM is still puzzling over that riddle. Try again in a moment.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^confirm$/i })).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Describe a different action...')).toHaveValue('The answer is a piano');
   });
 });

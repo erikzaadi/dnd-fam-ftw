@@ -33,6 +33,8 @@ export type {
   AppSettings,
   Capabilities,
   FreeActionPreview,
+  ActionClarification,
+  PreviewClarification,
   OpenAiTtsVoice,
   SessionOperation,
   SessionOperationKind,

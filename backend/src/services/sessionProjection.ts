@@ -17,10 +17,11 @@ export const toPublicChoice = (choice: Choice): Choice => {
   return riddleAnswer ? { ...publicChoice, kind: 'riddle_answer' } : publicChoice;
 };
 
-export const toPublicTurn = <T extends TurnResult>(turn: T): T => ({
-  ...turn,
-  choices: turn.choices.map(toPublicChoice),
-});
+export const toPublicTurn = <T extends TurnResult>(turn: T): T => {
+  // narratedRiddle (ServerTurnResult) carries the hidden answer of a newly posed riddle.
+  const { narratedRiddle: _narratedRiddle, ...publicTurn } = turn as T & { narratedRiddle?: unknown };
+  return { ...publicTurn, choices: turn.choices.map(toPublicChoice) } as T;
+};
 
 export const toPublicSession = <T extends Session | SessionState>(session: T): Session => {
   const copy: Record<string, unknown> = { ...session };

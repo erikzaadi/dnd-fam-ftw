@@ -1,4 +1,4 @@
-import type { Choice, ActionAttempt, SceneMomentum, ScenePressure, Session, EncounterState, EncounterSeed } from '@dnd-fam-ftw/shared';
+import type { Choice, ActionAttempt, SceneMomentum, ScenePressure, Session, EncounterState, EncounterSeed, TurnResult } from '@dnd-fam-ftw/shared';
 
 export type * from '@dnd-fam-ftw/shared';
 
@@ -26,6 +26,17 @@ export interface AdventureDirective {
   // narration reports objectiveOutcome.
   decisiveMoment: boolean;
 }
+
+// A riddle posed by this turn's narration. Server-only: the answer never leaves the
+// server (toPublicTurn strips it) and it is persisted in session_riddles, not turn_history.
+export interface NarratedRiddle {
+  prompt?: string;
+  // Missing when narration posed a riddle but gave no usable answer.
+  canonicalAnswer?: string;
+  aliases: string[];
+}
+
+export type ServerTurnResult = TurnResult & { narratedRiddle?: NarratedRiddle | null };
 
 export interface SessionState extends Session {
   sceneId: string;

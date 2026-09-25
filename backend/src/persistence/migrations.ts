@@ -461,4 +461,10 @@ export const migrate = (db: DB): void => {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_session_riddles_source ON session_riddles(session_id, source_turn_id);
     CREATE INDEX IF NOT EXISTS idx_session_riddles_status ON session_riddles(session_id, status);
   `);
+  // Where the answer came from: the narration that posed the riddle (authoritative), or
+  // the choices agent's flagged answer (turns from before narration produced riddles).
+  const riddleCols = (db.prepare("PRAGMA table_info(session_riddles)").all() as { name: string }[]).map(r => r.name);
+  if (!riddleCols.includes('source')) {
+    db.prepare("ALTER TABLE session_riddles ADD COLUMN source TEXT NOT NULL DEFAULT 'choices'").run();
+  }
 };

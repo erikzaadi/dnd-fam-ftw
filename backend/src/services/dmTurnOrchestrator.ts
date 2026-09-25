@@ -28,6 +28,7 @@ import {
 } from '../providers/ai/narration/agentSchemas.js';
 import { createOpenAIClient, getModelForTier, getTierRequestSettings, type TierRequestSettings } from '../providers/ai/openAiClient.js';
 import { devLog } from '../lib/devLog.js';
+import type { NarratedRiddle } from '../types.js';
 
 export type { AgentDiagnostic, AgentErrorKind };
 
@@ -593,6 +594,20 @@ const CONTROL_CHARS_RE = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
 
 // Models occasionally ignore the no-em-dash typography prompt rule. Enforce it
 // deterministically on all player-visible text, as the monolith guard used to.
+// A riddle posed by narration, or null. A fallback narration never poses one.
+function toNarratedRiddle(output: NarrationAgentOutput, usedFallback: boolean): NarratedRiddle | null {
+  if (usedFallback || (!output.posesRiddle && !output.riddle)) {
+    return null;
+  }
+  const canonicalAnswer = output.riddle?.canonicalAnswer ? cleanText(output.riddle.canonicalAnswer) : '';
+  const prompt = output.riddle?.prompt ? cleanText(output.riddle.prompt) : '';
+  return {
+    ...(prompt && { prompt }),
+    ...(canonicalAnswer && { canonicalAnswer }),
+    aliases: (output.riddle?.aliases ?? []).map(cleanText).filter(Boolean),
+  };
+}
+
 function cleanText(value: string): string {
   return value.replace(ANSI_RE, '').replace(CONTROL_CHARS_RE, '').replace(/[—]/g, '-');
 }
@@ -997,6 +1012,7 @@ export class DmTurnOrchestrator implements NarrationProvider {
       currentTensionLevel: narration.currentTensionLevel,
       // Only a decisive finale turn may report progress on the chapter objective.
       objectiveOutcome: input.adventureDirective?.decisiveMoment && !narrationUsedFallback ? (narration.objectiveOutcome ?? null) : null,
+      narratedRiddle: toNarratedRiddle(narration, narrationUsedFallback),
       choices: toPlayerChoices(choicesFlow.choices, input),
       suggestedDamage: combat.suggestedDamage ?? null,
       suggestedEncounterStart: (combat.suggestedEncounterStart ?? null) as NarrationOutput['suggestedEncounterStart'],
@@ -1074,6 +1090,7 @@ export class DmTurnOrchestrator implements NarrationProvider {
       rollNarration: narration.rollNarration ? cleanText(narration.rollNarration) : undefined,
       currentTensionLevel: narration.currentTensionLevel,
       objectiveOutcome: input.adventureDirective?.decisiveMoment && !narrationUsedFallback ? (narration.objectiveOutcome ?? null) : null,
+      narratedRiddle: toNarratedRiddle(narration, narrationUsedFallback),
       choices: toPlayerChoices(choicesFlow.choices, input),
       narrationFailed: narrationUsedFallback,
       choicesFailed: choicesFlow.usedFallback,

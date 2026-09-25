@@ -32,6 +32,19 @@ describe('narrationAgentOutputSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts a posed riddle with its answer, and rejects an empty answer', () => {
+    expect(narrationAgentOutputSchema.safeParse({
+      narration: 'The door sings a riddle.',
+      posesRiddle: true,
+      riddle: { prompt: 'I have keys but open no locks.', canonicalAnswer: 'a piano', aliases: ['piano'] },
+    }).success).toBe(true);
+    expect(narrationAgentOutputSchema.safeParse({
+      narration: 'The door sings a riddle.',
+      posesRiddle: true,
+      riddle: { canonicalAnswer: '' },
+    }).success).toBe(false);
+  });
+
   it('defaults currentTensionLevel to medium when omitted', () => {
     const result = narrationAgentOutputSchema.safeParse({
       narration: 'Something stirs in the shadows.',

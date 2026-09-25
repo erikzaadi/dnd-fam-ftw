@@ -5,13 +5,17 @@ import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
 import { getTierRequestSettings, warnIfEmptyTruncation } from '../providers/ai/openAiClient.js';
 import { buildEncounterContextFromEnemies, parseSuggestedStats, previewFreeAction, STAT_FALLBACK, suggestStatForSessionAction } from '../services/statSuggestionService.js';
 import { parseBody } from './routeValidation.js';
-import type { FreeActionPreview } from '@dnd-fam-ftw/shared';
+import type { FreeActionPreview, PreviewClarification } from '@dnd-fam-ftw/shared';
 import { buildFreeActionWarnings, getFreeActionDifficulty } from '../services/freeActionPolicyService.js';
 import { registerSessionIdParam } from '../middleware/sessionParam.js';
 import { devLog } from '../lib/devLog.js';
 import { storeActionPreview } from '../services/actionPreviewStore.js';
 import { StateService } from '../services/stateService.js';
 import { assessRiddleAction, ensureActiveRiddle, RIDDLE_ANSWER_UNKNOWN_MESSAGE } from '../services/riddleService.js';
+import { scheduleRiddleRecovery } from '../services/riddleRecoveryService.js';
+
+// After this many rounds the player is asked to rephrase instead of answering again.
+const MAX_CLARIFICATION_ROUNDS = 2;
 
 const suggestStatBodySchema = z.object({
   action: z.string().min(1),
@@ -24,6 +28,14 @@ const previewActionBodySchema = z.object({
   itemOwnerCharacterId: z.string().optional(),
   itemId: z.string().optional(),
   method: z.enum(['enchant', 'craft', 'tinker']).optional(),
+  // Clients that can show a clarification question in place declare it; others get
+  // the question as a retryable error message.
+  supports: z.array(z.enum(['clarification'])).max(4).optional(),
+  // Earlier question-and-answer rounds about this same draft (action).
+  clarifications: z.array(z.object({
+    question: z.string().min(1).max(300),
+    answer: z.string().trim().min(1).max(600),
+  }).strict()).max(MAX_CLARIFICATION_ROUNDS).optional(),
 }).strict();
 
 const suggestCharacterStatsBodySchema = z.object({
@@ -57,14 +69,26 @@ export const createStatSuggestionRouter = () => {
     const session = req.session!;
     // Riddle answers are judged on the player's own words before any model call. An
     // answer the server cannot judge comes back as a retryable error with a question.
+    const clarifications = body.clarifications ?? [];
+    const activeRiddle = body.action && !body.intent ? ensureActiveRiddle(session) : null;
     const riddle = body.action && !body.intent
-      ? assessRiddleAction({ kind: 'free_text', text: body.action }, ensureActiveRiddle(session))
+      ? assessRiddleAction({ kind: 'free_text', text: body.action, clarifications }, activeRiddle)
       : { type: 'not_answer' as const };
     if (riddle.type === 'unclear') {
+      if (clarifications.length >= MAX_CLARIFICATION_ROUNDS) {
+        res.status(409).json({ error: 'clarification_limit', message: 'Try describing it another way.' });
+        return;
+      }
+      if (body.supports?.includes('clarification')) {
+        const clarification: PreviewClarification = { kind: 'clarification', question: riddle.question, previewRevision: session.revision ?? 0 };
+        res.json(clarification);
+        return;
+      }
       res.status(409).json({ error: 'riddle_unclear', message: riddle.question });
       return;
     }
     if (riddle.type === 'answer_unknown') {
+      scheduleRiddleRecovery(sessionId, req.namespaceId ?? 'local', activeRiddle);
       res.status(409).json({ error: 'riddle_answer_unknown', message: RIDDLE_ANSWER_UNKNOWN_MESSAGE });
       return;
     }
@@ -74,8 +98,13 @@ export const createStatSuggestionRouter = () => {
       : null;
     devLog.log(`[PreviewAction] encounter-context session=${sessionId} durationMs=${Date.now() - stepStart} enemies=${encounterContext?.activeEnemies.length ?? 0}`);
     stepStart = Date.now();
+    // The model reads the draft together with the exchange, so "the goblin" completes
+    // "I throw it at them". The player's own draft stays the original action.
+    const modelAction = body.action?.trim() && clarifications.length > 0
+      ? `${body.action.trim()} (${clarifications.map(c => `asked "${c.question}", the player answered "${c.answer}"`).join('; ')})`
+      : body.action?.trim();
     const suggestion = await previewFreeAction(sessionId, {
-      action: body.action?.trim(),
+      action: modelAction,
       context: body,
       encounterContext,
     });
@@ -129,6 +158,7 @@ export const createStatSuggestionRouter = () => {
         ...(body.itemId && { itemId: body.itemId }),
         ...(body.itemOwnerCharacterId && { itemOwnerCharacterId: body.itemOwnerCharacterId }),
         ...(body.targetCharacterId && { targetCharacterId: body.targetCharacterId }),
+        ...(clarifications.length > 0 && { clarifications }),
         stat: suggestion.stat,
         difficulty,
         ...(difficultyValue !== undefined && { difficultyValue }),

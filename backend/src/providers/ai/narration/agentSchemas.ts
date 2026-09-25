@@ -22,7 +22,8 @@ import {
 //
 // Agent      | Owns                                                                          | Must Not Own
 // -----------|-------------------------------------------------------------------------------|---------------------------------------------
-// Narration  | rollNarration, narration, currentTensionLevel, objectiveOutcome               | choices, inventory, HP, buffs, encounter mutation
+// Narration  | rollNarration, narration, currentTensionLevel, objectiveOutcome, posesRiddle, | choices, inventory, HP, buffs, encounter mutation
+//            | riddle                                                                        |
 // Choices    | choices                                                                       | narration, inventory, HP, buffs, encounter mutation
 // Combat     | suggestedDamage, suggestedEncounterStart, suggestedEncounterUpdate            | narration, choices, inventory, HP healing, buffs
 // Inventory  | suggestedInventoryAdd, suggestedInventoryRemove, suggestedInventoryUpdate     | narration, choices, HP, buffs, encounter mutation
@@ -35,6 +36,14 @@ export const narrationAgentOutputSchema = z.object({
   currentTensionLevel: z.enum(TENSION_LEVEL_VALUES).default('medium'),
   // Proposal only: the server accepts a resolution when committed facts support it.
   objectiveOutcome: z.enum(OBJECTIVE_OUTCOME_VALUES).optional().nullable(),
+  // True when this turn's narration poses a riddle, password, or answerable puzzle.
+  posesRiddle: z.boolean().optional().nullable(),
+  // The authoritative answer to that riddle. Server-only: never shown to players.
+  riddle: z.object({
+    prompt: z.string().max(300).optional().nullable(),
+    canonicalAnswer: z.string().min(1).max(80),
+    aliases: z.array(z.string().min(1).max(80)).max(6).optional().nullable(),
+  }).optional().nullable(),
 });
 
 export type NarrationAgentOutput = z.infer<typeof narrationAgentOutputSchema>;

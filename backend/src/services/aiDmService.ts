@@ -1,4 +1,4 @@
-import { AIInput, TurnResult } from '../types.js';
+import { AIInput, ServerTurnResult } from '../types.js';
 import { createNarrationProvider } from '../providers/ai/AiProviderFactory.js';
 import type { NarrationInput, NarrationOutput, NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
 import { buildNarrationFallback } from '../providers/ai/narration/narrationFallback.js';
@@ -218,7 +218,7 @@ export function toNarrationInput(input: AIInput): NarrationInput {
 }
 
 export class AiDmService {
-  public static async generateTurnResult(input: AIInput, callbacks?: NarrationStreamCallbacks): Promise<TurnResult> {
+  public static async generateTurnResult(input: AIInput, callbacks?: NarrationStreamCallbacks): Promise<ServerTurnResult> {
     const totalStart = Date.now();
     const narrationInput = toNarrationInput(input);
     devLog.log([
@@ -258,6 +258,7 @@ export class AiDmService {
         suggestedEncounterStart: output.suggestedEncounterStart ?? null,
         suggestedEncounterUpdate: output.suggestedEncounterUpdate ?? null,
         objectiveOutcome: output.objectiveOutcome ?? null,
+        narratedRiddle: output.narratedRiddle ?? null,
         narrationRetried: output.narrationRetried ?? false,
         narrationFailed: output.narrationFailed ?? false,
         choicesFailed: (output as DmTurnOrchestratorResult).choicesFailed ?? false,

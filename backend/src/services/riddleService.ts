@@ -1,4 +1,4 @@
-import type { ActionAttempt, Choice, SessionState } from '../types.js';
+import type { ActionAttempt, ActionClarification, Choice, SessionState } from '../types.js';
 import { riddleRepository, type StoredRiddle } from '../repositories/riddleRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 
@@ -22,7 +22,8 @@ export type RiddleAssessment =
 
 export type RiddleActionInput =
   | { kind: 'choice'; choice: Choice }
-  | { kind: 'free_text'; text: string };
+  // clarifications: the player's replies to earlier questions about this same draft.
+  | { kind: 'free_text'; text: string; clarifications?: ActionClarification[] };
 
 const QUOTED_RE = /["“”‘’]([^"“”‘’]+)["“”‘’]/;
 // Phrasings that make an action a definite answer attempt. "Answer" as a plain verb
@@ -38,6 +39,9 @@ const CLAUSE_SPLIT_RE = /[,;!?]|\bbut\b|\.(?:\s|$)/i;
 const FILLER_RE = /^(?:(?:oh+|ooh+|ah+|aha+|hmm+|um+|wait|well|yes|yeah|yep|ok(?:ay)?|i\s+know|i\s+got\s+it|got\s+it|easy)\b[\s!.]*)+/i;
 const DETERMINER_RE = /^\s*(?:a|an|the|my|some)\s+/i;
 const LEADING_ARTICLE_RE = /^(?:a|an|the)\s+/;
+// Whole replies to a riddle question. "Yes, a piano" is an answer, not a bare yes.
+const AFFIRMATIVE_REPLY_RE = /^\s*(?:yes|yeah|yep|yup|sure|correct|right|definitely|of\s+course|uh[\s-]?huh|mhm|that'?s\s+(?:it|right|my\s+answer)|it\s+is)(?:\s+(?:it\s+is|please))?[\s!.]*$/i;
+const NEGATIVE_REPLY_RE = /^\s*(?:no|nope|nah|not\s+really|no\s+way|never\s*mind)[\s!.]*$/i;
 
 const normalize = (value: string): string => value
   .toLowerCase()
@@ -73,8 +77,9 @@ const correctAnswers = (riddle: StoredRiddle): string[] =>
   [riddle.canonicalAnswer, ...riddle.aliases].filter((a): a is string => !!a);
 
 // Judges one asserted clause; the caller has already removed negated ones.
-const assessClause = (clause: string, riddle: StoredRiddle): RiddleAssessment => {
-  const strong = QUOTED_RE.test(clause) || STRONG_ANSWER_RE.test(clause);
+// forceAnswer: the player was asked about the riddle, so what they assert is their answer.
+const assessClause = (clause: string, riddle: StoredRiddle, forceAnswer: boolean): RiddleAssessment => {
+  const strong = forceAnswer || QUOTED_RE.test(clause) || STRONG_ANSWER_RE.test(clause);
   const candidate = normalize(extractCandidate(clause));
   const wordCount = candidate ? candidate.split(' ').length : 0;
   const looksLikeAnswer = strong
@@ -109,7 +114,7 @@ const assessClause = (clause: string, riddle: StoredRiddle): RiddleAssessment =>
   return { type: 'not_answer' };
 };
 
-const assessFreeText = (text: string, riddle: StoredRiddle): RiddleAssessment => {
+const assessFreeText = (text: string, riddle: StoredRiddle, forceAnswer = false): RiddleAssessment => {
   // A quoted answer is kept whole: its own punctuation must not split it.
   const clauses = (QUOTED_RE.test(text) ? [text] : text.split(CLAUSE_SPLIT_RE))
     .map(clause => clause.trim().replace(FILLER_RE, '').trim())
@@ -123,7 +128,7 @@ const assessFreeText = (text: string, riddle: StoredRiddle): RiddleAssessment =>
     return rulesOutAnswer ? { type: 'unclear', question: 'Then what is your answer to the riddle?' } : { type: 'not_answer' };
   }
 
-  const results = asserted.map(clause => assessClause(clause, riddle));
+  const results = asserted.map(clause => assessClause(clause, riddle, forceAnswer));
   const answers = results.filter((r): r is Extract<RiddleAssessment, { type: 'answer' }> => r.type === 'answer');
   if (answers.length > 0) {
     // Two clauses asserting different verdicts ("a piano! no wait, a jailer") are two answers.
@@ -150,16 +155,32 @@ export const assessRiddleAction = (action: RiddleActionInput, riddle: StoredRidd
     }
     return { type: 'answer', riddleId: riddle.id, correct: correctAnswers(riddle).some(correct => matchesAnswer(normalize(answer), correct)) };
   }
-  return assessFreeText(action.text, riddle);
+  const base = assessFreeText(action.text, riddle);
+  const reply = action.clarifications?.at(-1)?.answer;
+  if (base.type !== 'unclear' || !reply) {
+    return base;
+  }
+  // The player was asked about the riddle. "Yes" confirms the draft as their answer,
+  // "no" makes it an ordinary action, anything else is their answer.
+  if (AFFIRMATIVE_REPLY_RE.test(reply)) {
+    return assessFreeText(action.text, riddle, true);
+  }
+  if (NEGATIVE_REPLY_RE.test(reply)) {
+    return { type: 'not_answer' };
+  }
+  return assessFreeText(reply, riddle, true);
 };
 
-// Records the riddle posed by the latest turn (from its answer choices, flagged by the
-// choices agent) and returns the session's active riddle, expiring a stale one.
+// Returns the session's active riddle, expiring a stale one. Riddles posed by narration
+// are recorded when their turn commits. For turns from before that (no riddle row, but
+// answer choices flagged by the choices agent), the riddle is recorded here on first use.
 // Idempotent: safe to call on every validation, preview, and resolution.
 export const ensureActiveRiddle = (session: Pick<SessionState, 'id' | 'turn' | 'lastChoices'>): StoredRiddle | null => {
   const latestTurnId = turnHistoryRepository.getLatestTurnId(session.id);
   const riddleChoices = (session.lastChoices ?? []).filter(choice => !!choice.riddleAnswer);
-  if (latestTurnId !== null && riddleChoices.length > 0 && !riddleRepository.getBySourceTurn(session.id, latestTurnId)) {
+  const current = riddleRepository.getActive(session.id);
+  const narrationOwnsRiddle = current?.source === 'narration';
+  if (latestTurnId !== null && riddleChoices.length > 0 && !narrationOwnsRiddle && !riddleRepository.getBySourceTurn(session.id, latestTurnId)) {
     // Only a choice explicitly flagged correct can establish the answer.
     const correct = riddleChoices.filter(choice => choice.riddleCorrect === true).map(choice => choice.riddleAnswer as string);
     riddleRepository.activate({
@@ -170,6 +191,7 @@ export const ensureActiveRiddle = (session: Pick<SessionState, 'id' | 'turn' | '
       aliases: correct.slice(1),
       wrongAnswers: riddleChoices.filter(choice => choice.riddleCorrect === false).map(choice => choice.riddleAnswer as string),
       answerKnown: correct.length > 0,
+      source: 'choices',
     });
   }
 
@@ -179,6 +201,45 @@ export const ensureActiveRiddle = (session: Pick<SessionState, 'id' | 'turn' | '
     return null;
   }
   return active;
+};
+
+export type RiddleAnswerKey = { canonicalAnswer: string; aliases: string[] };
+
+const withoutRiddleFields = ({ riddleAnswer: _riddleAnswer, riddleCorrect: _riddleCorrect, ...choice }: Choice): Choice => choice;
+
+// Answer choices always follow the authoritative riddle. The choices agent runs in
+// parallel with narration and never sees it, so it can guess another answer, invent a
+// riddle nobody posed, or offer none. riddle: the answer key, 'unknown' (leave the
+// choices alone), or null (no riddle: answer choices become ordinary actions).
+export const syncRiddleChoices = (choices: Choice[], riddle: RiddleAnswerKey | 'unknown' | null, random: () => number = Math.random): Choice[] => {
+  if (riddle === 'unknown' || choices.length === 0) {
+    return choices;
+  }
+  if (!riddle) {
+    return choices.map(choice => (choice.riddleAnswer ? withoutRiddleFields(choice) : choice));
+  }
+  const isCorrect = (answer: string) => [riddle.canonicalAnswer, ...riddle.aliases].some(correct => matchesAnswer(normalize(answer), correct));
+  const answers = choices.filter(choice => !!choice.riddleAnswer);
+  const others = choices.filter(choice => !choice.riddleAnswer);
+  const agentCorrect = answers.find(choice => isCorrect(choice.riddleAnswer as string));
+  const template = answers[0];
+  const correct: Choice = agentCorrect
+    ? { ...agentCorrect, riddleAnswer: riddle.canonicalAnswer, riddleCorrect: true }
+    : {
+      label: `Answer: ${riddle.canonicalAnswer}`,
+      difficulty: template?.difficulty ?? 'normal',
+      stat: template?.stat ?? 'mischief',
+      ...(template?.difficultyValue !== undefined && { difficultyValue: template.difficultyValue }),
+      riddleAnswer: riddle.canonicalAnswer,
+      riddleCorrect: true,
+    };
+  const wrong = answers.find(choice => !isCorrect(choice.riddleAnswer as string));
+  const answerChoices = wrong ? [correct, { ...wrong, riddleCorrect: false }] : [correct];
+  // The right answer is not always first: position must not give it away.
+  if (answerChoices.length === 2 && random() < 0.5) {
+    answerChoices.reverse();
+  }
+  return [...answerChoices, ...others].slice(0, choices.length);
 };
 
 export const toRiddleAttempt = (action: string, success: boolean): ActionAttempt => ({

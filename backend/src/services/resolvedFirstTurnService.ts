@@ -1,6 +1,6 @@
 import { createNarrationProvider } from '../providers/ai/AiProviderFactory.js';
 import type { NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
-import type { ActionAttempt, AIInput, SessionState, TurnResult } from '../types.js';
+import type { ActionAttempt, AIInput, ServerTurnResult, SessionState, TurnResult } from '../types.js';
 import { toNarrationInput } from './aiDmService.js';
 import { repairEncounterNameIfNeeded } from './encounterNameRepairService.js';
 import { GameEngine } from './gameEngine.js';
@@ -10,7 +10,7 @@ import { checkTurnResultConsistency } from './turnResultConsistencyService.js';
 import { stripChoicesTargetingDefeatedEnemies } from './turnRepairs.js';
 
 export type ResolvedFirstTurn = {
-  turnResult: TurnResult;
+  turnResult: ServerTurnResult;
   // The frozen post-turn state: mechanics were applied exactly once, before narration.
   newState: SessionState;
   facts: ResolvedTurnFacts;
@@ -73,13 +73,14 @@ export const generateResolvedFirstTurn = async (params: {
   const presentation = await provider.narrateResolved(presentationInput, params.streamCallbacks);
   diagnostics.stage('presentation', stepStart);
 
-  const turnResult: TurnResult = {
+  const turnResult: ServerTurnResult = {
     ...proposal,
     narration: presentation.narration,
     rollNarration: presentation.rollNarration,
     currentTensionLevel: presentation.currentTensionLevel,
     choices: presentation.choices,
     objectiveOutcome: presentation.objectiveOutcome ?? null,
+    narratedRiddle: presentation.narratedRiddle ?? null,
     narrationFailed: presentation.narrationFailed ?? false,
     choicesFailed: presentation.choicesFailed ?? false,
     choicesEscalated: presentation.choicesEscalated ?? false,

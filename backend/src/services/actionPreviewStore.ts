@@ -1,5 +1,5 @@
 import { createId } from '../lib/ids.js';
-import type { Difficulty, Stat } from '../types.js';
+import type { ActionClarification, Difficulty, Stat } from '../types.js';
 
 // Server-side record of an action preview. A confirmation that carries its id is exactly
 // this action: kind, identity and mechanics come from here, never from client echoes.
@@ -19,6 +19,9 @@ export type StoredActionPreview = {
   itemId?: string;
   itemOwnerCharacterId?: string;
   targetCharacterId?: string;
+  // Replies that settled this draft (e.g. "yes" to a riddle question). Confirmation
+  // re-judges the draft with them, so preview and commit agree.
+  clarifications?: ActionClarification[];
   stat: Stat;
   difficulty: Difficulty;
   difficultyValue?: number;

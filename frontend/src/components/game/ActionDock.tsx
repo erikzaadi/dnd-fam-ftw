@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import type { TurnResult, Character, FreeActionPreview } from '../../types';
 import { apiFetch, imgSrc, pulseSyncDelay } from '../../lib/api';
+import { requestActionPreview, type ClarificationThread } from '../../lib/previewAction';
 import { computeChoiceOdds, COMBO_HELPER_BONUS, CHOICE_ITEM_BONUS, CHARACTER_EDGE_BONUS } from '../../lib/game';
 import { StatImg } from './StatIcon';
 import { STAT_COLORS, STAT_TEXT_COLORS } from '../../lib/statColors';
@@ -118,6 +119,10 @@ export const ActionDock = ({
     setFreeActionPreview(null);
   }
   const [previewSubmitting, setPreviewSubmitting] = useState(false);
+  // An open DM question about the draft. While set, the text box holds the reply.
+  const [clarification, setClarification] = useState<ClarificationThread | null>(null);
+  // A retryable explanation from the preview (e.g. "try describing it another way").
+  const [previewNotice, setPreviewNotice] = useState<string | null>(null);
   const choiceButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { settings: ttsSettings } = useTtsSettings();
@@ -155,47 +160,57 @@ export const ActionDock = ({
       return;
     }
     setStatThinking(true);
+    setPreviewNotice(null);
+    const result = await requestActionPreview(sessionId, trimmed, clarification);
+    setStatThinking(false);
+    if (result.kind === 'clarification') {
+      // The box now takes the reply; the draft stays visible above it.
+      setClarification(result.thread);
+      setCustomAction('');
+      return;
+    }
+    if (clarification) {
+      // The exchange is over either way: the draft goes back in the box.
+      setClarification(null);
+      setCustomAction(clarification.originalDraft);
+    }
+    if (result.kind === 'error') {
+      setPreviewNotice(result.message);
+      return;
+    }
+    const draft = result.originalDraft;
     let preview: FreeActionPreview = {
-      originalAction: trimmed,
-      interpretedAction: trimmed,
+      originalAction: draft,
+      interpretedAction: draft,
       stat: 'mischief',
       difficulty: 'normal',
       warnings: [],
     };
-    let previewFailed = false;
-    try {
-      const res = await apiFetch(`/session/${sessionId}/preview-action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: trimmed,
-        }),
-      });
-      if (res.ok) {
-        const responsePreview = await res.json() as Partial<FreeActionPreview>;
-        preview = {
-          ...preview,
-          ...responsePreview,
-          originalAction: trimmed,
-          interpretedAction: responsePreview.interpretedAction ?? trimmed,
-          difficulty: responsePreview.difficulty ?? preview.difficulty,
-          warnings: responsePreview.warnings ?? [],
-        };
-      } else {
-        previewFailed = true;
-      }
-    } catch {
-      previewFailed = true;
-    }
-    setStatThinking(false);
-    if (previewFailed) {
+    if (result.kind === 'preview') {
+      preview = {
+        ...preview,
+        ...result.preview,
+        originalAction: draft,
+        interpretedAction: result.preview.interpretedAction ?? draft,
+        difficulty: result.preview.difficulty ?? preview.difficulty,
+        warnings: result.preview.warnings ?? [],
+      };
+    } else {
       preview = {
         ...preview,
         warnings: ['Preview failed - submitting with default stat. You can still confirm or cancel.'],
       };
     }
     setFreeActionPreview(preview);
-  }, [loading, sessionId]);
+  }, [clarification, loading, sessionId, setCustomAction]);
+
+  const startOverClarification = useCallback(() => {
+    if (!clarification) {
+      return;
+    }
+    setCustomAction(clarification.originalDraft);
+    setClarification(null);
+  }, [clarification, setCustomAction]);
 
   const confirmFreeAction = useCallback(async (useOriginalAction: boolean = false) => {
     if (!freeActionPreview) {
@@ -256,6 +271,13 @@ export const ActionDock = ({
   }, [loading, onSubmit, sessionId]);
 
   const confirmSpeechTranscript = useCallback(async (transcript: string) => {
+    // A spoken reply to an open DM question goes with its draft, not as a new action.
+    if (clarification) {
+      const reply = transcript.trim();
+      setCustomAction(reply);
+      await submitCustomText(reply);
+      return;
+    }
     const intent = parseSpeechIntent(transcript);
     if (intent.type === 'choice' && turn?.choices[intent.index]) {
       await submitSuggestedChoice(intent.index);
@@ -269,7 +291,7 @@ export const ActionDock = ({
     const text = intent.type === 'custom' ? intent.text : transcript.trim();
     setCustomAction(text);
     await submitCustomTextDirect(text);
-  }, [setCustomAction, submitCustomTextDirect, submitSuggestedChoice, turn]);
+  }, [clarification, setCustomAction, submitCustomText, submitCustomTextDirect, submitSuggestedChoice, turn]);
 
   const speech = useSpeechRecognition({
     onConfirmTranscript: confirmSpeechTranscript,
@@ -626,6 +648,26 @@ export const ActionDock = ({
 
             {/* Command bar + UNLEASH */}
             <div className="flex flex-col gap-2 pt-1">
+              {clarification && (
+                <div role="status" className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+                  <p className="text-xs font-black uppercase tracking-widest text-amber-400">The DM asks</p>
+                  <p className="mt-1 text-sm font-bold text-amber-100">{clarification.question}</p>
+                  <p className="mt-1 text-xs text-slate-400">About: “{clarification.originalDraft}”</p>
+                  <button
+                    type="button"
+                    onClick={startOverClarification}
+                    disabled={statThinking}
+                    className="mt-2 text-xs font-bold text-slate-300 underline underline-offset-2 hover:text-amber-300 disabled:opacity-40"
+                  >
+                    Start over
+                  </button>
+                </div>
+              )}
+              {previewNotice && (
+                <div role="status" className="rounded-xl border border-slate-600 bg-slate-800 p-3 text-sm text-amber-200">
+                  {previewNotice}
+                </div>
+              )}
               <div className="relative">
                 <div className="absolute -top-2.5 -left-2.5 z-20 hidden md:block">
                   <Tooltip content={`Focus custom action [${customActionShortcut}]`} position="bottom" portal wrapperClassName="inline-flex">
@@ -645,7 +687,7 @@ export const ActionDock = ({
                     }
                   }}
                   rows={2}
-                  placeholder="Describe a different action..."
+                  placeholder={clarification ? 'Your answer...' : 'Describe a different action...'}
                   disabled={loading || statThinking}
                   className="w-full p-3 bg-slate-800 rounded-xl resize-none text-sm border border-slate-700 focus:border-amber-500/40 outline-none transition-colors placeholder-slate-600"
                 />

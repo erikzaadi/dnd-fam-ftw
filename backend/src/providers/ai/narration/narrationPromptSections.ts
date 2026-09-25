@@ -33,6 +33,11 @@ Set \`objectiveOutcome\` to exactly one of:
 - "none": the action did not address the objective.
 Your narration must match the value you choose. When unsure, use "advanced".`;
 
+export const SECTION_POSED_RIDDLE = `POSED RIDDLES: When THIS turn's narration poses a riddle, password, pun question, or other puzzle with one answer the players can say:
+- Set \`posesRiddle\` to true and fill \`riddle\`: \`prompt\` is the riddle as posed, \`canonicalAnswer\` is the one answer that solves it (short, e.g. "a piano"), \`aliases\` are other short wordings that mean the same answer (e.g. "piano", "grand piano"). Never include a wrong answer as an alias.
+- Pick a riddle with a single clear answer a child could say. Never state or hint the answer in \`narration\` or \`rollNarration\`.
+- Otherwise set \`posesRiddle\` to false and \`riddle\` to null. Do not set them for a riddle posed on an earlier turn.`;
+
 export const SECTION_CHOICES_ADVENTURE_ARC = `ADVENTURE ARC (\`adventureDirective\`): all choices are still for \`nextCharacterName\`. Let them point toward \`adventureDirective.objective\` where it fits the scene. When \`adventureDirective.phase\` is "finale", at least one choice must directly attempt the decisive moment for the objective. When \`adventureDirective.nextHeroNeedsSpotlight\` is true, make at least one choice a moment only \`nextCharacterName\` could pull off. Never quote directive wording in labels.`;
 
 export const SECTION_RESOLVED_FACTS = `RESOLVED FACTS (\`resolvedTurn\`, CRITICAL - overrides any instinct to invent consequences):

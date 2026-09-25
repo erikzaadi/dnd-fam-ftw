@@ -110,4 +110,29 @@ describe('resolved_first strategy (plan 4 candidate)', () => {
       expect(result.diagnostics?.strategy).toBe('parallel');
     }
   });
+
+  it('records a riddle posed by the resolved-facts narration, with choices matching its answer', async () => {
+    await insertSessionState(makeTestSession({ id: 'rf-riddle' }));
+    mockNarrateResolved.mockResolvedValueOnce({
+      narration: 'A stone face asks: "What has a neck but no head?"',
+      currentTensionLevel: 'medium',
+      choices: [
+        { label: 'Answer: a shirt', difficulty: 'normal', stat: 'magic', difficultyValue: 12, riddleAnswer: 'a shirt', riddleCorrect: true },
+        { label: 'Answer: a bottle', difficulty: 'normal', stat: 'magic', difficultyValue: 12, riddleAnswer: 'a bottle', riddleCorrect: false },
+        { label: 'Study the carvings', difficulty: 'easy', stat: 'mischief', difficultyValue: 8 },
+      ],
+      objectiveOutcome: null,
+      narratedRiddle: { canonicalAnswer: 'a bottle', aliases: ['bottle'] },
+    });
+
+    const result = await executeTurnAction('rf-riddle', 'local', { action: 'Walk up to the stone face', statUsed: 'mischief' });
+
+    expect(result.ok).toBe(true);
+    const { riddleRepository } = await import('../../repositories/riddleRepository.js');
+    expect(riddleRepository.getActive('rf-riddle')).toMatchObject({ source: 'narration', canonicalAnswer: 'a bottle', answerKnown: true, wrongAnswers: ['a shirt'] });
+    const stored = await StateService.getTurnHistory('rf-riddle');
+    const answers = stored[stored.length - 1].choices.filter(c => c.riddleAnswer);
+    expect(answers.find(c => c.riddleCorrect)?.riddleAnswer).toBe('a bottle');
+    expect(answers.find(c => c.riddleCorrect === false)?.riddleAnswer).toBe('a shirt');
+  });
 });

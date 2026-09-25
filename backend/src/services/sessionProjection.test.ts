@@ -25,6 +25,11 @@ describe('toPublicTurn / toPublicSession', () => {
     expect(turn.choices[0].riddleCorrect).toBe(true);
   });
 
+  it('strips a newly posed riddle\'s answer from the turn', () => {
+    const turn = { narration: 'A riddle.', choices: [], imagePrompt: null, imageSuggested: false, narratedRiddle: { canonicalAnswer: 'a piano', aliases: ['piano'] } };
+    expect(JSON.stringify(toPublicTurn(turn))).not.toMatch(/narratedRiddle|piano/);
+  });
+
   it('strips riddle fields from the session\'s latest choices', () => {
     const session = { id: 's1', lastChoices: [correct, wrong], dmPrep: 'secret' } as unknown as SessionState;
     const publicSession = toPublicSession(session) as unknown as Record<string, unknown>;

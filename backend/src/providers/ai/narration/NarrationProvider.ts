@@ -1,6 +1,6 @@
 import type { AgentDiagnostic } from '@dnd-fam-ftw/shared';
 import type { ResolvedTurnFacts } from '../../../services/resolvedTurn.js';
-import type { AdventureDirective, CharacterBuff, ChoiceFlavor, Difficulty, EncounterSeed, EncounterState, GameMode, Impact, ObjectiveOutcome, SceneMomentum, ScenePressure, Stat, TensionLevel } from '../../../types.js';
+import type { AdventureDirective, CharacterBuff, ChoiceFlavor, Difficulty, EncounterSeed, EncounterState, GameMode, Impact, NarratedRiddle, ObjectiveOutcome, SceneMomentum, ScenePressure, Stat, TensionLevel } from '../../../types.js';
 import type { EncounterStartProposal, EncounterUpdateProposal } from './narrationSchemas.js';
 
 export type NarrationChoice = {
@@ -144,6 +144,8 @@ export type NarrationOutput = {
   suggestedEncounterUpdate: EncounterUpdateProposal | null | undefined;
   // Narration's proposal about the chapter objective; validated server-side.
   objectiveOutcome?: ObjectiveOutcome | null;
+  // Set when this turn's narration poses a riddle. Server-only.
+  narratedRiddle?: NarratedRiddle | null;
   narrationRetried?: boolean;
   narrationFailed?: boolean;
   narrationValidationError?: string;
@@ -179,6 +181,7 @@ export type ResolvedPresentation = Pick<NarrationOutput,
   | 'currentTensionLevel'
   | 'choices'
   | 'objectiveOutcome'
+  | 'narratedRiddle'
   | 'narrationFailed'> & {
   choicesFailed?: boolean;
   choicesEscalated?: boolean;

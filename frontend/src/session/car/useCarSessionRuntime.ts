@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Choice, Session, TurnResult, FreeActionPreview, ImageReadyEvent } from '../../types';
 import { apiFetch } from '../../lib/api';
+import { requestActionPreview, type ClarificationThread } from '../../lib/previewAction';
 import { useSessionEvents } from '../../hooks/useSessionEvents';
 import { useSessionOperations } from '../useSessionOperations';
 import { requestWrapUp } from '../adventureActions';
@@ -17,6 +18,10 @@ interface UseCarSessionRuntimeProps {
   onImageReady?: (imageUrl: string) => void;
   onPendingRollNarration?: (text: string) => void;
   onPreviewReady?: (preview: FreeActionPreview) => void;
+  // The DM asked a question about the draft instead of previewing it.
+  onClarification?: (question: string) => void;
+  // A retryable explanation instead of a preview; the player tries again.
+  onPreviewNotice?: (message: string) => void;
 }
 
 export function useCarSessionRuntime({
@@ -28,6 +33,8 @@ export function useCarSessionRuntime({
   onImageReady,
   onPendingRollNarration,
   onPreviewReady,
+  onClarification,
+  onPreviewNotice,
 }: UseCarSessionRuntimeProps) {
   const navigate = useNavigate();
   const [session, setSession] = useState<Session | null>(null);
@@ -36,6 +43,8 @@ export function useCarSessionRuntime({
   const [actionError, setActionError] = useState<string | null>(null);
   const [previewThinking, setPreviewThinking] = useState(false);
   const [actionPreview, setActionPreview] = useState<FreeActionPreview | null>(null);
+  const [clarification, setClarification] = useState<ClarificationThread | null>(null);
+  const clarificationRef = useRef<ClarificationThread | null>(null);
 
   const prevEncounterStatusRef = useRef<'none' | 'active' | 'defeated' | 'fled' | 'surrendered' | 'resolved' | string>('none');
   const sessionRef = useRef<Session | null>(null);
@@ -306,6 +315,8 @@ export function useCarSessionRuntime({
     return result.message;
   }, [sessionId, ops]);
 
+  // Previews typed or spoken text. With an open DM question, the text is the reply and
+  // is sent together with the original draft.
   const previewAction = useCallback(async (actionText: string) => {
     if (!session) {
       return;
@@ -313,47 +324,44 @@ export function useCarSessionRuntime({
     setPreviewThinking(true);
     setActionError(null);
 
-    let preview: FreeActionPreview = {
-      originalAction: actionText,
-      interpretedAction: actionText,
-      stat: 'mischief',
-      difficulty: 'normal',
-      warnings: [],
-    };
-
-    try {
-      const res = await apiFetch(`/session/${sessionId}/preview-action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: actionText }),
-      });
-      if (res.ok) {
-        const responsePreview = await res.json();
-        preview = {
-          ...preview,
-          ...responsePreview,
-          originalAction: responsePreview.originalAction ?? actionText,
-          interpretedAction: responsePreview.interpretedAction ?? actionText,
-          warnings: responsePreview.warnings ?? [],
-        };
-      } else {
-        preview = {
-          ...preview,
-          warnings: ['Preview failed - you can still confirm or cancel.'],
-        };
-      }
-    } catch {
-      preview = {
-        ...preview,
-        warnings: ['Preview failed - you can still confirm or cancel.'],
-      };
-    } finally {
-      lastPreviewRef.current = preview;
-      setActionPreview(preview);
+    const result = await requestActionPreview(sessionId, actionText, clarificationRef.current);
+    if (result.kind === 'clarification') {
+      clarificationRef.current = result.thread;
+      setClarification(result.thread);
       setPreviewThinking(false);
-      onPreviewReady?.(preview);
+      onClarification?.(result.thread.question);
+      return;
     }
-  }, [session, sessionId, onPreviewReady]);
+    clarificationRef.current = null;
+    setClarification(null);
+    if (result.kind === 'error') {
+      setPreviewThinking(false);
+      onPreviewNotice?.(result.message);
+      return;
+    }
+
+    const draft = result.originalDraft;
+    const fallback: FreeActionPreview = { originalAction: draft, interpretedAction: draft, stat: 'mischief', difficulty: 'normal', warnings: [] };
+    const preview: FreeActionPreview = result.kind === 'preview'
+      ? {
+        ...fallback,
+        ...result.preview,
+        originalAction: draft,
+        interpretedAction: result.preview.interpretedAction ?? draft,
+        warnings: result.preview.warnings ?? [],
+      }
+      : { ...fallback, warnings: ['Preview failed - you can still confirm or cancel.'] };
+    lastPreviewRef.current = preview;
+    setActionPreview(preview);
+    setPreviewThinking(false);
+    onPreviewReady?.(preview);
+  }, [session, sessionId, onPreviewReady, onClarification, onPreviewNotice]);
+
+  // Drops an open DM question ("cancel", "never mind"); the player starts a new draft.
+  const clearClarification = useCallback(() => {
+    clarificationRef.current = null;
+    setClarification(null);
+  }, []);
 
   // Hides the preview UI. The server handle is kept until the next submission so a
   // confirm flow that clears the preview before submitting still sends it.
@@ -380,5 +388,7 @@ export function useCarSessionRuntime({
     actionPreview,
     clearPreview,
     previewThinking,
+    clarification,
+    clearClarification,
   };
 }

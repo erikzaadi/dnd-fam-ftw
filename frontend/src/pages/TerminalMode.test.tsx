@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { TerminalMode } from './TerminalMode';
 import { useCarSessionRuntime } from '../session/car/useCarSessionRuntime';
@@ -209,5 +209,63 @@ describe('TerminalMode', () => {
     fireEvent.click(clearButton);
 
     expect(screen.queryByText(/The heavy iron door blocks your path./i)).not.toBeInTheDocument();
+  });
+
+  describe('with an open DM question', () => {
+    const mockClearClarification = vi.fn();
+    let capturedOnClarification: ((question: string) => void) | undefined;
+
+    beforeEach(() => {
+      vi.mocked(useCarSessionRuntime).mockImplementation(({ onClarification }) => {
+        capturedOnClarification = onClarification;
+        return {
+          session: mockSession,
+          history: mockHistory,
+          loading: false,
+          actionError: null,
+          connectionState: 'connected',
+          prevEncounterStatus: 'none',
+          submitAction: mockSubmitAction,
+          submitChoice: mockSubmitChoice,
+          previewAction: mockPreviewAction,
+          actionPreview: null,
+          clearPreview: mockClearPreview,
+          previewThinking: false,
+          clarification: { originalDraft: 'I play the piano', exchange: [], question: 'Is "piano" your answer to the riddle?' },
+          clearClarification: mockClearClarification,
+        } as unknown as ReturnType<typeof useCarSessionRuntime>;
+      });
+    });
+
+    const type = (value: string) => {
+      const input = screen.getByLabelText('Terminal command');
+      fireEvent.change(input, { target: { value } });
+      fireEvent.submit(input.closest('form')!);
+    };
+
+    it('prints the question as a transcript entry', () => {
+      renderComponent();
+      act(() => capturedOnClarification?.('Is "piano" your answer to the riddle?'));
+      expect(screen.getByText('The DM asks: Is "piano" your answer to the riddle?')).toBeInTheDocument();
+    });
+
+    it('sends "yes" and numbers as the answer, never as a confirmation or a choice', async () => {
+      renderComponent();
+      type('yes');
+      await waitFor(() => expect(mockPreviewAction).toHaveBeenCalledWith('yes'));
+      type('1');
+      await waitFor(() => expect(mockPreviewAction).toHaveBeenCalledWith('1'));
+      expect(mockSubmitAction).not.toHaveBeenCalled();
+      expect(mockSubmitChoice).not.toHaveBeenCalled();
+    });
+
+    it('drops the question on "cancel" and keeps info commands working', async () => {
+      renderComponent();
+      type('cancel');
+      expect(mockClearClarification).toHaveBeenCalled();
+      type('help');
+      expect(screen.getByText(/Available Commands:/i)).toBeInTheDocument();
+      expect(mockPreviewAction).not.toHaveBeenCalled();
+    });
   });
 });

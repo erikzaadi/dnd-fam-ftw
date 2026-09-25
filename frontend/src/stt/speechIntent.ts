@@ -69,3 +69,8 @@ export function parseSpeechIntent(transcript: string): SpeechIntent {
 
   return { type: 'custom', text: trimmed, transcript: trimmed };
 }
+
+// Commands that keep working while a DM question is open; any other input answers it.
+export const QUESTION_PASSTHROUGH_INTENTS: ReadonlySet<SpeechIntent['type']> = new Set<SpeechIntent['type']>([
+  'help', 'status', 'party', 'gear', 'encounter', 'where-are-we', 'story-repeat', 'pause', 'resume', 'wrap-up', 'end-here',
+]);

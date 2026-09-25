@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCarSessionRuntime } from '../session/car/useCarSessionRuntime';
-import { parseSpeechIntent } from '../stt/speechIntent';
+import { parseSpeechIntent, QUESTION_PASSTHROUGH_INTENTS } from '../stt/speechIntent';
 import {
   buildRollResultSegment,
   buildNarrationSegment,
@@ -14,6 +14,7 @@ import {
 } from '../session/car/carSpeechSegment';
 import { imgSrc } from '../lib/api';
 import { computeChoiceOdds } from '../lib/game';
+import { isDropQuestionCommand } from '../lib/previewAction';
 import type { Choice, Session } from '../types';
 
 
@@ -91,6 +92,8 @@ export const TerminalMode: React.FC = () => {
     previewThinking,
     wrapUpAdventure,
     endAdventure,
+    clarification,
+    clearClarification,
   } = useCarSessionRuntime({
     sessionId: id || '',
     onTurnComplete: (updatedSession, turn) => {
@@ -157,6 +160,17 @@ export const TerminalMode: React.FC = () => {
         });
       }
       addLogEntry('system', `Type 'confirm' to execute, 'cancel' to abort, or 'retry [action]' to change.`);
+      shouldScrollRef.current = true;
+    },
+    onClarification: (question) => {
+      setActionPreviewText(null);
+      addLogEntry('system', `The DM asks: ${question}`);
+      addLogEntry('system', `Type your answer, or 'cancel' to start over.`);
+      shouldScrollRef.current = true;
+    },
+    onPreviewNotice: (message) => {
+      setActionPreviewText(null);
+      addLogEntry('system', message);
       shouldScrollRef.current = true;
     },
   });
@@ -299,6 +313,22 @@ export const TerminalMode: React.FC = () => {
 
     const intent = parseSpeechIntent(trimmedCommand);
 
+    // An open DM question: the next line answers it ("yes" and "no" included), unless it
+    // drops the question or is an information command.
+    if (clarification && !QUESTION_PASSTHROUGH_INTENTS.has(intent.type)) {
+      if (isDropQuestionCommand(trimmedCommand)) {
+        clearClarification();
+        addLogEntry('system', 'Question dropped. Enter your next action.');
+      } else if (intent.type === 'repeat' || intent.type === 'options') {
+        addLogEntry('system', `The DM asks: ${clarification.question}`);
+      } else {
+        setActionPreviewText(trimmedCommand);
+        addLogEntry('system', `Answering: "${trimmedCommand}"...`);
+        await previewAction(trimmedCommand);
+      }
+      return;
+    }
+
     if (actionPreviewText) {
       if (intent.type === 'confirm') {
         if (actionPreview) {
@@ -429,7 +459,7 @@ export const TerminalMode: React.FC = () => {
     } else {
       addLogEntry('system', 'Unknown command. Type "help" for a list of valid commands.');
     }
-  }, [addLogEntry, actionPreviewText, actionPreview, clearPreview, submitAction, submitChoice, history, previewAction, session, wrapUpAdventure, endAdventure]);
+  }, [addLogEntry, actionPreviewText, actionPreview, clearPreview, submitAction, submitChoice, history, previewAction, session, wrapUpAdventure, endAdventure, clarification, clearClarification]);
 
   const handleHelp = useCallback(() => {
     void executeCommand('help');
