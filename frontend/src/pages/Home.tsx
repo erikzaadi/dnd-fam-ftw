@@ -508,6 +508,7 @@ type PartyMember = SessionPreview['party'][number];
 export const Home = () => {
   const [activeSessions, setActiveSessions] = useState<SessionPreview[]>([]);
   const [sessionLimit, setSessionLimit] = useState<{ max: number; current: number } | null>(null);
+  const [startError, setStartError] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
   const [editSession, setEditSession] = useState<{ id: string; displayName: string; difficulty: string; gameMode: string; dmPrep?: string; worldDescription?: string; readOnly?: boolean } | null>(null);
   const [viewingChar, setViewingChar] = useState<PartyMember | null>(null);
@@ -557,8 +558,14 @@ export const Home = () => {
   const handleInstantStart = async () => {
     instantStartEsRef.current?.close();
     setInstantStartLoading(true);
+    setStartError(null);
     try {
       const res = await apiFetch('/session/instant-start', { method: 'POST' });
+      if (res.status === 429 || res.status === 403) {
+        const data = await res.json().catch(() => null) as { message?: string } | null;
+        setStartError(data?.message ?? 'The realm is resting right now. Try again later.');
+        return;
+      }
       if (!res.ok) {
         console.error('[InstantStart] POST failed:', res.status, await res.text().catch(() => ''));
         return;
@@ -795,6 +802,7 @@ export const Home = () => {
                 <div className="px-8 py-5 bg-slate-800 border-2 border-slate-700 rounded-[32px] text-center">
                   <p className="text-slate-400 font-black uppercase italic tracking-tighter text-xl md:text-2xl">REALM LIMIT REACHED</p>
                   <p className="text-slate-500 text-sm mt-1">{sessionLimit.current} / {sessionLimit.max} realms - delete one to start another</p>
+                  <button onClick={() => navigate('/settings')} className="mt-2 text-xs font-black uppercase tracking-wider text-amber-500 hover:text-amber-400 cursor-pointer">Your Realm</button>
                 </div>
               );
             }
@@ -862,6 +870,12 @@ export const Home = () => {
                     <img src={imgSrc('/images/icon_scroll.png')} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
                     Quick Start: Roll the Bones
                   </button>
+                )}
+                {startError && (
+                  <p role="alert" className="text-center text-sm text-rose-300">
+                    {startError}{' '}
+                    <button onClick={() => navigate('/settings')} className="underline text-amber-500 hover:text-amber-400 cursor-pointer">Your Realm</button>
+                  </p>
                 )}
               </div>
             );

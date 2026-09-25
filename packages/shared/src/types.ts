@@ -473,6 +473,28 @@ export type UsageTier = 'free' | 'supporter' | 'unlimited';
 
 export type UsageLimitKind = 'text' | 'pictures' | 'sessions' | 'turns';
 
+// GET /namespace/usage: the signed-in group's tier, limits, and today's usage.
+// null limits are unlimited.
+export interface NamespaceUsageResponse {
+  tier: UsageTier;
+  tierLabel: string;
+  limits: {
+    textCreditsPerDay: number | null;
+    picturesPerDay: number | null;
+    maxSessions: number | null;
+    maxTurns: number | null;
+  };
+  today: {
+    textCredits: number;
+    pictures: number;
+  };
+  sessionCount: number;
+  // Next daily reset (ISO, 00:00 UTC).
+  resetsAt: string;
+  // Pictures are paused (daily picture budget spent, or the realm-wide spend limit).
+  picturesPaused: boolean;
+}
+
 // Error body for requests refused by a usage limit (HTTP 429).
 export interface LimitReachedResponse {
   error: 'limit_reached';

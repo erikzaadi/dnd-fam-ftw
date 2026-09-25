@@ -6,6 +6,7 @@ import { DmFooter } from '../components/DmFooter';
 import { SiteHeader } from '../components/SiteHeader';
 import { apiFetch } from '../lib/api';
 import { RangeSlider } from '../components/RangeSlider';
+import { YourRealm } from '../components/YourRealm';
 
 interface AppSettings {
   imagesEnabled: boolean;
@@ -178,12 +179,14 @@ export const Settings = () => {
               {/* GAME TAB */}
               {tab === 'game' && (
                 <>
+                  <YourRealm />
+
                   <h2 className="text-lg font-black uppercase tracking-tighter text-amber-500">Images</h2>
                   <Toggle
                     checked={settings.imagesEnabled}
                     onChange={v => update({ imagesEnabled: v })}
                     label="Image generation"
-                    description="Generate scene illustrations and character avatars. Disable for faster turns or when image generation is unavailable."
+                    description="Generate scene illustrations and character avatars for your group's new realms. Disable for faster turns or when image generation is unavailable."
                   />
                   {!settings.imagesEnabled && (
                     <p className="text-xs text-slate-500 px-2">Character avatars will use SVG initials instead.</p>

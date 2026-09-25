@@ -198,6 +198,12 @@ export const HowToPlay = () => {
               </p>
             </Section>
 
+            <Section title="⚡ Adventure Energy">
+              <p className="text-slate-300 text-lg leading-relaxed">
+                Some realms have a daily allowance: <strong>adventure energy</strong> for turns, ideas, and questions, and a number of <strong>pictures</strong>. When the pictures run out, the story keeps going without them. When the energy runs out, the adventure pauses until the next day. Check <strong>Your Realm</strong> in Settings to see what is left and when it refills.
+              </p>
+            </Section>
+
             <Section title="Turns">
               <p className="text-slate-300 text-lg leading-relaxed">
                 Heroes take turns in order. The active hero is highlighted in the party bar at the top. Only the active hero can perform actions, but choices may spotlight their traits, involve another active hero's help, use carried gear, turn an NPC conversation into the challenge, or use a specific terrain hazard. Spotlight, social, team-up, and gear choices can add small bonuses to the roll, and clever typed actions can earn those bonuses too when they clearly name the ally, item, or character trait they use.

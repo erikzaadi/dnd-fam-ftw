@@ -35,6 +35,7 @@ import type { DraftAttachment } from '../lib/previewAction';
 import { AdventurePanel } from '../components/game/AdventurePanel';
 import { AdventureEnding } from '../components/game/AdventureEnding';
 import { findConclusionTurn, isAdventureCompleted, isAdventureConcluding, requestWrapUp, setAdventureFormat, setAutoIdeas } from '../session/adventureActions';
+import { RealmUsageNotice } from '../components/game/RealmUsageNotice';
 
 interface LastSubmittedAction {
   previewId?: string;
@@ -869,6 +870,8 @@ export const SessionPage = () => {
           previewThinking={previewThinking}
         />
       )}
+
+      <RealmUsageNotice refreshKey={history.length} />
 
       {/* Reconnecting indicator */}
       {connectionState === 'reconnecting' && (

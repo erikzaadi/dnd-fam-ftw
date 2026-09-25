@@ -67,7 +67,7 @@ export const createSessionRouter = () => {
     if (limits.maxSessions !== null) {
       const count = StateService.countSessionsInNamespace(req.namespaceId);
       if (count >= limits.maxSessions) {
-        res.status(403).json({ error: 'session_limit', message: `This adventure group has reached its limit of ${limits.maxSessions} session(s). Ask the DM to remove old sessions.` });
+        res.status(403).json({ error: 'session_limit', message: `Your group has reached its limit of ${limits.maxSessions} realm(s). Delete an old realm to start a new one.` });
         return;
       }
     }
@@ -81,7 +81,7 @@ export const createSessionRouter = () => {
     if (limits.maxSessions !== null) {
       const count = StateService.countSessionsInNamespace(req.namespaceId);
       if (count >= limits.maxSessions) {
-        res.status(403).json({ error: 'session_limit', message: `This adventure group has reached its limit of ${limits.maxSessions} session(s). Ask the DM to remove old sessions.` });
+        res.status(403).json({ error: 'session_limit', message: `Your group has reached its limit of ${limits.maxSessions} realm(s). Delete an old realm to start a new one.` });
         return;
       }
     }
@@ -140,7 +140,7 @@ export const createSessionRouter = () => {
       if (limits.maxSessions !== null) {
         const count = StateService.countSessionsInNamespace(req.namespaceId);
         if (count >= limits.maxSessions) {
-          res.status(403).json({ error: 'session_limit', message: `This adventure group has reached its limit of ${limits.maxSessions} session(s). Ask the DM to remove old sessions.` });
+          res.status(403).json({ error: 'session_limit', message: `Your group has reached its limit of ${limits.maxSessions} realm(s). Delete an old realm to start a new one.` });
           return;
         }
       }

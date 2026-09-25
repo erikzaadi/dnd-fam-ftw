@@ -59,6 +59,7 @@ export type {
   UsageTier,
   UsageLimitKind,
   LimitReachedResponse,
+  NamespaceUsageResponse,
   AuthConfigResponse,
   AuthMeResponse,
   EmailSignInStartResponse,

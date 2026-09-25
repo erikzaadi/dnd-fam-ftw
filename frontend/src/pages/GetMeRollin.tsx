@@ -38,7 +38,7 @@ export const GetMeRollin = () => {
     const res = await apiFetch('/session/quick-start', { method: 'POST' });
     const data = await res.json() as { id?: string; error?: string; message?: string };
     setLoading(false);
-    if (res.status === 403 && data.error === 'session_limit') {
+    if ((res.status === 403 && data.error === 'session_limit') || data.error === 'limit_reached') {
       setError(data.message ?? 'Session limit reached for this group.');
       return;
     }
