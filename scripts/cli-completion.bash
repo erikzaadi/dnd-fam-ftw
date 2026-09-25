@@ -12,7 +12,7 @@ _dnd_subcommands() {
     users)           echo "list add remove set-primary" ;;
     namespaces)      echo "list create rename delete sessions assign-session add-user remove-user set-limits" ;;
     sessions)        echo "list nuke seed export import" ;;
-    metrics)         echo "narration" ;;
+    metrics)         echo "usage narration" ;;
     invite-requests) echo "list approve clear" ;;
     *)               echo "" ;;
   esac
@@ -21,7 +21,7 @@ _dnd_subcommands() {
 # Subcommands that support --json / -j output
 _dnd_supports_json() {
   case "$1/$2" in
-    users/list|namespaces/list|namespaces/sessions|sessions/list|metrics/|metrics/narration|invite-requests/list) return 0 ;;
+    users/list|namespaces/list|namespaces/sessions|sessions/list|metrics/|metrics/usage|metrics/narration|invite-requests/list) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -32,6 +32,7 @@ _dnd_flags() {
     sessions/export)  echo "--session= --namespace= --output=" ;;
     sessions/import)  echo "--namespace-id=" ;;
     metrics/)           echo "--since=" ;;
+    metrics/usage)     echo "--since= --namespace=" ;;
     metrics/narration) echo "--format= --csv --failed-only --namespace= --session= --since=" ;;
     namespaces/set-limits) echo "--max-sessions= --max-turns=" ;;
     invite-requests/approve) echo "--namespace=" ;;

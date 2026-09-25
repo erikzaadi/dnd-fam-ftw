@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { createUsageRecordingFetch } from './usageRecordingFetch.js';
 
 let _client: OpenAI | null = null;
 let loggedBaseUrl = false;
@@ -50,6 +51,8 @@ export function createOpenAIClient(): OpenAI {
       apiKey: process.env.OPENAI_API_KEY,
       ...(process.env.OPENAI_BASE_URL && { baseURL: process.env.OPENAI_BASE_URL }),
       ...(maxRetries !== undefined && { maxRetries }),
+      // Unit tests exercise the recorder directly and must not write usage rows.
+      ...(!process.env.VITEST && { fetch: createUsageRecordingFetch() }),
     });
   }
   return _client;

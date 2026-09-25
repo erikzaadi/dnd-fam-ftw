@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response, Router } from 'express';
 import { StateService } from '../services/stateService.js';
+import { setUsageSessionId } from '../lib/usageContext.js';
 
 export function registerSessionIdParam(router: Router, paramName: string = 'id'): void {
   router.param(paramName, (req: Request, res: Response, next: NextFunction, sessionId: string) => {
@@ -22,6 +23,7 @@ async function loadSessionForNamespace(req: Request, res: Response, next: NextFu
     }
 
     req.session = session;
+    setUsageSessionId(sessionId);
     next();
   } catch (error) {
     next(error);

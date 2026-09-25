@@ -10,7 +10,8 @@
  *                   sessions <id> | assign-session <sessionId> <nsId>
  *                   add-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
  *   sessions        list [--json] | nuke | seed | export | import | regenerate-dm-prep <id>
- *   metrics         [--json] [--since <ISO date>] | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]
+ *   metrics         [--json] [--since <ISO date>] | usage [--json] [--since <ISO date>] [--namespace <id>]
+ *                   | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]
  *   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
  */
 
@@ -654,6 +655,74 @@ sessions <sub-command>
 // ── metrics ───────────────────────────────────────────────────────────────────
 
 case 'metrics': {
+  if (subcommand === 'usage') {
+    interface UsageRow {
+      day: string;
+      namespace_id: string | null;
+      namespace_name: string | null;
+      text_calls: number;
+      failed_calls: number;
+      images: number;
+      input_tokens: number;
+      output_tokens: number;
+      tts_characters: number;
+      estimated_cost_usd: number;
+    }
+    const namespaceFilter = parseArgValue(allArgs.find(a => a === '--namespace' || a.startsWith('--namespace=')));
+    const sinceArg = parseArgValue(allArgs.find(a => a === '--since' || a.startsWith('--since=')));
+    const since = sinceArg ?? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const conditions = ['datetime(pu.created_at) >= datetime(?)'];
+    const params: string[] = [since];
+    if (namespaceFilter) {
+      conditions.push('pu.namespace_id = ?');
+      params.push(namespaceFilter);
+    }
+    const db = new Database(path.resolve(getConfig().SQLITE_DB_PATH), { readonly: true });
+    let rows: UsageRow[];
+    try {
+      rows = db.prepare(`
+        SELECT
+          substr(pu.created_at, 1, 10) AS day,
+          pu.namespace_id,
+          n.name AS namespace_name,
+          SUM(CASE WHEN pu.kind = 'text' THEN 1 ELSE 0 END) AS text_calls,
+          SUM(CASE WHEN pu.success = 0 THEN 1 ELSE 0 END) AS failed_calls,
+          SUM(CASE WHEN pu.kind = 'image' THEN COALESCE(pu.image_count, 1) ELSE 0 END) AS images,
+          COALESCE(SUM(pu.input_tokens), 0) AS input_tokens,
+          COALESCE(SUM(pu.output_tokens), 0) AS output_tokens,
+          COALESCE(SUM(pu.tts_characters), 0) AS tts_characters,
+          ROUND(COALESCE(SUM(pu.estimated_cost_usd), 0), 4) AS estimated_cost_usd
+        FROM provider_usage pu
+        LEFT JOIN namespaces n ON n.id = pu.namespace_id
+        WHERE ${conditions.join(' AND ')}
+        GROUP BY day, pu.namespace_id
+        ORDER BY day DESC, estimated_cost_usd DESC
+      `).all(...params) as UsageRow[];
+    } catch (err) {
+      db.close();
+      fail(`Could not read provider usage (has the backend started since upgrading?): ${err instanceof Error ? err.message : String(err)}`);
+    }
+    db.close();
+    if (jsonMode) {
+      process.stdout.write(JSON.stringify(rows, null, 2) + '\n');
+    } else if (rows.length === 0) {
+      console.log(`No provider usage recorded since ${since}.`);
+    } else {
+      console.table(rows.map(row => ({
+        day: row.day,
+        namespace: row.namespace_name ?? row.namespace_id ?? '(system)',
+        text: row.text_calls,
+        images: row.images,
+        failed: row.failed_calls,
+        tts_chars: row.tts_characters,
+        est_usd: row.estimated_cost_usd,
+      })));
+      const total = rows.reduce((sum, row) => sum + row.estimated_cost_usd, 0);
+      console.log(`\nEstimated total since ${since}: $${total.toFixed(2)} (estimates; the provider dashboard is authoritative)`);
+    }
+    break;
+  }
+
   if (subcommand === 'narration') {
     interface NarrationMetricsRow {
       turn_id: number;

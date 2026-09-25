@@ -108,6 +108,13 @@ Narration retry and fallback diagnostics are available as analysis-friendly JSON
 ./dnd-fam-ftw-cli metrics narration --since 2026-08-01T00:00:00Z --json
 ```
 
+Provider usage and estimated AI cost per day and namespace (every request that reached the AI provider, retries included, attributed to the signed-in namespace; `(system)` is work outside a request). Defaults to the last 7 days. Costs are estimates from a built-in price table (override with `USAGE_MODEL_PRICES`); the provider dashboard is authoritative.
+
+```bash
+./dnd-fam-ftw-cli metrics usage
+./dnd-fam-ftw-cli metrics usage --since 2026-09-01 --namespace <id> --json
+```
+
 The weekly metrics workflow tracks the timestamp of its last run in SSM and passes it as `--since` to `metrics` and `metrics narration`, so all weekly figures (new sessions, new narration failures, most active namespace, active users) are computed directly from real row timestamps rather than diffing snapshots.
 
 ### invite-requests

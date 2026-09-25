@@ -500,4 +500,27 @@ export const migrate = (db: DB): void => {
       PRIMARY KEY (namespace_id, key)
     );
   `);
+  // One row per request that reached the AI provider (retries included). namespace_id
+  // is NULL for work outside a request (scripts, startup). No foreign keys: usage is
+  // an accounting log and must not block namespace or user deletion.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS provider_usage (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      namespace_id TEXT,
+      user_id TEXT,
+      session_id TEXT,
+      kind TEXT NOT NULL,
+      endpoint TEXT NOT NULL,
+      model TEXT,
+      input_tokens INTEGER,
+      output_tokens INTEGER,
+      tts_characters INTEGER,
+      image_count INTEGER,
+      success INTEGER NOT NULL,
+      estimated_cost_usd REAL NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_provider_usage_namespace_time ON provider_usage(namespace_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_provider_usage_time ON provider_usage(created_at);
+  `);
 };

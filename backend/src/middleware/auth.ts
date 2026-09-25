@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { verifyJwt, JwtPayload } from '../services/authService.js';
 import { isAuthEnabled } from '../config/env.js';
 import { userRepository } from '../repositories/userRepository.js';
+import { runWithUsageContext } from '../lib/usageContext.js';
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -18,7 +19,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   if (!isAuthEnabled()) {
     req.namespaceId = 'local';
     req.userEmail = null;
-    next();
+    runWithUsageContext({ namespaceId: 'local', userId: null }, next);
     return;
   }
 
@@ -46,13 +47,15 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
 
   req.namespaceId = payload.namespaceId;
   req.userEmail = user.email;
-  next();
+  // Provider calls made for this request (and background work it starts) are
+  // attributed to this namespace and user.
+  runWithUsageContext({ namespaceId: payload.namespaceId, userId: user.id }, next);
 }
 
 // New full tokens carry a userId, so a deleted account's cookie can never match a
 // replacement account with the same email. Older email-only tokens stay valid until
 // they expire, but only for an account that already existed when they were issued.
-function resolveSessionUser(payload: JwtPayload): { email: string } | null {
+function resolveSessionUser(payload: JwtPayload): { id: string; email: string } | null {
   if (payload.userId !== undefined) {
     if (typeof payload.userId !== 'string' || !payload.userId) {
       return null;
