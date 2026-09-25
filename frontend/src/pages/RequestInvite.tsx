@@ -87,7 +87,7 @@ export const RequestInvite = () => {
           {!submitted && !alreadyRequested && email && (
             <div className="space-y-4 text-left">
               <div>
-                <label className="text-slate-400 text-xs uppercase tracking-wider">Your Google account</label>
+                <label className="text-slate-400 text-xs uppercase tracking-wider">Your email</label>
                 <p className="mt-1 text-slate-200 text-sm font-mono bg-slate-800/60 rounded-lg px-3 py-2">{email}</p>
               </div>
               <div>
