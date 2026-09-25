@@ -1,12 +1,22 @@
 import { Router } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
-import { getConfig, isAuthEnabled } from '../config/env.js';
-import { createId } from '../lib/ids.js';
+import { getConfig, isAllowedOrigin, isAuthEnabled, isGoogleAuthConfigured } from '../config/env.js';
 import { authMiddleware, requirePendingInviteToken, requirePendingNamespaceToken } from '../middleware/auth.js';
-import { buildGoogleAuthUrl, exchangeCodeForEmail, getAuthPublicConfig } from '../services/authService.js';
+import { buildGoogleAuthUrl, createOAuthState, createPkcePair, exchangeCodeForIdentity, getAuthPublicConfig, safeEqual } from '../services/authService.js';
 import { StateService } from '../services/stateService.js';
-import { setFullAuthCookie, setPendingInviteCookie, setPendingNamespaceCookie } from './authCookies.js';
+import {
+  clearAllAuthCookies,
+  clearOAuthCookie,
+  clearPendingAuthCookies,
+  readOAuthCookie,
+  setFullAuthCookie,
+  setOAuthCookie,
+  setPendingInviteCookie,
+  setPendingNamespaceCookie,
+} from './authCookies.js';
+import type { AuthMeResponse } from '../types.js';
 import { parseBody } from './routeValidation.js';
 
 interface AuthRoutesOptions {
@@ -24,50 +34,77 @@ const requestInviteBodySchema = z.object({
 export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
   const router = Router();
   const config = getConfig();
+  const loginErrorUrl = () => `${config.FRONTEND_URL ?? ''}${config.APP_BASE_PATH}login?error=oauth`;
+
+  // State-changing auth requests from a browser must come from our own frontend.
+  // CORS alone does not stop a cross-site form POST from being sent.
+  const requireAllowedOrigin = (req: Request, res: Response, next: NextFunction) => {
+    const origin = req.get('origin');
+    if (origin !== undefined && !isAllowedOrigin(origin, isProduction)) {
+      res.status(403).json({ error: 'Origin not allowed' });
+      return;
+    }
+    next();
+  };
+  router.post('/auth/*path', requireAllowedOrigin);
 
   router.get('/auth/config', (_req, res) => {
     res.json(getAuthPublicConfig());
   });
   
   router.get('/auth/me', (req, res, next) => authMiddleware(req, res, next), (req, res) => {
-    if (!isAuthEnabled()) {
-      res.json({ enabled: false, email: null, namespaceId: 'local' });
-      return;
-    }
-    res.json({ enabled: true, email: req.userEmail, namespaceId: req.namespaceId });
+    const body: AuthMeResponse = isAuthEnabled()
+      ? { enabled: true, email: req.userEmail, namespaceId: req.namespaceId }
+      : { enabled: false, email: null, namespaceId: 'local' };
+    res.json(body);
   });
   
   router.get('/auth/google', (_req, res) => {
-    if (!isAuthEnabled()) {
+    if (!isAuthEnabled() || !isGoogleAuthConfigured()) {
       res.status(404).json({ error: 'Auth not configured' });
       return;
     }
-    const state = createId();
-    const url = buildGoogleAuthUrl(state);
+    const state = createOAuthState();
+    const pkce = createPkcePair();
+    setOAuthCookie(res, state, pkce.verifier, { isProduction });
+    const url = buildGoogleAuthUrl(state, pkce.challenge);
     console.log(`[Auth] Redirecting to Google OAuth`);
     res.redirect(url);
   });
   
   router.get('/auth/google/callback', asyncHandler(async (req, res) => {
     console.log(`[Auth] Callback hit - query keys: ${Object.keys(req.query).join(', ')}`);
-    if (!isAuthEnabled()) {
+    if (!isAuthEnabled() || !isGoogleAuthConfigured()) {
       res.status(404).json({ error: 'Auth not configured' });
       return;
     }
-  
-    const code = req.query.code as string;
-    const error = req.query.error as string | undefined;
+
+    // The state/verifier cookie is single use, whatever the outcome.
+    const oauth = readOAuthCookie(req.cookies as Record<string, string> | undefined);
+    clearOAuthCookie(res);
+
+    const code = typeof req.query.code === 'string' ? req.query.code : '';
+    const state = typeof req.query.state === 'string' ? req.query.state : '';
+    const error = req.query.error;
     if (error) {
-      console.log(`[Auth] Google returned error: ${error}`);
-      res.redirect(`${config.FRONTEND_URL ?? ''}${config.APP_BASE_PATH}login?error=oauth`);
+      console.log(`[Auth] Google returned error: ${String(error)}`);
+      res.redirect(loginErrorUrl());
       return;
     }
-    if (!code) {
-      res.status(400).json({ error: 'Missing code' });
+    if (!code || !oauth || !state || !safeEqual(state, oauth.state)) {
+      console.warn('[Auth] Rejected Google callback: missing or mismatched state');
+      res.redirect(loginErrorUrl());
       return;
     }
-  
-    const email = await exchangeCodeForEmail(code);
+
+    let email: string;
+    try {
+      ({ email } = await exchangeCodeForIdentity(code, oauth.verifier));
+    } catch (err) {
+      console.warn(`[Auth] Google sign-in failed: ${err instanceof Error ? err.message : String(err)}`);
+      res.redirect(loginErrorUrl());
+      return;
+    }
     const user = StateService.getUserByEmail(email);
     const frontendUrl = config.FRONTEND_URL ?? '';
     const basePath = config.APP_BASE_PATH;
@@ -93,13 +130,14 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
   
     const namespaceId = namespaces[0]?.id ?? user.namespace_id;
     StateService.recordLogin(email);
-    setFullAuthCookie(res, { email: user.email, namespaceId, type: 'full' }, { isProduction });
+    clearPendingAuthCookies(res);
+    setFullAuthCookie(res, { email: user.email, namespaceId, type: 'full', userId: user.id }, { isProduction });
   
     res.redirect(`${frontendUrl}${basePath}`);
   }));
   
   router.post('/auth/logout', (_req, res) => {
-    res.clearCookie('jwt', { path: '/' });
+    clearAllAuthCookies(res);
     res.json({ ok: true });
   });
   
@@ -114,14 +152,15 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
       return;
     }
     const { namespaceId } = body;
+    const user = StateService.getUserByEmail(req.pendingPayload!.email);
     const namespaces = StateService.getUserNamespaces(req.pendingPayload!.email);
-    if (!namespaces.some(n => n.id === namespaceId)) {
+    if (!user || !namespaces.some(n => n.id === namespaceId)) {
       res.status(403).json({ error: 'Namespace access denied' });
       return;
     }
-    res.clearCookie('jwt_pending', { path: '/' });
-    StateService.recordLogin(req.pendingPayload!.email);
-    setFullAuthCookie(res, { email: req.pendingPayload!.email, namespaceId, type: 'full' }, { isProduction });
+    clearPendingAuthCookies(res);
+    StateService.recordLogin(user.email);
+    setFullAuthCookie(res, { email: user.email, namespaceId, type: 'full', userId: user.id }, { isProduction });
     res.json({ ok: true });
   }));
   

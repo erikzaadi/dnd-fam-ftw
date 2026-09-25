@@ -31,6 +31,8 @@ export type {
   SessionPreview,
   Session,
   AppSettings,
+  AuthConfigResponse,
+  AuthMeResponse,
   Capabilities,
   FreeActionPreview,
   ActionClarification,

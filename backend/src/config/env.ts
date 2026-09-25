@@ -7,7 +7,9 @@ export type AppConfig = {
   S3_IMAGE_BUCKET?: string;
   S3_IMAGE_PREFIX: string;
   S3_IMAGE_PUBLIC_BASE_URL?: string;
-  // Auth (optional - if absent, auth is disabled)
+  // Auth. AUTH_MODE defaults to 'enabled' when any legacy auth var is set, else 'disabled'.
+  AUTH_MODE: AuthMode;
+  SIGNUP_MODE: SignupMode;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
   GOOGLE_CALLBACK_URL?: string;
@@ -17,6 +19,9 @@ export type AppConfig = {
   APP_BASE_PATH: string;
   APP_VERSION: string;
 };
+
+export type AuthMode = 'disabled' | 'enabled';
+export type SignupMode = 'invite_only' | 'open';
 
 let _config: AppConfig | null = null;
 
@@ -28,8 +33,87 @@ export function getConfig(): AppConfig {
 }
 
 export function isAuthEnabled(): boolean {
+  return getConfig().AUTH_MODE === 'enabled';
+}
+
+export function isGoogleAuthConfigured(): boolean {
   const c = getConfig();
-  return !!(c.GOOGLE_CLIENT_ID && c.GOOGLE_CLIENT_SECRET && c.JWT_SECRET);
+  return !!(c.GOOGLE_CLIENT_ID && c.GOOGLE_CLIENT_SECRET && c.GOOGLE_CALLBACK_URL);
+}
+
+// Fail closed: with auth enabled, a missing secret or provider must stop startup
+// instead of silently falling back to anonymous 'local' access.
+export function assertAuthConfig(isProduction: boolean): void {
+  const c = getConfig();
+  if (c.AUTH_MODE === 'disabled') {
+    return;
+  }
+  if (!c.JWT_SECRET) {
+    throw new Error('[Config] AUTH_MODE=enabled requires JWT_SECRET. Set AUTH_MODE=disabled for local play without login.');
+  }
+  if (c.JWT_SECRET.length < 32) {
+    if (isProduction) {
+      throw new Error('[Config] JWT_SECRET must be at least 32 characters in production.');
+    }
+    console.warn('[Config] JWT_SECRET is shorter than 32 characters. Use a long random value outside local development.');
+  }
+  const partialGoogle = !!(c.GOOGLE_CLIENT_ID || c.GOOGLE_CLIENT_SECRET) && !isGoogleAuthConfigured();
+  if (partialGoogle) {
+    throw new Error('[Config] Google sign-in needs GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_CALLBACK_URL.');
+  }
+  if (!isGoogleAuthConfigured()) {
+    throw new Error('[Config] AUTH_MODE=enabled requires at least one sign-in provider (Google). Set AUTH_MODE=disabled for local play without login.');
+  }
+}
+
+// Exact browser origins allowed to make credentialed requests. Paths (APP_BASE_PATH)
+// are not part of an origin. Requests without an Origin header (CLI, curl) are not
+// affected by CORS and still need their own authentication. Outside production any
+// localhost origin is allowed, since dev, E2E, and screenshot runs pick their own ports.
+export function isAllowedOrigin(origin: string | undefined, isProduction: boolean): boolean {
+  if (!origin || origin === 'null') {
+    return false;
+  }
+  const c = getConfig();
+  if ([c.FRONTEND_URL, c.GOOGLE_CALLBACK_URL].some(url => toOrigin(url) === origin)) {
+    return true;
+  }
+  return !isProduction && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+}
+
+function toOrigin(url: string | undefined): string | null {
+  if (!url) {
+    return null;
+  }
+  try {
+    const origin = new URL(url).origin;
+    return origin === 'null' ? null : origin;
+  } catch {
+    return null;
+  }
+}
+
+function parseAuthMode(): AuthMode {
+  const raw = process.env.AUTH_MODE?.trim();
+  if (!raw) {
+    const legacyAuthVarSet = !!(process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_SECRET || process.env.JWT_SECRET);
+    return legacyAuthVarSet ? 'enabled' : 'disabled';
+  }
+  if (raw !== 'disabled' && raw !== 'enabled') {
+    throw new Error(`[Config] Invalid AUTH_MODE: "${raw}". Must be "disabled" or "enabled".`);
+  }
+  return raw;
+}
+
+function parseSignupMode(): SignupMode {
+  const raw = process.env.SIGNUP_MODE?.trim();
+  if (!raw) {
+    return 'invite_only';
+  }
+  if (raw !== 'invite_only' && raw !== 'open') {
+    throw new Error(`[Config] Invalid SIGNUP_MODE: "${raw}". Must be "invite_only" or "open".`);
+  }
+  return raw;
 }
 
 function parse(): AppConfig {
@@ -46,6 +130,8 @@ function parse(): AppConfig {
     S3_IMAGE_BUCKET: process.env.S3_IMAGE_BUCKET,
     S3_IMAGE_PREFIX: process.env.S3_IMAGE_PREFIX ?? 'generated/',
     S3_IMAGE_PUBLIC_BASE_URL: process.env.S3_IMAGE_PUBLIC_BASE_URL,
+    AUTH_MODE: parseAuthMode(),
+    SIGNUP_MODE: parseSignupMode(),
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
     GOOGLE_CALLBACK_URL: process.env.GOOGLE_CALLBACK_URL,

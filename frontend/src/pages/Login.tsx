@@ -6,6 +6,7 @@ import { DmFooter } from '../components/DmFooter';
 export const Login = () => {
   const [searchParams] = useSearchParams();
   const unauthorized = searchParams.get('error') === 'unauthorized';
+  const oauthFailed = searchParams.get('error') === 'oauth';
 
   const handleLogin = () => {
     window.location.href = apiUrl('/auth/google');
@@ -26,6 +27,12 @@ export const Login = () => {
           {unauthorized && (
             <div className="bg-rose-950/60 border border-rose-800/60 rounded-2xl px-4 py-3 text-rose-300 text-sm">
               That Google account isn't on the guest list. Ask the DM to add you.
+            </div>
+          )}
+
+          {oauthFailed && (
+            <div className="bg-rose-950/60 border border-rose-800/60 rounded-2xl px-4 py-3 text-rose-300 text-sm">
+              Google sign-in didn't finish. Please try again.
             </div>
           )}
 

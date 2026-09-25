@@ -21,6 +21,16 @@ export const userRepository = {
     return (db.prepare('SELECT id, email, namespace_id, role FROM users WHERE email = ?').get(email) as UserRecord) ?? null;
   },
 
+  getUserById(id: string): (UserRecord & { created_at: string }) | null {
+    const db = getDb();
+    return (db.prepare('SELECT id, email, namespace_id, role, created_at FROM users WHERE id = ?').get(id) as UserRecord & { created_at: string }) ?? null;
+  },
+
+  getUserCreatedAt(email: string): string | null {
+    const row = getDb().prepare('SELECT created_at FROM users WHERE email = ?').get(email) as { created_at: string } | undefined;
+    return row?.created_at ?? null;
+  },
+
   createUser(email: string, namespaceName?: string, role: string = 'member'): { userId: string; namespaceId: string } {
     const db = getDb();
     const namespaceId = createId();

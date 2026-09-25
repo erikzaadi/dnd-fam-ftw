@@ -13,6 +13,8 @@ vi.mock('../config/env.js', () => ({
 vi.mock('../repositories/userRepository.js', () => ({
   userRepository: {
     getUserByEmail: vi.fn(),
+    getUserById: vi.fn(),
+    getUserCreatedAt: vi.fn(),
     getUserNamespaces: vi.fn(),
   },
 }));
@@ -42,6 +44,10 @@ beforeEach(() => {
   vi.mocked(isAuthEnabled).mockReturnValue(true);
   vi.mocked(userRepository.getUserByEmail).mockReturnValue({
     id: 'user-1', email: fullPayload.email, namespace_id: 'ns-primary', role: 'member',
+  });
+  vi.mocked(userRepository.getUserCreatedAt).mockReturnValue('2020-01-01 00:00:00');
+  vi.mocked(userRepository.getUserById).mockReturnValue({
+    id: 'user-1', email: fullPayload.email, namespace_id: 'ns-primary', role: 'member', created_at: '2020-01-01 00:00:00',
   });
   vi.mocked(userRepository.getUserNamespaces).mockReturnValue([
     { id: 'ns-primary', name: 'Primary' },
@@ -112,6 +118,31 @@ describe('authMiddleware', () => {
     expect(result.req.userEmail).toBe(fullPayload.email);
     expect(userRepository.getUserByEmail).toHaveBeenCalledWith(fullPayload.email);
     expect(userRepository.getUserNamespaces).toHaveBeenCalledWith(fullPayload.email);
+  });
+
+  it('allows a full session bound to the current user id', () => {
+    const result = authenticate(sign({ ...fullPayload, userId: 'user-1' }));
+    expect(result.next).toHaveBeenCalledOnce();
+    expect(userRepository.getUserById).toHaveBeenCalledWith('user-1');
+    expect(userRepository.getUserByEmail).not.toHaveBeenCalled();
+  });
+
+  it('rejects a user-id token whose account was deleted, even if the email was re-registered', () => {
+    vi.mocked(userRepository.getUserById).mockReturnValue(null);
+    expectRejected(authenticate(sign({ ...fullPayload, userId: 'user-deleted' })));
+  });
+
+  it('rejects a user-id token whose email no longer matches the account', () => {
+    expectRejected(authenticate(sign({ ...fullPayload, email: 'other@example.com', userId: 'user-1' })));
+  });
+
+  it.each([123, ''])('rejects a malformed userId claim %j', userId => {
+    expectRejected(authenticate(sign({ ...fullPayload, userId })));
+  });
+
+  it('rejects a legacy email-only token issued before the account was created', () => {
+    vi.mocked(userRepository.getUserCreatedAt).mockReturnValue('2999-01-01 00:00:00');
+    expectRejected(authenticate(sign(fullPayload)));
   });
 
   it('preserves explicitly auth-disabled local behavior without querying users', () => {

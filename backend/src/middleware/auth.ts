@@ -38,7 +38,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
 
   // Cookie names are client-controlled. Only full sessions for a current member
   // authorize gameplay, even when a pending or revoked token has a valid signature.
-  const user = userRepository.getUserByEmail(payload.email);
+  const user = resolveSessionUser(payload);
   if (!user || !userRepository.getUserNamespaces(user.email).some(namespace => namespace.id === payload.namespaceId)) {
     res.status(401).json({ error: 'Invalid or expired session' });
     return;
@@ -47,6 +47,37 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   req.namespaceId = payload.namespaceId;
   req.userEmail = user.email;
   next();
+}
+
+// New full tokens carry a userId, so a deleted account's cookie can never match a
+// replacement account with the same email. Older email-only tokens stay valid until
+// they expire, but only for an account that already existed when they were issued.
+function resolveSessionUser(payload: JwtPayload): { email: string } | null {
+  if (payload.userId !== undefined) {
+    if (typeof payload.userId !== 'string' || !payload.userId) {
+      return null;
+    }
+    const user = userRepository.getUserById(payload.userId);
+    return user && user.email === payload.email ? user : null;
+  }
+  const user = userRepository.getUserByEmail(payload.email);
+  if (!user) {
+    return null;
+  }
+  const createdAt = parseSqliteTimestamp(userRepository.getUserCreatedAt(user.email));
+  if (createdAt === null || typeof payload.iat !== 'number' || createdAt > payload.iat) {
+    return null;
+  }
+  return user;
+}
+
+// SQLite CURRENT_TIMESTAMP is UTC 'YYYY-MM-DD HH:MM:SS'. Returns epoch seconds.
+function parseSqliteTimestamp(value: string | null): number | null {
+  if (!value) {
+    return null;
+  }
+  const ms = Date.parse(`${value.replace(' ', 'T')}Z`);
+  return Number.isNaN(ms) ? null : Math.floor(ms / 1000);
 }
 
 export function requirePendingNamespaceToken(req: Request, res: Response, next: NextFunction): void {

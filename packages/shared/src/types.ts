@@ -466,6 +466,25 @@ export interface AppSettings {
   imagesEnabled: boolean;
 }
 
+export type SignupMode = 'invite_only' | 'open';
+
+// GET /auth/config: public, never contains secrets.
+export interface AuthConfigResponse {
+  enabled: boolean;
+  signupMode: SignupMode;
+  providers: {
+    google: boolean;
+    email: boolean;
+  };
+}
+
+// GET /auth/me
+export interface AuthMeResponse {
+  enabled: boolean;
+  email: string | null;
+  namespaceId: string;
+}
+
 export interface Capabilities {
   hasCloudAI: boolean;
   hasTts: boolean;

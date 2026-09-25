@@ -16,8 +16,25 @@ import { RequestInvite } from './pages/RequestInvite';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AudioUnlockOverlay } from './components/AudioUnlockOverlay';
 
+function AuthUnavailable({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="h-screen bg-slate-950 text-white flex items-center justify-center px-4">
+      <div className="bg-slate-900/80 border-2 border-slate-800 rounded-[32px] p-8 max-w-sm w-full space-y-4 text-center">
+        <h2 className="text-2xl font-display font-black text-amber-400 italic tracking-tighter">The realm gate is stuck</h2>
+        <p className="text-slate-400 text-sm">We couldn't reach the realm's gatekeeper. Check your connection and try again.</p>
+        <button
+          onClick={onRetry}
+          className="w-full py-3 bg-amber-500 hover:bg-amber-400 rounded-[20px] font-black uppercase italic tracking-tighter text-slate-950 transition-colors cursor-pointer"
+        >
+          Try again
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { enabled, user, loading } = useAuth();
+  const { enabled, user, loading, unavailable, refetch } = useAuth();
 
   if (loading) {
     return (
@@ -25,6 +42,10 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         <div className="text-amber-400 text-2xl font-display font-black italic animate-pulse">🐉</div>
       </div>
     );
+  }
+
+  if (unavailable) {
+    return <AuthUnavailable onRetry={() => void refetch()} />;
   }
 
   if (enabled && !user) {

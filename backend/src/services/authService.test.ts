@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import jwt from 'jsonwebtoken';
-import { signJwt, verifyJwt, buildGoogleAuthUrl, getAuthPublicConfig } from './authService.js';
+import crypto from 'crypto';
+import { signJwt, verifyJwt, buildGoogleAuthUrl, getAuthPublicConfig, createPkcePair, safeEqual } from './authService.js';
 
 const JWT_SECRET = 'test-jwt-secret-for-auth-tests-only';
 
@@ -49,7 +50,7 @@ describe('authService', () => {
   });
 
   it('buildGoogleAuthUrl contains required query params', () => {
-    const authUrl = buildGoogleAuthUrl('csrf-state-token-123');
+    const authUrl = buildGoogleAuthUrl('csrf-state-token-123', 'pkce-challenge');
     const parsed = new URL(authUrl);
     expect(parsed.hostname).toBe('accounts.google.com');
     expect(parsed.searchParams.get('client_id')).toBe('test-google-client-id');
@@ -57,12 +58,33 @@ describe('authService', () => {
     expect(parsed.searchParams.get('response_type')).toBe('code');
     expect(parsed.searchParams.get('state')).toBe('csrf-state-token-123');
     expect(parsed.searchParams.get('scope')).toContain('email');
+    expect(parsed.searchParams.get('code_challenge')).toBe('pkce-challenge');
+    expect(parsed.searchParams.get('code_challenge_method')).toBe('S256');
   });
 
   it('getAuthPublicConfig returns enabled=true when keys are set', () => {
     const config = getAuthPublicConfig();
     expect(config.enabled).toBe(true);
-    expect(config.googleClientId).toBe('test-google-client-id');
+    expect(config.providers.google).toBe(true);
+    expect(config.signupMode).toBe('invite_only');
+    expect(JSON.stringify(config)).not.toContain('test-google-client-secret');
+  });
+
+  it('createPkcePair returns an S256 challenge of the verifier', () => {
+    const { verifier, challenge } = createPkcePair();
+    expect(challenge).toBe(crypto.createHash('sha256').update(verifier).digest('base64url'));
+    expect(verifier).not.toContain('.');
+  });
+
+  it('safeEqual compares strings of any length without throwing', () => {
+    expect(safeEqual('abc', 'abc')).toBe(true);
+    expect(safeEqual('abc', 'abd')).toBe(false);
+    expect(safeEqual('abc', 'abcd')).toBe(false);
+  });
+
+  it('signJwt ignores an iat claim copied from an earlier token', () => {
+    const token = signJwt({ email: 'a@example.com', namespaceId: 'ns', iat: 1 });
+    expect(verifyJwt(token)!.iat).toBeGreaterThan(1);
   });
 
   it('all JWT types sign and verify correctly', () => {

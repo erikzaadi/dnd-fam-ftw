@@ -6,7 +6,7 @@ dotenv.config({ path: path.join(import.meta.dirname, '../../.env') });
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import { getConfig, getTurnStrategy, isAuthEnabled } from './config/env.js';
+import { assertAuthConfig, getConfig, getTurnStrategy, isAllowedOrigin, isAuthEnabled } from './config/env.js';
 import { authMiddleware } from './middleware/auth.js';
 import { getImageStorageProvider } from './providers/storage/storageProviderFactory.js';
 import { getOpenAIMaxRetries, getPreviewReasoningEffort } from './providers/ai/openAiClient.js';
@@ -22,8 +22,16 @@ import { createTtsRouter } from './routes/ttsRoutes.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const isProduction = process.env.NODE_ENV === 'production';
 
-app.use(cors({ credentials: true, origin: true }));
+// nginx on the same host is the only proxy hop; req.ip is the real client address.
+app.set('trust proxy', 'loopback');
+// Credentialed CORS only for the configured frontend origin (and localhost in dev).
+// Unknown origins get no CORS headers, so browsers refuse to share responses with them.
+app.use(cors({
+  credentials: true,
+  origin: (origin, callback) => callback(null, isAllowedOrigin(origin, isProduction)),
+}));
 app.use(express.json());
 app.use(cookieParser());
 
@@ -38,7 +46,6 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 const config = getConfig();
-const isProduction = process.env.NODE_ENV === 'production';
 app.use((_req, res, next) => {
   res.setHeader('X-App-Version', config.APP_VERSION);
   next();
@@ -72,6 +79,7 @@ if (!hasCloudAI && process.env.NODE_ENV !== 'test' && process.env.TEST_AI_MOCK !
 // Preview callers catch request errors and fall back, so an invalid request
 // setting would otherwise degrade quietly on every call. Fail at startup.
 try {
+  assertAuthConfig(isProduction);
   getPreviewReasoningEffort();
   getOpenAIMaxRetries();
   console.log(`[Config] Turn strategy: ${getTurnStrategy()}`);
@@ -86,12 +94,12 @@ StateService.initialize();
 // explicitly so clients stop waiting and can retry as a new operation.
 reconcileInterruptedOperations();
 if (isAuthEnabled()) {
-  console.log(`[Auth] Enabled - Google OAuth active, callback: ${config.GOOGLE_CALLBACK_URL}`);
+  console.log(`[Auth] Enabled (signup: ${config.SIGNUP_MODE}) - Google OAuth callback: ${config.GOOGLE_CALLBACK_URL}`);
   if (config.ADMIN_EMAIL) {
     StateService.ensureAdminUser(config.ADMIN_EMAIL);
   }
 } else {
-  console.log('[Auth] Disabled - no GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/JWT_SECRET in env, all requests use local namespace');
+  console.log('[Auth] Disabled (AUTH_MODE=disabled) - all requests use the local namespace');
 }
 
 app.use(createSystemRouter({ config, hasCloudAI }));

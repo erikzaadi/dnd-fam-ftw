@@ -100,14 +100,16 @@ terraform/                         # AWS infrastructure
 
 ## Auth
 
-Optional - omitting `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `JWT_SECRET` from `.env` disables auth entirely (uses `local` namespace, no login page).
+Optional - `AUTH_MODE=disabled|enabled` in `.env`. Unset, it is `enabled` when any of `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, or `JWT_SECRET` is set, else `disabled` (uses `local` namespace, no login page). Enabled with incomplete settings fails startup (`assertAuthConfig()` in `config/env.ts`); never fall back to anonymous access. `SIGNUP_MODE=invite_only|open` (default `invite_only`).
 
 When enabled:
 - Set `GOOGLE_CALLBACK_URL` (local dev: `http://localhost:5173/api/auth/google/callback`)
 - Only pre-registered emails (`npm run users add <email>`) can log in
 - `ADMIN_EMAIL` auto-creates that user on startup
 - JWT stored as HttpOnly cookie; `req.namespaceId` + `req.userEmail` attached by `authMiddleware`
-- JWT `type` field: `full` | `pending-namespace` | `pending-invite` | `invite-requested`
+- JWT `type` field: `full` | `pending-namespace` | `pending-invite` | `invite-requested`. New full tokens carry `userId`; email-only full tokens are accepted only for accounts created before the token was issued
+- Google OAuth uses a browser-bound `state` + PKCE cookie (`oauth_google`) and requires `email_verified`
+- CORS allows only the `FRONTEND_URL` / `GOOGLE_CALLBACK_URL` origins (plus localhost outside production); state-changing `/auth/*` POSTs also check `Origin`. `trust proxy` is `loopback` (nginx)
 
 ## Namespace isolation
 
