@@ -5,6 +5,10 @@ import { generateSessionDisplayName } from '../services/sessionNameService.js';
 import { SessionState, InventoryItem, type AdventureFormat, type AdventureProgress, type AdventureStatus, type Character, type Choice, type GameMode, type EncounterState, type EncounterSeed } from '../types.js';
 import { buildAdventureProgress, createInitialArc, parseArc, serializeArc } from '../services/adventureLifecycleService.js';
 
+// The quick-start template (seeded at startup): copied into a group's namespace, never
+// listed or played itself.
+const ONBOARDING_TEMPLATE_ID = 'seed-onboarding-template';
+
 export type SessionListItem = {
   id: string;
   displayName: string;
@@ -561,9 +565,9 @@ export const sessionRepository = {
     const rows = db.prepare(`
       SELECT id, displayName, worldDescription, storySummary, dm_prep, difficulty, gameMode, game_over, preview_image_url, adventure_format, adventure_status
       FROM sessions s
-      WHERE namespace_id = ?
+      WHERE namespace_id = ? AND id != ?
       ORDER BY COALESCE((SELECT MAX(t.createdAt) FROM turn_history t WHERE t.sessionId = s.id), s.createdAt) DESC, s.createdAt DESC, s.id ASC
-    `).all(namespaceId) as { id: string; displayName: string; worldDescription: string | null; storySummary: string | null; dm_prep: string | null; difficulty: string; gameMode: string; game_over: number; preview_image_url: string | null; adventure_format: string | null; adventure_status: string | null }[];
+    `).all(namespaceId, ONBOARDING_TEMPLATE_ID) as { id: string; displayName: string; worldDescription: string | null; storySummary: string | null; dm_prep: string | null; difficulty: string; gameMode: string; game_over: number; preview_image_url: string | null; adventure_format: string | null; adventure_status: string | null }[];
     return rows.map(row => {
       const chars = db.prepare('SELECT id, name, class, species, avatarUrl, hp, max_hp FROM characters WHERE sessionId = ?').all(row.id) as { id: string; name: string; class: string; species: string; avatarUrl: string | null; hp: number; max_hp: number }[];
       return {
@@ -596,7 +600,7 @@ export const sessionRepository = {
 
   countSessionsInNamespace(namespaceId: string): number {
     const db = getDb();
-    const row = db.prepare('SELECT COUNT(*) as count FROM sessions WHERE namespace_id = ?').get(namespaceId) as { count: number };
+    const row = db.prepare('SELECT COUNT(*) as count FROM sessions WHERE namespace_id = ? AND id != ?').get(namespaceId, ONBOARDING_TEMPLATE_ID) as { count: number };
     return row.count;
   },
 
@@ -615,7 +619,7 @@ export const sessionRepository = {
 
   cloneOnboardingSession(namespaceId: string): string {
     const db = getDb();
-    const templateId = 'seed-onboarding-template';
+    const templateId = ONBOARDING_TEMPLATE_ID;
 
     const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(templateId) as {
       scene: string; sceneId: string; worldDescription: string | null; dm_prep: string | null;

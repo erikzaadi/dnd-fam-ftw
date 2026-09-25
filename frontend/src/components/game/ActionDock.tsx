@@ -853,31 +853,33 @@ export const ActionDock = ({
                   onClick={toggleSpeech}
                 />
               </div>
-              <div className="relative">
-                <ShortcutBadge keyLabel="u" description="Unleash" />
-                <button
-                  onClick={submitCustom}
-                  disabled={loading || statThinking || previewThinking || !!pendingSend || !customAction.trim()}
-                  className="w-full py-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 rounded-2xl font-black uppercase tracking-tighter text-xl xl:text-2xl shadow-[0_6px_0_rgb(146,64,14)] transition-all italic"
-                >
-                  {statThinking || previewThinking ? 'Thinking...' : 'UNLEASH'}
-                </button>
-              </div>
-              {!clarification && (
-                <div className="relative self-end">
-                  <ShortcutBadge keyLabel="d" description="Ask the DM" />
-                  <Tooltip content="Ask a question about the scene without taking a turn" position="top" portal wrapperClassName="inline-flex">
-                    <button
-                      type="button"
-                      onClick={requestAsk}
-                      disabled={askLoading || loading || statThinking || previewThinking || !!pendingSend || turn?.id === undefined}
-                      className="min-h-11 px-2 text-sm font-bold text-sky-300 underline underline-offset-2 hover:text-sky-200 disabled:opacity-40"
-                    >
-                      {askLoading ? 'The DM is answering...' : 'Ask the DM instead'}
-                    </button>
-                  </Tooltip>
+              <div className="flex gap-3">
+                <div className="relative flex-[2] min-w-0">
+                  <ShortcutBadge keyLabel="u" description="Unleash" />
+                  <button
+                    onClick={submitCustom}
+                    disabled={loading || statThinking || previewThinking || !!pendingSend || !customAction.trim()}
+                    className="w-full h-full py-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 rounded-2xl font-black uppercase tracking-tighter text-xl xl:text-2xl shadow-[0_6px_0_rgb(146,64,14)] transition-all italic"
+                  >
+                    {statThinking || previewThinking ? 'Thinking...' : 'UNLEASH'}
+                  </button>
                 </div>
-              )}
+                {!clarification && (
+                  <div className="relative flex-1 min-w-0">
+                    <ShortcutBadge keyLabel="d" description="Ask the DM" />
+                    <Tooltip content="Ask a question about the scene without taking a turn" position="top" portal wrapperClassName="flex h-full w-full">
+                      <button
+                        type="button"
+                        onClick={requestAsk}
+                        disabled={askLoading || loading || statThinking || previewThinking || !!pendingSend || turn?.id === undefined}
+                        className="w-full h-full py-4 px-2 bg-sky-700 hover:bg-sky-600 disabled:opacity-40 rounded-2xl font-black uppercase tracking-tighter text-base xl:text-lg leading-tight shadow-[0_6px_0_rgb(7,89,133)] transition-all italic text-sky-50"
+                      >
+                        {askLoading ? 'Asking...' : 'Ask the DM'}
+                      </button>
+                    </Tooltip>
+                  </div>
+                )}
+              </div>
               {visibleAnswer && (
                 <div role="status" className="rounded-xl border border-sky-500/40 bg-sky-500/10 p-3">
                   <p className="text-xs text-slate-400 break-words">You asked: “{visibleAnswer.question}”</p>

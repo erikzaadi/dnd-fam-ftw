@@ -642,7 +642,7 @@ describe('ActionDock Ask the DM', () => {
     const onSubmit = vi.fn();
     renderDock({ turn: ASK_TURN, customAction: 'Can I climb the wall?', setCustomAction, onSubmit, revision: 3 });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Ask the DM instead' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Ask the DM' }));
 
     expect(await screen.findByText('The wall is slick, but Alice could try her rope.')).toBeInTheDocument();
     expect(mocks.apiFetch.mock.calls[0][0]).toBe('/session/session-1/ask');
@@ -656,7 +656,7 @@ describe('ActionDock Ask the DM', () => {
     const setCustomAction = vi.fn();
     renderDock({ turn: ASK_TURN, customAction: 'Can I climb the wall?', setCustomAction, revision: 3 });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Ask the DM instead' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Ask the DM' }));
 
     expect(await screen.findByText('Lots of questions already!')).toBeInTheDocument();
     expect(setCustomAction).not.toHaveBeenCalled();
@@ -690,7 +690,7 @@ describe('ActionDock Ask the DM', () => {
   it('stays clickable with an empty box and explains where the question goes', async () => {
     renderDock({ turn: ASK_TURN, customAction: '', revision: 3 });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Ask the DM instead' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Ask the DM' }));
 
     expect(screen.getByText('Type your question in the box above, then tap Ask the DM.')).toBeInTheDocument();
     expect(mocks.apiFetch).not.toHaveBeenCalled();

@@ -4,7 +4,7 @@ import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { getConfig, isAllowedOrigin, isAuthEnabled, isEmailAuthEnabled, isGoogleAuthConfigured } from '../config/env.js';
 import { resendEmailCode, startEmailSignIn, verifyEmailCode } from '../services/emailAuthService.js';
-import { dispatchOutbox } from '../services/emailService.js';
+import { dispatchOutbox, enqueueInviteRequestNotice } from '../services/emailService.js';
 import { resolveGoogleSignIn, type SignInOutcome } from '../services/signupService.js';
 import { authMiddleware, requirePendingInviteToken, requirePendingNamespaceToken } from '../middleware/auth.js';
 import { buildGoogleAuthUrl, createOAuthState, createPkcePair, exchangeCodeForIdentity, getAuthPublicConfig, safeEqual } from '../services/authService.js';
@@ -290,6 +290,8 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
     }
     const { message } = body;
     StateService.addInviteRequest(req.pendingPayload!.email, message);
+    enqueueInviteRequestNotice({ email: req.pendingPayload!.email, message: message?.trim() || null, requestedAt: new Date() });
+    void dispatchOutbox();
     res.clearCookie('jwt_pending_invite', { path: '/' });
     res.json({ ok: true });
   }));

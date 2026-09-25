@@ -129,7 +129,7 @@ The weekly metrics workflow tracks the timestamp of its last run in SSM and pass
 
 ### invite-requests
 
-View and manage invite requests from people without an account (Google or email sign-in) while `SIGNUP_MODE=invite_only`, or when open signup is paused or at its daily cap.
+View and manage invite requests from people without an account (Google or email sign-in) while `SIGNUP_MODE=invite_only`, or when open signup is paused or at its daily cap. Each new request emails `SIGNUP_NOTIFY_EMAIL` (default `ADMIN_EMAIL`) when email is configured.
 
 ```bash
 ./dnd-fam-ftw-cli invite-requests list
@@ -152,7 +152,7 @@ View and manage invite requests from people without an account (Google or email 
 
 ### email-outbox
 
-Operator notification emails (currently "New adventurer signed up", sent to `SIGNUP_NOTIFY_EMAIL`, default `ADMIN_EMAIL`). The backend sends them right after signup and retries failures every 3 minutes with backoff, up to 10 attempts. Sign-in codes are sent directly and never stored.
+Operator notification emails (new signups, invite requests, and "ask for more" requests, sent to `SIGNUP_NOTIFY_EMAIL`, default `ADMIN_EMAIL`; only queued when email is configured). The backend sends them right after signup and retries failures every 3 minutes with backoff, up to 10 attempts. Sign-in codes are sent directly and never stored.
 
 ```bash
 ./dnd-fam-ftw-cli email-outbox list

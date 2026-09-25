@@ -69,6 +69,7 @@ backend/src/
   scripts/
     cli.ts                         # Unified management CLI
     seedSessions.ts                # Seed data (invoked by cli sessions seed)
+    seedOnboarding.ts              # Quick-start template, also re-seeded on every backend start
 
 frontend/src/
   App.tsx                          # Routes + AuthProvider + AuthGuard

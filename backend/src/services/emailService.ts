@@ -48,9 +48,16 @@ export interface SignupNotice {
   signedUpAt: Date;
 }
 
+// Owner notices need a mailbox and a working email provider; otherwise they are only
+// logged, so the outbox does not fill with mail that can never be sent.
+function ownerNoticeRecipient(): string | null {
+  const recipient = getConfig().SIGNUP_NOTIFY_EMAIL;
+  return recipient && getEmailProvider() ? recipient : null;
+}
+
 // Enqueue inside the activation transaction; delivery happens after commit.
 export function enqueueSignupNotice(notice: SignupNotice): void {
-  const recipient = getConfig().SIGNUP_NOTIFY_EMAIL;
+  const recipient = ownerNoticeRecipient();
   if (!recipient) {
     return;
   }
@@ -81,7 +88,7 @@ export interface LimitRequestNotice {
 }
 
 export function enqueueLimitRequestNotice(notice: LimitRequestNotice): void {
-  const recipient = getConfig().SIGNUP_NOTIFY_EMAIL;
+  const recipient = ownerNoticeRecipient();
   if (!recipient) {
     return;
   }
@@ -99,6 +106,32 @@ export function enqueueLimitRequestNotice(notice: LimitRequestNotice): void {
     subject: 'A realm asked for more adventures',
     textBody: `A group asked for higher limits.\n\n${lines.join('\n')}\n\nApprove with: ${approve}\n`,
     htmlBody: `<!doctype html><html><body style="font-family:sans-serif"><p>A group asked for higher limits.</p><ul>${lines.map(line => `<li>${escapeHtml(line)}</li>`).join('')}</ul><p>Approve with: <code>${escapeHtml(approve)}</code></p></body></html>`,
+  }, notice.requestedAt.getTime());
+}
+
+export interface InviteRequestNotice {
+  email: string;
+  message: string | null;
+  requestedAt: Date;
+}
+
+export function enqueueInviteRequestNotice(notice: InviteRequestNotice): void {
+  const recipient = ownerNoticeRecipient();
+  if (!recipient) {
+    return;
+  }
+  const lines = [
+    `Email: ${notice.email}`,
+    `Requested: ${notice.requestedAt.toISOString()}`,
+    `Message: ${notice.message ?? '(none)'}`,
+  ];
+  const approve = `cli invite-requests approve ${notice.email}`;
+  emailOutboxRepository.enqueue({
+    eventKey: `invite-request:${notice.email}:${notice.requestedAt.getTime()}`,
+    recipient,
+    subject: 'Someone asked to join the realm',
+    textBody: `Someone asked for an invite.\n\n${lines.join('\n')}\n\nApprove with: ${approve}\n`,
+    htmlBody: `<!doctype html><html><body style="font-family:sans-serif"><p>Someone asked for an invite.</p><ul>${lines.map(line => `<li>${escapeHtml(line)}</li>`).join('')}</ul><p>Approve with: <code>${escapeHtml(approve)}</code></p></body></html>`,
   }, notice.requestedAt.getTime());
 }
 
