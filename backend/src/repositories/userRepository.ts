@@ -83,6 +83,7 @@ export const userRepository = {
     if (user.namespace_id !== 'local') {
       const otherUsers = db.prepare('SELECT COUNT(*) as count FROM users WHERE namespace_id = ?').get(user.namespace_id) as { count: number };
       if (otherUsers.count === 0) {
+        db.prepare('DELETE FROM namespace_settings WHERE namespace_id = ?').run(user.namespace_id);
         db.prepare('DELETE FROM namespaces WHERE id = ?').run(user.namespace_id);
       }
     }

@@ -63,6 +63,7 @@ export const namespaceRepository = {
     if (sessions.count > 0) {
       return { ok: false, reason: `Namespace has ${sessions.count} session(s) - delete them first` };
     }
+    db.prepare('DELETE FROM namespace_settings WHERE namespace_id = ?').run(id);
     db.prepare('DELETE FROM namespaces WHERE id = ?').run(id);
     return { ok: true };
   },

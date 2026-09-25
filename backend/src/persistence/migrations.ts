@@ -490,4 +490,14 @@ export const migrate = (db: DB): void => {
   if (!sessionColsIdeas.includes('auto_ideas')) {
     db.prepare("ALTER TABLE sessions ADD COLUMN auto_ideas INTEGER NOT NULL DEFAULT 0").run();
   }
+  // Per-namespace app settings (e.g. images on/off for new realms). Replaces the old
+  // server-wide app_settings table, which lived in a separate working-directory database.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS namespace_settings (
+      namespace_id TEXT NOT NULL REFERENCES namespaces(id) ON DELETE CASCADE,
+      key TEXT NOT NULL,
+      value TEXT NOT NULL,
+      PRIMARY KEY (namespace_id, key)
+    );
+  `);
 };

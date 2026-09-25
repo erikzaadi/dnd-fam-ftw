@@ -1,40 +1,39 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-const mocks = vi.hoisted(() => {
-  const allFn = vi.fn<() => { key: string; value: string }[]>(() => []);
-  const prepare = vi.fn(() => ({ all: allFn }));
-  const exec = vi.fn();
-  const Database = vi.fn(function DatabaseMock() {
-    return { exec, prepare };
-  });
-  return { Database, prepare, exec, allFn };
-});
-
-vi.mock('libsql', () => ({
-  default: mocks.Database,
-}));
-
+import os from 'os';
+import path from 'path';
+import fs from 'fs';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { getDb, initializeDatabase } from '../persistence/database.js';
 import { SettingsService } from './settingsService.js';
 
-beforeEach(() => {
-  vi.clearAllMocks();
-  mocks.allFn.mockReturnValue([]);
+const DB_PATH = path.join(os.tmpdir(), `dnd-settings-test-${Date.now()}.sqlite`);
+
+beforeAll(() => {
+  process.env.SQLITE_DB_PATH = DB_PATH;
+  initializeDatabase();
+  getDb().prepare("INSERT OR IGNORE INTO namespaces (id, name) VALUES ('ns-a', 'A'), ('ns-b', 'B')").run();
+});
+
+afterAll(() => {
+  fs.rmSync(DB_PATH, { force: true });
 });
 
 describe('SettingsService', () => {
-  it('returns defaults when the database has no stored settings', () => {
-    const settings = SettingsService.get();
-    expect(settings).toEqual({ imagesEnabled: true });
+  it('returns defaults when the namespace has no stored settings', () => {
+    expect(SettingsService.get('local')).toEqual({ imagesEnabled: true });
   });
 
   it('does not include defaultUseLocalAI in returned settings', () => {
-    const settings = SettingsService.get();
-    expect(settings).not.toHaveProperty('defaultUseLocalAI');
+    expect(SettingsService.get('local')).not.toHaveProperty('defaultUseLocalAI');
   });
 
-  it('returns stored imagesEnabled=false when persisted in the database', () => {
-    mocks.allFn.mockReturnValue([{ key: 'imagesEnabled', value: 'false' }]);
-    const settings = SettingsService.get();
-    expect(settings.imagesEnabled).toBe(false);
+  it('persists imagesEnabled per namespace', () => {
+    SettingsService.save('ns-a', { imagesEnabled: false });
+    expect(SettingsService.get('ns-a').imagesEnabled).toBe(false);
+  });
+
+  it('does not let one namespace change another namespace settings', () => {
+    SettingsService.save('ns-a', { imagesEnabled: false });
+    expect(SettingsService.get('ns-b').imagesEnabled).toBe(true);
+    expect(SettingsService.get('local').imagesEnabled).toBe(true);
   });
 });

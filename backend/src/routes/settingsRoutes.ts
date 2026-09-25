@@ -11,8 +11,8 @@ const settingsBodySchema = z.object({
 export const createSettingsRouter = () => {
   const router = Router();
 
-  router.get('/settings', (_req, res) => {
-    res.json(SettingsService.get());
+  router.get('/settings', (req, res) => {
+    res.json(SettingsService.get(req.namespaceId));
   });
   
   router.post('/settings', asyncHandler(async (req, res) => {
@@ -20,7 +20,7 @@ export const createSettingsRouter = () => {
     if (!body) {
       return;
     }
-    const settings = SettingsService.save(body);
+    const settings = SettingsService.save(req.namespaceId, body);
     res.json(settings);
   }));
 

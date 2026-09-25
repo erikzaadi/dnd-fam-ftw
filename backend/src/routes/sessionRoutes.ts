@@ -85,7 +85,7 @@ export const createSessionRouter = () => {
       }
     }
 
-    const settings = SettingsService.get();
+    const settings = SettingsService.get(req.namespaceId);
     const savingsMode = !settings.imagesEnabled;
     const randomPace = Math.random() < 0.5 ? 'fast' : 'balanced';
     const seed = pickWorldSeed();
@@ -143,7 +143,7 @@ export const createSessionRouter = () => {
           return;
         }
       }
-      const savingsMode = !SettingsService.get().imagesEnabled;
+      const savingsMode = !SettingsService.get(req.namespaceId).imagesEnabled;
       const session = await StateService.createSession(worldDescription, difficulty, savingsMode, req.namespaceId, gameMode, dmPrep || undefined, undefined, undefined, adventureFormat);
       broadcastSessionChanged(req.namespaceId, session.id, 'created');
       if (dmPrep) {
