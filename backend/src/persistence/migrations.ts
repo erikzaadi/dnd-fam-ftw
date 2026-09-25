@@ -589,4 +589,20 @@ export const migrate = (db: DB): void => {
     );
     CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, next_attempt_at);
   `);
+
+  // "Ask for more": a limited group asks the owner for a higher tier. At most one open
+  // request per namespace.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS limit_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      namespace_id TEXT NOT NULL,
+      user_id TEXT,
+      email TEXT,
+      note TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      resolved_at DATETIME
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_limit_requests_open ON limit_requests(namespace_id) WHERE status = 'pending';
+  `);
 };

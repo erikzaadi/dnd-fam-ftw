@@ -15,6 +15,8 @@ const usage = (overrides: Partial<NamespaceUsageResponse>): NamespaceUsageRespon
   sessionCount: 1,
   resetsAt: '2026-09-26T00:00:00.000Z',
   picturesPaused: true,
+  supportUrl: null,
+  limitRequest: null,
   ...overrides,
 });
 
@@ -42,6 +44,22 @@ describe('YourRealm', () => {
     expect(await screen.findByText('Founding Realm')).toBeTruthy();
     expect(screen.queryByRole('progressbar')).toBeNull();
     expect(screen.getByText('Your realm has no daily limits. Adventure as much as you like.')).toBeTruthy();
+  });
+
+  it('offers support and ask-for-more to a limited group', async () => {
+    respond(usage({ supportUrl: 'https://ko-fi.com/example' }));
+    render(<YourRealm />);
+    const support = await screen.findByRole('link', { name: 'Support the realm' });
+    expect(support.getAttribute('href')).toBe('https://ko-fi.com/example');
+    expect(screen.getByRole('button', { name: 'Ask for more' })).toBeTruthy();
+  });
+
+  it('hides the support link when none is configured and shows a pending request', async () => {
+    respond(usage({ limitRequest: { status: 'pending', createdAt: '2026-09-25 10:00:00' } }));
+    render(<YourRealm />);
+    expect(await screen.findByText("Your request is with the realm keeper. You'll get more once it's approved.")).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Support the realm' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Ask for more' })).toBeNull();
   });
 
   it('renders nothing when usage cannot be loaded', async () => {

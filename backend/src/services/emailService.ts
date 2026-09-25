@@ -70,6 +70,38 @@ export function enqueueSignupNotice(notice: SignupNotice): void {
   }, notice.signedUpAt.getTime());
 }
 
+export interface LimitRequestNotice {
+  requestId: number;
+  namespaceId: string;
+  namespaceName: string | null;
+  tier: string;
+  email: string | null;
+  note: string | null;
+  requestedAt: Date;
+}
+
+export function enqueueLimitRequestNotice(notice: LimitRequestNotice): void {
+  const recipient = getConfig().SIGNUP_NOTIFY_EMAIL;
+  if (!recipient) {
+    return;
+  }
+  const lines = [
+    `Group: ${notice.namespaceName ?? notice.namespaceId} (${notice.namespaceId})`,
+    `Current tier: ${notice.tier}`,
+    `Requested by: ${notice.email ?? 'unknown'}`,
+    `Requested: ${notice.requestedAt.toISOString()}`,
+    `Note: ${notice.note ?? '(none)'}`,
+  ];
+  const approve = `cli limit-requests approve ${notice.requestId}`;
+  emailOutboxRepository.enqueue({
+    eventKey: `limit-request:${notice.requestId}`,
+    recipient,
+    subject: 'A realm asked for more adventures',
+    textBody: `A group asked for higher limits.\n\n${lines.join('\n')}\n\nApprove with: ${approve}\n`,
+    htmlBody: `<!doctype html><html><body style="font-family:sans-serif"><p>A group asked for higher limits.</p><ul>${lines.map(line => `<li>${escapeHtml(line)}</li>`).join('')}</ul><p>Approve with: <code>${escapeHtml(approve)}</code></p></body></html>`,
+  }, notice.requestedAt.getTime());
+}
+
 // One dispatcher per backend process; runs never overlap. With more than one backend
 // replica this needs a lease before it can run safely in each.
 let dispatching: Promise<void> | null = null;

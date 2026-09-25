@@ -28,6 +28,8 @@ export type AppConfig = {
   EMAIL_CODE_HMAC_SECRET?: string;
   // New-signup notices go here. Defaults to ADMIN_EMAIL.
   SIGNUP_NOTIFY_EMAIL?: string;
+  // Donation page (e.g. Ko-fi) shown in Your Realm. Unset hides the button.
+  SUPPORT_URL: string | null;
 };
 
 export type EmailProviderName = 'none' | 'ses' | 'capture';
@@ -132,6 +134,22 @@ function toOrigin(url: string | undefined): string | null {
   }
 }
 
+function parseSupportUrl(): string | null {
+  const raw = process.env.SUPPORT_URL?.trim();
+  if (!raw) {
+    return null;
+  }
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'https:') {
+      throw new Error('not https');
+    }
+    return url.href;
+  } catch {
+    throw new Error(`[Config] Invalid SUPPORT_URL: "${raw}". Must be an https URL.`);
+  }
+}
+
 function parseEmailProvider(): EmailProviderName {
   const raw = process.env.EMAIL_PROVIDER?.trim();
   if (!raw) {
@@ -208,6 +226,7 @@ function parse(): AppConfig {
     SES_REGION: process.env.SES_REGION?.trim() || process.env.AWS_REGION || undefined,
     EMAIL_CODE_HMAC_SECRET: process.env.EMAIL_CODE_HMAC_SECRET || undefined,
     SIGNUP_NOTIFY_EMAIL: process.env.SIGNUP_NOTIFY_EMAIL?.trim() || process.env.ADMIN_EMAIL?.trim() || undefined,
+    SUPPORT_URL: parseSupportUrl(),
   };
 }
 

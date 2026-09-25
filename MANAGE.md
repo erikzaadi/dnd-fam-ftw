@@ -138,6 +138,18 @@ View and manage invite requests from people without an account (Google or email 
 ./dnd-fam-ftw-cli invite-requests clear                                   # delete all requests
 ```
 
+### limit-requests
+
+"Ask for more" requests from limited (`free`/`supporter`) groups, sent from **Your Realm** in Settings with an optional note. One open request per group, at most 3 per day; each new request emails `SIGNUP_NOTIFY_EMAIL` (default `ADMIN_EMAIL`). Approving sets the group's tier. Donations through `SUPPORT_URL` (e.g. a Ko-fi page) never change limits automatically: match a donation to a request by hand and approve it.
+
+```bash
+./dnd-fam-ftw-cli limit-requests list                      # pending requests
+./dnd-fam-ftw-cli limit-requests list --status approved --json
+./dnd-fam-ftw-cli limit-requests approve <id>              # tier -> supporter
+./dnd-fam-ftw-cli limit-requests approve <id> --tier unlimited
+./dnd-fam-ftw-cli limit-requests deny <id>
+```
+
 ### email-outbox
 
 Operator notification emails (currently "New adventurer signed up", sent to `SIGNUP_NOTIFY_EMAIL`, default `ADMIN_EMAIL`). The backend sends them right after signup and retries failures every 3 minutes with backoff, up to 10 attempts. Sign-in codes are sent directly and never stored.
@@ -160,7 +172,8 @@ Operator notification emails (currently "New adventurer signed up", sent to `SIG
 | `EMAIL_FROM` | Sender address for SES, e.g. `DnD Fam FTW <no-reply@mail.example.com>`. |
 | `SES_REGION` | SES region (defaults to `AWS_REGION`). |
 | `EMAIL_CODE_HMAC_SECRET` | Key for hashing sign-in codes. Unset: derived from `JWT_SECRET`. |
-| `SIGNUP_NOTIFY_EMAIL` | Where new-signup notices go (defaults to `ADMIN_EMAIL`). |
+| `SIGNUP_NOTIFY_EMAIL` | Where new-signup and "ask for more" notices go (defaults to `ADMIN_EMAIL`). |
+| `SUPPORT_URL` | Donation page (https, e.g. `https://ko-fi.com/<you>`) behind the "Support the realm" button in Your Realm. Unset hides the button. |
 
 Email sign-in sends an 8-digit code valid for 10 minutes, usable only in the browser that asked for it, 5 attempts per code, 60 seconds between resends, 5 sends per address and 20 per IP per hour. Google sign-in creates new accounts only for `gmail.com`/`googlemail.com` addresses; other Google-account addresses are asked to use an email code first. New signups are also paused while `DAILY_SPEND_LIMIT_USD` is exceeded.
 

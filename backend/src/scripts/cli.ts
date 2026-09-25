@@ -14,6 +14,7 @@
  *   metrics         [--json] [--since <ISO date>] | usage [--json] [--since <ISO date>] [--namespace <id>]
  *                   | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]
  *   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
+ *   limit-requests  list [--status <s>] [--json] | approve <id> [--tier <tier>] | deny <id>
  *   email-outbox    list [--status <s>] [--json] | retry <id> | send-test <address>
  */
 
@@ -30,6 +31,7 @@ import { StateService } from '../services/stateService.js';
 import { StorySummaryService } from '../services/storySummaryService.js';
 import { getConfig } from '../config/env.js';
 import { emailOutboxRepository, type EmailOutboxStatus } from '../repositories/emailOutboxRepository.js';
+import { limitRequestRepository, type LimitRequestStatus } from '../repositories/limitRequestRepository.js';
 import { getEmailProvider } from '../providers/email/emailProviderFactory.js';
 import { USAGE_TIERS, getEffectiveLimits, isUsageTier, tierLabel } from '../services/usageLimitService.js';
 
@@ -1073,6 +1075,73 @@ invite-requests <sub-command>
   break;
 }
 
+// ── limit-requests ────────────────────────────────────────────────────────────
+
+case 'limit-requests': {
+  switch (subcommand) {
+  case 'list': {
+    const statusArg = parseArgValue(allArgs.find(a => a === '--status' || a.startsWith('--status=')));
+    if (statusArg && !['pending', 'approved', 'denied'].includes(statusArg)) {
+      fail('Usage: cli limit-requests list [--status pending|approved|denied] [--json]');
+    }
+    const rows = limitRequestRepository.list((statusArg ?? 'pending') as LimitRequestStatus);
+    if (jsonMode) {
+      process.stdout.write(JSON.stringify(rows, null, 2) + '\n');
+    } else if (rows.length === 0) {
+      console.log(`No ${statusArg ?? 'pending'} limit requests.`);
+    } else {
+      console.table(rows.map(row => ({
+        id: row.id,
+        namespace: row.namespace_name ?? row.namespace_id,
+        tier: row.tier,
+        email: row.email ?? '',
+        note: row.note ?? '',
+        status: row.status,
+        created: row.created_at,
+      })));
+    }
+    break;
+  }
+  case 'approve': {
+    const id = Number(positional[0]);
+    const tierArg = parseArgValue(allArgs.find(a => a === '--tier' || a.startsWith('--tier='))) ?? 'supporter';
+    if (!Number.isInteger(id)) {
+      fail(`Usage: cli limit-requests approve <id> [--tier ${USAGE_TIERS.join('|')}]`);
+    }
+    if (!isUsageTier(tierArg)) {
+      fail(`Unknown tier "${tierArg}". Use one of: ${USAGE_TIERS.join(', ')}`);
+    }
+    const request = limitRequestRepository.get(id);
+    if (!request || request.status !== 'pending') {
+      fail(`No pending limit request with id ${id}.`);
+    }
+    StateService.setNamespaceTier(request.namespace_id, tierArg);
+    limitRequestRepository.resolve(id, 'approved');
+    console.log(`Approved request ${id}: namespace ${request.namespace_id} is now ${tierArg} (${tierLabel(tierArg)}).`);
+    break;
+  }
+  case 'deny': {
+    const id = Number(positional[0]);
+    if (!Number.isInteger(id)) {
+      fail('Usage: cli limit-requests deny <id>');
+    }
+    if (!limitRequestRepository.resolve(id, 'denied')) {
+      fail(`No pending limit request with id ${id}.`);
+    }
+    console.log(`Denied request ${id}. The group can ask again later.`);
+    break;
+  }
+  default:
+    console.log(`
+limit-requests <sub-command>
+  list [--status pending|approved|denied] [--json]  Show "Ask for more" requests (default: pending)
+  approve <id> [--tier supporter|unlimited|free]    Approve and set the group's tier (default: supporter)
+  deny <id>                                         Close the request without changes
+`);
+  }
+  break;
+}
+
 // ── email-outbox ──────────────────────────────────────────────────────────────
 
 case 'email-outbox': {
@@ -1161,6 +1230,7 @@ Resources:
   sessions        list [--json] | nuke | seed | export | import
   metrics         [--json] [--since <ISO date>] | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]
   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
+  limit-requests  list [--status <s>] [--json] | approve <id> [--tier <tier>] | deny <id>
   email-outbox    list [--status <s>] [--json] | retry <id> | send-test <address>
 
 Run cli <resource> for sub-command help.

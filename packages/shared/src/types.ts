@@ -493,6 +493,20 @@ export interface NamespaceUsageResponse {
   resetsAt: string;
   // Pictures are paused (daily picture budget spent, or the realm-wide spend limit).
   picturesPaused: boolean;
+  // Donation page for "Support the realm", or null when not configured.
+  supportUrl: string | null;
+  // The group's open "Ask for more" request, if any.
+  limitRequest: { status: 'pending'; createdAt: string } | null;
+}
+
+// POST /namespace/limit-request
+export interface LimitRequestBody {
+  note?: string;
+}
+
+export interface LimitRequestErrorResponse {
+  error: 'already_requested' | 'not_needed' | 'too_many_requests';
+  message: string;
 }
 
 // Error body for requests refused by a usage limit (HTTP 429).

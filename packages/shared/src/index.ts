@@ -60,6 +60,8 @@ export type {
   UsageLimitKind,
   LimitReachedResponse,
   NamespaceUsageResponse,
+  LimitRequestBody,
+  LimitRequestErrorResponse,
   AuthConfigResponse,
   AuthMeResponse,
   EmailSignInStartResponse,

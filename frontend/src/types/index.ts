@@ -36,6 +36,7 @@ export type {
   UsageTier,
   LimitReachedResponse,
   NamespaceUsageResponse,
+  LimitRequestErrorResponse,
   EmailSignInStartResponse,
   EmailSignInResendResponse,
   EmailSignInVerifyResponse,

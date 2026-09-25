@@ -367,6 +367,8 @@ When auth is enabled, each user gets their own namespace (isolated sessions). Us
 ./dnd-fam-ftw-prod-cli invite-requests list
 ```
 
+Sign-in is Google and/or passwordless email codes (Amazon SES). With `SIGNUP_MODE=open`, anyone with a verified email gets a private realm on the `free` tier (daily adventure energy and pictures, a few realms); existing and CLI-created groups are `unlimited`. Players see their allowance under **Your Realm** in Settings and can ask for more or support the hosting via `SUPPORT_URL` (e.g. Ko-fi).
+
 Users with multiple namespace access will see a picker screen after login. For the full command reference see **[MANAGE.md](MANAGE.md)**.
 
 For the complete ruleset : dice math, downed state, party wipes, item mechanics, story compression, SSE events : see **[GAME_ENGINE_RULES.md](GAME_ENGINE_RULES.md)**.
