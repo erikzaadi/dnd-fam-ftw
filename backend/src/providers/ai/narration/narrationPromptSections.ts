@@ -22,7 +22,7 @@ export const SECTION_ADVENTURE_ARC = `ADVENTURE ARC (\`adventureDirective\`, pri
 - \`adventureDirective.instruction\` says where this chapter is in its arc. Follow it this turn.
 - \`adventureDirective.objective\` is the player-facing chapter goal. Keep it visible in the fiction.
 - \`adventureDirective.chapterPayoff\` is a private DM note: steer toward it, never reveal it verbatim, and never reveal secrets just to create closure.
-- \`adventureDirective.heroesAwaitingSpotlight\` names heroes who have not had a moment yet: give them a concrete reason to matter.
+- \`adventureDirective.heroesAwaitingSpotlight\` names party heroes who have not had a moment yet: give them a concrete reason to matter. They are already here with the party (see \`party\`): never introduce them as a newcomer, an arrival, a stranger, or a creature that appears, growls, or steps out of the shadows.
 - Never grant a victory, item, or rescue that the action result did not earn.`;
 
 export const SECTION_OBJECTIVE_OUTCOME = `OBJECTIVE OUTCOME (only when \`adventureDirective.decisiveMoment\` is true):
@@ -32,6 +32,8 @@ Set \`objectiveOutcome\` to exactly one of:
 - "advanced": the party made progress toward the objective but it is not settled yet.
 - "none": the action did not address the objective.
 Your narration must match the value you choose. When unsure, use "advanced".`;
+
+export const SECTION_OPEN_INVITATION = `OPEN INVITATION: No suggested actions follow your narration; the players describe what they try. End \`narration\` by turning to \`nextCharacterName\` with one short open question, for example "Pip, what do you try?". Never list options, never number anything, and never hint that there are choices to pick from.`;
 
 export const SECTION_POSED_RIDDLE = `POSED RIDDLES: When THIS turn's narration poses a riddle, password, pun question, or other puzzle with one answer the players can say:
 - Set \`posesRiddle\` to true and fill \`riddle\`: \`prompt\` is the riddle as posed, \`canonicalAnswer\` is the one answer that solves it (short, e.g. "a piano"), \`aliases\` are other short wordings that mean the same answer (e.g. "piano", "grand piano"). Never include a wrong answer as an alias.
@@ -81,11 +83,16 @@ export const SECTION_ACTIVE_COMBAT_CHOICES = `ACTIVE COMBAT - Choice Requirement
 - One of the 3 choices may be defensive or tactical (shield, protect an ally, fortify position) but it must still be framed around the ongoing fight.
 - If the enemy's HP is at or below half its \`maxHp\`, at least one choice must be a finishing move to end the encounter this turn.`;
 
+// Shared by the combat agent and DM Prep encounter seeds: a weak point is something a
+// player can see and use, never a quality of how the party plays.
+export const WEAK_POINT_LABEL_RULE = 'New weak points (labels in `suggestedEncounterStart` or encounter seeds) name something concrete a hero can target or use: a material ("silver", "fire"), a part or object ("cracked moonstone", "rusted hinge"), a sense ("loud noise", "bright light"), or a word ("its true name"). 1-3 words a child would know what to do with. Never an abstract quality of how the party plays: not "bold teamwork", "courage", "cleverness", or "working together".';
+
 export const SECTION_ACTIVE_ENCOUNTER = `ACTIVE ENCOUNTER (encounterState):
 - When \`encounterState\` is provided with \`status: "active"\`, the party is in a tracked combat encounter. The enemies in \`enemies\` are the authoritative record of the fight.
 - Never invent enemies outside the active encounter. Do NOT revive or reintroduce an enemy whose status is "defeated", "fled", or "surrendered".
 - Revealed weak points (\`weakness.revealed: true\`) are known to the party. Reference them in choices and narration when the context supports exploiting them. Hidden weak points (\`revealed: false\`) are unknown - never mention them in choices or narration as actionable.
 - Weakness \`label\` is player-facing flavor and may be free-form: "mirror flash", "old oath", "cracked moonstone", "rusted hinge". Mechanics use the structured \`school\` or \`stat\` fields. Do not replace flavorful labels with generic school names.
+- ${WEAK_POINT_LABEL_RULE}
 - \`areas\` are the tactical features in the current encounter. Environment choices should set \`environmentFeature\` to one of these area labels.
 - When the acting character's attack SUCCEEDS against an active enemy, set \`suggestedEncounterUpdate.enemyDamage\`. Use \`enemyId\` when it appears in the encounter data; always include \`enemyName\` as a fallback.
 - Damage amounts: 1-2 for glancing hits, 3-4 for solid strikes, 5+ for devastating or weak-point blows.
@@ -190,6 +197,7 @@ export const SECTION_ACTING_SHORT = `Acting and Next Character:
 - \`actingCharacterName\` performed the action. Narration MUST describe what THEY did and what happened. NEVER attribute the result to \`nextCharacterName\`.
 - \`nextCharacterName\` takes the next turn. All 3 choices must be actions THEY can take.
 - Transition naturally through story context. Do NOT write turn-order commentary like "X's turn" or "X steps forward to act".
+- Every name in \`party\` is a hero who has been with the group all along. Never describe a party hero as arriving, appearing, or being met for the first time, and never in words that could read as a new foe.
 - Write choices as direct actions BY \`nextCharacterName\`. Match their class, species, stats, quirk, inventory, and status.`;
 
 // Experimental v3: address the next player directly instead of repeating hero
@@ -289,6 +297,7 @@ export const SECTION_BUFFS_CURSES_FORMAT = `Buffs and Curses:
 - Good buffs: Blessed +1 magic for 2 turns, Hasted +1 mischief for 1 use, Courage +1 might for 2 turns, Shielded +1 might for 1 use.
 - Good curses: Jinxed -1 mischief for 1 use, Slowed -1 might for 2 turns, Rattled -1 magic for 1 use.
 - Bad effects: healing over time, permanent stat changes, item enchantments, huge modifiers, unclear targets, or effects with no end.
+- Only add a buff when THIS turn's action clearly grants one: a blessing, an aid or setup, a rally or inspiring song, a protective ward, or healing. Attacks, damaging spells, exploration, and talking to foes never grant buffs to anyone. Never re-add a buff that just ran out.
 - To remove a named active effect because the story cancels it, set \`suggestedBuffRemove\`: { "characterName": "exact target", "buffName": "exact buff or curse name" }.
 - Otherwise set suggestedBuffAdd: null and suggestedBuffRemove: null.`;
 

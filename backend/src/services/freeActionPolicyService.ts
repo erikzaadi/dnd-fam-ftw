@@ -302,6 +302,33 @@ export function suppressFailedSupportDamage(
   return { ...turnResult, suggestedDamage: 0 };
 }
 
+// The recovery agent runs whenever anyone carries a buff, and then tends to hand out
+// new ones on unrelated actions (an arcane blast that "inspires" the party). A buff is
+// earned only by a support intent, or a successful action that reads as support
+// (bless, aid, rally, song, shield...) or healing. Curses come from the story's
+// threats and are left alone.
+export function dropUnearnedBuffAdds(
+  actionAttempt: ActionAttempt,
+  turnResult: TurnResult,
+  actionIntent?: string,
+): TurnResult {
+  if (!Array.isArray(turnResult.suggestedBuffAdd) || turnResult.suggestedBuffAdd.length === 0) {
+    return turnResult;
+  }
+  if (actionIntent && SUPPORT_BUFF_INTENTS.has(actionIntent)) {
+    return turnResult;
+  }
+  const action = actionAttempt.actionAttempt;
+  if (actionAttempt.actionResult.success && (BLESS_AID_ACTION_RE.test(action) || isHealingFreeAction(action))) {
+    return turnResult;
+  }
+  const kept = turnResult.suggestedBuffAdd.filter(effect => effect.kind === 'curse');
+  if (kept.length === turnResult.suggestedBuffAdd.length) {
+    return turnResult;
+  }
+  return { ...turnResult, suggestedBuffAdd: kept.length > 0 ? kept : null };
+}
+
 // The recovery agent sometimes grants a buff the target already carries on an
 // unrelated action, silently refreshing its duration. Deliberate support
 // actions are allowed to refresh; everything else is dropped.

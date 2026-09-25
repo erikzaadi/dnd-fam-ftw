@@ -1,8 +1,8 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GameEngine } from '../../services/gameEngine.js';
 import { StateService } from '../../services/stateService.js';
 import { executeTurnAction } from '../../services/turnService.js';
-import { FIXED_NARRATION_OUTPUT, mockGenerateTurn, resetMockNarrationProvider } from './mockNarrationProvider.js';
+import { FIXED_NARRATION_OUTPUT, TURN_STRATEGIES, expectTurnStrategy, narratingMock, narrationInputFor, pinTurnStrategy, scriptTurnOutput } from './mockNarrationProvider.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
 
 const realtimeMocks = vi.hoisted(() => ({
@@ -11,9 +11,9 @@ const realtimeMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../providers/ai/AiProviderFactory.js', async () => {
-  const { createMockNarrationProvider } = await import('./mockNarrationProvider.js');
+  const { createStagedMockNarrationProvider } = await import('./mockNarrationProvider.js');
   return {
-    createNarrationProvider: vi.fn(() => createMockNarrationProvider()),
+    createNarrationProvider: vi.fn(() => createStagedMockNarrationProvider()),
     createChatClientForTier: vi.fn(),
   };
 });
@@ -30,26 +30,35 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  resetMockNarrationProvider();
+  scriptTurnOutput();
   realtimeMocks.broadcastUpdate.mockReset();
   realtimeMocks.broadcastSessionChanged.mockReset();
+});
+
+afterEach(() => {
+  delete process.env.AI_TURN_STRATEGY;
 });
 
 afterAll(() => {
   cleanupIntegrationEnvironment(paths);
 });
 
-describe('executeTurnAction free action integration', () => {
+// Behavior that must hold under either turn strategy.
+describe.each(TURN_STRATEGIES)('executeTurnAction free action integration (%s)', (strategy) => {
+  beforeEach(() => {
+    process.env.AI_TURN_STRATEGY = strategy;
+  });
+
   it('preserves custom action text, calls narration once, and persists the turn', async () => {
     const session = makeTestSession({
-      id: 'free-action-session',
+      id: `free-action-session-${strategy}`,
       party: [makeTestSession().party[0]],
       activeCharacterId: 'char-pip',
     });
     await insertSessionState(session);
 
     const action = 'I try to bribe the guard with a shiny coin';
-    const result = await executeTurnAction('free-action-session', 'local', {
+    const result = await executeTurnAction(`free-action-session-${strategy}`, 'local', {
       action,
       statUsed: 'mischief',
       difficulty: 'easy',
@@ -61,20 +70,183 @@ describe('executeTurnAction free action integration', () => {
     }
 
     expect(result.body.actionAttempt.actionAttempt).toBe(action);
-    expect(mockGenerateTurn).toHaveBeenCalledTimes(1);
-    expect(mockGenerateTurn.mock.calls[0][0].actionAttempt).toBe(action);
+    expectTurnStrategy(result, strategy);
+    expect(narratingMock(strategy)).toHaveBeenCalledTimes(1);
+    expect(narrationInputFor(strategy)?.actionAttempt).toBe(action);
     expect(result.body.turnResult.narration).toBe(FIXED_NARRATION_OUTPUT.narration);
     expect(result.body.turnResult.choices).toHaveLength(3);
     expect(result.body.turnResult.imagePrompt).toBeNull();
     expect(result.body.turnResult.imageSuggested).toBe(false);
 
-    const stored = await StateService.getSession('free-action-session');
+    const stored = await StateService.getSession(`free-action-session-${strategy}`);
     expect(stored?.turn).toBe(2);
     expect(stored?.activeCharacterId).toBe('char-pip');
   });
 
+  it('resolves typed correct riddle answers without rolling', async () => {
+    const session = makeTestSession({
+      id: `free-action-riddle-session-${strategy}`,
+      party: [makeTestSession().party[0]],
+      activeCharacterId: 'char-pip',
+    });
+    await insertSessionState(session);
+    await StateService.addTurnResult(`free-action-riddle-session-${strategy}`, {
+      narration: 'Fiddlewick asks, "What runs but never walks?"',
+      choices: [
+        { label: 'Answer: a river', difficulty: 'normal', stat: 'mischief', difficultyValue: 12, riddleAnswer: 'a river', riddleCorrect: true },
+        { label: 'Answer: a shadow', difficulty: 'normal', stat: 'mischief', difficultyValue: 12, riddleAnswer: 'a shadow', riddleCorrect: false },
+        { label: 'Ask for a hint', difficulty: 'easy', stat: 'mischief', difficultyValue: 8 },
+      ],
+      imagePrompt: null,
+      imageSuggested: false,
+    }, null);
+
+    const result = await executeTurnAction(`free-action-riddle-session-${strategy}`, 'local', {
+      action: 'Solve the riddle with the answer: "A river"',
+      statUsed: 'mischief',
+      difficulty: 'normal',
+      difficultyValue: 12,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.body.actionAttempt.actionResult).toMatchObject({ success: true, roll: 0, statUsed: 'none' });
+    expectTurnStrategy(result, strategy);
+    expect(narrationInputFor(strategy)?.actionResult).toMatchObject({ success: true, statUsed: undefined });
+  });
+
+  it('infers helper and item bonuses from valid free-text references', async () => {
+    const base = makeTestSession();
+    const session = makeTestSession({
+      id: `free-action-bonus-session-${strategy}`,
+      party: [
+        base.party[0],
+        {
+          ...base.party[1],
+          inventory: [{ id: 'scroll-1', name: '📜 Enchanted Scroll', description: 'A protective spell', transferable: true, consumable: false }],
+        },
+      ],
+      activeCharacterId: 'char-pip',
+    });
+    await insertSessionState(session);
+
+    const result = await executeTurnAction(`free-action-bonus-session-${strategy}`, 'local', {
+      action: 'Ask Zara to use the Enchanted Scroll while Pip slips past the guard',
+      statUsed: 'mischief',
+      difficulty: 'normal',
+      difficultyValue: 14,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.body.actionAttempt.actionResult.helperBonus).toBe(2);
+    expect(result.body.actionAttempt.actionResult.helperCharacterName).toBe('Zara');
+    expect(result.body.actionAttempt.actionResult.choiceItemBonus).toBe(2);
+    expect(result.body.actionAttempt.actionResult.choiceItemName).toBe('📜 Enchanted Scroll');
+    expect(result.body.actionAttempt.actionResult.choiceItemOwnerName).toBe('Zara');
+    expect(result.body.actionAttempt.actionResult.characterBonus).toBeUndefined();
+  });
+
+  it('broadcasts dm_narrating with the same inferred free-text preview metadata', async () => {
+    const base = makeTestSession();
+    const session = makeTestSession({
+      id: `free-action-sse-preview-session-${strategy}`,
+      party: [
+        base.party[0],
+        {
+          ...base.party[1],
+          inventory: [{ id: 'scroll-1', name: '📜 Enchanted Scroll', description: 'A protective spell', transferable: true, consumable: false }],
+        },
+      ],
+      activeCharacterId: 'char-pip',
+    });
+    await insertSessionState(session);
+
+    const result = await executeTurnAction(`free-action-sse-preview-session-${strategy}`, 'local', {
+      action: 'Ask Zara to use the Enchanted Scroll while Pip slips past the guard',
+      statUsed: 'mischief',
+      difficulty: 'normal',
+      difficultyValue: 14,
+    });
+
+    expect(result.ok).toBe(true);
+    const narratingCall = realtimeMocks.broadcastUpdate.mock.calls.find(call => call[1] === 'dm_narrating');
+    expect(narratingCall).toBeTruthy();
+    expect(narratingCall?.[2]).toMatchObject({
+      action: 'Ask Zara to use the Enchanted Scroll while Pip slips past the guard',
+      statUsed: 'mischief',
+      difficulty: 'normal',
+      difficultyValue: 14,
+      helperBonus: 2,
+      helperCharacterName: 'Zara',
+      choiceItemBonus: 2,
+      choiceItemName: '📜 Enchanted Scroll',
+      choiceItemOwnerName: 'Zara',
+    });
+  });
+
+  it('infers character edge from social and spotlight free-text actions', async () => {
+    const session = makeTestSession({
+      id: `free-action-edge-session-${strategy}`,
+      party: [makeTestSession().party[0]],
+      activeCharacterId: 'char-pip',
+    });
+    await insertSessionState(session);
+
+    const socialResult = await executeTurnAction(`free-action-edge-session-${strategy}`, 'local', {
+      action: 'Charm the guard with a warm halfling smile',
+      statUsed: 'mischief',
+      difficulty: 'normal',
+      difficultyValue: 14,
+    });
+
+    expect(socialResult.ok).toBe(true);
+    if (!socialResult.ok) {
+      return;
+    }
+
+    expect(socialResult.body.actionAttempt.actionResult.characterBonus).toBe(2);
+    expect(socialResult.body.actionAttempt.actionResult.characterBonusLabel).toBe('social edge');
+
+    const stored = await StateService.getSession(`free-action-edge-session-${strategy}`);
+    expect(stored).toBeTruthy();
+    if (!stored) {
+      return;
+    }
+    stored.activeCharacterId = 'char-pip';
+    await StateService.updateSession(`free-action-edge-session-${strategy}`, stored);
+
+    const spotlightResult = await executeTurnAction(`free-action-edge-session-${strategy}`, 'local', {
+      action: 'Use Pip the Rogue training to vanish into the shadow',
+      statUsed: 'mischief',
+      difficulty: 'normal',
+      difficultyValue: 14,
+    });
+
+    expect(spotlightResult.ok).toBe(true);
+    if (!spotlightResult.ok) {
+      return;
+    }
+
+    expect(spotlightResult.body.actionAttempt.actionResult.characterBonus).toBe(2);
+    expect(spotlightResult.body.actionAttempt.actionResult.characterBonusLabel).toBe('spotlight');
+  });
+});
+
+// A parallel-only repair: the monolith narrated a live foe that the engine then
+// defeated, so narration and choices are rewritten. resolved_first narrates from the
+// settled outcome instead (see resolvedFirst.integration.test.ts).
+describe('executeTurnAction free action integration (parallel repairs)', () => {
+  pinTurnStrategy('parallel');
+
   it('replaces stale combat narration and choices when auto-damage resolves an encounter', async () => {
-    resetMockNarrationProvider({
+    scriptTurnOutput({
       ...FIXED_NARRATION_OUTPUT,
       narration: 'The Ambusher snarls, wounded but fierce, lunging at Zara.',
       choices: [
@@ -139,159 +311,5 @@ describe('executeTurnAction free action integration', () => {
     const stored = await StateService.getSession('free-action-resolved-encounter-session');
     expect(stored?.party[0].inventory.map(item => item.name)).toContain(lootName);
     expect(stored?.lastChoices.map(choice => choice.label).join(' ')).not.toContain('Ambusher');
-  });
-
-  it('resolves typed correct riddle answers without rolling', async () => {
-    const session = makeTestSession({
-      id: 'free-action-riddle-session',
-      party: [makeTestSession().party[0]],
-      activeCharacterId: 'char-pip',
-    });
-    await insertSessionState(session);
-    await StateService.addTurnResult('free-action-riddle-session', {
-      narration: 'Fiddlewick asks, "What runs but never walks?"',
-      choices: [
-        { label: 'Answer: a river', difficulty: 'normal', stat: 'mischief', difficultyValue: 12, riddleAnswer: 'a river', riddleCorrect: true },
-        { label: 'Answer: a shadow', difficulty: 'normal', stat: 'mischief', difficultyValue: 12, riddleAnswer: 'a shadow', riddleCorrect: false },
-        { label: 'Ask for a hint', difficulty: 'easy', stat: 'mischief', difficultyValue: 8 },
-      ],
-      imagePrompt: null,
-      imageSuggested: false,
-    }, null);
-
-    const result = await executeTurnAction('free-action-riddle-session', 'local', {
-      action: 'Solve the riddle with the answer: "A river"',
-      statUsed: 'mischief',
-      difficulty: 'normal',
-      difficultyValue: 12,
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
-      return;
-    }
-
-    expect(result.body.actionAttempt.actionResult).toMatchObject({ success: true, roll: 0, statUsed: 'none' });
-    expect(mockGenerateTurn.mock.calls[0][0].actionResult).toMatchObject({ success: true, statUsed: undefined });
-  });
-
-  it('infers helper and item bonuses from valid free-text references', async () => {
-    const base = makeTestSession();
-    const session = makeTestSession({
-      id: 'free-action-bonus-session',
-      party: [
-        base.party[0],
-        {
-          ...base.party[1],
-          inventory: [{ id: 'scroll-1', name: '📜 Enchanted Scroll', description: 'A protective spell', transferable: true, consumable: false }],
-        },
-      ],
-      activeCharacterId: 'char-pip',
-    });
-    await insertSessionState(session);
-
-    const result = await executeTurnAction('free-action-bonus-session', 'local', {
-      action: 'Ask Zara to use the Enchanted Scroll while Pip slips past the guard',
-      statUsed: 'mischief',
-      difficulty: 'normal',
-      difficultyValue: 14,
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
-      return;
-    }
-
-    expect(result.body.actionAttempt.actionResult.helperBonus).toBe(2);
-    expect(result.body.actionAttempt.actionResult.helperCharacterName).toBe('Zara');
-    expect(result.body.actionAttempt.actionResult.choiceItemBonus).toBe(2);
-    expect(result.body.actionAttempt.actionResult.choiceItemName).toBe('📜 Enchanted Scroll');
-    expect(result.body.actionAttempt.actionResult.choiceItemOwnerName).toBe('Zara');
-    expect(result.body.actionAttempt.actionResult.characterBonus).toBeUndefined();
-  });
-
-  it('broadcasts dm_narrating with the same inferred free-text preview metadata', async () => {
-    const base = makeTestSession();
-    const session = makeTestSession({
-      id: 'free-action-sse-preview-session',
-      party: [
-        base.party[0],
-        {
-          ...base.party[1],
-          inventory: [{ id: 'scroll-1', name: '📜 Enchanted Scroll', description: 'A protective spell', transferable: true, consumable: false }],
-        },
-      ],
-      activeCharacterId: 'char-pip',
-    });
-    await insertSessionState(session);
-
-    const result = await executeTurnAction('free-action-sse-preview-session', 'local', {
-      action: 'Ask Zara to use the Enchanted Scroll while Pip slips past the guard',
-      statUsed: 'mischief',
-      difficulty: 'normal',
-      difficultyValue: 14,
-    });
-
-    expect(result.ok).toBe(true);
-    const narratingCall = realtimeMocks.broadcastUpdate.mock.calls.find(call => call[1] === 'dm_narrating');
-    expect(narratingCall).toBeTruthy();
-    expect(narratingCall?.[2]).toMatchObject({
-      action: 'Ask Zara to use the Enchanted Scroll while Pip slips past the guard',
-      statUsed: 'mischief',
-      difficulty: 'normal',
-      difficultyValue: 14,
-      helperBonus: 2,
-      helperCharacterName: 'Zara',
-      choiceItemBonus: 2,
-      choiceItemName: '📜 Enchanted Scroll',
-      choiceItemOwnerName: 'Zara',
-    });
-  });
-
-  it('infers character edge from social and spotlight free-text actions', async () => {
-    const session = makeTestSession({
-      id: 'free-action-edge-session',
-      party: [makeTestSession().party[0]],
-      activeCharacterId: 'char-pip',
-    });
-    await insertSessionState(session);
-
-    const socialResult = await executeTurnAction('free-action-edge-session', 'local', {
-      action: 'Charm the guard with a warm halfling smile',
-      statUsed: 'mischief',
-      difficulty: 'normal',
-      difficultyValue: 14,
-    });
-
-    expect(socialResult.ok).toBe(true);
-    if (!socialResult.ok) {
-      return;
-    }
-
-    expect(socialResult.body.actionAttempt.actionResult.characterBonus).toBe(2);
-    expect(socialResult.body.actionAttempt.actionResult.characterBonusLabel).toBe('social edge');
-
-    const stored = await StateService.getSession('free-action-edge-session');
-    expect(stored).toBeTruthy();
-    if (!stored) {
-      return;
-    }
-    stored.activeCharacterId = 'char-pip';
-    await StateService.updateSession('free-action-edge-session', stored);
-
-    const spotlightResult = await executeTurnAction('free-action-edge-session', 'local', {
-      action: 'Use Pip the Rogue training to vanish into the shadow',
-      statUsed: 'mischief',
-      difficulty: 'normal',
-      difficultyValue: 14,
-    });
-
-    expect(spotlightResult.ok).toBe(true);
-    if (!spotlightResult.ok) {
-      return;
-    }
-
-    expect(spotlightResult.body.actionAttempt.actionResult.characterBonus).toBe(2);
-    expect(spotlightResult.body.actionAttempt.actionResult.characterBonusLabel).toBe('spotlight');
   });
 });

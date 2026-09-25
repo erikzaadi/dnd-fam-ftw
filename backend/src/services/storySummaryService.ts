@@ -262,7 +262,7 @@ A JSON array covering ALL encounters across EVERY stage of the campaign (Early, 
     {
       "name": "string",
       "role": "minion|standard|elite|boss|hazard",
-      "weaknesses": [{ "label": "free-form player-facing weakness label, e.g. 'mirror flash', 'old oath', 'cracked moonstone', 'rusted hinge', 'thornwood sap'", "school": "the constrained magic/mechanical category that exploits this weakness: fire|frost|light|shadow|nature|storm|mind|force|holy|mechanical|null" }],
+      "weaknesses": [{ "label": "free-form player-facing weakness label, e.g. 'mirror flash', 'old oath', 'cracked moonstone', 'rusted hinge', 'thornwood sap'. Something concrete a hero can target or use (a material, a part, a sound or light, a true name), never an abstract quality like 'bold teamwork' or 'courage'", "school": "the constrained magic/mechanical category that exploits this weakness: fire|frost|light|shadow|nature|storm|mind|force|holy|mechanical|null" }],
       "traits": ["string"]
     }
   ],

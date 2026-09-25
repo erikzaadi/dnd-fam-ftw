@@ -35,6 +35,8 @@ export type {
   FreeActionPreview,
   ActionClarification,
   PreviewClarification,
+  IdeasPayload,
+  AskDmPayload,
   OpenAiTtsVoice,
   SessionOperation,
   SessionOperationKind,

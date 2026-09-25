@@ -62,4 +62,18 @@ describe('parseSpeechIntent', () => {
   ])('maps %s to command type %s', (text, expectedType) => {
     expect(parseSpeechIntent(text)).toMatchObject({ type: expectedType, transcript: text });
   });
+
+  it.each([
+    ['ask the DM can I climb the wall?', 'can I climb the wall?'],
+    ['Ask DM: what does my amulet do', 'what does my amulet do'],
+    ['hey dungeon master, is the bridge safe', 'is the bridge safe'],
+    ['ask the d.m. where is the key', 'where is the key'],
+  ])('reads "%s" as a question for the DM', (transcript, question) => {
+    expect(parseSpeechIntent(transcript)).toEqual({ type: 'ask', question, transcript });
+  });
+
+  it('keeps asking a character as an ordinary action', () => {
+    expect(parseSpeechIntent('ask the guard for directions')).toMatchObject({ type: 'custom' });
+    expect(parseSpeechIntent('ask dmitri about the map')).toMatchObject({ type: 'custom' });
+  });
 });

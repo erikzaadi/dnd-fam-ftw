@@ -503,6 +503,7 @@ export class GameEngine {
         statBonus: statValue,
         impact,
         difficultyTarget: target,
+        difficulty,
         ...(itemBonus > 0 && { itemBonus }),
         ...(helperBonus > 0 && { helperBonus }),
         ...(helperBonus > 0 && helper?.name && { helperCharacterName: helper.name }),
@@ -555,10 +556,9 @@ export class GameEngine {
         if (aiDamage !== null) {
           damage = aiDamage;
         } else {
-          const lastTurnChoices = state.lastChoices || [];
-          const relevantChoice = lastTurnChoices.find(c => c.label === actionAttempt.actionAttempt);
-          const difficultyLabel = relevantChoice ? relevantChoice.difficulty : 'normal';
-          damage = this.DAMAGE_BY_DIFFICULTY[difficultyLabel as keyof typeof this.DAMAGE_BY_DIFFICULTY] || 2;
+          // The action's own difficulty, whether it was a suggestion or typed text.
+          const difficultyLabel = actionAttempt.actionResult.difficulty ?? 'normal';
+          damage = this.DAMAGE_BY_DIFFICULTY[difficultyLabel] || 2;
           if (actionAttempt.actionResult.impact === 'strong') {
             damage += 1;
           } else if (actionAttempt.actionResult.impact === 'extreme') {
@@ -883,9 +883,8 @@ export class GameEngine {
     if (!actingChar || actingChar.status === 'downed') {
       return null;
     }
-    const relevantChoice = (session.lastChoices ?? []).find(c => c.label === actionAttempt.actionAttempt);
-    const difficultyLabel = relevantChoice?.difficulty ?? 'normal';
-    let damage = this.DAMAGE_BY_DIFFICULTY[difficultyLabel as keyof typeof this.DAMAGE_BY_DIFFICULTY] ?? 2;
+    const difficultyLabel = actionAttempt.actionResult.difficulty ?? 'normal';
+    let damage = this.DAMAGE_BY_DIFFICULTY[difficultyLabel] ?? 2;
     if (impact === 'strong') {
       damage += 1;
     } else if (impact === 'extreme') {

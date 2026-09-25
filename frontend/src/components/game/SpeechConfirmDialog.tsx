@@ -27,7 +27,7 @@ export const SpeechConfirmDialog = ({
     ? choice
       ? `Action ${intent.index + 1}: ${choice.label}`
       : `Action ${intent.index + 1}`
-    : intent.type === 'custom' ? intent.text : '';
+    : intent.type === 'custom' ? intent.text : intent.type === 'ask' ? intent.question : '';
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
@@ -38,7 +38,7 @@ export const SpeechConfirmDialog = ({
         </div>
         <div className="mt-4 rounded-2xl border border-slate-700 bg-slate-950/70 p-4 text-slate-200">
           <div className="text-xs font-black uppercase tracking-widest text-amber-400 mb-2">
-            {intent.type === 'choice' ? 'Suggested action' : 'Custom action'}
+            {intent.type === 'choice' ? 'Suggested action' : intent.type === 'ask' ? 'Question for the DM' : 'Custom action'}
           </div>
           <p className="text-sm leading-relaxed">{preview}</p>
         </div>

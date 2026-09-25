@@ -10,6 +10,17 @@ export type ClarificationThread = {
   question: string;
 };
 
+// Gear attached to a draft from the inventory ("Use" / "Give"). Travels with the preview
+// request; the confirmed preview then carries the item, owner, and target.
+export type DraftAttachment = {
+  actionType: 'use_item' | 'give_item';
+  itemId: string;
+  ownerCharacterId: string;
+  targetCharacterId?: string;
+  // Chip text, e.g. "Healing Potion → Pip".
+  label: string;
+};
+
 export type PreviewRequestResult =
   | { kind: 'preview'; preview: Partial<FreeActionPreview>; originalDraft: string }
   | { kind: 'clarification'; thread: ClarificationThread }
@@ -23,6 +34,7 @@ export const requestActionPreview = async (
   sessionId: string,
   text: string,
   thread: ClarificationThread | null,
+  attachment?: DraftAttachment | null,
 ): Promise<PreviewRequestResult> => {
   const originalDraft = thread ? thread.originalDraft : text;
   const clarifications = thread ? [...thread.exchange, { question: thread.question, answer: text }] : [];
@@ -34,6 +46,14 @@ export const requestActionPreview = async (
         action: originalDraft,
         supports: ['clarification'],
         ...(clarifications.length > 0 && { clarifications }),
+        ...(attachment && {
+          attachment: {
+            actionType: attachment.actionType,
+            itemId: attachment.itemId,
+            ownerCharacterId: attachment.ownerCharacterId,
+            ...(attachment.targetCharacterId && { targetCharacterId: attachment.targetCharacterId }),
+          },
+        }),
       }),
     });
     const body = await res.json().catch(() => null) as (Partial<FreeActionPreview> & Partial<PreviewClarification> & { error?: string; message?: string }) | null;

@@ -156,7 +156,7 @@ describe('syncRiddleChoices', () => {
   const keepOrder = () => 0.9;
 
   it('makes the narrated answer the correct choice and the agent\'s other guess the wrong one', () => {
-    expect(syncRiddleChoices([guessedRiver, guessedPiano, hint], key, keepOrder)).toEqual([
+    expect(syncRiddleChoices([guessedRiver, guessedPiano, hint], key, { random: keepOrder })).toEqual([
       { ...guessedPiano, riddleAnswer: 'a piano', riddleCorrect: true },
       { ...guessedRiver, riddleCorrect: false },
       hint,
@@ -164,14 +164,14 @@ describe('syncRiddleChoices', () => {
   });
 
   it('adds a correct answer choice when the agent offered none, keeping three choices', () => {
-    const synced = syncRiddleChoices([hint, scout, choice({ label: 'Rest' })], key, keepOrder);
+    const synced = syncRiddleChoices([hint, scout, choice({ label: 'Rest' })], key, { random: keepOrder });
     expect(synced).toHaveLength(3);
     expect(synced[0]).toMatchObject({ label: 'Answer: a piano', riddleAnswer: 'a piano', riddleCorrect: true });
     expect(synced.slice(1)).toEqual([hint, scout]);
   });
 
   it('does not always put the right answer first', () => {
-    const synced = syncRiddleChoices([guessedRiver, guessedPiano, hint], key, () => 0.1);
+    const synced = syncRiddleChoices([guessedRiver, guessedPiano, hint], key, { random: () => 0.1 });
     expect(synced[0].riddleCorrect).toBe(false);
     expect(synced[1].riddleCorrect).toBe(true);
   });
@@ -180,6 +180,13 @@ describe('syncRiddleChoices', () => {
     const synced = syncRiddleChoices([guessedRiver, hint], null);
     expect(synced[0]).toEqual({ label: 'Answer: a river', difficulty: 'normal', stat: 'magic' });
     expect(synced[1]).toEqual(hint);
+  });
+
+  it('adds no answer on later turns, but still rewrites answers the agent offered', () => {
+    expect(syncRiddleChoices([hint, scout], key, { addIfMissing: false })).toEqual([hint, scout]);
+    const rewritten = syncRiddleChoices([guessedRiver, hint], key, { addIfMissing: false, random: keepOrder });
+    // Two choices in, two out: the right answer replaces the hint, the guess becomes the wrong one.
+    expect(rewritten.map(c => [c.riddleAnswer, c.riddleCorrect])).toEqual([['a piano', true], ['a river', false]]);
   });
 
   it('leaves choices alone when the answer is unknown, and adds nothing to an empty list', () => {

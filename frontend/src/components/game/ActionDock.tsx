@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import type { TurnResult, Character, FreeActionPreview } from '../../types';
-import { apiFetch, imgSrc, pulseSyncDelay } from '../../lib/api';
-import { requestActionPreview, type ClarificationThread } from '../../lib/previewAction';
+import type { TurnResult, Character, FreeActionPreview, IdeasPayload, AskDmPayload } from '../../types';
+import { imgSrc, pulseSyncDelay } from '../../lib/api';
+import { currentIdeas, fetchIdeas } from '../../lib/ideas';
+import { askDm } from '../../lib/askDm';
+import { requestActionPreview, type ClarificationThread, type DraftAttachment } from '../../lib/previewAction';
 import { computeChoiceOdds, COMBO_HELPER_BONUS, CHOICE_ITEM_BONUS, CHARACTER_EDGE_BONUS } from '../../lib/game';
 import { StatImg } from './StatIcon';
 import { STAT_COLORS, STAT_TEXT_COLORS } from '../../lib/statColors';
@@ -16,6 +18,7 @@ import { SpeechActionButton } from './SpeechActionButton';
 import { SpeechConfirmDialog } from './SpeechConfirmDialog';
 import { FreeActionConfirmDialog } from './FreeActionConfirmDialog';
 import { Tooltip } from '../Tooltip';
+import { HelpSomeone } from './HelpSomeone';
 import { formatCharacterBonusLabel, formatChoiceItemBonusLabel, formatHelperBonusLabel } from './rollBonusLabels';
 interface ActionDockProps {
   turn: TurnResult | null;
@@ -33,6 +36,17 @@ interface ActionDockProps {
   onCharacterClick?: (char: Character) => void;
   // Session revision; a change invalidates any open preview computed against the old state.
   revision?: number;
+  // Ideas generated on request for the latest turn (the parent stores them on the turn).
+  onIdeas?: (payload: IdeasPayload) => void;
+  // Gear attached to the draft from the inventory; sent with the preview.
+  attachment?: DraftAttachment | null;
+  onClearAttachment?: () => void;
+  // How long a clean typed action waits for Undo before it is sent (tests shorten it).
+  autoSendDelayMs?: number;
+  // "Help someone": support actions, each through the usual preview.
+  onBless?: (targetCharacterId: string) => void;
+  onAid?: (targetCharacterId: string) => void;
+  onRally?: () => void;
 }
 
 interface ActionPreviewBonuses {
@@ -58,12 +72,51 @@ const RISK_MAP: Record<string, { label: string; color: string }> = {
 
 const SHOW_NUMBERS_STORAGE_KEY = 'dnd-fam-ftw:action-dock:show-numbers';
 
+const ACTION_INPUT_ID = 'action-dock-input';
+const CLARIFICATION_ID = 'action-dock-dm-question';
+
+// Placeholder examples that invite players to try anything, rotated per turn.
+const ACTION_EXAMPLES = [
+  'e.g. I swing from the chandelier',
+  'e.g. I offer the guard a sandwich',
+  'e.g. I use my rope to help the wizard cross',
+  'e.g. I tickle the troll with a feather',
+  'e.g. I sing a lullaby to the dragon',
+];
+
 // Per-viewer preference; storage can be unavailable (private mode), so default quietly.
-const loadShowNumbers = (): boolean => {
+const ALWAYS_CONFIRM_STORAGE_KEY = 'dnd-fam-ftw:action-dock:always-confirm';
+const AUTO_SEND_DELAY_MS = 3000;
+
+// Per viewer: "Ask before sending" shows the confirm dialog for every typed action.
+const loadAlwaysConfirm = (): boolean => {
   try {
-    return window.localStorage.getItem(SHOW_NUMBERS_STORAGE_KEY) === 'true';
+    return window.localStorage.getItem(ALWAYS_CONFIRM_STORAGE_KEY) === 'true';
   } catch {
     return false;
+  }
+};
+
+const saveAlwaysConfirm = (value: boolean): void => {
+  try {
+    window.localStorage.setItem(ALWAYS_CONFIRM_STORAGE_KEY, String(value));
+  } catch {
+    // Preference just won't persist.
+  }
+};
+
+// The confirm dialog is for previews worth a second look: warnings (claimed outcomes,
+// missing items, riddle answers, a failed preview), gear, and dictated text, which can
+// be misheard. A clean typed action is sent after a short Undo window instead.
+const needsConfirmation = (preview: FreeActionPreview, spoken: boolean, alwaysConfirm: boolean): boolean =>
+  alwaysConfirm || spoken || preview.warnings.length > 0 || !!preview.itemAction;
+
+// Numbers (target, odds) are shown unless this viewer hid them.
+const loadShowNumbers = (): boolean => {
+  try {
+    return window.localStorage.getItem(SHOW_NUMBERS_STORAGE_KEY) !== 'false';
+  } catch {
+    return true;
   }
 };
 
@@ -83,6 +136,17 @@ const CHOICE_FLAVOR_BADGES: Record<string, { label: string; className: string }>
   environment: { label: 'Obstacle', className: 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300' },
 };
 
+// Key hint in the corner of a control, matching the numbered choice badges.
+const ShortcutBadge = ({ keyLabel, description }: { keyLabel: string; description: string }) => (
+  <div className="absolute -top-2.5 -left-2.5 z-20 hidden md:block">
+    <Tooltip content={`${description} [${keyLabel}]`} position="bottom" portal wrapperClassName="inline-flex">
+      <span className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-900 border border-slate-700 text-xs font-semibold text-slate-400">
+        {keyLabel}
+      </span>
+    </Tooltip>
+  </div>
+);
+
 export const ActionDock = ({
   turn,
   loading,
@@ -98,6 +162,13 @@ export const ActionDock = ({
   onShowPartyGear,
   onCharacterClick,
   revision,
+  onIdeas,
+  attachment = null,
+  onClearAttachment,
+  autoSendDelayMs = AUTO_SEND_DELAY_MS,
+  onBless,
+  onAid,
+  onRally,
 }: ActionDockProps) => {
   const [statThinking, setStatThinking] = useState(false);
   const [expandedStat, setExpandedStat] = useState<string | null>(null);
@@ -111,25 +182,54 @@ export const ActionDock = ({
       return !prev;
     });
   }, []);
+  const [alwaysConfirm, setAlwaysConfirm] = useState(loadAlwaysConfirm);
+  const toggleAlwaysConfirm = useCallback(() => {
+    setAlwaysConfirm(prev => {
+      saveAlwaysConfirm(!prev);
+      return !prev;
+    });
+  }, []);
+  // A clean typed action waiting out its Undo window before it is sent.
+  const [pendingSend, setPendingSend] = useState<FreeActionPreview | null>(null);
   const [previewRevision, setPreviewRevision] = useState(revision);
   // The story moved on while a preview was open: close it. The typed draft is kept
   // in the action box, so the player can re-preview against the current scene.
   if (previewRevision !== revision) {
     setPreviewRevision(revision);
     setFreeActionPreview(null);
+    setPendingSend(null);
   }
   const [previewSubmitting, setPreviewSubmitting] = useState(false);
   // An open DM question about the draft. While set, the text box holds the reply.
   const [clarification, setClarification] = useState<ClarificationThread | null>(null);
   // A retryable explanation from the preview (e.g. "try describing it another way").
   const [previewNotice, setPreviewNotice] = useState<string | null>(null);
+  // "Give me ideas": on-request suggestions for the latest turn.
+  const [ideasLoading, setIdeasLoading] = useState(false);
+  const [ideasError, setIdeasError] = useState<string | null>(null);
+  const [ideasTurnId, setIdeasTurnId] = useState(turn?.id);
+  // "Ask the DM": a question answered without taking a turn. An answer only shows while
+  // its turn and revision are current.
+  const [askLoading, setAskLoading] = useState(false);
+  const [askError, setAskError] = useState<string | null>(null);
+  const [dmAnswer, setDmAnswer] = useState<AskDmPayload | null>(null);
+  if (ideasTurnId !== turn?.id) {
+    setIdeasTurnId(turn?.id);
+    setIdeasLoading(false);
+    setIdeasError(null);
+    setAskError(null);
+  }
   const choiceButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { settings: ttsSettings } = useTtsSettings();
   const { settings: sttSettings } = useSttSettings();
   const ttsEnabled = ttsSettings.enabled && browserTtsService.isSupported();
 
-  const choices = useMemo(() => turn?.choices ?? [], [turn?.choices]);
+  // Only ideas that are current for this revision and hero: stale ones are hidden.
+  const choices = useMemo(
+    () => currentIdeas(turn, { revision, activeCharacterId: activeCharacter?.id }),
+    [turn, revision, activeCharacter?.id],
+  );
   const customActionShortcut = choices.length + 1;
 
   const submitSuggestedChoice = useCallback(async (index: number) => {
@@ -154,14 +254,14 @@ export const ActionDock = ({
     await onSubmit(choice.label, choice.stat, choice.difficulty, choice.difficultyValue, undefined, undefined, undefined, preview);
   }, [activeCharacter, choices, loading, onSubmit, party]);
 
-  const submitCustomText = useCallback(async (actionText: string) => {
+  const submitCustomText = useCallback(async (actionText: string, spoken = false) => {
     const trimmed = actionText.trim();
-    if (!trimmed || loading) {
+    if (!trimmed || loading || pendingSend) {
       return;
     }
     setStatThinking(true);
     setPreviewNotice(null);
-    const result = await requestActionPreview(sessionId, trimmed, clarification);
+    const result = await requestActionPreview(sessionId, trimmed, clarification, attachment);
     setStatThinking(false);
     if (result.kind === 'clarification') {
       // The box now takes the reply; the draft stays visible above it.
@@ -201,8 +301,49 @@ export const ActionDock = ({
         warnings: ['Preview failed - submitting with default stat. You can still confirm or cancel.'],
       };
     }
-    setFreeActionPreview(preview);
-  }, [clarification, loading, sessionId, setCustomAction]);
+    if (needsConfirmation(preview, spoken, alwaysConfirm)) {
+      setFreeActionPreview(preview);
+    } else {
+      setPendingSend(preview);
+    }
+  }, [alwaysConfirm, attachment, clarification, loading, pendingSend, sessionId, setCustomAction]);
+
+  const latestTurnId = turn?.id;
+  const askForIdeas = useCallback(async (retry: boolean) => {
+    if (latestTurnId === undefined) {
+      return;
+    }
+    setIdeasLoading(true);
+    setIdeasError(null);
+    const result = await fetchIdeas(sessionId, { turnId: latestTurnId, revision: revision ?? 0, ...(retry && { retry: true }) });
+    setIdeasLoading(false);
+    if (result.kind === 'ideas') {
+      onIdeas?.(result.payload);
+    } else {
+      setIdeasError(result.message);
+    }
+  }, [latestTurnId, onIdeas, revision, sessionId]);
+
+  const askTheDm = useCallback(async (spokenQuestion?: string) => {
+    const question = (spokenQuestion ?? customAction).trim();
+    if (!question || latestTurnId === undefined) {
+      return;
+    }
+    setAskLoading(true);
+    setAskError(null);
+    const result = await askDm(sessionId, { question, turnId: latestTurnId, revision: revision ?? 0 });
+    setAskLoading(false);
+    if (result.kind === 'answer') {
+      setDmAnswer(result.payload);
+      // It was a question, not an action: the box is free for what they try next.
+      if (spokenQuestion === undefined) {
+        setCustomAction('');
+      }
+    } else {
+      setAskError(result.message);
+    }
+  }, [customAction, latestTurnId, revision, sessionId, setCustomAction]);
+  const visibleAnswer = dmAnswer && dmAnswer.turnId === turn?.id && dmAnswer.revision === (revision ?? 0) ? dmAnswer : null;
 
   const startOverClarification = useCallback(() => {
     if (!clarification) {
@@ -210,30 +351,71 @@ export const ActionDock = ({
     }
     setCustomAction(clarification.originalDraft);
     setClarification(null);
+    textareaRef.current?.focus();
   }, [clarification, setCustomAction]);
+
+  // When the DM asks, the answer box takes focus and the question scrolls into view
+  // (on phones the keyboard would otherwise cover it).
+  const clarificationQuestion = clarification?.question;
+  const clarificationRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!clarificationQuestion) {
+      return;
+    }
+    textareaRef.current?.focus();
+    clarificationRef.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+  }, [clarificationQuestion]);
+
+  // Sends a previewed action: the server resolves it from the stored preview.
+  const sendPreview = useCallback(async (sent: FreeActionPreview, useOriginalAction: boolean) => {
+    const preview: ActionPreviewBonuses = {
+      ...(sent.previewId !== undefined && { previewId: sent.previewId }),
+      ...(sent.helperBonus !== undefined && { helperBonus: sent.helperBonus }),
+      ...(sent.helperCharacterName !== undefined && { helperCharacterName: sent.helperCharacterName }),
+      ...(sent.choiceItemBonus !== undefined && { choiceItemBonus: sent.choiceItemBonus }),
+      ...(sent.choiceItemName !== undefined && { choiceItemName: sent.choiceItemName }),
+      ...(sent.choiceItemOwnerName !== undefined && { choiceItemOwnerName: sent.choiceItemOwnerName }),
+      ...(sent.characterBonus !== undefined && { characterBonus: sent.characterBonus }),
+      ...(sent.characterBonusLabel !== undefined && { characterBonusLabel: sent.characterBonusLabel }),
+      ...(sent.flavor !== undefined && { flavor: sent.flavor }),
+    };
+    const { interpretedAction, originalAction, stat, difficulty, difficultyValue, itemAction } = sent;
+    const submittedAction = useOriginalAction ? originalAction : interpretedAction;
+    if (itemAction) {
+      // The item is on its way into the turn; the chip is done.
+      onClearAttachment?.();
+    }
+    // Gear resolves without a roll: the server takes the item action from the preview.
+    await onSubmit(submittedAction, itemAction ? 'none' : stat, difficulty, difficultyValue, undefined, undefined, undefined, preview);
+  }, [onClearAttachment, onSubmit]);
 
   const confirmFreeAction = useCallback(async (useOriginalAction: boolean = false) => {
     if (!freeActionPreview) {
       return;
     }
     setPreviewSubmitting(true);
-    const preview: ActionPreviewBonuses = {
-      ...(freeActionPreview.previewId !== undefined && { previewId: freeActionPreview.previewId }),
-      ...(freeActionPreview.helperBonus !== undefined && { helperBonus: freeActionPreview.helperBonus }),
-      ...(freeActionPreview.helperCharacterName !== undefined && { helperCharacterName: freeActionPreview.helperCharacterName }),
-      ...(freeActionPreview.choiceItemBonus !== undefined && { choiceItemBonus: freeActionPreview.choiceItemBonus }),
-      ...(freeActionPreview.choiceItemName !== undefined && { choiceItemName: freeActionPreview.choiceItemName }),
-      ...(freeActionPreview.choiceItemOwnerName !== undefined && { choiceItemOwnerName: freeActionPreview.choiceItemOwnerName }),
-      ...(freeActionPreview.characterBonus !== undefined && { characterBonus: freeActionPreview.characterBonus }),
-      ...(freeActionPreview.characterBonusLabel !== undefined && { characterBonusLabel: freeActionPreview.characterBonusLabel }),
-      ...(freeActionPreview.flavor !== undefined && { flavor: freeActionPreview.flavor }),
-    };
-    const { interpretedAction, originalAction, stat, difficulty, difficultyValue } = freeActionPreview;
-    const submittedAction = useOriginalAction ? originalAction : interpretedAction;
+    const sent = freeActionPreview;
     setFreeActionPreview(null);
     setPreviewSubmitting(false);
-    await onSubmit(submittedAction, stat, difficulty, difficultyValue, undefined, undefined, undefined, preview);
-  }, [freeActionPreview, onSubmit]);
+    await sendPreview(sent, useOriginalAction);
+  }, [freeActionPreview, sendPreview]);
+
+  // The Undo window: the action goes out unless the player takes it back. The latest
+  // sendPreview is read through a ref, so parent re-renders do not restart the timer.
+  const sendPreviewRef = useRef(sendPreview);
+  useEffect(() => {
+    sendPreviewRef.current = sendPreview;
+  }, [sendPreview]);
+  useEffect(() => {
+    if (!pendingSend) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setPendingSend(null);
+      void sendPreviewRef.current(pendingSend, false);
+    }, autoSendDelayMs);
+    return () => window.clearTimeout(timer);
+  }, [autoSendDelayMs, pendingSend]);
 
   const editFreeAction = useCallback(() => {
     if (!freeActionPreview) {
@@ -247,39 +429,16 @@ export const ActionDock = ({
     setFreeActionPreview(null);
   }, []);
 
-  const submitCustomTextDirect = useCallback(async (actionText: string) => {
-    const trimmed = actionText.trim();
-    if (!trimmed || loading) {
-      return;
-    }
-    let stat = 'mischief';
-    let preview: ActionPreviewBonuses = {};
-    try {
-      const res = await apiFetch(`/session/${sessionId}/suggest-stat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: trimmed,
-        }),
-      });
-      if (res.ok) {
-        const suggestion = await res.json();
-        ({ stat, ...preview } = suggestion);
-      }
-    } catch { /* fallback to mischief */ }
-    await onSubmit(trimmed, stat, 'normal', undefined, undefined, undefined, undefined, preview);
-  }, [loading, onSubmit, sessionId]);
-
   const confirmSpeechTranscript = useCallback(async (transcript: string) => {
     // A spoken reply to an open DM question goes with its draft, not as a new action.
     if (clarification) {
       const reply = transcript.trim();
       setCustomAction(reply);
-      await submitCustomText(reply);
+      await submitCustomText(reply, true);
       return;
     }
     const intent = parseSpeechIntent(transcript);
-    if (intent.type === 'choice' && turn?.choices[intent.index]) {
+    if (intent.type === 'choice' && choices[intent.index]) {
       await submitSuggestedChoice(intent.index);
       return;
     }
@@ -287,11 +446,22 @@ export const ActionDock = ({
     if (intent.type === 'wrap-up' || intent.type === 'end-here') {
       return;
     }
+    // "Give me ideas" / "options" asks for ideas instead of becoming an action.
+    if (intent.type === 'options') {
+      await askForIdeas(false);
+      return;
+    }
+    // "Ask the DM ..." is a question, not an action.
+    if (intent.type === 'ask') {
+      await askTheDm(intent.question);
+      return;
+    }
 
+    // Dictated actions always get the confirm dialog: speech can be misheard.
     const text = intent.type === 'custom' ? intent.text : transcript.trim();
     setCustomAction(text);
-    await submitCustomTextDirect(text);
-  }, [clarification, setCustomAction, submitCustomText, submitCustomTextDirect, submitSuggestedChoice, turn]);
+    await submitCustomText(text, true);
+  }, [askForIdeas, askTheDm, choices, clarification, setCustomAction, submitCustomText, submitSuggestedChoice]);
 
   const speech = useSpeechRecognition({
     onConfirmTranscript: confirmSpeechTranscript,
@@ -326,8 +496,16 @@ export const ActionDock = ({
       const target = e.target as HTMLElement;
       const inTextField = target.tagName === 'TEXTAREA' || target.tagName === 'INPUT';
 
+      // Undo works from the text box too: that is where the player just pressed Enter.
+      if (pendingSend && (e.key === 'Escape' || (!inTextField && e.key.toLowerCase() === 'z'))) {
+        e.preventDefault();
+        setPendingSend(null);
+        return;
+      }
+
       if (inTextField) {
-        if (e.key === 'Escape') {
+        // An Escape the box already handled (e.g. starting over on a DM question) keeps focus.
+        if (e.key === 'Escape' && !e.defaultPrevented) {
           target.blur();
         }
         return;
@@ -349,12 +527,22 @@ export const ActionDock = ({
       } else if (e.key.toLowerCase() === 'v') {
         e.preventDefault();
         toggleSpeech();
+      } else if (e.key.toLowerCase() === 'u') {
+        if (customAction.trim() && !pendingSend && !statThinking && !previewThinking) {
+          e.preventDefault();
+          void submitCustomText(customAction);
+        }
+      } else if (e.key.toLowerCase() === 'g') {
+        if (choices.length === 0 && latestTurnId !== undefined && !ideasLoading) {
+          e.preventDefault();
+          void askForIdeas(false);
+        }
       }
     };
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [choices, customActionShortcut, loading, isDown, onShowPartyGear, toggleSpeech]);
+  }, [askForIdeas, choices, customAction, customActionShortcut, ideasLoading, latestTurnId, loading, isDown, onShowPartyGear, pendingSend, previewThinking, statThinking, submitCustomText, toggleSpeech]);
 
   const submitCustom = async () => {
     await submitCustomText(customAction);
@@ -530,11 +718,197 @@ export const ActionDock = ({
           </div>
         ) : (
           <>
-            {/* Action cards */}
-            {turn?.choices && turn.choices.length > 0 && (
+            {/* What do you try? (the main action surface) + UNLEASH */}
+            <div className="flex flex-col gap-2 pt-1">
+              {clarification && (
+                <div ref={clarificationRef} role="status" className="scroll-mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+                  <p className="text-xs font-black uppercase tracking-widest text-amber-400">The DM asks</p>
+                  <p id={CLARIFICATION_ID} className="mt-1 text-base font-bold text-amber-100 break-words">{clarification.question}</p>
+                  <p className="mt-1 text-xs text-slate-400 break-words">About: “{clarification.originalDraft}”</p>
+                  <button
+                    type="button"
+                    onClick={startOverClarification}
+                    disabled={statThinking}
+                    className="mt-1 -ml-2 min-h-11 px-2 text-sm font-bold text-slate-300 underline underline-offset-2 hover:text-amber-300 disabled:opacity-40"
+                  >
+                    Start over
+                  </button>
+                </div>
+              )}
+              {previewNotice && (
+                <div role="status" className="rounded-xl border border-slate-600 bg-slate-800 p-3 text-sm text-amber-200">
+                  {previewNotice}
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-2 px-1">
+                <label htmlFor={ACTION_INPUT_ID} className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  {clarification ? 'Your answer to the DM' : 'What do you try?'}
+                </label>
+                <button
+                  type="button"
+                  onClick={toggleAlwaysConfirm}
+                  aria-pressed={alwaysConfirm}
+                  className="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:border-slate-500 hover:text-slate-300"
+                >
+                  {alwaysConfirm ? 'Asking before sending' : 'Ask before sending'}
+                </button>
+              </div>
+              {pendingSend && (
+                <div role="status" className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+                  <p className="min-w-0 text-sm text-amber-100">
+                    <span className="font-black">Sending: </span>
+                    <span>{pendingSend.interpretedAction}</span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setPendingSend(null)}
+                    className="shrink-0 rounded-full border border-amber-400/60 px-3 py-1 text-xs font-black uppercase tracking-widest text-amber-200 hover:bg-amber-500/20"
+                  >
+                    Undo <kbd className="ml-1 hidden rounded border border-amber-400/40 px-1 font-mono text-[10px] normal-case tracking-normal md:inline">Esc</kbd>
+                  </button>
+                </div>
+              )}
+              {attachment && (
+                <div className="flex items-center gap-2 self-start rounded-full border border-amber-600/50 bg-amber-950/30 py-1 pl-3 pr-1 text-xs font-bold text-amber-200">
+                  <span>Gear: {attachment.label}</span>
+                  <button
+                    type="button"
+                    onClick={onClearAttachment}
+                    aria-label={`Remove ${attachment.label} from the action`}
+                    className="flex h-5 w-5 items-center justify-center rounded-full text-amber-300 hover:bg-amber-900/60 hover:text-amber-100"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+              <div className="relative">
+                <div className="absolute -top-2.5 -left-2.5 z-20 hidden md:block">
+                  <Tooltip content={`Focus custom action [${customActionShortcut}]`} position="bottom" portal wrapperClassName="inline-flex">
+                    <span className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-900 border border-slate-700 text-xs font-semibold text-slate-400">
+                      {customActionShortcut}
+                    </span>
+                  </Tooltip>
+                </div>
+                <textarea
+                  id={ACTION_INPUT_ID}
+                  ref={textareaRef}
+                  value={customAction}
+                  onChange={e => setCustomAction(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      submitCustom();
+                    } else if (e.key === 'Escape' && clarification) {
+                      e.preventDefault();
+                      startOverClarification();
+                    }
+                  }}
+                  aria-describedby={clarification ? CLARIFICATION_ID : undefined}
+                  rows={2}
+                  placeholder={clarification ? 'Your answer...' : ACTION_EXAMPLES[(turn?.id ?? 0) % ACTION_EXAMPLES.length]}
+                  disabled={loading || statThinking}
+                  className="w-full p-3 bg-slate-800 rounded-xl resize-none text-sm border border-slate-700 focus:border-amber-500/40 outline-none transition-colors placeholder-slate-600"
+                />
+                <SpeechActionButton
+                  enabled={sttSettings.enabled}
+                  supported={speech.isSupported}
+                  active={speechActive}
+                  disabled={speechButtonDisabled}
+                  errorMessage={speech.errorMessage}
+                  onClick={toggleSpeech}
+                />
+              </div>
+              <div className="relative">
+                <ShortcutBadge keyLabel="u" description="Unleash" />
+                <button
+                  onClick={submitCustom}
+                  disabled={loading || statThinking || previewThinking || !!pendingSend || !customAction.trim()}
+                  className="w-full py-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 rounded-2xl font-black uppercase tracking-tighter text-xl xl:text-2xl shadow-[0_6px_0_rgb(146,64,14)] transition-all italic"
+                >
+                  {statThinking || previewThinking ? 'Thinking...' : 'UNLEASH'}
+                </button>
+              </div>
+              {!clarification && (
+                <Tooltip content="Ask a question about the scene without taking a turn" position="top" portal wrapperClassName="inline-flex self-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void askTheDm();
+                    }}
+                    disabled={askLoading || loading || statThinking || previewThinking || !!pendingSend || !customAction.trim() || turn?.id === undefined}
+                    className="min-h-11 px-2 text-sm font-bold text-sky-300 underline underline-offset-2 hover:text-sky-200 disabled:opacity-40"
+                  >
+                    {askLoading ? 'The DM is answering...' : 'Ask the DM instead'}
+                  </button>
+                </Tooltip>
+              )}
+              {visibleAnswer && (
+                <div role="status" className="rounded-xl border border-sky-500/40 bg-sky-500/10 p-3">
+                  <p className="text-xs text-slate-400 break-words">You asked: “{visibleAnswer.question}”</p>
+                  <p className="mt-1 text-xs font-black uppercase tracking-widest text-sky-300">The DM says</p>
+                  <p className="mt-1 text-sm text-sky-50 break-words">{visibleAnswer.answer}</p>
+                  <button
+                    type="button"
+                    onClick={() => setDmAnswer(null)}
+                    className="mt-1 -ml-2 min-h-11 px-2 text-sm font-bold text-slate-300 underline underline-offset-2 hover:text-sky-200"
+                  >
+                    Got it
+                  </button>
+                </div>
+              )}
+              {askError && (
+                <div role="status" className="rounded-xl border border-rose-700/40 bg-rose-950/30 px-3 py-2 text-sm text-rose-200">
+                  {askError}
+                </div>
+              )}
+            </div>
+
+            <HelpSomeone
+              party={party}
+              activeCharacterId={activeCharacter?.id}
+              disabled={loading || statThinking || previewThinking || !!pendingSend}
+              onBless={onBless}
+              onAid={onAid}
+              onRally={onRally}
+            />
+
+            {/* Ideas: suggestions on request */}
+            {choices.length === 0 && turn?.id !== undefined && (
+              <div className="relative flex flex-col gap-2">
+                <ShortcutBadge keyLabel="g" description="Give me ideas" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    void askForIdeas(false);
+                  }}
+                  disabled={ideasLoading || loading}
+                  className="w-full py-3 rounded-2xl border-2 border-sky-500/50 bg-sky-500/10 text-sky-100 font-black uppercase tracking-wide text-base hover:bg-sky-500/20 disabled:opacity-50 transition-colors"
+                >
+                  {ideasLoading ? 'The DM is thinking...' : 'Give me ideas'}
+                </button>
+                {ideasError && (
+                  <div role="status" className="flex items-center justify-between gap-2 rounded-xl border border-rose-700/40 bg-rose-950/30 px-3 py-2 text-sm text-rose-200">
+                    <span>{ideasError}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void askForIdeas(false);
+                      }}
+                      disabled={ideasLoading}
+                      className="shrink-0 text-xs font-bold underline underline-offset-2 hover:text-rose-100 disabled:opacity-40"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Idea cards */}
+            {choices.length > 0 && (
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between gap-2 px-1">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Choose an Action</div>
+                  <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Ideas</div>
                   <button
                     type="button"
                     onClick={toggleShowNumbers}
@@ -544,7 +918,22 @@ export const ActionDock = ({
                     {showNumbers ? 'Hide the numbers' : 'Show the numbers'}
                   </button>
                 </div>
-                {turn.choices.map((choice, i) => {
+                {turn?.ideasDegraded && (
+                  <div className="flex items-center justify-between gap-2 px-1 text-xs text-slate-500">
+                    <span>Quick ideas while the DM was busy.</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void askForIdeas(true);
+                      }}
+                      disabled={ideasLoading}
+                      className="font-bold underline underline-offset-2 hover:text-slate-300 disabled:opacity-40"
+                    >
+                      {ideasLoading ? 'Thinking...' : 'Try again'}
+                    </button>
+                  </div>
+                )}
+                {choices.map((choice, i) => {
                   const flavorBadge = choice.flavor && choice.flavor !== 'standard' ? CHOICE_FLAVOR_BADGES[choice.flavor] : null;
                   const risk = RISK_MAP[choice.difficulty] ?? RISK_MAP.normal;
                   const { isRiddleAnswer, statBonus, buffBonus, helperBonus, choiceItemBonus, characterBonus, characterBonusLabel, statTotal, target, prob } = computeChoiceOdds(choice, activeCharacter, party);
@@ -645,69 +1034,6 @@ export const ActionDock = ({
                 })}
               </div>
             )}
-
-            {/* Command bar + UNLEASH */}
-            <div className="flex flex-col gap-2 pt-1">
-              {clarification && (
-                <div role="status" className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
-                  <p className="text-xs font-black uppercase tracking-widest text-amber-400">The DM asks</p>
-                  <p className="mt-1 text-sm font-bold text-amber-100">{clarification.question}</p>
-                  <p className="mt-1 text-xs text-slate-400">About: “{clarification.originalDraft}”</p>
-                  <button
-                    type="button"
-                    onClick={startOverClarification}
-                    disabled={statThinking}
-                    className="mt-2 text-xs font-bold text-slate-300 underline underline-offset-2 hover:text-amber-300 disabled:opacity-40"
-                  >
-                    Start over
-                  </button>
-                </div>
-              )}
-              {previewNotice && (
-                <div role="status" className="rounded-xl border border-slate-600 bg-slate-800 p-3 text-sm text-amber-200">
-                  {previewNotice}
-                </div>
-              )}
-              <div className="relative">
-                <div className="absolute -top-2.5 -left-2.5 z-20 hidden md:block">
-                  <Tooltip content={`Focus custom action [${customActionShortcut}]`} position="bottom" portal wrapperClassName="inline-flex">
-                    <span className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-900 border border-slate-700 text-xs font-semibold text-slate-400">
-                      {customActionShortcut}
-                    </span>
-                  </Tooltip>
-                </div>
-                <textarea
-                  ref={textareaRef}
-                  value={customAction}
-                  onChange={e => setCustomAction(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      submitCustom();
-                    }
-                  }}
-                  rows={2}
-                  placeholder={clarification ? 'Your answer...' : 'Describe a different action...'}
-                  disabled={loading || statThinking}
-                  className="w-full p-3 bg-slate-800 rounded-xl resize-none text-sm border border-slate-700 focus:border-amber-500/40 outline-none transition-colors placeholder-slate-600"
-                />
-                <SpeechActionButton
-                  enabled={sttSettings.enabled}
-                  supported={speech.isSupported}
-                  active={speechActive}
-                  disabled={speechButtonDisabled}
-                  errorMessage={speech.errorMessage}
-                  onClick={toggleSpeech}
-                />
-              </div>
-              <button
-                onClick={submitCustom}
-                disabled={loading || statThinking || previewThinking || !customAction.trim()}
-                className="w-full py-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 rounded-2xl font-black uppercase tracking-tighter text-xl xl:text-2xl shadow-[0_6px_0_rgb(146,64,14)] transition-all italic"
-              >
-                {statThinking || previewThinking ? 'Thinking...' : 'UNLEASH'}
-              </button>
-            </div>
           </>
         )}
         <SpeechConfirmDialog

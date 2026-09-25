@@ -1,3 +1,4 @@
+import { Tooltip } from '../Tooltip';
 import { useState } from 'react';
 import type { EncounterArea, EncounterEnemy, EncounterState } from '../../types';
 import { imgSrc } from '../../lib/api';
@@ -243,12 +244,19 @@ export const EnemyRow = ({ enemy }: EnemyRowProps) => {
         {revealedWeaknesses.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
             {revealedWeaknesses.map(w => (
-              <span
+              <Tooltip
                 key={w.id}
-                className="text-[11px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-300 border border-amber-700/40"
+                content={`Weak point: ${w.label}. Actions that play on it hit harder.`}
+                position="top"
+                portal
+                wrapperClassName="inline-flex"
               >
-              ⚡ {w.label}
-              </span>
+                <span
+                  className="text-[11px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-300 border border-amber-700/40"
+                >
+                  ⚡ Weak point: {w.label}
+                </span>
+              </Tooltip>
             ))}
           </div>
         )}

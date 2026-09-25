@@ -467,4 +467,27 @@ export const migrate = (db: DB): void => {
   if (!riddleCols.includes('source')) {
     db.prepare("ALTER TABLE session_riddles ADD COLUMN source TEXT NOT NULL DEFAULT 'choices'").run();
   }
+
+  // Ideas: a turn's suggested choices are current only for the revision and acting hero
+  // they were made for. NULL (turns from before this) means "current while latest".
+  const turnColsIdeas = (db.prepare("PRAGMA table_info(turn_history)").all() as { name: string }[]).map(r => r.name);
+  if (!turnColsIdeas.includes('ideas_revision')) {
+    db.prepare("ALTER TABLE turn_history ADD COLUMN ideas_revision INTEGER").run();
+  }
+  if (!turnColsIdeas.includes('ideas_character_id')) {
+    db.prepare("ALTER TABLE turn_history ADD COLUMN ideas_character_id TEXT").run();
+  }
+  if (!turnColsIdeas.includes('ideas_degraded')) {
+    db.prepare("ALTER TABLE turn_history ADD COLUMN ideas_degraded INTEGER NOT NULL DEFAULT 0").run();
+  }
+  // Onboarding sessions ask for ideas once by themselves: 'pending' until the first
+  // viewer's request, then 'requested'. NULL for every other session.
+  const sessionColsIdeas = (db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[]).map(r => r.name);
+  if (!sessionColsIdeas.includes('onboarding_ideas')) {
+    db.prepare("ALTER TABLE sessions ADD COLUMN onboarding_ideas TEXT").run();
+  }
+  // Realm setting "Suggest ideas each turn": views ask for ideas once per new turn.
+  if (!sessionColsIdeas.includes('auto_ideas')) {
+    db.prepare("ALTER TABLE sessions ADD COLUMN auto_ideas INTEGER NOT NULL DEFAULT 0").run();
+  }
 };

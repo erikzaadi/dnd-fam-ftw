@@ -139,7 +139,7 @@ export const buildAdventureDirective = (session: SessionState): AdventureDirecti
     ...(awaiting.length > 0 && { heroesAwaitingSpotlight: awaiting }),
   };
   const spotlight = awaiting.length > 0
-    ? ` Give ${awaiting.join(', ')} a concrete reason to matter soon.`
+    ? ` Give ${awaiting.join(', ')} (already with the party, not newcomers) a concrete reason to matter soon.`
     : '';
 
   if (progress.phase === 'finale') {

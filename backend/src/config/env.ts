@@ -57,18 +57,20 @@ function parse(): AppConfig {
   };
 }
 
-// Turn pipeline strategy (plan 4 comparison). 'parallel' is the production
-// comparator; 'resolved_first' resolves mechanics before narration and choices.
+// Turn pipeline strategy. 'resolved_first' (the default since 2026-09-25) settles the
+// mechanics first and narrates from those facts, so the story always matches what
+// happened. 'parallel' (the earlier default) runs narration beside the mechanics agents.
 // Read on every call (not cached) so evaluations and tests can switch it.
 export type TurnStrategy = 'parallel' | 'resolved_first';
 
 export function getTurnStrategy(): TurnStrategy {
   const raw = process.env.AI_TURN_STRATEGY?.trim();
-  if (!raw || raw === 'parallel') {
-    return 'parallel';
-  }
-  if (raw === 'resolved_first') {
+  if (!raw || raw === 'resolved_first') {
     return 'resolved_first';
+  }
+  if (raw === 'parallel') {
+    return 'parallel';
   }
   throw new Error(`[Config] Invalid AI_TURN_STRATEGY: "${raw}". Must be "parallel" or "resolved_first".`);
 }
+

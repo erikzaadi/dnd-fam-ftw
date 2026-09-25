@@ -30,6 +30,10 @@ export const requestWrapUp = (sessionId: string, expectedRevision?: number) =>
 export const setAdventureFormat = (sessionId: string, adventureFormat: AdventureFormat, expectedRevision?: number) =>
   mutate(`/session/${sessionId}`, 'PATCH', { adventureFormat, expectedRevision });
 
+// Realm setting "Suggest ideas each turn".
+export const setAutoIdeas = (sessionId: string, autoIdeas: boolean, expectedRevision?: number) =>
+  mutate(`/session/${sessionId}`, 'PATCH', { autoIdeas, expectedRevision });
+
 // Ends the evening now with an epilogue grounded in what actually happened.
 export const endAdventureHere = (sessionId: string, expectedRevision?: number): Promise<SubmitOperationResult> =>
   submitSessionOperation(`/session/${sessionId}/adventure/end`, { expectedRevision });

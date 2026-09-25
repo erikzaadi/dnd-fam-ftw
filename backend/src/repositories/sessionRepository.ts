@@ -1,5 +1,6 @@
 import { createId } from '../lib/ids.js';
 import { getDb } from '../persistence/database.js';
+import { areIdeasCurrent } from './turnHistoryRepository.js';
 import { generateSessionDisplayName } from '../services/sessionNameService.js';
 import { SessionState, InventoryItem, type AdventureFormat, type AdventureProgress, type AdventureStatus, type Character, type Choice, type GameMode, type EncounterState, type EncounterSeed } from '../types.js';
 import { buildAdventureProgress, createInitialArc, parseArc, serializeArc } from '../services/adventureLifecycleService.js';
@@ -42,6 +43,7 @@ export type SessionPatch = {
   originStoryImageStorageKey?: string | null;
   originStoryImageStorageProvider?: string | null;
   originStoryGeneratedAt?: string | null;
+  autoIdeas?: boolean;
 };
 
 const writeInventorySync = (char: Character): void => {
@@ -172,6 +174,8 @@ export const sessionRepository = {
       adventure_arc: string | null;
       adventure_objective: string | null;
       adventure_plan: string | null;
+      onboarding_ideas: string | null;
+      auto_ideas: number | null;
     } | undefined;
     if (!row) {
       return undefined;
@@ -264,9 +268,12 @@ export const sessionRepository = {
       activeCharacterId: row.activeCharacterId || "",
       npcs: [],
       quests: [],
+      // Only current ideas: a revision bump (settings, party edits) or a different acting
+      // hero makes the latest turn's choices stale, so they can no longer be shown or picked.
       lastChoices: (() => {
-        const lastTurn = db.prepare('SELECT id FROM turn_history WHERE sessionId = ? ORDER BY id DESC LIMIT 1').get(id) as { id: number } | undefined;
-        if (!lastTurn) {
+        const lastTurn = db.prepare('SELECT id, ideas_revision, ideas_character_id FROM turn_history WHERE sessionId = ? ORDER BY id DESC LIMIT 1')
+          .get(id) as { id: number; ideas_revision: number | null; ideas_character_id: string | null } | undefined;
+        if (!lastTurn || !areIdeasCurrent({ ideasRevision: lastTurn.ideas_revision, ideasCharacterId: lastTurn.ideas_character_id }, { revision: row.revision ?? 0, activeCharacterId: row.activeCharacterId || '' })) {
           return [];
         }
         const choiceRows = db.prepare(
@@ -310,6 +317,8 @@ export const sessionRepository = {
       originStory: row.origin_story || undefined,
       originStoryImageUrl: row.origin_story_image_url || undefined,
       revision: row.revision ?? 0,
+      ...(row.onboarding_ideas === 'pending' && { onboardingIdeasPending: true }),
+      ...(row.auto_ideas ? { autoIdeas: true } : {}),
       adventure: buildAdventureProgress({
         format: (row.adventure_format as AdventureFormat | null) ?? 'long_lived',
         status: (row.adventure_status as AdventureStatus | null) ?? 'active',
@@ -331,6 +340,14 @@ export const sessionRepository = {
   setAdventureObjectiveIfMissing(id: string, objective: string, plan: string | null): boolean {
     const result = getDb().prepare('UPDATE sessions SET adventure_objective = ?, adventure_plan = COALESCE(?, adventure_plan) WHERE id = ? AND (adventure_objective IS NULL OR adventure_objective = \'\')')
       .run(objective, plan, id);
+    return result.changes > 0;
+  },
+
+  // First writer wins: an origin story is written once and never replaced, so every
+  // viewer reads the same one. Returns false when another request stored one first.
+  setOriginStoryIfMissing(id: string, originStory: string, generatedAt: string): boolean {
+    const result = getDb().prepare("UPDATE sessions SET origin_story = ?, origin_story_generated_at = ? WHERE id = ? AND (origin_story IS NULL OR origin_story = '')")
+      .run(originStory, generatedAt, id);
     return result.changes > 0;
   },
 
@@ -456,6 +473,10 @@ export const sessionRepository = {
         sets.push(`${col} = ?`);
         values.push((fields as Record<string, unknown>)[key] ?? null);
       }
+    }
+    if ('autoIdeas' in fields) {
+      sets.push('auto_ideas = ?');
+      values.push(fields.autoIdeas ? 1 : 0);
     }
     if ('encounterState' in fields) {
       sets.push('encounter_state = ?');
@@ -611,8 +632,9 @@ export const sessionRepository = {
 
     // The onboarding tutorial follows its own scripted flow: explicitly long-lived so
     // it never gains one-evening finale pressure.
-    db.prepare(`INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, dm_prep_encounters, turn, activeCharacterId, tone, displayName, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, rescues_used, game_over, storySummary, preview_image_url, namespace_id, adventure_format, adventure_status, adventure_arc)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, 'long_lived', 'active', ?)`)
+    // onboarding_ideas: the first viewer asks for ideas once, by itself.
+    db.prepare(`INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, dm_prep_encounters, turn, activeCharacterId, tone, displayName, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, rescues_used, game_over, storySummary, preview_image_url, namespace_id, adventure_format, adventure_status, adventure_arc, onboarding_ideas)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, 'long_lived', 'active', ?, 'pending')`)
       .run(newSessionId, session.scene, session.sceneId, session.worldDescription, session.dm_prep, session.dm_prep_image_brief, session.dm_prep_encounters, session.turn, '', session.tone, session.displayName, session.difficulty, session.gameMode, session.savingsMode, 0, session.storySummary, session.preview_image_url, namespaceId, serializeArc(createInitialArc()));
 
     const chars = db.prepare('SELECT * FROM characters WHERE sessionId = ? ORDER BY rowid ASC').all(templateId) as {

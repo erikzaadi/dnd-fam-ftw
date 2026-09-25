@@ -15,10 +15,11 @@ export type SessionOperationsOptions = {
   sessionId: string | undefined;
   // Apply an authoritative snapshot (session + history) to the view.
   onSnapshot: (snapshot: SessionSnapshot) => void;
-  // Lock or unlock the view's action input.
-  setBusy: (busy: boolean) => void;
-  // Whether the view currently shows a busy state (used when an event was missed).
-  isBusy: () => boolean;
+  // Lock or unlock the view's action input. Views that derive busy from `phase` omit it.
+  setBusy?: (busy: boolean) => void;
+  // Whether the view shows a busy state of its own (used when an event was missed).
+  // A non-idle phase always counts as busy.
+  isBusy?: () => boolean;
   // The operation this view was waiting on finished while its events were missed.
   // failed is set when it ended in failure, so the view can show why.
   onWaitEnded: (failed: SessionOperation | null) => void;
@@ -35,7 +36,26 @@ export function useSessionOperations(options: SessionOperationsOptions) {
   const pendingOperationRef = useRef<string | null>(null);
   const submittingRef = useRef(false);
   const followUpRef = useRef(false);
-  const [phase, setPhase] = useState<OperationPhase>('idle');
+  // Operations whose outcome already arrived over SSE. A fast turn can commit before the
+  // POST that started it returns 202; the late acceptance must not reopen it.
+  const settledRef = useRef(new Map<string, 'ended' | 'following_up'>());
+  const noteSettled = useCallback((operationId: string | undefined, state: 'ended' | 'following_up') => {
+    if (!operationId) {
+      return;
+    }
+    const settled = settledRef.current;
+    settled.set(operationId, state);
+    if (settled.size > 20) {
+      settled.delete(settled.keys().next().value as string);
+    }
+  }, []);
+  const [phase, setPhaseState] = useState<OperationPhase>('idle');
+  // Handlers read the phase between renders, so it is mirrored in a ref.
+  const phaseRef = useRef<OperationPhase>('idle');
+  const setPhase = useCallback((next: OperationPhase) => {
+    phaseRef.current = next;
+    setPhaseState(next);
+  }, []);
 
   const noteRevision = useCallback((revision: number | undefined) => {
     if (revision !== undefined) {
@@ -61,7 +81,7 @@ export function useSessionOperations(options: SessionOperationsOptions) {
       pendingOperationRef.current = snapshot.activeOperation.id;
       followUpRef.current = snapshot.activeOperation.phase === 'recovering' || snapshot.activeOperation.phase === 'concluding';
       setPhase(followUpRef.current ? 'following_up' : 'resolving');
-      optionsRef.current.setBusy(true);
+      optionsRef.current.setBusy?.(true);
       return;
     }
     if (submittingRef.current) {
@@ -70,7 +90,7 @@ export function useSessionOperations(options: SessionOperationsOptions) {
     const waitedFor = pendingOperationRef.current;
     pendingOperationRef.current = null;
     followUpRef.current = false;
-    if (waitedFor || optionsRef.current.isBusy()) {
+    if (waitedFor || phaseRef.current !== 'idle' || optionsRef.current.isBusy?.()) {
       setPhase('idle');
       const latest = snapshot.latestOperation;
       optionsRef.current.onWaitEnded(latest && latest.id === waitedFor && latest.status === 'failed' ? latest : null);
@@ -90,7 +110,19 @@ export function useSessionOperations(options: SessionOperationsOptions) {
     try {
       const result = await submitSessionOperation(path, { ...body, expectedRevision: revisionRef.current });
       if (result.kind === 'accepted') {
+        const settled = settledRef.current.get(result.operation.id);
+        if (settled === 'ended') {
+          pendingOperationRef.current = null;
+          followUpRef.current = false;
+          setPhase('idle');
+          return result;
+        }
         pendingOperationRef.current = result.operation.id;
+        if (settled === 'following_up') {
+          followUpRef.current = true;
+          setPhase('following_up');
+          return result;
+        }
         followUpRef.current = !!submitOptions.expectsFollowUp;
         setPhase(followUpRef.current ? 'following_up' : 'resolving');
         if (result.replayed && !isOperationPending(result.operation)) {
@@ -116,25 +148,40 @@ export function useSessionOperations(options: SessionOperationsOptions) {
   const onTurnCommitted = useCallback((meta?: OperationEventMeta): boolean => {
     noteRevision(meta?.revision);
     if (meta?.recovering || meta?.concluding) {
+      noteSettled(meta?.operationId, 'following_up');
       followUpRef.current = true;
       setPhase('following_up');
       return true;
     }
+    noteSettled(meta?.operationId, 'ended');
     pendingOperationRef.current = null;
     followUpRef.current = false;
     setPhase('idle');
     return false;
-  }, [noteRevision, setPhase]);
+  }, [noteRevision, noteSettled, setPhase]);
 
   // The operation ended: its follow-up turn arrived, it failed, or the game ended.
   const onOperationEnded = useCallback((meta?: OperationEventMeta) => {
     noteRevision(meta?.revision);
+    noteSettled(meta?.operationId, 'ended');
     pendingOperationRef.current = null;
     followUpRef.current = false;
     setPhase('idle');
-  }, [noteRevision, setPhase]);
+  }, [noteRevision, noteSettled, setPhase]);
+
+  // Another viewer's operation (or a follow-up this view did not submit) is resolving:
+  // its narration or ending started streaming. The view locks like for its own.
+  const onRemoteOperation = useCallback((followUp = false) => {
+    if (followUp) {
+      followUpRef.current = true;
+      setPhase('following_up');
+    } else if (phaseRef.current === 'idle') {
+      setPhase('resolving');
+    }
+  }, [setPhase]);
 
   const isAwaitingFollowUp = useCallback(() => followUpRef.current, []);
+  const isIdle = useCallback(() => phaseRef.current === 'idle', []);
 
   // Stable identity except when the phase changes, so views can list it as a dependency.
   return useMemo(() => ({
@@ -145,6 +192,8 @@ export function useSessionOperations(options: SessionOperationsOptions) {
     submit,
     onTurnCommitted,
     onOperationEnded,
+    onRemoteOperation,
     isAwaitingFollowUp,
-  }), [phase, noteRevision, reconcile, submit, onTurnCommitted, onOperationEnded, isAwaitingFollowUp]);
+    isIdle,
+  }), [phase, noteRevision, reconcile, submit, onTurnCommitted, onOperationEnded, onRemoteOperation, isAwaitingFollowUp, isIdle]);
 }

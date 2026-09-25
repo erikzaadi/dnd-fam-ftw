@@ -3,6 +3,7 @@ import type { ActionAttempt, Character, SessionState, TurnResult } from '../type
 import {
   buildFreeActionWarnings,
   dropRedundantBuffAdds,
+  dropUnearnedBuffAdds,
   ensureSuccessfulEnchantmentSuggestion,
   ensureSuccessfulHealingSuggestion,
   getFreeActionDifficulty,
@@ -233,6 +234,37 @@ describe('dropRedundantBuffAdds', () => {
     );
 
     expect(turnResult.suggestedBuffAdd).toBeNull();
+  });
+});
+
+describe('dropUnearnedBuffAdds', () => {
+  const inspired = (characterName: string) => ({ characterName, name: 'Inspired', kind: 'buff' as const, description: 'Fired up.', statBonuses: { might: 1 }, remainingTurns: 2 });
+  const jinxed = { characterName: 'Durogg', name: 'Jinxed', kind: 'curse' as const, description: 'Shadow luck.', statBonuses: { magic: -1 }, remainingUses: 1 };
+  const attempt = (action: string, success = true): ActionAttempt => ({ actionAttempt: action, actionResult: { success, roll: 15, statUsed: 'magic' } });
+
+  it('drops buffs an attack hands out, keeping curses from the threat', () => {
+    const turnResult = dropUnearnedBuffAdds(
+      attempt('Durogg attempts to unleash an arcane blast at the Arcane Sentinel'),
+      makeTurnResult({ suggestedBuffAdd: [inspired('Thrull'), inspired('Grimbane'), jinxed] }),
+    );
+
+    expect(turnResult.suggestedBuffAdd).toEqual([jinxed]);
+  });
+
+  it('keeps buffs from a successful support action', () => {
+    const turnResult = dropUnearnedBuffAdds(
+      attempt('Carrotson bursts into an enlightening song, attempting to rally the party'),
+      makeTurnResult({ suggestedBuffAdd: [inspired('Thrull')] }),
+    );
+
+    expect(turnResult.suggestedBuffAdd).toEqual([inspired('Thrull')]);
+  });
+
+  it('keeps buffs for support intents, and drops them for a failed support attempt', () => {
+    expect(dropUnearnedBuffAdds(attempt('Pip helps out'), makeTurnResult({ suggestedBuffAdd: [inspired('Thrull')] }), 'aid_character').suggestedBuffAdd)
+      .toEqual([inspired('Thrull')]);
+    expect(dropUnearnedBuffAdds(attempt('Carrotson tries to rally the party', false), makeTurnResult({ suggestedBuffAdd: [inspired('Thrull')] })).suggestedBuffAdd)
+      .toBeNull();
   });
 });
 

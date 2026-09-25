@@ -147,4 +147,68 @@ describe('useCarConductor', () => {
 
     expect(result.current.isPaused).toBe(false);
   });
+
+  describe('ideas that arrive after the turn was read (Suggest ideas each turn)', () => {
+    const withoutIdeas: TurnResult[] = [{ ...mockHistory[0], choices: [] }];
+    const spokenTexts = () => vi.mocked(narrationTtsService.speakNarration).mock.calls.map(call => call[0].text);
+    const settle = () => act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    });
+
+    const renderConductor = (autoIdeas: boolean) => {
+      vi.mocked(useSpeechRecognition).mockReturnValue({
+        state: { status: 'listening', transcript: '' },
+        startListening: mockStartListening,
+        stopListening: vi.fn(),
+        confirmTranscript: vi.fn(),
+        retryListening: vi.fn(),
+        cancel: mockCancelSpeechRec,
+        reset: vi.fn(),
+        isSupported: true,
+        transcript: '',
+        errorMessage: null,
+      });
+      return renderHook(({ history }: { history: TurnResult[] }) =>
+        useCarConductor({
+          session: { ...mockSession, autoIdeas },
+          history,
+          loading: false,
+          connectionState: 'connected',
+          prevEncounterStatus: 'none',
+          actionPreview: null,
+          previewThinking: false,
+          submitAction: mockSubmitAction,
+          submitChoice: mockSubmitChoice,
+          previewAction: mockPreviewAction,
+          clearPreview: mockClearPreview,
+          ttsSettings: mockTtsSettings,
+          hasTts: true,
+        }), { initialProps: { history: withoutIdeas } });
+    };
+
+    it('reads them once in the next quiet moment, with the microphone stopped first', async () => {
+      const { rerender } = renderConductor(true);
+      await settle();
+      expect(spokenTexts().some(text => text.includes('Light a torch'))).toBe(false);
+
+      rerender({ history: mockHistory });
+      await settle();
+
+      expect(mockCancelSpeechRec).toHaveBeenCalled();
+      expect(spokenTexts().filter(text => text.includes('Light a torch'))).toHaveLength(1);
+
+      rerender({ history: [...mockHistory] });
+      await settle();
+      expect(spokenTexts().filter(text => text.includes('Light a torch'))).toHaveLength(1);
+    });
+
+    it('waits for "ideas" when the realm setting is off', async () => {
+      const { rerender } = renderConductor(false);
+      await settle();
+      rerender({ history: mockHistory });
+      await settle();
+
+      expect(spokenTexts().some(text => text.includes('Light a torch'))).toBe(false);
+    });
+  });
 });

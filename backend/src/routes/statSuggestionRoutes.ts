@@ -6,16 +6,19 @@ import { getTierRequestSettings, warnIfEmptyTruncation } from '../providers/ai/o
 import { buildEncounterContextFromEnemies, parseSuggestedStats, previewFreeAction, STAT_FALLBACK, suggestStatForSessionAction } from '../services/statSuggestionService.js';
 import { parseBody } from './routeValidation.js';
 import type { FreeActionPreview, PreviewClarification } from '@dnd-fam-ftw/shared';
+import type { SessionState } from '../types.js';
 import { buildFreeActionWarnings, getFreeActionDifficulty } from '../services/freeActionPolicyService.js';
 import { registerSessionIdParam } from '../middleware/sessionParam.js';
 import { devLog } from '../lib/devLog.js';
-import { storeActionPreview } from '../services/actionPreviewStore.js';
+import { storeActionPreview, type StoredActionPreview } from '../services/actionPreviewStore.js';
 import { StateService } from '../services/stateService.js';
 import { assessRiddleAction, ensureActiveRiddle, RIDDLE_ANSWER_UNKNOWN_MESSAGE } from '../services/riddleService.js';
 import { scheduleRiddleRecovery } from '../services/riddleRecoveryService.js';
 
 // After this many rounds the player is asked to rephrase instead of answering again.
 const MAX_CLARIFICATION_ROUNDS = 2;
+
+const supportsClarificationRequest = (supports: string[] | undefined): boolean => supports?.includes('clarification') ?? false;
 
 const suggestStatBodySchema = z.object({
   action: z.string().min(1),
@@ -32,6 +35,14 @@ const previewActionBodySchema = z.object({
   // the question as a retryable error message.
   supports: z.array(z.enum(['clarification'])).max(4).optional(),
   // Earlier question-and-answer rounds about this same draft (action).
+  // Gear attached to the draft (inventory "Use" / "Give"). Previewed without a model
+  // call: the item's own effect decides, so there is no roll.
+  attachment: z.object({
+    actionType: z.enum(['use_item', 'give_item']),
+    itemId: z.string().min(1).max(100),
+    ownerCharacterId: z.string().min(1).max(100),
+    targetCharacterId: z.string().min(1).max(100).optional(),
+  }).strict().optional(),
   clarifications: z.array(z.object({
     question: z.string().min(1).max(300),
     answer: z.string().trim().min(1).max(600),
@@ -44,6 +55,53 @@ const suggestCharacterStatsBodySchema = z.object({
   species: z.string().optional(),
   quirk: z.string().optional(),
 });
+
+type ItemAttachment = { actionType: 'use_item' | 'give_item'; itemId: string; ownerCharacterId: string; targetCharacterId?: string };
+
+// A deterministic preview for a draft with gear attached. The stored record carries the
+// item, owner, and target, so confirmation resolves exactly this item action.
+const buildItemPreview = (
+  session: SessionState,
+  attachment: ItemAttachment,
+  playerText: string | undefined,
+): { error: string } | { preview: FreeActionPreview; stored: Omit<StoredActionPreview, 'id' | 'createdAt' | 'sessionId' | 'revision' | 'actingCharacterId'> } => {
+  const owner = session.party.find(c => c.id === attachment.ownerCharacterId);
+  const item = owner?.inventory.find(i => i.id === attachment.itemId);
+  if (!owner || !item) {
+    return { error: 'That item is no longer in this hero\'s pack. Pick it again from the gear.' };
+  }
+  const target = attachment.targetCharacterId ? session.party.find(c => c.id === attachment.targetCharacterId) : undefined;
+  if ((attachment.targetCharacterId && !target) || (attachment.actionType === 'give_item' && !target)) {
+    return { error: 'That hero is no longer in the party. Pick the gear again.' };
+  }
+  const kind = attachment.actionType === 'use_item' ? 'item_use' as const : 'item_give' as const;
+  const template = kind === 'item_give'
+    ? `${owner.name} gives ${item.name} to ${target!.name}`
+    : target && target.id !== owner.id
+      ? `${owner.name} uses ${item.name} on ${target.name}`
+      : `${owner.name} uses ${item.name}`;
+  const text = playerText || template;
+  return {
+    preview: {
+      originalAction: text,
+      interpretedAction: text,
+      stat: 'mischief',
+      difficulty: 'easy',
+      warnings: [],
+      itemAction: { kind, itemName: item.name, ownerName: owner.name, ...(target && { targetName: target.name }) },
+    },
+    stored: {
+      kind,
+      originalAction: text,
+      interpretedAction: text,
+      itemId: item.id,
+      itemOwnerCharacterId: owner.id,
+      ...(target && { targetCharacterId: target.id }),
+      stat: 'mischief',
+      difficulty: 'easy',
+    },
+  };
+};
 
 export const createStatSuggestionRouter = () => {
   const router = Router();
@@ -69,6 +127,20 @@ export const createStatSuggestionRouter = () => {
     const session = req.session!;
     // Riddle answers are judged on the player's own words before any model call. An
     // answer the server cannot judge comes back as a retryable error with a question.
+    if (body.attachment) {
+      const itemPreview = buildItemPreview(session, body.attachment, body.action?.trim());
+      if ('error' in itemPreview) {
+        res.status(409).json({ error: 'item_unavailable', message: itemPreview.error });
+        return;
+      }
+      const { preview, stored } = itemPreview;
+      if (StateService.getRevision(sessionId) === (session.revision ?? 0)) {
+        preview.previewId = storeActionPreview({ sessionId, revision: session.revision ?? 0, actingCharacterId: session.activeCharacterId, ...stored });
+      }
+      res.json(preview);
+      return;
+    }
+
     const clarifications = body.clarifications ?? [];
     const activeRiddle = body.action && !body.intent ? ensureActiveRiddle(session) : null;
     const riddle = body.action && !body.intent
@@ -79,7 +151,7 @@ export const createStatSuggestionRouter = () => {
         res.status(409).json({ error: 'clarification_limit', message: 'Try describing it another way.' });
         return;
       }
-      if (body.supports?.includes('clarification')) {
+      if (supportsClarificationRequest(body.supports)) {
         const clarification: PreviewClarification = { kind: 'clarification', question: riddle.question, previewRevision: session.revision ?? 0 };
         res.json(clarification);
         return;
@@ -103,11 +175,20 @@ export const createStatSuggestionRouter = () => {
     const modelAction = body.action?.trim() && clarifications.length > 0
       ? `${body.action.trim()} (${clarifications.map(c => `asked "${c.question}", the player answered "${c.answer}"`).join('; ')})`
       : body.action?.trim();
+    // The model may ask about a missing target or intent, but only clients that can show
+    // the question get one, and never past the round limit (then it interprets).
+    const supportsClarification = supportsClarificationRequest(body.supports);
     const suggestion = await previewFreeAction(sessionId, {
       action: modelAction,
       context: body,
       encounterContext,
+      allowClarification: supportsClarification && !body.intent && !!body.action && clarifications.length < MAX_CLARIFICATION_ROUNDS,
     });
+    if (suggestion.clarificationQuestion) {
+      const clarification: PreviewClarification = { kind: 'clarification', question: suggestion.clarificationQuestion, previewRevision: session.revision ?? 0 };
+      res.json(clarification);
+      return;
+    }
     devLog.log(`[PreviewAction] preview-free-action session=${sessionId} durationMs=${Date.now() - stepStart} stat=${suggestion.stat} generated=${suggestion.generatedAction ? 'true' : 'false'} interpreted=${suggestion.interpretedAction ? 'true' : 'false'}`);
     stepStart = Date.now();
     const resolvedAction = body.action?.trim() ?? suggestion.generatedAction ?? '';

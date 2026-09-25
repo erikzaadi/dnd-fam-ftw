@@ -60,6 +60,8 @@ describe('CarMode', () => {
       previewAction: vi.fn(),
       clarification: null,
       clearClarification: vi.fn(),
+      ideas: [],
+      requestIdeas: vi.fn(),
       actionPreview: null,
       clearPreview: vi.fn(),
       previewThinking: false,

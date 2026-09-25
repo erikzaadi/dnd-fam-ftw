@@ -34,8 +34,9 @@ export type { AgentDiagnostic, AgentErrorKind };
 
 export type DmTurnOrchestratorResult = NarrationOutput & {
   agentDiagnostics: AgentDiagnostic[];
+  // Always false: turns carry no suggestions. Kept for the turn metrics line and the
+  // turn_history column that older turns filled in.
   choicesFailed: boolean;
-  // A narration-tier choices retry started this turn, whatever its outcome.
   choicesEscalated: boolean;
 };
 
@@ -863,6 +864,9 @@ function coerceChoice(raw: ChoicesAgentOutput['choices'][0]): NarrationChoice {
 // sees. Shared with the preview-choices evaluation script so its
 // player-visible scoring matches production.
 export function toPlayerChoices(output: ChoicesAgentOutput, input: NarrationInput): NarrationChoice[] {
+  if (output.choices.length === 0) {
+    return [];
+  }
   return auditChoiceStatCoverage(sanitizeItemChoices(output.choices.map(coerceChoice), input), input);
 }
 
@@ -872,25 +876,11 @@ export class DmTurnOrchestrator implements NarrationProvider {
     return this.orchestrate(input, callbacks);
   }
 
-  async rerunChoices(input: NarrationInput): Promise<NarrationChoice[] | null> {
-    const start = Date.now();
-    const controller = new AbortController();
-    try {
-      const result = await Promise.race([
-        callChoicesAgent(input, controller.signal, 'narration'),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => {
-            controller.abort();
-            reject(new Error('rerun-deadline'));
-          }, 2500)
-        ),
-      ]);
-      devLog.log(`[Metrics] choices-rerun status=ok durationMs=${Date.now() - start}`);
-      return sanitizeItemChoices(result.choices.map(coerceChoice), input);
-    } catch (err) {
-      devLog.warn(`[Metrics] choices-rerun status=timeout-or-error durationMs=${Date.now() - start} error=${err instanceof Error ? err.message : String(err)}`);
-      return null;
-    }
+  // Ideas run the same choices path as a turn: prompt, retries, top-stat coverage,
+  // sanitizers, and the deterministic fallback.
+  async generateIdeas(input: NarrationInput): Promise<{ choices: NarrationChoice[]; degraded: boolean }> {
+    const flow = await runChoicesWithRetry(input);
+    return { choices: toPlayerChoices(flow.choices, input), degraded: flow.usedFallback };
   }
 
   async orchestrate(
@@ -979,9 +969,9 @@ export class DmTurnOrchestrator implements NarrationProvider {
       narrationDeadlineMs,
       diagnostics,
     );
-    const [narration, choicesFlow, combat, inventory, recovery] = await Promise.all([
+    // A turn carries no suggestions: they come from generateIdeas when a player asks.
+    const [narration, combat, inventory, recovery] = await Promise.all([
       narrationPromise,
-      runChoicesWithRetry(input, { diagnostics, narrationSettled: narrationPromise }),
       runCombat
         ? withDeadline('combat', (signal) => callCombatAgent(input, signal), combatFallback, 2500, diagnostics, true)
         : Promise.resolve(combatFallback),
@@ -1013,7 +1003,7 @@ export class DmTurnOrchestrator implements NarrationProvider {
       // Only a decisive finale turn may report progress on the chapter objective.
       objectiveOutcome: input.adventureDirective?.decisiveMoment && !narrationUsedFallback ? (narration.objectiveOutcome ?? null) : null,
       narratedRiddle: toNarratedRiddle(narration, narrationUsedFallback),
-      choices: toPlayerChoices(choicesFlow.choices, input),
+      choices: [],
       suggestedDamage: combat.suggestedDamage ?? null,
       suggestedEncounterStart: (combat.suggestedEncounterStart ?? null) as NarrationOutput['suggestedEncounterStart'],
       suggestedEncounterUpdate: (combat.suggestedEncounterUpdate ?? null) as NarrationOutput['suggestedEncounterUpdate'],
@@ -1026,8 +1016,8 @@ export class DmTurnOrchestrator implements NarrationProvider {
       suggestedBuffRemove: recovery.suggestedBuffRemove ?? null,
       narrationRetried: false,
       narrationFailed: narrationUsedFallback,
-      choicesFailed: choicesFlow.usedFallback,
-      choicesEscalated: choicesFlow.escalated,
+      choicesFailed: false,
+      choicesEscalated: false,
       agentDiagnostics: diagnostics,
     };
   }
@@ -1066,24 +1056,20 @@ export class DmTurnOrchestrator implements NarrationProvider {
     };
   }
 
-  // resolved_first stage 2: narration and choices from frozen facts (input.resolvedTurn
+  // resolved_first stage 2: narration from frozen facts (input.resolvedTurn
   // and the post-turn party/encounter). Streams only after mechanics are final, so
   // nothing a player hears can contradict the committed outcome.
   async narrateResolved(input: NarrationInput, callbacks?: NarrationStreamCallbacks): Promise<ResolvedPresentation> {
     const diagnostics: AgentDiagnostic[] = [];
     const fallbackOutput = buildNarrationFallback(input);
     const narrationDeadlineMs = input.isFirstTurn || input.interventionRescue || input.sanctuaryRecovery ? 8000 : 6000;
-    const narrationPromise = withDeadline<NarrationAgentOutput>(
+    const narration = await withDeadline<NarrationAgentOutput>(
       'narration',
       (signal) => callNarrationAgent(input, callbacks, signal),
       { narration: fallbackOutput.narration, currentTensionLevel: fallbackOutput.currentTensionLevel },
       narrationDeadlineMs,
       diagnostics,
     );
-    const [narration, choicesFlow] = await Promise.all([
-      narrationPromise,
-      runChoicesWithRetry(input, { diagnostics, narrationSettled: narrationPromise }),
-    ]);
     const narrationUsedFallback = diagnostics.some(d => d.agent === 'narration' && (d.status === 'fallback' || d.status === 'timeout'));
     return {
       narration: cleanText(narration.narration),
@@ -1091,10 +1077,8 @@ export class DmTurnOrchestrator implements NarrationProvider {
       currentTensionLevel: narration.currentTensionLevel,
       objectiveOutcome: input.adventureDirective?.decisiveMoment && !narrationUsedFallback ? (narration.objectiveOutcome ?? null) : null,
       narratedRiddle: toNarratedRiddle(narration, narrationUsedFallback),
-      choices: toPlayerChoices(choicesFlow.choices, input),
+      choices: [],
       narrationFailed: narrationUsedFallback,
-      choicesFailed: choicesFlow.usedFallback,
-      choicesEscalated: choicesFlow.escalated,
       agentDiagnostics: diagnostics,
     };
   }

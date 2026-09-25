@@ -10,7 +10,7 @@ A family-friendly, AI-powered D&D adventure game built for short, hilarious stor
 
 ## What Is This?
 
-You and your family pick heroes, describe a realm, and the AI takes over as DM. Each turn the AI narrates what happens, suggests three actions, and you pick one (or improvise your own). Roll dice. Take damage. Find cursed amulets. Argue about whether kicking a magic tome counts as Might or Mischief.
+You and your family pick heroes, describe a realm, and the AI takes over as DM. Each turn the AI narrates what happens, and you say what your hero tries, in your own words. Stuck? Ask for ideas and pick one, or ask the DM a question without using your turn. Roll dice. Take damage. Find cursed amulets. Argue about whether kicking a magic tome counts as Might or Mischief.
 
 No prep required. No DM experience required. Just vibes and a d20.
 

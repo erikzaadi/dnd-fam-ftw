@@ -38,7 +38,7 @@ test('instant start: loader appears and navigates to a new session', async ({ pa
   // Session page should load with an action dock
   await dismissAudioOverlay(page);
   await dismissOriginView(page);
-  await expect(page.getByText('Choose an Action')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('What do you try?', { exact: true })).toBeVisible({ timeout: 30_000 });
 });
 
 test('instant start: POST returns quickly without blocking on AI work', async ({ request }) => {

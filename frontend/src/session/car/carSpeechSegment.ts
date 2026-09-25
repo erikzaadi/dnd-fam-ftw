@@ -244,5 +244,10 @@ export function buildLocationSegment(session: Session, latestTurn?: TurnResult):
 // Cachable static prompts
 export const CHOOSE_ACTION_PROMPT = "What do you do? Say option one, two, three, or say a custom action.";
 export const CONFIRM_ACTION_PROMPT = "Say confirm, cancel, or try again.";
-export const HELP_TEXT = "Voice commands: options, repeat story, status, party, gear, encounter, where are we, pause, resume, cancel, confirm, wrap up, end here, or say an option number.";
-export const ORIENTATION_PROMPT = "Say one, two, or three for the main options, or speak freely for a custom action. Say help at any time for voice commands.";
+export const HELP_TEXT = "Voice commands: ideas, ask the DM and your question, repeat story, status, party, gear, encounter, where are we, pause, resume, cancel, confirm, wrap up, end here, or say an option number.";
+export const HELP_CACHE_KEY = 'car:v3:info:help';
+export const ORIENTATION_PROMPT = "Say what your hero tries, in your own words. Say ideas for suggestions, or help for voice commands.";
+export const ORIENTATION_CACHE_KEY = 'car:v2:orientation';
+// Freeform-first: no ideas on the table, so the players say what they try.
+export const OPEN_ACTION_PROMPT = "What do you try? Say it in your own words, or say ideas for suggestions.";
+export const OPEN_ACTION_CACHE_KEY = 'car:v1:prompt:open-action';

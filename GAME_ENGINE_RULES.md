@@ -64,6 +64,8 @@ Typed custom actions are previewed before the turn is spent. The preview API acc
 
 This keeps preview, narrating state, and final turn resolution aligned with the current active hero. The client should not send character class, quirk, or previous-turn context in the preview body.
 
+A player describes an attempt, never a result: "I persuade the guard" is previewed as trying to persuade. When a missing or ambiguous target, item, or intent would clearly change what happens ("I throw it at them" with two possible targets), the preview can return a short question instead of a preview (`{ kind: 'clarification', question }`). Nothing is stored or spent. The client sends the reply back with the original draft, and the preview reads them together. Questions are offered only to clients that declare `supports: ['clarification']`, and for at most 2 rounds; after that the preview interprets as best it can. A failed preview call is never turned into a question. Riddle questions follow the same contract (see Riddles).
+
 The backend also assigns an `impact` to rolled actions:
 
 | Impact | Meaning |

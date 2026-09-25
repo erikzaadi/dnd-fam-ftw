@@ -76,6 +76,13 @@ const isNegated = (text: string): boolean => NEGATION_RE.test(text);
 const correctAnswers = (riddle: StoredRiddle): string[] =>
   [riddle.canonicalAnswer, ...riddle.aliases].filter((a): a is string => !!a);
 
+// True when text names the riddle's answer anywhere (whole words). Used to keep answers
+// out of anything shown to players outside the riddle itself, e.g. Ask the DM.
+export const mentionsRiddleAnswer = (text: string, riddle: StoredRiddle): boolean => {
+  const candidate = normalize(text);
+  return correctAnswers(riddle).some(answer => matchesAnswer(candidate, answer));
+};
+
 // Judges one asserted clause; the caller has already removed negated ones.
 // forceAnswer: the player was asked about the riddle, so what they assert is their answer.
 const assessClause = (clause: string, riddle: StoredRiddle, forceAnswer: boolean): RiddleAssessment => {
@@ -211,7 +218,15 @@ const withoutRiddleFields = ({ riddleAnswer: _riddleAnswer, riddleCorrect: _ridd
 // parallel with narration and never sees it, so it can guess another answer, invent a
 // riddle nobody posed, or offer none. riddle: the answer key, 'unknown' (leave the
 // choices alone), or null (no riddle: answer choices become ordinary actions).
-export const syncRiddleChoices = (choices: Choice[], riddle: RiddleAnswerKey | 'unknown' | null, random: () => number = Math.random): Choice[] => {
+// addIfMissing: add a correct answer choice when the agent offered none. Only for the
+// turn that posed the riddle and for ideas: on later turns the story may have moved on,
+// and injecting answers would keep an old riddle alive.
+export const syncRiddleChoices = (
+  choices: Choice[],
+  riddle: RiddleAnswerKey | 'unknown' | null,
+  options: { addIfMissing?: boolean; random?: () => number } = {},
+): Choice[] => {
+  const { addIfMissing = true, random = Math.random } = options;
   if (riddle === 'unknown' || choices.length === 0) {
     return choices;
   }
@@ -220,6 +235,9 @@ export const syncRiddleChoices = (choices: Choice[], riddle: RiddleAnswerKey | '
   }
   const isCorrect = (answer: string) => [riddle.canonicalAnswer, ...riddle.aliases].some(correct => matchesAnswer(normalize(answer), correct));
   const answers = choices.filter(choice => !!choice.riddleAnswer);
+  if (answers.length === 0 && !addIfMissing) {
+    return choices;
+  }
   const others = choices.filter(choice => !choice.riddleAnswer);
   const agentCorrect = answers.find(choice => isCorrect(choice.riddleAnswer as string));
   const template = answers[0];

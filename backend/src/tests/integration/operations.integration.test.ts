@@ -14,7 +14,7 @@ import { acceptSessionOperation, reconcileInterruptedOperations } from '../../se
 import { StateService } from '../../services/stateService.js';
 import type { NarrationOutput } from '../../providers/ai/narration/NarrationProvider.js';
 import type { SessionOperation, SessionSnapshot, SessionState, TurnResult } from '../../types.js';
-import { FIXED_NARRATION_OUTPUT, mockGenerateTurn, resetMockNarrationProvider } from './mockNarrationProvider.js';
+import { FIXED_NARRATION_OUTPUT, mockGenerateTurn, pinTurnStrategy, resetMockNarrationProvider } from './mockNarrationProvider.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
 
 vi.mock('../../providers/ai/AiProviderFactory.js', async () => {
@@ -24,6 +24,11 @@ vi.mock('../../providers/ai/AiProviderFactory.js', async () => {
     createChatClientForTier: vi.fn(),
   };
 });
+
+// Operation ledger, idempotency, concurrency and retry behavior does not depend on the
+// turn strategy. These tests script the parallel monolith (delays, 429s), so they pin it
+// explicitly instead of silently falling back from the resolved_first default.
+pinTurnStrategy('parallel');
 
 let paths: IntegrationTestPaths;
 let server: Server;
@@ -360,6 +365,24 @@ describe('action route lifecycle (R1/R3)', () => {
     const badStat = await postAction('route-invalid', { action: 'Dance', statUsed: 'charisma' });
     expect(badStat.status).toBe(400);
     expect(operationRepository.getLatest('route-invalid')).toBeNull();
+  });
+
+  it('stores the "Suggest ideas each turn" realm setting as a guarded settings patch', async () => {
+    await insertSessionState(makeTestSession({ id: 'route-auto-ideas' }));
+    const patch = (body: Record<string, unknown>) => fetch(`${baseUrl}/session/route-auto-ideas`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    const on = await patch({ autoIdeas: true, expectedRevision: 0 });
+    expect(on.status).toBe(200);
+    expect(await on.json()).toMatchObject({ autoIdeas: true, revision: 1 });
+    expect((await (await fetch(`${baseUrl}/session/route-auto-ideas`)).json() as { autoIdeas?: boolean }).autoIdeas).toBe(true);
+
+    await patch({ autoIdeas: false, expectedRevision: 1 });
+    expect((await StateService.getSession('route-auto-ideas'))?.autoIdeas).toBeUndefined();
+    expect((await patch({ autoIdeas: 'yes' })).status).toBe(400);
   });
 
   it('never sends riddle correctness to clients, only the public riddle marker', async () => {

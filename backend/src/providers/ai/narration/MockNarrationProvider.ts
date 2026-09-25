@@ -15,7 +15,8 @@ export class MockNarrationProvider implements NarrationProvider {
       rollNarration: input.actionResult.roll
         ? `The die lands on ${input.actionResult.roll}.`
         : 'No roll was needed.',
-      choices,
+      // Like the real orchestrator: no pre-made choices, ideas come from generateIdeas.
+      choices: [],
       currentTensionLevel: 'medium',
       suggestedInventoryAdd: grantsBridgeToken
         ? {
@@ -40,6 +41,10 @@ export class MockNarrationProvider implements NarrationProvider {
         ? (input.actionResult.success ? 'resolved_success' : 'advanced')
         : null,
     };
+  }
+
+  async generateIdeas(): Promise<{ choices: typeof choices; degraded: boolean }> {
+    return { choices: choices.map(choice => ({ ...choice })), degraded: false };
   }
 
   // resolved_first stages, deterministic for E2E runs with AI_TURN_STRATEGY=resolved_first.

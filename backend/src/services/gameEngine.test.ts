@@ -57,6 +57,22 @@ describe('GameEngine', () => {
     expect(newState.lastChoices[0].label).toBe('Run away');
   });
 
+  it('takes failure damage from the action\'s own difficulty, not from a choice with the same label', () => {
+    const session = makeSession({ lastChoices: [] });
+    const failed = (difficulty: 'easy' | 'hard') => ({
+      actionAttempt: 'Leap across the chasm',
+      actionResult: { success: false, roll: 5, statUsed: 'might' as const, difficulty },
+    });
+    const afterHard = GameEngine.updateState(session, failed('hard'), { choices: [] });
+    const afterEasy = GameEngine.updateState(session, failed('easy'), { choices: [] });
+    expect(afterHard.party[0].hp).toBe(makeChar().hp - 3);
+    expect(afterEasy.party[0].hp).toBe(makeChar().hp - 1);
+  });
+
+  it('records the difficulty label on resolved actions', () => {
+    expect(GameEngine.resolveAction(makeChar(), 'Leap', 'might', 'hard').actionResult.difficulty).toBe('hard');
+  });
+
   it('updateState adds suggested inventory item on success', () => {
     const session = makeSession();
     const attempt = { actionAttempt: 'Search the chest', actionResult: { success: true, roll: 15, statUsed: 'mischief' as const } };

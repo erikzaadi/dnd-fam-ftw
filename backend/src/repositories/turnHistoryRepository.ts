@@ -42,6 +42,9 @@ type TurnHistoryRow = {
   narrationRetryValidationError: string | null;
   encounterEnemyChanges: string | null;
   buffChanges: string | null;
+  ideas_revision: number | null;
+  ideas_character_id: string | null;
+  ideas_degraded: number | null;
 };
 
 const mapTurnHistoryRow = (row: TurnHistoryRow): TurnResult => {
@@ -135,7 +138,47 @@ const mapTurnHistoryRow = (row: TurnHistoryRow): TurnResult => {
     ...(row.narrationRetryValidationError && { narrationRetryValidationError: row.narrationRetryValidationError }),
     ...(row.encounterEnemyChanges && { encounterEnemyChanges: JSON.parse(row.encounterEnemyChanges) }),
     ...(row.buffChanges && { buffChanges: JSON.parse(row.buffChanges) }),
+    ...(row.ideas_revision != null && { ideasRevision: row.ideas_revision }),
+    ...(row.ideas_character_id && { ideasCharacterId: row.ideas_character_id }),
+    ...(row.ideas_degraded && { ideasDegraded: true }),
   };
+};
+
+export type TurnIdeasMeta = {
+  turnId: number;
+  ideasRevision: number | null;
+  ideasCharacterId: string | null;
+  ideasDegraded: boolean;
+};
+
+// Stale ideas are hidden and cannot be submitted. Turns from before ideas existed carry
+// no metadata and stay current while they are the latest turn.
+export const areIdeasCurrent = (meta: Pick<TurnIdeasMeta, 'ideasRevision' | 'ideasCharacterId'>, session: { revision?: number; activeCharacterId: string }): boolean =>
+  meta.ideasRevision == null
+  || (meta.ideasRevision === (session.revision ?? 0) && (!meta.ideasCharacterId || meta.ideasCharacterId === session.activeCharacterId));
+
+const insertChoicesSync = (turnId: number | bigint, choices: TurnResult['choices']): void => {
+  const db = getDb();
+  for (const choice of choices) {
+    const choiceInfo = db.prepare('INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue, narration, riddleAnswer, riddleCorrect, flavor, helperCharacterName, itemOwnerName, itemName, environmentFeature) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(
+        turnId,
+        choice.label,
+        choice.difficulty,
+        choice.stat,
+        choice.difficultyValue ?? null,
+        choice.narration ?? null,
+        choice.riddleAnswer ?? null,
+        choice.riddleCorrect == null ? null : (choice.riddleCorrect ? 1 : 0),
+        choice.flavor ?? null,
+        choice.helperCharacterName ?? null,
+        choice.itemOwnerName ?? null,
+        choice.itemName ?? null,
+        choice.environmentFeature ?? null,
+      );
+    // Hand the stable id back so the broadcast turn can be answered by choice id.
+    choice.id = Number(choiceInfo.lastInsertRowid);
+  }
 };
 
 export const turnHistoryRepository = {
@@ -197,27 +240,30 @@ export const turnHistoryRepository = {
       );
 
     const turnId = info.lastInsertRowid;
-    for (const choice of (turn.choices ?? [])) {
-      const choiceInfo = db.prepare('INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue, narration, riddleAnswer, riddleCorrect, flavor, helperCharacterName, itemOwnerName, itemName, environmentFeature) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(
-          turnId,
-          choice.label,
-          choice.difficulty,
-          choice.stat,
-          choice.difficultyValue ?? null,
-          choice.narration ?? null,
-          choice.riddleAnswer ?? null,
-          choice.riddleCorrect == null ? null : (choice.riddleCorrect ? 1 : 0),
-          choice.flavor ?? null,
-          choice.helperCharacterName ?? null,
-          choice.itemOwnerName ?? null,
-          choice.itemName ?? null,
-          choice.environmentFeature ?? null,
-        );
-      // Hand the stable id back so the broadcast turn can be answered by choice id.
-      choice.id = Number(choiceInfo.lastInsertRowid);
-    }
+    insertChoicesSync(turnId, turn.choices ?? []);
     return Number(turnId);
+  },
+
+  // Stamps which revision and acting hero a turn's choices belong to (commitTurn).
+  setIdeasMetaSync(turnId: number, revision: number, characterId: string, degraded: boolean): void {
+    getDb().prepare('UPDATE turn_history SET ideas_revision = ?, ideas_character_id = ?, ideas_degraded = ? WHERE id = ?')
+      .run(revision, characterId || null, degraded ? 1 : 0, turnId);
+  },
+
+  // Replaces a turn's choices with freshly generated ideas. Synchronous so the ideas
+  // service can run it inside a transaction with its currency checks.
+  replaceIdeasSync(turnId: number, choices: TurnResult['choices'], revision: number, characterId: string, degraded: boolean): void {
+    getDb().prepare('DELETE FROM turn_choices WHERE turnId = ?').run(turnId);
+    insertChoicesSync(turnId, choices);
+    turnHistoryRepository.setIdeasMetaSync(turnId, revision, characterId, degraded);
+  },
+
+  getLatestIdeasMeta(sessionId: string): TurnIdeasMeta | null {
+    const row = getDb().prepare('SELECT id, ideas_revision, ideas_character_id, ideas_degraded FROM turn_history WHERE sessionId = ? ORDER BY id DESC LIMIT 1')
+      .get(sessionId) as { id: number; ideas_revision: number | null; ideas_character_id: string | null; ideas_degraded: number | null } | undefined;
+    return row
+      ? { turnId: row.id, ideasRevision: row.ideas_revision, ideasCharacterId: row.ideas_character_id, ideasDegraded: !!row.ideas_degraded }
+      : null;
   },
 
   getCharacterTurnHistory(characterId: string): { narration: string; actionAttempt: string | null }[] {

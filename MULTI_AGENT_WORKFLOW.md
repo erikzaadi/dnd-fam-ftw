@@ -1,6 +1,6 @@
 # Multi-Agent Turn Workflow
 
-Every player action triggers a parallel multi-agent pipeline. Two agents always run (narration, choices); three more run conditionally based on the turn context. Each agent owns a strict set of output fields and must not instruct or set fields owned by another agent.
+Every player action triggers a multi-agent pipeline (resolved-first by default, see below; the parallel layout described first is the opt-out and still serves opening, rescue, and chapter-start turns). Two agents always run (narration, choices); three more run conditionally based on the turn context. Each agent owns a strict set of output fields and must not instruct or set fields owned by another agent.
 
 ---
 
@@ -193,9 +193,9 @@ The parallel constraint means no agent can see the current turn's narration (gen
 
 ---
 
-## Resolved-First Candidate (`AI_TURN_STRATEGY=resolved_first`)
+## Resolved-First (the default; `AI_TURN_STRATEGY=parallel` opts out)
 
-Experimental, off by default. Instead of generating everything in parallel and repairing disagreements afterwards:
+The default since 2026-09-25, for player actions and item turns. Instead of generating everything in parallel and repairing disagreements afterwards:
 
 1. `proposeMechanics`: combat, inventory and recovery agents (same gates and deadlines).
 2. Policies (`applyTurnPolicies`) and the engine apply the proposal once; that frozen state is what gets committed. Only the combat agent can start a fight (no prose-derived encounter inference).

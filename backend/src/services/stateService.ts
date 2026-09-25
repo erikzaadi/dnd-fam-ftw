@@ -85,6 +85,10 @@ export class StateService {
     return sessionRepository.getRevision(id);
   }
 
+  public static setOriginStoryIfMissing(id: string, originStory: string, generatedAt: string): boolean {
+    return sessionRepository.setOriginStoryIfMissing(id, originStory, generatedAt);
+  }
+
   public static bumpRevision(id: string): number {
     return sessionRepository.bumpRevision(id);
   }

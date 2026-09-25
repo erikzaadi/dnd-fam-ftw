@@ -158,7 +158,7 @@ describe('ChronicleDrawer keyboard navigation', () => {
     expect(screen.getByText('Turn 3 narration')).toBeInTheDocument();
   });
 
-  it('uses the same next-turn roll in compact and expanded chronicle views', () => {
+  it('shows each turn with its own action, roll, changes, and narration', () => {
     const history: TurnResult[] = [
       { ...makeTurn(1), choices: [{ label: 'Open the chest', difficulty: 'easy', stat: 'mischief' }] },
       {
@@ -184,13 +184,30 @@ describe('ChronicleDrawer keyboard navigation', () => {
       inventory: [],
     }];
 
-    renderDrawer(0, vi.fn(), vi.fn(), history, party);
+    renderDrawer(1, vi.fn(), vi.fn(), history, party);
 
+    // The roll sits on the row of the turn it belongs to, next to that turn's narration.
     expect(screen.getByLabelText('Legendary Success, Natural 20')).toHaveTextContent('20');
-    fireEvent.click(screen.getByText('Turn 1 narration'));
-    expect(screen.getAllByText('Turn 1 narration')).toHaveLength(2);
+    fireEvent.click(screen.getByText('Turn 2 narration'));
+    expect(screen.getAllByText('Turn 2 narration')).toHaveLength(2);
+    expect(screen.getByText('Pip')).toBeInTheDocument();
+    expect(screen.getByText('"Open the chest"')).toBeInTheDocument();
     expect(screen.getByText('Legendary Success')).toBeInTheDocument();
     expect(screen.getByText('Natural 20')).toBeInTheDocument();
     expect(screen.getByText('Moon Key')).toBeInTheDocument();
+  });
+
+  it('highlights the suggestion the next hero picked under the turn that offered it', () => {
+    const history: TurnResult[] = [
+      { ...makeTurn(1), choices: [{ label: 'Open the chest', difficulty: 'easy', stat: 'mischief' }, { label: 'Leave it', difficulty: 'easy', stat: 'might' }] },
+      { ...makeTurn(2), characterId: 'char-1', lastAction: { actionAttempt: 'Open the chest', actionResult: { success: true, roll: 12, statUsed: 'mischief' } } },
+    ];
+
+    renderDrawer(0, vi.fn(), vi.fn(), history, []);
+    fireEvent.click(screen.getByText('Turn 1 narration'));
+
+    expect(screen.getByText('Ideas offered next')).toBeInTheDocument();
+    expect(screen.getByText('Open the chest').parentElement?.className).toContain('border-amber-400');
+    expect(screen.getByText('Leave it').parentElement?.className).not.toContain('border-amber-400');
   });
 });

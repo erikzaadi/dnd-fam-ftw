@@ -39,13 +39,13 @@ export const HowToPlay = () => {
           <div className="bg-slate-900/80 border-2 border-slate-800 rounded-[32px] p-6 md:p-10 space-y-10">
             <Section title="The Goal">
               <p className="text-slate-300 text-lg leading-relaxed">
-                You and your party are heroes in a realm of the AI's imagination. Each turn the AI Dungeon Master narrates what's happening and offers three choices. Pick one (or type your own), roll the dice, and see what happens. By default an adventure fits one evening: it opens with a clear goal, builds toward a finale, and ends with an epilogue about what every hero did.
+                You and your party are heroes in a realm of the AI's imagination. Each turn the AI Dungeon Master narrates what's happening. Say what your hero tries in your own words (type it, or use the mic): swing from the chandelier, offer the guard a sandwich, anything. Stuck? Tap <strong className="text-sky-300">Give me ideas</strong> for a few suggestions (or turn on <strong className="text-sky-300">Ideas every turn</strong> in the ⚙ menu). Not sure what's possible? Type a question and tap <strong className="text-sky-300">Ask the DM instead</strong> (or say "ask the DM ..."): the DM answers without using up your turn. Then roll the dice and see what happens. A typed action goes out on its own after a moment, with an <strong className="text-amber-300">Undo</strong> button in case you change your mind. Anything that needs a second look (a warning, gear, or something you said out loud) gets a confirm step first, and <strong className="text-amber-300">Ask before sending</strong> turns that on for every action. By default an adventure fits one evening: it opens with a clear goal, builds toward a finale, and ends with an epilogue about what every hero did.
               </p>
               <p className="text-slate-400 text-base mt-3 leading-relaxed">
                 Victories should move the adventure forward. When a fight or hard challenge is resolved, the story should carry you into the next clue, route, reward, threat, or decision instead of lingering on the finished scene.
               </p>
               <p className="text-slate-400 text-base mt-3 leading-relaxed">
-                Riddles are answered in your own words, with no dice roll: the riddle decides. If the DM cannot tell what you mean, it asks you a short question first. Just answer it ("yes", "the goblin") and your action carries on. Nothing happens and no turn is spent until you confirm.
+                Riddles are answered in your own words, with no dice roll: the riddle decides. If the DM cannot tell what you mean, it asks you a short question first. Just answer it ("yes", "the goblin") and your action carries on. Nothing happens and no turn is spent until your action is sent.
               </p>
             </Section>
 
@@ -129,7 +129,7 @@ export const HowToPlay = () => {
                 }
                 value="Hand a transferable item to another party member"
               />
-              <p className="text-slate-500 text-base mt-3">Using and giving items doesn't cost a roll. They always succeed. Story moments can also bless, reveal, charge, damage, or bond items so old gear may gain new properties.</p>
+              <p className="text-slate-500 text-base mt-3">Using and giving items doesn't cost a roll. They always succeed. Tapping Use or Give adds the item to your action as a little tag: you can still change the words, then confirm it like any other action. Story moments can also bless, reveal, charge, damage, or bond items so old gear may gain new properties.</p>
             </Section>
 
             <Section title="Enchanting Gear">
@@ -154,7 +154,7 @@ export const HowToPlay = () => {
               </p>
               <div className="space-y-2 mt-3">
                 <div className="text-base text-slate-300 p-4 bg-slate-800/60 border border-slate-700 rounded-2xl">
-                  <strong className="text-emerald-400">Party Boost ✦</strong> - Tap the glowing icon in the party bar to rally the whole group. The active hero uses their strongest stat to inspire an advantage for everyone. A confirmation popup previews the roll first.
+                  <strong className="text-emerald-400">Rally everyone ✦</strong> - Under <strong className="text-emerald-400">Help someone</strong> (below the action box), or press [R], to rally the whole group. The active hero uses their strongest stat to inspire an advantage for everyone. A confirmation popup previews the roll first.
                 </div>
                 <div className="text-base text-slate-300 p-4 bg-slate-800/60 border border-slate-700 rounded-2xl">
                   <strong className="text-blue-400">Bless</strong> - Tap any party member's portrait, then tap <strong className="text-blue-300">Bless</strong>. The active hero grants that teammate a short-lived magical protection or lucky edge.
@@ -163,7 +163,7 @@ export const HowToPlay = () => {
                   <strong className="text-emerald-400">Aid</strong> - Tap any party member's portrait, then tap <strong className="text-emerald-300">Aid</strong>. The active hero sets up a clever assist so the target gets a small bonus on their next action.
                 </div>
               </div>
-              <p className="text-slate-500 text-base mt-3">Bless and Aid can only target active (non-downed) party members, and the acting hero cannot target themselves. All three support actions use a confirmation popup so you see the roll preview before committing.</p>
+              <p className="text-slate-500 text-base mt-3">All three live under <strong className="text-emerald-400">Help someone</strong> below the action box (the [E], [A] and [R] shortcuts and the hero cards still work too). Bless and Aid can only target active (non-downed) party members, and the acting hero cannot target themselves. All three support actions use a confirmation popup so you see the roll preview before committing.</p>
             </Section>
 
             <Section title="🪙 Trading">

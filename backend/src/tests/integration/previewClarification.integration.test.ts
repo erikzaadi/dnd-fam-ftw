@@ -163,3 +163,112 @@ describe('preview clarification contract', () => {
     }
   });
 });
+
+describe('model clarification for a missing target or intent', () => {
+  const VAGUE = 'I throw it at them';
+  const asks = () => mockCreateCompletion.mockResolvedValueOnce({
+    choices: [{ message: { content: '{"stat":"might","action":"Pip throws the dagger","clarify":"At the goblin or the wolf?"}' } }],
+  });
+  const promptSent = () => mockCreateCompletion.mock.calls[0][0].messages[0].content as string;
+
+  it('asks the question the preview model raised, storing nothing', async () => {
+    await insertSessionState(makeTestSession({ id: 'model-ask' }));
+    asks();
+    const res = await preview('model-ask', { action: VAGUE, supports: ['clarification'] });
+
+    expect(await res.json()).toMatchObject({ kind: 'clarification', question: 'At the goblin or the wolf?' });
+    expect(promptSent()).toContain('Set "clarify"');
+    expect(promptSent()).toContain('describes what they TRY');
+  });
+
+  it('reads the reply together with the draft', async () => {
+    await insertSessionState(makeTestSession({ id: 'model-reply' }));
+    mockCreateCompletion.mockResolvedValueOnce({ choices: [{ message: { content: '{"stat":"might","action":"Pip throws the dagger at the goblin","clarify":null}' } }] });
+    const res = await preview('model-reply', { action: VAGUE, supports: ['clarification'], clarifications: [{ question: 'At the goblin or the wolf?', answer: 'the goblin' }] });
+    const body = await res.json() as FreeActionPreview;
+
+    expect(body.originalAction).toBe(VAGUE);
+    expect(body.interpretedAction).toBe('Pip throws the dagger at the goblin');
+    expect(body.previewId).toBeTruthy();
+    expect(promptSent()).toContain('I throw it at them (asked "At the goblin or the wolf?", the player answered "the goblin")');
+  });
+
+  it('never offers the question to clients that cannot show it', async () => {
+    await insertSessionState(makeTestSession({ id: 'model-legacy' }));
+    asks();
+    const body = await (await preview('model-legacy', { action: VAGUE })).json() as FreeActionPreview;
+
+    expect(promptSent()).not.toContain('Set "clarify"');
+    expect(body.interpretedAction).toBe('Pip throws the dagger');
+  });
+
+  it('stops asking at the round limit and interprets instead', async () => {
+    await insertSessionState(makeTestSession({ id: 'model-limit' }));
+    asks();
+    const clarifications = [
+      { question: 'At the goblin or the wolf?', answer: 'the big one' },
+      { question: 'The goblin chief or the dire wolf?', answer: 'whichever' },
+    ];
+    const body = await (await preview('model-limit', { action: VAGUE, supports: ['clarification'], clarifications })).json() as FreeActionPreview;
+
+    expect(promptSent()).not.toContain('Set "clarify"');
+    expect(body.previewId).toBeTruthy();
+  });
+
+  it('treats a failed preview call as an error preview, never as a question', async () => {
+    await insertSessionState(makeTestSession({ id: 'model-failure' }));
+    mockCreateCompletion.mockRejectedValueOnce(new Error('provider down'));
+    const body = await (await preview('model-failure', { action: VAGUE, supports: ['clarification'] })).json() as Partial<PreviewClarification> & Partial<FreeActionPreview>;
+
+    expect(body.kind).toBeUndefined();
+    expect(body.stat).toBe('mischief');
+  });
+});
+
+describe('gear attached to the draft', () => {
+  const withPotion = (id: string) => {
+    const base = makeTestSession({ id });
+    return makeTestSession({
+      id,
+      party: [
+        { ...base.party[0], hp: 4, inventory: [{ id: 'potion-1', name: 'Healing Potion', description: 'Restores health', healValue: 3, consumable: true, transferable: true }] },
+        base.party[1],
+      ],
+    });
+  };
+
+  it('previews an item use without a model call and confirms it as that item action, with no roll', async () => {
+    await insertSessionState(withPotion('gear-use'));
+    const res = await preview('gear-use', { action: 'Pip drinks the potion', supports: ['clarification'], attachment: { actionType: 'use_item', itemId: 'potion-1', ownerCharacterId: 'char-pip', targetCharacterId: 'char-pip' } });
+    const body = await res.json() as FreeActionPreview;
+
+    expect(mockCreateCompletion).not.toHaveBeenCalled();
+    expect(body.itemAction).toMatchObject({ kind: 'item_use', itemName: 'Healing Potion', ownerName: 'Pip' });
+    expect(body.previewId).toBeTruthy();
+
+    const accepted = await confirm('gear-use', { action: body.interpretedAction, statUsed: 'none', previewId: body.previewId, requestId: 'gear-use-1' });
+    expect(accepted.status).toBe(202);
+    await waitForIdle('gear-use');
+    const history = await StateService.getTurnHistory('gear-use');
+    expect(history[history.length - 1].lastAction?.actionResult).toMatchObject({ roll: 0, statUsed: 'none' });
+    const stored = await StateService.getSession('gear-use');
+    expect(stored?.party[0].inventory.some(item => item.id === 'potion-1')).toBe(false);
+  });
+
+  it('fills in the action text when the draft is empty', async () => {
+    await insertSessionState(withPotion('gear-template'));
+    const body = await (await preview('gear-template', { attachment: { actionType: 'give_item', itemId: 'potion-1', ownerCharacterId: 'char-pip', targetCharacterId: 'char-zara' } })).json() as FreeActionPreview;
+
+    expect(body.interpretedAction).toBe('Pip gives Healing Potion to Zara');
+    expect(body.itemAction).toMatchObject({ kind: 'item_give', targetName: 'Zara' });
+  });
+
+  it('reports gear that is gone instead of previewing', async () => {
+    await insertSessionState(withPotion('gear-gone'));
+    const res = await preview('gear-gone', { action: 'Pip drinks the elixir', attachment: { actionType: 'use_item', itemId: 'elixir-9', ownerCharacterId: 'char-pip' } });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: 'item_unavailable' });
+  });
+});
+

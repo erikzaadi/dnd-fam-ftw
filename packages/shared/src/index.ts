@@ -58,6 +58,8 @@ export type {
   Capabilities,
   ActionClarification,
   PreviewClarification,
+  IdeasPayload,
+  AskDmPayload,
   FreeActionPreview,
   SessionOperationKind,
   SessionOperationStatus,

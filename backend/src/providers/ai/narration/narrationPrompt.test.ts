@@ -420,6 +420,27 @@ describe('buildChoicesAgentSystemPrompt - vendor/trade section', () => {
   });
 });
 
+describe('buildCombatAgentSystemPrompt - weak points', () => {
+  it('asks for concrete weak points, never abstract qualities', () => {
+    const prompt = buildCombatAgentSystemPrompt(makeInput());
+    expect(prompt).toContain('name something concrete a hero can target or use');
+    expect(prompt).toContain('not "bold teamwork"');
+  });
+});
+
+describe('buildNarrationAgentSystemPrompt - party heroes', () => {
+  it('forbids introducing a party hero as a newcomer or a foe', () => {
+    const prompt = buildNarrationAgentSystemPrompt(makeInput());
+    expect(prompt).toContain('Never describe a party hero as arriving, appearing, or being met for the first time');
+  });
+});
+
+describe('buildNarrationAgentSystemPrompt - open invitation', () => {
+  it('always ends with an open question to the next hero (turns carry no suggestions)', () => {
+    expect(buildNarrationAgentSystemPrompt(makeInput())).toContain('OPEN INVITATION');
+  });
+});
+
 describe('buildChoicesAgentSystemPrompt - riddle section', () => {
   it('includes riddle section when recent history mentions riddle', () => {
     const prompt = buildChoicesAgentSystemPrompt(makeInput({ recentHistory: ['The sphinx poses a riddle to the party.'] }));

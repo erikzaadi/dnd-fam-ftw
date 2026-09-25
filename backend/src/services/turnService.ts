@@ -1,8 +1,7 @@
 import { broadcastUpdate } from '../realtime/sessionEvents.js';
 import { devLog } from '../lib/devLog.js';
 import type { ActionAttempt, AIInput, Choice, NarratedRiddle, ServerTurnResult, SessionState, Stat, TurnResult } from '../types.js';
-import { AiDmService, toNarrationInput } from './aiDmService.js';
-import { DmTurnOrchestrator } from './dmTurnOrchestrator.js';
+import { AiDmService } from './aiDmService.js';
 import type { NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
 import { GameEngine } from './gameEngine.js';
 import { StateService } from './stateService.js';
@@ -82,8 +81,7 @@ const resolveItemTurn = async (
 ): Promise<TurnActionResult> => {
   const { sessionId, session, history, operationId } = ctx;
   let stepStart = ctx.stepStart;
-  // Item effects are deterministic already; resolved_first does not cover item turns yet.
-  const diagnostics = createTurnDiagnostics('parallel');
+  const diagnostics = createTurnDiagnostics(getTurnStrategy());
   const actingCharId = action.actorId;
   const character = session.party.find(c => c.id === actingCharId) || session.party[0];
   const targetId = action.targetCharacterId || actingCharId;
@@ -103,25 +101,52 @@ const resolveItemTurn = async (
   broadcastUpdate(sessionId, 'dm_narrating', { action: action.text, statUsed: 'none', character, operationId });
   stepStart = logTurnStep(sessionId, 'item-pre-llm', stepStart);
   const itemLlmStart = Date.now();
-  const turnResult = await AiDmService.generateTurnResult(aiInput);
-  const itemLlmMs = Date.now() - itemLlmStart;
-  logTurnStep(sessionId, 'item-llm', stepStart, `retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
 
-  diagnostics.stage('generation', itemLlmStart);
-  checkTurnResultConsistency(turnResult, itemState, itemAttempt);
-  const newState = GameEngine.applyTurnProposal(itemState, itemAttempt, turnResult);
-  await repairEncounterNameIfNeeded(itemState, newState, {
-    narration: turnResult.narration,
-    actionAttempt: itemAttempt.actionAttempt,
-  });
-  const itemNarrationBeforeAlign = turnResult.narration;
-  alignTurnWithResolvedEncounter(itemState, newState, turnResult);
-  if (turnResult.narration !== itemNarrationBeforeAlign) {
-    diagnostics.repair('align_resolved_encounter_narration');
+  // The item's effect is already applied (itemState). resolved_first then settles the
+  // mechanics agents' proposals and narrates from facts measured against the session
+  // before the item, so the story tells both the item and what followed.
+  const resolvedFirst = diagnostics.record.strategy === 'resolved_first'
+    ? await generateResolvedFirstTurn({
+      session: itemState,
+      aiInput,
+      actionAttempt: itemAttempt,
+      actingCharId,
+      actionIntent: undefined,
+      targetCharName: undefined,
+      diagnostics,
+      factsBaseline: session,
+      itemTurn: true,
+    })
+    : null;
+  if (diagnostics.record.strategy === 'resolved_first' && !resolvedFirst) {
+    diagnostics.record.strategy = 'parallel';
   }
-  if (stripChoicesTargetingDefeatedEnemies(newState, turnResult)) {
-    diagnostics.repair('strip_defeated_enemy_choices');
+
+  let turnResult: ServerTurnResult;
+  let newState: SessionState;
+  if (resolvedFirst) {
+    ({ turnResult, newState } = resolvedFirst);
+    logTurnStep(sessionId, 'item-resolved-first', stepStart, `failed=${turnResult.narrationFailed ?? false}`);
+  } else {
+    turnResult = await AiDmService.generateTurnResult(aiInput);
+    logTurnStep(sessionId, 'item-llm', stepStart, `retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
+    diagnostics.stage('generation', itemLlmStart);
+    checkTurnResultConsistency(turnResult, itemState, itemAttempt);
+    newState = GameEngine.applyTurnProposal(itemState, itemAttempt, turnResult);
+    await repairEncounterNameIfNeeded(itemState, newState, {
+      narration: turnResult.narration,
+      actionAttempt: itemAttempt.actionAttempt,
+    });
+    const itemNarrationBeforeAlign = turnResult.narration;
+    alignTurnWithResolvedEncounter(itemState, newState, turnResult);
+    if (turnResult.narration !== itemNarrationBeforeAlign) {
+      diagnostics.repair('align_resolved_encounter_narration');
+    }
+    if (stripChoicesTargetingDefeatedEnemies(newState, turnResult)) {
+      diagnostics.repair('strip_defeated_enemy_choices');
+    }
   }
+  const itemLlmMs = Date.now() - itemLlmStart;
   // Diffs are computed against the pre-item session so the item's own effect is reported.
   return finalizeTurn({
     sessionId,
@@ -275,8 +300,8 @@ const resolveRolledTurn = async (
     onAbort: () => broadcastUpdate(sessionId, 'narration_chunk_abort', { operationId }),
   };
 
-  // Plan 4 comparison: resolved_first freezes mechanics before narration; parallel is
-  // the production comparator. Both share policies and the finalizer.
+  // resolved_first (default) freezes mechanics before narration; parallel is the opt-out
+  // comparator. Both share policies and the finalizer.
   const resolvedFirst = diagnostics.record.strategy === 'resolved_first'
     ? await generateResolvedFirstTurn({
       session,
@@ -316,20 +341,8 @@ const resolveRolledTurn = async (
     if (turnResult.narration !== narrationBeforeAlign) {
       diagnostics.repair('align_resolved_encounter_narration');
     }
-    const choicesHadDefeatedRefs = stripChoicesTargetingDefeatedEnemies(newState, turnResult);
-    if (choicesHadDefeatedRefs) {
+    if (stripChoicesTargetingDefeatedEnemies(newState, turnResult)) {
       diagnostics.repair('strip_defeated_enemy_choices');
-    }
-    if (choicesHadDefeatedRefs && !turnResult.choicesFailed) {
-      devLog.log(`[Guard] choices-rerun start session=${sessionId}`);
-      const updatedNarrationInput = toNarrationInput({ ...aiInput, encounterState: newState.encounterState ?? undefined });
-      const rerunChoices = await new DmTurnOrchestrator().rerunChoices(updatedNarrationInput);
-      if (rerunChoices !== null) {
-        turnResult.choices = rerunChoices;
-        newState.lastChoices = rerunChoices;
-        diagnostics.repair('choices_rerun');
-        devLog.log(`[Guard] choices-rerun done session=${sessionId}`);
-      }
     }
   }
   // Riddles: the narration that posed one owns its answer. Answer choices are rebuilt
@@ -339,6 +352,8 @@ const resolveRolledTurn = async (
   turnResult.choices = syncRiddleChoices(
     turnResult.choices,
     !openRiddle ? null : openRiddle.canonicalAnswer ? { canonicalAnswer: openRiddle.canonicalAnswer, aliases: openRiddle.aliases } : 'unknown',
+    // Offer an answer only on the turn that posed the riddle.
+    { addIfMissing: !!narratedRiddle },
   );
   newState.lastChoices = turnResult.choices;
 
@@ -402,7 +417,8 @@ export const executeTurnAction = async (
   }
   const history = await StateService.getTurnHistory(sessionId);
   stepStart = logTurnStep(sessionId, 'load-history', stepStart, `history=${history.length}`);
-  const latestChoices = history[history.length - 1]?.choices ?? session.lastChoices;
+  // Only current ideas: session.lastChoices is empty once they went stale.
+  const latestChoices = session.lastChoices;
 
   const action = normalizeTurnAction(request, session, latestChoices);
   if (isRejection(action)) {

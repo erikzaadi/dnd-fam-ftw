@@ -18,9 +18,21 @@ import {
   buildLocationSegment,
   CHOOSE_ACTION_PROMPT,
   CONFIRM_ACTION_PROMPT,
+  HELP_CACHE_KEY,
   HELP_TEXT,
+  OPEN_ACTION_CACHE_KEY,
+  OPEN_ACTION_PROMPT,
+  ORIENTATION_CACHE_KEY,
   ORIENTATION_PROMPT,
 } from './carSpeechSegment';
+import { currentIdeas, type IdeasRequestResult } from '../../lib/ideas';
+import { askDm } from '../../lib/askDm';
+
+// With ideas on the table: read them and ask for a number or a custom action.
+// Without: an open question, never a list.
+const actionPromptSegment = (hasIdeas: boolean): SpokenSegment => (hasIdeas
+  ? { type: 'prompt', text: CHOOSE_ACTION_PROMPT, cacheKey: 'car:v1:prompt:choose-action' }
+  : { type: 'prompt', text: OPEN_ACTION_PROMPT, cacheKey: OPEN_ACTION_CACHE_KEY });
 
 export type ConductorState =
   | 'idle'
@@ -63,6 +75,8 @@ interface UseCarConductorProps {
   // An open DM question about the draft: the next utterance answers it.
   clarification?: ClarificationThread | null;
   clearClarification?: () => void;
+  // Asks the server for ideas for the latest turn ("ideas" / "options").
+  requestIdeas?: () => Promise<IdeasRequestResult>;
   ttsSettings: TtsSettings;
   hasTts: boolean;
   // Session management. Resolve to an error message, or null on success.
@@ -84,6 +98,7 @@ export function useCarConductor({
   clearPreview,
   clarification = null,
   clearClarification,
+  requestIdeas,
   ttsSettings,
   hasTts,
   wrapUpAdventure,
@@ -105,6 +120,8 @@ export function useCarConductor({
   const spokenReconnectingRef = useRef(false);
   const lastSttStatusRef = useRef<string>('idle');
   const hasSpokenOrientationRef = useRef(false);
+  // Turn whose ideas were already read out, so they are read at most once.
+  const ideasReadTurnIdRef = useRef<number | undefined>(undefined);
 
   const startListeningRef = useRef<() => Promise<void> | void>(() => {});
   const cancelSpeechRecRef = useRef<() => void>(() => {});
@@ -260,32 +277,53 @@ export function useCarConductor({
     startListeningFlow();
   }, [ttsSettings, hasTts, startListeningFlow, cancelListening]);
 
+  // Ideas current for the latest turn; stale ones are never read out or picked.
+  const latestIdeas = useCallback(
+    () => currentIdeas(history[history.length - 1], { revision: session?.revision, activeCharacterId: session?.activeCharacterId }),
+    [history, session?.revision, session?.activeCharacterId],
+  );
+
   const speakOptionsAndPrompt = useCallback(() => {
-    const latestTurn = history[history.length - 1];
-    const choices = latestTurn?.choices || [];
-    const choicesSeg = buildChoicesSegment(choices, session);
+    const ideas = latestIdeas();
+    const choicesSeg = buildChoicesSegment(ideas, session);
+    if (ideas.length > 0) {
+      ideasReadTurnIdRef.current = history[history.length - 1]?.id;
+    }
 
     const seq: SpokenSegment[] = [];
     if (choicesSeg) {
       seq.push({ type: 'choices', text: choicesSeg });
     }
-    seq.push({ type: 'prompt', text: CHOOSE_ACTION_PROMPT, cacheKey: 'car:v1:prompt:choose-action' });
+    seq.push(actionPromptSegment(ideas.length > 0));
 
     void playSequence(seq);
-  }, [history, session, playSequence]);
+  }, [history, latestIdeas, session, playSequence]);
 
-  const speakOptionsOnly = useCallback(() => {
-    const latestTurn = history[history.length - 1];
-    const choices = latestTurn?.choices || [];
-    const choicesSeg = buildChoicesSegment(choices, session);
-
+  // "ideas" / "options": read current ideas, or ask the DM for some first.
+  const speakIdeas = useCallback(async () => {
+    if (latestIdeas().length > 0) {
+      speakOptionsAndPrompt();
+      return;
+    }
+    if (!requestIdeas) {
+      await speakTempText('What do you try? Say it in your own words.');
+      return;
+    }
+    addToTranscriptLog('System: Asking the DM for ideas...');
+    const result = await requestIdeas();
+    if (result.kind === 'error') {
+      addToTranscriptLog(`System: ${result.message}`);
+      await speakTempText(`${result.message} Or just say what you try.`);
+      return;
+    }
     const seq: SpokenSegment[] = [];
+    const choicesSeg = buildChoicesSegment(result.payload.choices, session);
     if (choicesSeg) {
       seq.push({ type: 'choices', text: choicesSeg });
     }
-
+    seq.push(actionPromptSegment(result.payload.choices.length > 0));
     void playSequence(seq);
-  }, [history, session, playSequence]);
+  }, [addToTranscriptLog, latestIdeas, playSequence, requestIdeas, session, speakOptionsAndPrompt, speakTempText]);
 
   const speakFullStorySequence = useCallback(() => {
     const latestTurn = history[history.length - 1];
@@ -330,9 +368,11 @@ export function useCarConductor({
       }
     }
 
-    const choicesSeg = buildChoicesSegment(latestTurn.choices, session);
+    const ideas = latestIdeas();
+    const choicesSeg = buildChoicesSegment(ideas, session);
     if (choicesSeg) {
       seq.push({ type: 'choices', text: choicesSeg });
+      ideasReadTurnIdRef.current = latestTurn.id;
     }
 
     const activeChar = session?.party.find(c => c.id === session.activeCharacterId);
@@ -342,12 +382,12 @@ export function useCarConductor({
     seq.push({ type: 'other', text: chimeMarker, cacheKey: chimeKey });
     if (!hasSpokenOrientationRef.current) {
       hasSpokenOrientationRef.current = true;
-      seq.push({ type: 'prompt', text: ORIENTATION_PROMPT, cacheKey: 'car:v1:orientation' });
+      seq.push({ type: 'prompt', text: ORIENTATION_PROMPT, cacheKey: ORIENTATION_CACHE_KEY });
     }
-    seq.push({ type: 'prompt', text: CHOOSE_ACTION_PROMPT, cacheKey: 'car:v1:prompt:choose-action' });
+    seq.push(actionPromptSegment(ideas.length > 0));
 
     void playSequence(seq);
-  }, [history, session, prevEncounterStatus, playSequence]);
+  }, [history, latestIdeas, session, prevEncounterStatus, playSequence]);
 
   const handleSpeechTranscript = async (transcript: string) => {
     if (isPausedRef.current) {
@@ -376,6 +416,26 @@ export function useCarConductor({
       return;
     }
 
+    // "Ask the DM ...": a spoken answer, then back to listening. Nothing changes.
+    if (intent.type === 'ask') {
+      const askTurnId = history[history.length - 1]?.id;
+      if (!session || askTurnId === undefined) {
+        await speakTempText('The story has not started yet.');
+        return;
+      }
+      addToTranscriptLog(`Interpreted: Ask the DM: ${intent.question}`);
+      setConductorState('processing');
+      const result = await askDm(session.id, { question: intent.question, turnId: askTurnId, revision: session.revision ?? 0 });
+      if (result.kind === 'answer') {
+        addToTranscriptLog(`DM: ${result.payload.answer}`);
+        await speakTempText(result.payload.answer);
+      } else {
+        addToTranscriptLog(`System: ${result.message}`);
+        await speakTempText(result.message);
+      }
+      return;
+    }
+
     if (intent.type === 'choice') {
       if (confirmingActionRef.current) {
         addToTranscriptLog('System: Waiting for confirmation.');
@@ -383,8 +443,7 @@ export function useCarConductor({
         return;
       }
 
-      const choices = history[history.length - 1]?.choices || [];
-      const choice = choices[intent.index];
+      const choice = latestIdeas()[intent.index];
       if (choice) {
         addToTranscriptLog(`Interpreted: Option ${intent.index + 1}: ${choice.label}`);
         setConductorState('submitting');
@@ -399,7 +458,9 @@ export function useCarConductor({
         }
       } else {
         addToTranscriptLog(`System: Option ${intent.index + 1} is invalid.`);
-        await speakTempText(`Option ${intent.index + 1} is not valid. Say options to hear them again.`);
+        await speakTempText(latestIdeas().length > 0
+          ? `Option ${intent.index + 1} is not valid. Say ideas to hear them again.`
+          : 'There are no ideas yet. Say ideas to get some, or say what you try.');
       }
       return;
     }
@@ -474,7 +535,7 @@ export function useCarConductor({
     }
 
     if (intent.type === 'help') {
-      await speakInfo(HELP_TEXT, 'car:v1:info:help');
+      await speakInfo(HELP_TEXT, HELP_CACHE_KEY);
       return;
     }
 
@@ -531,7 +592,7 @@ export function useCarConductor({
     }
 
     if (intent.type === 'options') {
-      speakOptionsOnly();
+      await speakIdeas();
       return;
     }
 
@@ -570,6 +631,29 @@ export function useCarConductor({
     startListeningRef.current = startListening;
     cancelSpeechRecRef.current = cancelSpeechRec;
   }, [startListening, cancelSpeechRec]);
+
+  // Realm setting "Suggest ideas each turn": ideas can land after the turn was read out.
+  // They are read once, in the next quiet moment while listening (nothing heard yet),
+  // never over a preview, an open DM question, or a player mid-sentence.
+  const latestTurnId = history[history.length - 1]?.id;
+  const hasCurrentIdeas = latestIdeas().length > 0;
+  const listeningGap = sttState.status === 'listening' && sttState.transcript === '';
+  const autoIdeas = !!session?.autoIdeas;
+  useEffect(() => {
+    if (!autoIdeas || !hasCurrentIdeas || !listeningGap || isPaused || loading || actionPreview || clarification || confirmingActionRef.current) {
+      return;
+    }
+    if (latestTurnId === undefined || lastSpokenTurnIdRef.current !== latestTurnId || ideasReadTurnIdRef.current === latestTurnId) {
+      return;
+    }
+    ideasReadTurnIdRef.current = latestTurnId;
+    // Stop the microphone first so it does not hear the DM.
+    cancelSpeechRec();
+    setTimeout(() => {
+      addToTranscriptLog('System: The DM has ideas.');
+      speakOptionsAndPrompt();
+    }, 0);
+  }, [autoIdeas, hasCurrentIdeas, listeningGap, isPaused, loading, actionPreview, clarification, latestTurnId, cancelSpeechRec, addToTranscriptLog, speakOptionsAndPrompt]);
 
   const resumeConductor = useCallback(() => {
     isPausedRef.current = false;

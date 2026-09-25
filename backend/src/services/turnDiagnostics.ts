@@ -2,6 +2,7 @@ import type { TurnStrategy } from '../config/env.js';
 import type { ActionAttempt, AgentDiagnostic, SessionState, TurnResult } from '../types.js';
 import {
   dropRedundantBuffAdds,
+  dropUnearnedBuffAdds,
   ensureSuccessfulEnchantmentSuggestion,
   ensureSuccessfulHealingSuggestion,
   ensureSuccessfulSupportSuggestion,
@@ -54,6 +55,7 @@ export const applyTurnPolicies = (
     ['ensure_enchantment', t => ensureSuccessfulEnchantmentSuggestion(session, actionAttempt, t)],
     ['ensure_support', t => ensureSuccessfulSupportSuggestion(session, actionAttempt, t, actionIntent, targetCharName)],
     ['drop_redundant_buffs', t => dropRedundantBuffAdds(session, t, actionIntent)],
+    ['drop_unearned_buffs', t => dropUnearnedBuffAdds(actionAttempt, t, actionIntent)],
     ['suppress_failed_support_damage', t => suppressFailedSupportDamage(actionAttempt, t, actionIntent)],
   ];
   let current = turnResult;

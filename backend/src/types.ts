@@ -1,6 +1,20 @@
-import type { Choice, ActionAttempt, SceneMomentum, ScenePressure, Session, EncounterState, EncounterSeed, TurnResult } from '@dnd-fam-ftw/shared';
+import type { Choice as PublicChoice, ActionAttempt, SceneMomentum, ScenePressure, Session, EncounterState, EncounterSeed, TurnResult as PublicTurnResult } from '@dnd-fam-ftw/shared';
 
 export type * from '@dnd-fam-ftw/shared';
+
+// Server-side choice: the public shape plus which riddle answer it offers and whether
+// it is right. Never sent to clients: toPublicChoice (sessionProjection.ts) strips it.
+// These local declarations take precedence over the shared re-export above.
+export interface Choice extends PublicChoice {
+  riddleAnswer?: string;
+  riddleCorrect?: boolean;
+}
+
+export type { PublicChoice };
+
+export interface TurnResult extends Omit<PublicTurnResult, 'choices'> {
+  choices: Choice[];
+}
 
 export const GAME_MODE_VALUES = ['cinematic', 'balanced', 'fast', 'zug-ma-geddon'] as const;
 export const STAT_VALUES = ['might', 'magic', 'mischief'] as const;

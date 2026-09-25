@@ -41,6 +41,8 @@ const patchSessionBodySchema = z.object({
   dmPrep: z.string().optional(),
   worldDescription: z.string().optional(),
   adventureFormat: z.enum(ADVENTURE_FORMAT_VALUES).optional(),
+  // Realm setting "Suggest ideas each turn".
+  autoIdeas: z.boolean().optional(),
   expectedRevision: z.number().int().min(0).optional(),
 });
 
@@ -184,7 +186,7 @@ export const createSessionRouter = () => {
     if (!body) {
       return;
     }
-    const { difficulty, gameMode, dmPrep, worldDescription, adventureFormat, expectedRevision } = body;
+    const { difficulty, gameMode, dmPrep, worldDescription, adventureFormat, autoIdeas, expectedRevision } = body;
     if (adventureFormat !== undefined && (!session.adventure || session.adventure.status !== 'active')) {
       res.status(409).json({ error: 'adventure_completed', message: 'The format of a finished adventure can be chosen when continuing the world.' });
       return;
@@ -205,6 +207,9 @@ export const createSessionRouter = () => {
     if (worldDescription !== undefined) {
       patch.worldDescription = worldDescription || null;
     }
+    if (autoIdeas !== undefined) {
+      patch.autoIdeas = autoIdeas;
+    }
     const mutation = applyGuardedSessionMutation(sessionId, expectedRevision, () => {
       sessionRepository.patchSessionSync(sessionId, patch);
       if (nextAdventure) {
@@ -219,6 +224,7 @@ export const createSessionRouter = () => {
     broadcastSessionUpdated(sessionId, mutation.revision, {
       ...(patch.difficulty !== undefined && { difficulty: patch.difficulty }),
       ...(patch.gameMode !== undefined && { gameMode: patch.gameMode }),
+      ...(patch.autoIdeas !== undefined && { autoIdeas: patch.autoIdeas }),
       ...(nextAdventure && { adventure: nextAdventure }),
     });
     if (nextAdventure?.format === 'one_evening' && !nextAdventure.objective) {
@@ -239,6 +245,7 @@ export const createSessionRouter = () => {
       gameMode: patch.gameMode ?? session.gameMode,
       dmPrep: patch.dmPrep !== undefined ? patch.dmPrep : session.dmPrep,
       worldDescription: patch.worldDescription !== undefined ? (patch.worldDescription ?? undefined) : session.worldDescription,
+      autoIdeas: patch.autoIdeas ?? !!session.autoIdeas,
       ...(nextAdventure && { adventure: nextAdventure }),
     });
   }));

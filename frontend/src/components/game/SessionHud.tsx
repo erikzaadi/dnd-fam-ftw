@@ -11,13 +11,16 @@ import { Tooltip } from '../Tooltip';
 interface GearPopoverProps {
   savingsMode: boolean;
   onToggleSavingsMode: () => void;
+  // Realm setting "Suggest ideas each turn".
+  autoIdeas?: boolean;
+  onToggleAutoIdeas?: () => void;
   audioSettings: AudioSettings;
   onMuteToggle: () => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
 
-export const GearPopover = ({ savingsMode, onToggleSavingsMode, audioSettings, onMuteToggle, open: openProp, onOpenChange }: GearPopoverProps) => {
+export const GearPopover = ({ savingsMode, onToggleSavingsMode, autoIdeas = false, onToggleAutoIdeas, audioSettings, onMuteToggle, open: openProp, onOpenChange }: GearPopoverProps) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const open = openProp ?? internalOpen;
   const setOpen = useCallback((v: boolean) => {
@@ -104,6 +107,17 @@ export const GearPopover = ({ savingsMode, onToggleSavingsMode, audioSettings, o
               setOpen(false);
             }}
           />
+          {onToggleAutoIdeas && (
+            <MenuItem
+              icon="💡"
+              label={autoIdeas ? 'Ideas every turn' : 'Ideas on request'}
+              active={autoIdeas}
+              onClick={() => {
+                onToggleAutoIdeas();
+                setOpen(false);
+              }}
+            />
+          )}
           {showMute && (
             <MenuItem
               icon={audioSettings.masterMuted ? '🔇' : '🔊'}

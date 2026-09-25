@@ -1,4 +1,4 @@
-import type { Choice, Session, SessionState, TurnResult } from '../types.js';
+import type { Choice, PublicChoice, Session, SessionState, TurnResult } from '../types.js';
 
 // Private DM material that must never reach play views (session GET, SSE payloads).
 // The DM-facing session list and edit dialog read DM Prep through their own endpoints.
@@ -12,7 +12,7 @@ const PRIVATE_SESSION_FIELDS = [
 
 // Riddle correctness is server-only: clients learn that a choice answers a riddle
 // (no roll), never whether it is the right answer.
-export const toPublicChoice = (choice: Choice): Choice => {
+export const toPublicChoice = (choice: Choice): PublicChoice => {
   const { riddleAnswer, riddleCorrect: _riddleCorrect, ...publicChoice } = choice;
   return riddleAnswer ? { ...publicChoice, kind: 'riddle_answer' } : publicChoice;
 };

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCarSessionRuntime } from '../session/car/useCarSessionRuntime';
+import { askDm } from '../lib/askDm';
 import { parseSpeechIntent, QUESTION_PASSTHROUGH_INTENTS } from '../stt/speechIntent';
 import {
   buildRollResultSegment,
@@ -15,6 +16,7 @@ import {
 import { imgSrc } from '../lib/api';
 import { computeChoiceOdds } from '../lib/game';
 import { isDropQuestionCommand } from '../lib/previewAction';
+import { currentIdeas } from '../lib/ideas';
 import type { Choice, Session } from '../types';
 
 
@@ -24,6 +26,12 @@ interface TerminalEntry {
   text: string;
   imageUrl?: string;
 }
+
+const OPEN_PROMPT_LINE = "What do you try? Type it in your own words, or type 'ideas' for suggestions.";
+
+// Current ideas as numbered lines, or an open prompt when there are none.
+const ideaLines = (ideas: Choice[], sess: Session | null | undefined): string[] =>
+  ideas.length > 0 ? ideas.map((choice, idx) => formatChoiceLine(choice, idx, sess)) : [OPEN_PROMPT_LINE];
 
 // Choice line with the same roll odds the ActionDock shows: stat, total vs target, risk, percentage
 const formatChoiceLine = (choice: Choice, idx: number, sess: Session | null | undefined): string => {
@@ -94,6 +102,8 @@ export const TerminalMode: React.FC = () => {
     endAdventure,
     clarification,
     clearClarification,
+    ideas,
+    requestIdeas,
   } = useCarSessionRuntime({
     sessionId: id || '',
     onTurnComplete: (updatedSession, turn) => {
@@ -126,11 +136,8 @@ export const TerminalMode: React.FC = () => {
         addLogEntry('system', activeCharSeg);
       }
 
-      if (turn.choices && turn.choices.length > 0) {
-        turn.choices.forEach((choice, idx) => {
-          addLogEntry('system', formatChoiceLine(choice, idx, updatedSession));
-        });
-      }
+      ideaLines(currentIdeas(turn, { revision: updatedSession.revision, activeCharacterId: updatedSession.activeCharacterId }), updatedSession)
+        .forEach(line => addLogEntry('system', line));
 
       prevEncounterStatusRef.current = currentEncounterStatus;
       shouldScrollRef.current = true;
@@ -256,15 +263,14 @@ export const TerminalMode: React.FC = () => {
           });
         }
 
-        if (latestTurn.choices && latestTurn.choices.length > 0) {
-          latestTurn.choices.forEach((choice, idx) => {
+        ideaLines(currentIdeas(latestTurn, { revision: session.revision, activeCharacterId: session.activeCharacterId }), session)
+          .forEach((line, idx) => {
             newEntries.push({
               id: `init-choice-${idx}`,
               type: 'system',
-              text: formatChoiceLine(choice, idx, session),
+              text: line,
             });
           });
-        }
       }
 
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -329,6 +335,24 @@ export const TerminalMode: React.FC = () => {
       return;
     }
 
+    // "ask dm ..." never changes anything, so it works at any point.
+    if (intent.type === 'ask') {
+      const latestTurnId = history[history.length - 1]?.id;
+      if (!session || latestTurnId === undefined) {
+        addLogEntry('system', 'The story has not started yet.');
+        return;
+      }
+      addLogEntry('system', 'Asking the DM...');
+      const result = await askDm(session.id, { question: intent.question, turnId: latestTurnId, revision: session.revision ?? 0 });
+      if (result.kind === 'answer') {
+        addLogEntry('narration', `The DM says: ${result.payload.answer}`);
+      } else {
+        addLogEntry('system', result.message);
+      }
+      shouldScrollRef.current = true;
+      return;
+    }
+
     if (actionPreviewText) {
       if (intent.type === 'confirm') {
         if (actionPreview) {
@@ -357,13 +381,7 @@ export const TerminalMode: React.FC = () => {
         addLogEntry('system', 'Action cancelled.');
         setActionPreviewText(null);
         clearPreview();
-
-        const latestTurn = history[history.length - 1];
-        if (latestTurn && latestTurn.choices) {
-          latestTurn.choices.forEach((choice, idx) => {
-            addLogEntry('system', formatChoiceLine(choice, idx, session));
-          });
-        }
+        ideaLines(ideas, session).forEach(line => addLogEntry('system', line));
       } else if (intent.type === 'retry' || (intent.type === 'custom' && trimmedCommand.toLowerCase().startsWith('retry '))) {
         const newText = trimmedCommand.toLowerCase().startsWith('retry ')
           ? trimmedCommand.substring(6).trim()
@@ -388,8 +406,7 @@ export const TerminalMode: React.FC = () => {
     }
 
     if (intent.type === 'choice') {
-      const choices = history[history.length - 1]?.choices || [];
-      const choice = choices[intent.index];
+      const choice = ideas[intent.index];
       if (choice) {
         addLogEntry('system', `Selected choice: ${choice.label}`);
         try {
@@ -398,17 +415,20 @@ export const TerminalMode: React.FC = () => {
           addLogEntry('error', 'Failed to submit choice.');
         }
       } else {
-        addLogEntry('system', `Choice ${intent.index + 1} is invalid. Type 'options' to see valid options.`);
+        addLogEntry('system', ideas.length > 0
+          ? `Choice ${intent.index + 1} is invalid. Type 'ideas' to see them again.`
+          : "There are no ideas yet. Type 'ideas' to get some, or type what you try.");
       }
     } else if (intent.type === 'help') {
       addLogEntry('system', 'Available Commands:');
-      addLogEntry('system', '  [1-4]             - Choose a numbered action option');
-      addLogEntry('system', '  [custom action]   - Describe what your character does (runs preview)');
+      addLogEntry('system', '  [what you try]    - Describe what your character tries (runs preview)');
+      addLogEntry('system', '  ideas / options   - Ask the DM for ideas (or list the current ones)');
+      addLogEntry('system', '  [1-4]             - Pick a numbered idea, once ideas are shown');
+      addLogEntry('system', '  ask dm [question] - Ask the DM about the scene without taking a turn');
       addLogEntry('system', '  gear / inventory  - Inspect party and character inventory items');
       addLogEntry('system', '  status / info     - Show active character details and current scene state');
       addLogEntry('system', '  party / members   - View HP and state of all characters');
       addLogEntry('system', '  where are we      - Recaps location and situations');
-      addLogEntry('system', '  options           - Re-list options for this turn');
       addLogEntry('system', '  repeat story      - Output latest DM description');
       addLogEntry('system', '  wrap up           - Ask the DM to head for the finale');
       addLogEntry('system', '  end here          - End the adventure now with an epilogue');
@@ -430,14 +450,19 @@ export const TerminalMode: React.FC = () => {
         const latestTurn = history[history.length - 1];
         addLogEntry('system', buildLocationSegment(session, latestTurn));
       }
-    } else if (intent.type === 'repeat' || intent.type === 'options') {
-      const latestTurn = history[history.length - 1];
-      if (latestTurn && latestTurn.choices && latestTurn.choices.length > 0) {
-        latestTurn.choices.forEach((choice, idx) => {
-          addLogEntry('system', formatChoiceLine(choice, idx, session));
-        });
+    } else if (intent.type === 'repeat') {
+      ideaLines(ideas, session).forEach(line => addLogEntry('system', line));
+    } else if (intent.type === 'options') {
+      if (ideas.length > 0) {
+        ideaLines(ideas, session).forEach(line => addLogEntry('system', line));
       } else {
-        addLogEntry('system', 'No options available for the current turn.');
+        addLogEntry('system', 'Asking the DM for ideas...');
+        const result = await requestIdeas();
+        if (result.kind === 'ideas') {
+          ideaLines(result.payload.choices, session).forEach(line => addLogEntry('system', line));
+        } else {
+          addLogEntry('system', `${result.message} Or type what you try.`);
+        }
       }
     } else if (intent.type === 'story-repeat') {
       const latestTurn = history[history.length - 1];
@@ -459,7 +484,7 @@ export const TerminalMode: React.FC = () => {
     } else {
       addLogEntry('system', 'Unknown command. Type "help" for a list of valid commands.');
     }
-  }, [addLogEntry, actionPreviewText, actionPreview, clearPreview, submitAction, submitChoice, history, previewAction, session, wrapUpAdventure, endAdventure, clarification, clearClarification]);
+  }, [addLogEntry, actionPreviewText, actionPreview, clearPreview, submitAction, submitChoice, history, previewAction, session, wrapUpAdventure, endAdventure, clarification, clearClarification, ideas, requestIdeas]);
 
   const handleHelp = useCallback(() => {
     void executeCommand('help');
@@ -483,12 +508,7 @@ export const TerminalMode: React.FC = () => {
           addLogEntry('system', 'Action cancelled.');
           setActionPreviewText(null);
           clearPreview();
-          const latestTurn = history[history.length - 1];
-          if (latestTurn && latestTurn.choices) {
-            latestTurn.choices.forEach((choice, idx) => {
-              addLogEntry('system', formatChoiceLine(choice, idx, session));
-            });
-          }
+          ideaLines(ideas, session).forEach(line => addLogEntry('system', line));
         } else if (inputValue) {
           setInputValue('');
         } else if (id) {
@@ -510,7 +530,7 @@ export const TerminalMode: React.FC = () => {
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [id, navigate, inputValue, actionPreviewText, activeImageUrl, history, session, clearPreview, addLogEntry, toggleFullscreenMode, handleCarMode, handleHelp, handleClear]);
+  }, [id, navigate, inputValue, actionPreviewText, activeImageUrl, ideas, session, clearPreview, addLogEntry, toggleFullscreenMode, handleCarMode, handleHelp, handleClear]);
 
   // Sync fullscreen change events with local state and output log notices
   useEffect(() => {
@@ -752,7 +772,7 @@ export const TerminalMode: React.FC = () => {
               onChange={e => setInputValue(e.target.value)}
               onKeyDown={handleInputKeyDown}
               disabled={loading || connectionState !== 'connected'}
-              placeholder={actionPreviewText ? "Type confirm, cancel or retry..." : "Enter choice number or custom action..."}
+              placeholder={actionPreviewText ? "Type confirm, cancel or retry..." : clarification ? "Type your answer, or cancel..." : "What do you try? (or type 'ideas')"}
               aria-label="Terminal command"
               className="flex-1 bg-transparent text-emerald-400 font-mono border-none outline-none focus:ring-0 text-base md:text-lg crt-input"
               autoFocus

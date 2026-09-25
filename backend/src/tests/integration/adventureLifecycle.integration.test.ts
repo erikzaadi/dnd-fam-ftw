@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'net';
 import type { Server } from 'http';
 import express from 'express';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDb } from '../../persistence/database.js';
 import { createAdventureRouter } from '../../routes/adventureRoutes.js';
 import { createTurnRouter } from '../../routes/turnRoutes.js';
@@ -10,13 +10,13 @@ import { GameEngine } from '../../services/gameEngine.js';
 import { StateService } from '../../services/stateService.js';
 import { createInitialArc, serializeArc } from '../../services/adventureLifecycleService.js';
 import type { AdventureArcState, SessionSnapshot } from '../../types.js';
-import { FIXED_NARRATION_OUTPUT, mockGenerateTurn, resetMockNarrationProvider } from './mockNarrationProvider.js';
+import { FIXED_NARRATION_OUTPUT, TURN_STRATEGIES, mockGenerateTurn, mockNarrateResolved, mockProposeMechanics, narratingMock, scriptTurnOutput } from './mockNarrationProvider.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
 
 vi.mock('../../providers/ai/AiProviderFactory.js', async () => {
-  const { createMockNarrationProvider } = await import('./mockNarrationProvider.js');
+  const { createStagedMockNarrationProvider } = await import('./mockNarrationProvider.js');
   return {
-    createNarrationProvider: vi.fn(() => createMockNarrationProvider()),
+    createNarrationProvider: vi.fn(() => createStagedMockNarrationProvider()),
     // No chat client: the epilogue falls back to the deterministic ending.
     createChatClientForTier: vi.fn(() => {
       throw new Error('no provider in tests');
@@ -67,7 +67,11 @@ beforeAll(async () => {
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  resetMockNarrationProvider();
+  scriptTurnOutput();
+});
+
+afterEach(() => {
+  delete process.env.AI_TURN_STRATEGY;
 });
 
 afterAll(async () => {
@@ -75,19 +79,28 @@ afterAll(async () => {
   cleanupIntegrationEnvironment(paths);
 });
 
-describe('one-evening lifecycle (E1/E2)', () => {
+// The finale is decided by the narrating call's objectiveOutcome, which each strategy
+// produces differently (monolith vs presentation), so these run under both.
+describe.each(TURN_STRATEGIES)('one-evening lifecycle turns (E1/E2, %s)', (strategy) => {
+  beforeEach(() => {
+    process.env.AI_TURN_STRATEGY = strategy;
+  });
+
   it('resolves a validated finale into a persisted ending with no choices and no hidden prep', async () => {
-    await insertSessionState(makeTestSession({ id: 'evening-finale' }));
+    const id = `evening-finale-${strategy}`;
+    await insertSessionState(makeTestSession({ id }));
     // Finale was set up on the previous turn: this action is the decisive attempt.
-    setAdventure('evening-finale', 'one_evening', { phase: 'finale', playerActionCount: 9, finaleStartedAtCount: 8, participatingHeroIds: ['char-pip', 'char-zara'] });
-    mockGenerateTurn.mockResolvedValueOnce({ ...FIXED_NARRATION_OUTPUT, objectiveOutcome: 'resolved_success' });
+    setAdventure(id, 'one_evening', { phase: 'finale', playerActionCount: 9, finaleStartedAtCount: 8, participatingHeroIds: ['char-pip', 'char-zara'] });
+    scriptTurnOutput({ ...FIXED_NARRATION_OUTPUT, objectiveOutcome: 'resolved_success' });
     successfulRoll();
 
-    const res = await post('/session/evening-finale/action', { action: 'Free the baker', statUsed: 'might', requestId: 'finale-1', expectedRevision: 0 });
+    const res = await post(`/session/${id}/action`, { action: 'Free the baker', statUsed: 'might', requestId: `finale-1-${strategy}`, expectedRevision: 0 });
     expect(res.status).toBe(202);
-    await waitIdle('evening-finale');
+    await waitIdle(id);
+    // The strategy under test narrated the turn (no silent fallback).
+    expect(narratingMock(strategy)).toHaveBeenCalledTimes(1);
 
-    const snap = await snapshot('evening-finale');
+    const snap = await snapshot(id);
     expect(snap.session.adventure).toMatchObject({ status: 'completed', phase: 'epilogue', resolution: 'success' });
     expect(snap.latestOperation).toMatchObject({ status: 'completed', kind: 'action' });
     const conclusion = snap.history[snap.history.length - 1];
@@ -100,35 +113,43 @@ describe('one-evening lifecycle (E1/E2)', () => {
     expect(JSON.stringify(snap.session)).not.toContain('SECRET');
 
     // Completed adventures reject stale gameplay submissions.
-    const stale = await post('/session/evening-finale/action', { action: 'Keep fighting', statUsed: 'might', requestId: 'after-end' });
+    const stale = await post(`/session/${id}/action`, { action: 'Keep fighting', statUsed: 'might', requestId: `after-end-${strategy}` });
     expect(stale.status).toBe(409);
     expect(await stale.json()).toMatchObject({ error: 'adventure_completed' });
   });
 
   it('ignores an unearned victory claim on a failed roll', async () => {
-    await insertSessionState(makeTestSession({ id: 'evening-unearned' }));
-    setAdventure('evening-unearned', 'one_evening', { phase: 'finale', playerActionCount: 9, finaleStartedAtCount: 8 });
-    mockGenerateTurn.mockResolvedValueOnce({ ...FIXED_NARRATION_OUTPUT, objectiveOutcome: 'resolved_success' });
+    const id = `evening-unearned-${strategy}`;
+    await insertSessionState(makeTestSession({ id }));
+    setAdventure(id, 'one_evening', { phase: 'finale', playerActionCount: 9, finaleStartedAtCount: 8 });
+    scriptTurnOutput({ ...FIXED_NARRATION_OUTPUT, objectiveOutcome: 'resolved_success' });
     vi.spyOn(GameEngine, 'rollDice').mockReturnValue({ roll: 2, total: 4 });
 
-    await post('/session/evening-unearned/action', { action: 'Free the baker', statUsed: 'might', requestId: 'fail-1' });
-    await waitIdle('evening-unearned');
-    const snap = await snapshot('evening-unearned');
+    await post(`/session/${id}/action`, { action: 'Free the baker', statUsed: 'might', requestId: `fail-1-${strategy}` });
+    await waitIdle(id);
+    expect(narratingMock(strategy)).toHaveBeenCalledTimes(1);
+    const snap = await snapshot(id);
     expect(snap.session.adventure).toMatchObject({ status: 'active', phase: 'finale', decisiveAttempts: 1 });
   });
 
   it('never auto-completes a long-lived session', async () => {
-    await insertSessionState(makeTestSession({ id: 'long-lived' }));
-    setAdventure('long-lived', 'long_lived', { phase: 'development', playerActionCount: 40 });
-    mockGenerateTurn.mockResolvedValue({ ...FIXED_NARRATION_OUTPUT, objectiveOutcome: 'resolved_success' });
+    const id = `long-lived-${strategy}`;
+    await insertSessionState(makeTestSession({ id }));
+    setAdventure(id, 'long_lived', { phase: 'development', playerActionCount: 40 });
+    scriptTurnOutput({ ...FIXED_NARRATION_OUTPUT, objectiveOutcome: 'resolved_success' });
     successfulRoll();
     for (const requestId of ['l1', 'l2', 'l3']) {
-      await post('/session/long-lived/action', { action: 'Explore', statUsed: 'might', requestId });
-      await waitIdle('long-lived');
+      await post(`/session/${id}/action`, { action: 'Explore', statUsed: 'might', requestId: `${requestId}-${strategy}` });
+      await waitIdle(id);
     }
-    expect((await snapshot('long-lived')).session.adventure).toMatchObject({ status: 'active', phase: 'development', playerActionCount: 43 });
+    expect(narratingMock(strategy)).toHaveBeenCalledTimes(3);
+    expect((await snapshot(id)).session.adventure).toMatchObject({ status: 'active', phase: 'development', playerActionCount: 43 });
   });
 
+});
+
+// No gameplay turn involved: the same under either strategy.
+describe('one-evening lifecycle (E1/E2)', () => {
   it('ends early with an epilogue without rolling, then continues the world as a new chapter', async () => {
     await insertSessionState(makeTestSession({ id: 'end-here' }));
     setAdventure('end-here', 'one_evening', { phase: 'development', playerActionCount: 4 });
@@ -141,6 +162,8 @@ describe('one-evening lifecycle (E1/E2)', () => {
     expect(ended.session.adventure).toMatchObject({ status: 'completed', resolution: 'ended_early' });
     expect(ended.session.activeCharacterId).toBe(before?.activeCharacterId);
     expect(mockGenerateTurn).not.toHaveBeenCalled();
+    expect(mockProposeMechanics).not.toHaveBeenCalled();
+    expect(mockNarrateResolved).not.toHaveBeenCalled();
 
     // Replaying the same request never writes a second epilogue.
     const replay = await post('/session/end-here/adventure/end', { requestId: 'end-1' });

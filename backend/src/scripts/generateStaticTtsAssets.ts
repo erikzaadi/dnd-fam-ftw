@@ -42,6 +42,10 @@ const STATIC_PHRASES: Array<{ slug: string; text: string }> = [
     slug: 'orientation',
     text: 'Say one, two, or three for the main options, or speak freely for a custom action. Say help at any time for voice commands.',
   },
+  // Freeform-first prompts (ideas on demand). Keep in sync with carSpeechSegment.ts.
+  { slug: 'orientation-v2', text: 'Say what your hero tries, in your own words. Say ideas for suggestions, or help for voice commands.' },
+  { slug: 'help-v3', text: 'Voice commands: ideas, ask the DM and your question, repeat story, status, party, gear, encounter, where are we, pause, resume, cancel, confirm, wrap up, end here, or say an option number.' },
+  { slug: 'open-action', text: 'What do you try? Say it in your own words, or say ideas for suggestions.' },
 ];
 
 const SAMPLE_TEXT =

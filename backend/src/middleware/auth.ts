@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyJwt, JwtPayload } from '../services/authService.js';
 import { isAuthEnabled } from '../config/env.js';
+import { userRepository } from '../repositories/userRepository.js';
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -28,13 +29,23 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   }
 
   const payload = verifyJwt(token);
-  if (!payload) {
+  if (!payload || payload.type !== 'full'
+    || typeof payload.email !== 'string' || !payload.email.trim()
+    || typeof payload.namespaceId !== 'string' || !payload.namespaceId.trim()) {
+    res.status(401).json({ error: 'Invalid or expired session' });
+    return;
+  }
+
+  // Cookie names are client-controlled. Only full sessions for a current member
+  // authorize gameplay, even when a pending or revoked token has a valid signature.
+  const user = userRepository.getUserByEmail(payload.email);
+  if (!user || !userRepository.getUserNamespaces(user.email).some(namespace => namespace.id === payload.namespaceId)) {
     res.status(401).json({ error: 'Invalid or expired session' });
     return;
   }
 
   req.namespaceId = payload.namespaceId;
-  req.userEmail = payload.email;
+  req.userEmail = user.email;
   next();
 }
 

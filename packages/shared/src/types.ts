@@ -212,12 +212,8 @@ export interface Choice {
   difficultyValue?: number;
   narration?: string;
   // Public marker: this choice answers a riddle, so it resolves without a roll.
-  // Whether it is the right answer is never sent to clients.
+  // Which answer is right is server-only (the backend Choice type in backend/src/types.ts).
   kind?: 'riddle_answer';
-  // Server-only. Stripped from every payload by toPublicChoice (backend
-  // sessionProjection.ts); moves out of the shared type with authoritative riddle state.
-  riddleAnswer?: string;
-  riddleCorrect?: boolean;
   flavor?: ChoiceFlavor;
   helperCharacterName?: string;
   itemOwnerName?: string;
@@ -307,6 +303,8 @@ export interface ActionAttempt {
     impact?: Impact;
     isCritical?: boolean;
     difficultyTarget?: number;
+    // The action's own difficulty label (choice, confirmed preview, or submitted).
+    difficulty?: Difficulty;
   };
 }
 
@@ -332,6 +330,12 @@ export interface TurnResult {
   encounterId?: string;
   narration: string;
   choices: Choice[];
+  // Suggested choices are current only for this revision and acting hero. Missing on
+  // turns from before ideas existed: then they count as current while the turn is latest.
+  ideasRevision?: number;
+  ideasCharacterId?: string;
+  // The ideas came from the deterministic fallback, not the model.
+  ideasDegraded?: boolean;
   rollNarration?: string;
   imagePrompt: string | null;
   imageSuggested: boolean;
@@ -430,6 +434,10 @@ export interface Session {
   turn: number;
   // Incremented by every committed gameplay or settings mutation.
   revision?: number;
+  // Onboarding only: the first viewer asks for ideas once, by itself.
+  onboardingIdeasPending?: boolean;
+  // Realm setting "Suggest ideas each turn": views ask for ideas once per new turn.
+  autoIdeas?: boolean;
   party: Character[];
   activeCharacterId: string;
   displayName: string;
@@ -486,6 +494,24 @@ export type SessionListEventType = 'connected' | 'heartbeat' | 'session_changed'
 
 // One question-and-answer round about a draft action. The client carries the whole
 // exchange with the original draft, so the server can read them together.
+// POST /session/:id/ask response: a short DM answer to an out-of-character question
+// ("Ask the DM"). Transient: never stored, never advances the story.
+export interface AskDmPayload {
+  turnId: number;
+  revision: number;
+  question: string;
+  answer: string;
+}
+
+// POST /session/:id/ideas response and the ideas_updated event payload.
+export interface IdeasPayload {
+  turnId: number;
+  revision: number;
+  characterId: string;
+  choices: Choice[];
+  degraded: boolean;
+}
+
 export interface ActionClarification {
   question: string;
   answer: string;
@@ -503,6 +529,13 @@ export interface FreeActionPreview {
   // Server-issued handle binding this preview's mechanics to the session revision.
   // Sent back on confirmation; a stale handle is rejected so the player re-previews.
   previewId?: string;
+  // Set for a draft with gear attached (use/give an item): resolved without a roll.
+  itemAction?: {
+    kind: 'item_use' | 'item_give';
+    itemName: string;
+    ownerName: string;
+    targetName?: string;
+  };
   originalAction: string;
   interpretedAction: string;
   narration?: string;

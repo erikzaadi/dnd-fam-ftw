@@ -22,25 +22,38 @@ export const OriginView = ({ sessionId, session, onEnter, hasTts }: OriginViewPr
     if (originStory || !session.party.length) {
       return;
     }
+    // A superseded run (StrictMode's double effect in dev, a remount) must not overwrite
+    // what a later run shows. The server returns one story per session either way.
+    let cancelled = false;
     setGenerating(true);
     const load = async () => {
       try {
         const getRes = await apiFetch(`/session/${sessionId}/origin-story`);
         const getData = await getRes.json() as { originStory: string | null };
+        if (cancelled) {
+          return;
+        }
         if (getData.originStory) {
           setOriginStory(getData.originStory);
         } else {
           const postRes = await apiFetch(`/session/${sessionId}/origin-story`, { method: 'POST' });
           const postData = await postRes.json() as { originStory: string };
-          setOriginStory(postData.originStory);
+          if (!cancelled) {
+            setOriginStory(postData.originStory);
+          }
         }
       } catch {
         // continue without origin story
       } finally {
-        setGenerating(false);
+        if (!cancelled) {
+          setGenerating(false);
+        }
       }
     };
     void load();
+    return () => {
+      cancelled = true;
+    };
   }, [sessionId, session.party.length, originStory]);
 
   useEffect(() => {

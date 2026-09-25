@@ -3,15 +3,21 @@ import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { TerminalMode } from './TerminalMode';
 import { useCarSessionRuntime } from '../session/car/useCarSessionRuntime';
+import { askDm } from '../lib/askDm';
 import type { Session, TurnResult, FreeActionPreview } from '../types';
 
 vi.mock('../session/car/useCarSessionRuntime', () => ({
   useCarSessionRuntime: vi.fn(),
 }));
 
+vi.mock('../lib/askDm', () => ({
+  askDm: vi.fn(),
+}));
+
 describe('TerminalMode', () => {
   const mockSubmitAction = vi.fn().mockResolvedValue(undefined);
   const mockSubmitChoice = vi.fn().mockResolvedValue(undefined);
+  const mockRequestIdeas = vi.fn();
   const mockPreviewAction = vi.fn().mockResolvedValue(undefined);
   const mockClearPreview = vi.fn();
 
@@ -73,6 +79,8 @@ describe('TerminalMode', () => {
         actionPreview: null,
         clearPreview: mockClearPreview,
         previewThinking: false,
+        ideas: mockHistory[0].choices,
+        requestIdeas: mockRequestIdeas,
       } as unknown as ReturnType<typeof useCarSessionRuntime>;
     });
   });
@@ -114,6 +122,23 @@ describe('TerminalMode', () => {
     expect(screen.getByText(/Available Commands:/i)).toBeInTheDocument();
     expect(screen.getByText(/gear \/ inventory/i)).toBeInTheDocument();
     expect(screen.getByText(/status \/ info/i)).toBeInTheDocument();
+  });
+
+  it('answers "ask dm" questions without taking a turn', async () => {
+    vi.mocked(askDm).mockResolvedValueOnce({
+      kind: 'answer',
+      payload: { turnId: 1, revision: 0, question: 'can I break the door?', answer: 'It is heavy iron, but your shield could help.' },
+    });
+    renderComponent();
+
+    const input = screen.getByLabelText('Terminal command');
+    fireEvent.change(input, { target: { value: 'ask dm can I break the door?' } });
+    fireEvent.submit(input.closest('form')!);
+
+    expect(await screen.findByText('The DM says: It is heavy iron, but your shield could help.')).toBeInTheDocument();
+    expect(vi.mocked(askDm)).toHaveBeenCalledWith('session-id-123', { question: 'can I break the door?', turnId: 1, revision: 0 });
+    expect(mockPreviewAction).not.toHaveBeenCalled();
+    expect(mockSubmitAction).not.toHaveBeenCalled();
   });
 
   it('submits a numbered choice selection', async () => {
@@ -163,6 +188,8 @@ describe('TerminalMode', () => {
         actionPreview: preview,
         clearPreview: mockClearPreview,
         previewThinking: false,
+        ideas: mockHistory[0].choices,
+        requestIdeas: mockRequestIdeas,
       } as unknown as ReturnType<typeof useCarSessionRuntime>;
     });
     act(() => {
@@ -231,6 +258,8 @@ describe('TerminalMode', () => {
           actionPreview: null,
           clearPreview: mockClearPreview,
           previewThinking: false,
+          ideas: mockHistory[0].choices,
+          requestIdeas: mockRequestIdeas,
           clarification: { originalDraft: 'I play the piano', exchange: [], question: 'Is "piano" your answer to the riddle?' },
           clearClarification: mockClearClarification,
         } as unknown as ReturnType<typeof useCarSessionRuntime>;
@@ -268,4 +297,51 @@ describe('TerminalMode', () => {
       expect(mockPreviewAction).not.toHaveBeenCalled();
     });
   });
+
+  describe('with no ideas yet', () => {
+    beforeEach(() => {
+      vi.mocked(useCarSessionRuntime).mockImplementation(() => ({
+        session: mockSession,
+        history: [{ ...mockHistory[0], choices: [] }],
+        loading: false,
+        actionError: null,
+        connectionState: 'connected',
+        prevEncounterStatus: 'none',
+        submitAction: mockSubmitAction,
+        submitChoice: mockSubmitChoice,
+        previewAction: mockPreviewAction,
+        actionPreview: null,
+        clearPreview: mockClearPreview,
+        previewThinking: false,
+        ideas: [],
+        requestIdeas: mockRequestIdeas,
+      } as unknown as ReturnType<typeof useCarSessionRuntime>));
+    });
+
+    const type = (value: string) => {
+      const input = screen.getByLabelText('Terminal command');
+      fireEvent.change(input, { target: { value } });
+      fireEvent.submit(input.closest('form')!);
+    };
+
+    it('invites a typed action instead of listing options', () => {
+      renderComponent();
+      expect(screen.getByText(/What do you try\? Type it in your own words/)).toBeInTheDocument();
+    });
+
+    it('asks the DM for ideas and prints them numbered', async () => {
+      mockRequestIdeas.mockResolvedValueOnce({ kind: 'ideas', payload: { turnId: 1, revision: 1, characterId: 'char-1', degraded: false, choices: [{ id: 5, label: 'Climb the chimney', stat: 'might', difficulty: 'normal' }] } });
+      renderComponent();
+      type('ideas');
+      expect(await screen.findByText(/1\. Climb the chimney/)).toBeInTheDocument();
+    });
+
+    it('explains that numbers need ideas first, without submitting', () => {
+      renderComponent();
+      type('1');
+      expect(screen.getByText(/There are no ideas yet/)).toBeInTheDocument();
+      expect(mockSubmitChoice).not.toHaveBeenCalled();
+    });
+  });
 });
+

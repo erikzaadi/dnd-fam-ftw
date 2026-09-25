@@ -335,7 +335,7 @@ test('session inventory gear helper preview', async ({ page, request }) => {
   await dismissAudioOverlay(page);
   await waitForSessionReady(page);
 
-  await expect(page.getByRole('button', { name: 'Preview party boost' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Help someone' }).first()).toBeVisible();
   await page.getByRole('button', { name: 'Show party gear' }).click();
   await expect(page.getByRole('heading', { name: /Treasure & Gear/i })).toBeVisible();
 
@@ -427,7 +427,7 @@ test('session mechanics showcase visual asserts', async ({ page, request }) => {
   for (const label of ['Team Up', 'Gear', 'Social', 'Obstacle']) {
     await expect(page.getByText(label, { exact: true })).toBeVisible();
   }
-  await page.getByRole('button', { name: 'Show the numbers' }).first().click();
+  // Numbers are shown by default.
   for (const bonus of ['+2 help (Zara)', '+2 social']) {
     await expect(page.getByText(bonus, { exact: true })).toBeVisible();
   }
@@ -442,7 +442,7 @@ test('session mechanics showcase visual asserts', async ({ page, request }) => {
     if (viewport.width < 1024) {
       await page.getByRole('button', { name: 'Actions' }).click();
     }
-    await expect(actionSurface.getByPlaceholder('Describe a different action...')).toBeVisible();
+    await expect(actionSurface.getByLabel('What do you try?')).toBeVisible();
     await expect(actionSurface.getByRole('button', { name: 'UNLEASH' })).toBeVisible();
     if (viewport.width < 1024) {
       await page.getByRole('button', { name: 'Hide actions' }).click();

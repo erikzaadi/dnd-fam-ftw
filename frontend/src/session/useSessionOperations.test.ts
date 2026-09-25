@@ -77,6 +77,29 @@ describe('useSessionOperations', () => {
     expect(hook.result.current.phase).toBe('idle');
   });
 
+  it('stays idle when the turn commits before the POST that started it returns', async () => {
+    let accept: (value: unknown) => void = () => undefined;
+    mocks.submitSessionOperation.mockReturnValue(new Promise(resolve => {
+      accept = resolve;
+    }));
+    const { hook } = setup();
+    let submitted: Promise<unknown> = Promise.resolve();
+    act(() => {
+      submitted = hook.result.current.submit('/session/s1/action', { action: 'Charge' });
+    });
+    expect(hook.result.current.phase).toBe('submitting');
+
+    // A fast DM: turn_complete arrives first, then the 202.
+    act(() => {
+      hook.result.current.onTurnCommitted({ operationId: 'op-1', revision: 4 });
+    });
+    await act(async () => {
+      accept({ kind: 'accepted', operation: operation({ status: 'completed' }), replayed: false });
+      await submitted;
+    });
+    expect(hook.result.current.phase).toBe('idle');
+  });
+
   it('sends the known revision and refreshes after a conflict', async () => {
     mocks.submitSessionOperation.mockResolvedValue({ kind: 'rejected', status: 409, error: 'stale_revision', message: 'moved on' });
     mocks.fetchSessionSnapshot.mockResolvedValue(snapshot());

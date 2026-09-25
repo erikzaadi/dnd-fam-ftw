@@ -2,6 +2,18 @@ import { expect, type APIRequestContext, type Page } from '@playwright/test';
 
 export const MOCK_NARRATION_MARKER = 'The mock DM confirms the adventure moves forward.';
 
+const MOCK_IDEAS = [/Press the attack/i, /Taunt the goblin/i, /Flee dramatically/i];
+
+// Suggestions for the turn just played: none until the player asks (ideas on demand, the
+// default), then the mock provider's ideas.
+export async function expectMockIdeas(page: Page): Promise<void> {
+  await expect(page.getByRole('button', { name: MOCK_IDEAS[0] })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Give me ideas' }).click();
+  for (const label of MOCK_IDEAS) {
+    await expect(page.getByRole('button', { name: label })).toBeVisible();
+  }
+}
+
 // Suppress first-run overlays before React mounts. Call before page.goto().
 export async function suppressFirstRunOverlays(page: Page): Promise<void> {
   await page.addInitScript(() => {
@@ -34,12 +46,12 @@ export async function openSeedSession(page: Page, sessionId: string): Promise<vo
   await page.goto(`/session/${sessionId}`);
   await dismissAudioOverlay(page);
   await dismissOriginView(page);
-  await expect(page.getByText('Choose an Action')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('What do you try?', { exact: true })).toBeVisible({ timeout: 30_000 });
 }
 
 export async function waitForTurnToComplete(page: Page): Promise<void> {
   await expect(page.getByText(MOCK_NARRATION_MARKER)).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText('Choose an Action')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('What do you try?', { exact: true })).toBeVisible({ timeout: 30_000 });
 }
 
 export async function getSessionTurn(request: APIRequestContext, sessionId: string): Promise<number> {

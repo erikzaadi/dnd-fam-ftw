@@ -223,58 +223,69 @@ describe('shouldRunRecoveryAgent', () => {
 
 // ---- Orchestrator integration tests ----
 
+// Suggestions come only from the ideas endpoint (generateIdeas); a turn never runs the
+// choices agent, its retries, or the fallback choices.
+describe('turns without suggestions', () => {
+  it('runs no choices agent, retry, or fallback in the parallel pipeline', async () => {
+    mockStreamOnce(makeNarrationCompletion('The guard steps aside. Pip, what do you try?'));
+
+    const result = await new DmTurnOrchestrator().orchestrate(baseInput());
+
+    expect(mocks.stream).toHaveBeenCalledTimes(1);
+    expect(result.choices).toEqual([]);
+    expect(result.choicesFailed).toBe(false);
+    expect(result.choicesEscalated).toBe(false);
+  });
+
+  it('runs no choices agent when narration falls back either', async () => {
+    mocks.stream.mockReturnValueOnce({
+      on: vi.fn(),
+      finalChatCompletion: vi.fn().mockRejectedValue(new Error('network failure')),
+    });
+
+    const result = await new DmTurnOrchestrator().orchestrate(baseInput());
+
+    expect(result.narrationFailed).toBe(true);
+    expect(result.choices).toEqual([]);
+    expect(result.choicesFailed).toBe(false);
+  });
+
+  it('runs no choices agent in the resolved-first presentation', async () => {
+    mockStreamOnce(makeNarrationCompletion('The door creaks open.'));
+
+    const result = await new DmTurnOrchestrator().narrateResolved(baseInput());
+
+    expect(mocks.stream).toHaveBeenCalledTimes(1);
+    expect(result.choices).toEqual([]);
+  });
+});
+
 describe('DmTurnOrchestrator.orchestrate', () => {
-  it('merges narration and choices from parallel agents', async () => {
+  it('returns the narration agent output with no suggestions', async () => {
     mockStreamOnce(makeNarrationCompletion('The guard nods and steps back.', 'A clean success.'));
-    mockStreamOnce(makeChoicesCompletion());
 
     const orchestrator = new DmTurnOrchestrator();
     const result = await orchestrator.orchestrate(baseInput());
 
     expect(result.narration).toBe('The guard nods and steps back.');
     expect(result.rollNarration).toBe('A clean success.');
-    expect(result.choices).toHaveLength(3);
+    expect(result.choices).toEqual([]);
     expect(result.currentTensionLevel).toBe('medium');
   });
 
-  it('uses narration fallback when narration agent fails, choices still succeed', async () => {
+  it('uses narration fallback when narration agent fails', async () => {
     // Narration agent throws
     mocks.stream.mockReturnValueOnce({
       on: vi.fn(),
       finalChatCompletion: vi.fn().mockRejectedValue(new Error('network failure')),
     });
-    // Choices agent succeeds
-    mockStreamOnce(makeChoicesCompletion());
 
     const orchestrator = new DmTurnOrchestrator();
     const result = await orchestrator.orchestrate(baseInput());
 
     // Fallback narration is used
     expect(result.narration).toBeTruthy();
-    // Choices from the choices agent are still used
-    expect(result.choices).toHaveLength(3);
     expect(result.narrationFailed).toBe(true);
-  });
-
-  it('uses choices fallback when choices agent fails, narration still succeeds', async () => {
-    mockStreamOnce(makeNarrationCompletion('The hall opens before you.'));
-    // Choices agent throws on both the first attempt and the retry
-    mocks.stream.mockReturnValueOnce({
-      on: vi.fn(),
-      finalChatCompletion: vi.fn().mockRejectedValue(new Error('choices failure')),
-    });
-    mocks.stream.mockReturnValueOnce({
-      on: vi.fn(),
-      finalChatCompletion: vi.fn().mockRejectedValue(new Error('choices failure')),
-    });
-
-    const orchestrator = new DmTurnOrchestrator();
-    const result = await orchestrator.orchestrate(baseInput());
-
-    expect(result.narration).toBe('The hall opens before you.');
-    // Fallback choices are still 3
-    expect(result.choices).toHaveLength(3);
-    expect(result.narrationFailed).toBe(false);
   });
 
   it('runs combat agent and merges suggestedDamage when encounter is active', async () => {
@@ -284,7 +295,6 @@ describe('DmTurnOrchestrator.orchestrate', () => {
     };
 
     mockStreamOnce(makeNarrationCompletion('The goblin reels from the blow.'));
-    mockStreamOnce(makeChoicesCompletion());
     mockStreamOnce(makeCombatCompletion()); // combat agent
     mockStreamOnce(makeInventoryCompletion()); // inventory agent (loot turn)
 
@@ -292,9 +302,9 @@ describe('DmTurnOrchestrator.orchestrate', () => {
     const result = await orchestrator.orchestrate(input);
 
     expect(result.suggestedDamage).toBe(3);
-    // Narration and choices unaffected
+    // Narration unaffected
     expect(result.narration).toBe('The goblin reels from the blow.');
-    expect(result.choices).toHaveLength(3);
+    expect(result.choices).toEqual([]);
   });
 
   it('one failed optional agent does not affect other agents', async () => {
@@ -304,7 +314,6 @@ describe('DmTurnOrchestrator.orchestrate', () => {
     };
 
     mockStreamOnce(makeNarrationCompletion('The fight rages on.'));
-    mockStreamOnce(makeChoicesCompletion());
     // Combat agent fails
     mocks.stream.mockReturnValueOnce({
       on: vi.fn(),
@@ -317,9 +326,8 @@ describe('DmTurnOrchestrator.orchestrate', () => {
 
     // Combat agent fell back - no damage
     expect(result.suggestedDamage).toBeNull();
-    // Narration and choices from their agents
+    // Narration from its agent
     expect(result.narration).toBe('The fight rages on.');
-    expect(result.choices).toHaveLength(3);
     // Diagnostics record the combat failure
     const combatDiag = result.agentDiagnostics.find(d => d.agent === 'combat');
     expect(combatDiag?.status).toBe('fallback');
@@ -327,13 +335,12 @@ describe('DmTurnOrchestrator.orchestrate', () => {
 
   it('does not run optional agents when not triggered', async () => {
     mockStreamOnce(makeNarrationCompletion('A quiet exploration.'));
-    mockStreamOnce(makeChoicesCompletion());
 
     const orchestrator = new DmTurnOrchestrator();
     const result = await orchestrator.orchestrate(baseInput());
 
-    // Only narration + choices called (2 stream calls)
-    expect(mocks.stream).toHaveBeenCalledTimes(2);
+    // Only narration is called
+    expect(mocks.stream).toHaveBeenCalledTimes(1);
     expect(result.suggestedDamage).toBeNull();
     expect(result.suggestedInventoryAdd).toBeNull();
     expect(result.suggestedRevive).toBeNull();
@@ -341,46 +348,26 @@ describe('DmTurnOrchestrator.orchestrate', () => {
 
   it('records agent diagnostics for all running agents', async () => {
     mockStreamOnce(makeNarrationCompletion('Forward.'));
-    mockStreamOnce(makeChoicesCompletion());
 
     const orchestrator = new DmTurnOrchestrator();
     const result = await orchestrator.orchestrate(baseInput());
 
-    expect(result.agentDiagnostics).toHaveLength(2);
+    expect(result.agentDiagnostics).toHaveLength(1);
     const agentNames = result.agentDiagnostics.map(d => d.agent);
     expect(agentNames).toContain('narration');
-    expect(agentNames).toContain('choices');
     result.agentDiagnostics.forEach(d => {
       expect(d.status).toBe('ok');
       expect(d.durationMs).toBeGreaterThanOrEqual(0);
     });
   });
 
-  it('strips em dashes from narration and choices even when the model ignores the prompt rule', async () => {
+  it('strips em dashes from narration even when the model ignores the prompt rule', async () => {
     mockStreamOnce(makeNarrationCompletion('The gate creaks open—revealing a hall of mirrors.', 'A clean hit—right on target.'));
-    mockStreamOnce({
-      choices: [{
-        finish_reason: 'stop',
-        message: {
-          refusal: null,
-          parsed: {
-            choices: [
-              { ...validChoice, label: 'Step through—carefully', narration: 'One step at a time—no sudden moves.' },
-              validChoice,
-              validChoice,
-            ],
-          },
-        },
-      }],
-    });
-
     const orchestrator = new DmTurnOrchestrator();
     const result = await orchestrator.orchestrate(baseInput());
 
     expect(result.narration).toBe('The gate creaks open-revealing a hall of mirrors.');
     expect(result.rollNarration).toBe('A clean hit-right on target.');
-    expect(result.choices[0].label).toBe('Step through-carefully');
-    expect(result.choices[0].narration).toBe('One step at a time-no sudden moves.');
   });
 
   it('propagates currentTensionLevel from the narration agent to the final result', async () => {
@@ -393,7 +380,6 @@ describe('DmTurnOrchestrator.orchestrate', () => {
         },
       }],
     });
-    mockStreamOnce(makeChoicesCompletion());
 
     const orchestrator = new DmTurnOrchestrator();
     const result = await orchestrator.orchestrate(baseInput());
@@ -408,172 +394,24 @@ describe('DmTurnOrchestrator.orchestrate', () => {
         message: { refusal: 'I cannot continue this story.', parsed: null },
       }],
     });
-    mockStreamOnce(makeChoicesCompletion());
 
     const orchestrator = new DmTurnOrchestrator();
     const result = await orchestrator.orchestrate(baseInput());
 
     expect(result.narration).toBeTruthy();
     expect(result.narrationFailed).toBe(true);
-    expect(result.choices).toHaveLength(3);
   });
 
   it('narration agent malformed stream (no parsed output) triggers fallback', async () => {
     mockStreamOnce({
       choices: [{ finish_reason: 'length', message: { refusal: null, parsed: null } }],
     });
-    mockStreamOnce(makeChoicesCompletion());
 
     const orchestrator = new DmTurnOrchestrator();
     const result = await orchestrator.orchestrate(baseInput());
 
     expect(result.narration).toBeTruthy();
     expect(result.narrationFailed).toBe(true);
-  });
-
-  it('choices agent malformed stream triggers fallback choices and choicesFailed', async () => {
-    mockStreamOnce(makeNarrationCompletion('Onward.'));
-    mockStreamOnce({
-      choices: [{ finish_reason: 'stop', message: { refusal: null, parsed: null } }],
-    });
-    // The retry attempt also fails (malformed again)
-    mockStreamOnce({
-      choices: [{ finish_reason: 'stop', message: { refusal: null, parsed: null } }],
-    });
-
-    const orchestrator = new DmTurnOrchestrator();
-    const result = await orchestrator.orchestrate(baseInput());
-
-    expect(result.choices).toHaveLength(3);
-    expect(result.choicesFailed).toBe(true);
-    expect(result.narration).toBe('Onward.');
-  });
-
-  it('choices agent timeout retries once and uses the retry output', async () => {
-    vi.useFakeTimers();
-    try {
-      mockStreamOnce(makeNarrationCompletion('Onward.'));
-      // First choices attempt hangs past its deadline
-      mocks.stream.mockReturnValueOnce({
-        on: vi.fn(),
-        finalChatCompletion: vi.fn(() => new Promise(() => {})),
-      });
-      // Retry succeeds
-      mockStreamOnce(makeChoicesCompletion());
-
-      const orchestrator = new DmTurnOrchestrator();
-      const promise = orchestrator.orchestrate(baseInput());
-      await vi.advanceTimersByTimeAsync(3600);
-      const result = await promise;
-
-      expect(result.choices).toHaveLength(3);
-      expect(result.choices[0].label).toBe('Press deeper');
-      expect(result.choicesFailed).toBe(false);
-      const firstDiag = result.agentDiagnostics.find(d => d.agent === 'choices');
-      const retryDiag = result.agentDiagnostics.find(d => d.agent === 'choices-retry');
-      expect(firstDiag?.status).toBe('timeout');
-      expect(retryDiag?.status).toBe('ok');
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('retries when choices agent returns the same labels as previousChoiceLabels', async () => {
-    const previousLabels = ['Press deeper', 'Press deeper', 'Press deeper'];
-    const input = { ...baseInput(), previousChoiceLabels: previousLabels, nextCharacterName: 'Pip' };
-    mockStreamOnce(makeNarrationCompletion('Onward.'));
-    // First choices attempt returns the exact same labels as previous turn
-    mockStreamOnce(makeChoicesCompletion()); // validChoice label is 'Press deeper' x3
-    // Stale retry returns fresh choices
-    mockStreamOnce({
-      choices: [{
-        finish_reason: 'stop',
-        message: {
-          refusal: null,
-          parsed: {
-            choices: [
-              { ...validChoice, label: 'Smash through the barrier', stat: 'mischief' },
-              { ...validChoice, label: 'Scout the route ahead', stat: 'might' },
-              { ...validChoice, label: 'Rally the party', stat: 'magic' },
-            ],
-          },
-        },
-      }],
-    });
-
-    const orchestrator = new DmTurnOrchestrator();
-    const result = await orchestrator.orchestrate(input);
-
-    expect(result.choices[0].label).toBe('Smash through the barrier');
-    expect(result.choicesFailed).toBe(false);
-    const staleDiag = result.agentDiagnostics.find(d => d.agent === 'choices-stale-retry');
-    expect(staleDiag?.status).toBe('ok');
-  });
-
-  it('uses stale choices as fallback and applies ensureTopStatCoverage when stale retry also fails', async () => {
-    const previousLabels = ['Press deeper', 'Press deeper', 'Press deeper'];
-    const input = { ...baseInput(), previousChoiceLabels: previousLabels, nextCharacterName: 'Pip' };
-    mockStreamOnce(makeNarrationCompletion('Onward.'));
-    // First attempt: stale
-    mockStreamOnce(makeChoicesCompletion());
-    // Stale retry fails
-    mocks.stream.mockReturnValueOnce({
-      on: vi.fn(),
-      finalChatCompletion: vi.fn().mockRejectedValue(new Error('retry failure')),
-    });
-
-    const orchestrator = new DmTurnOrchestrator();
-    const result = await orchestrator.orchestrate(input);
-
-    // Falls back to the stale choices with ensureTopStatCoverage applied
-    // Pip's top stat is mischief (4); 'Press deeper' uses might, so one slot is replaced
-    expect(result.choices).toHaveLength(3);
-    expect(result.choices.some(c => c.stat === 'mischief')).toBe(true);
-    expect(result.choicesFailed).toBe(false);
-  });
-
-  it('retries choices on the stronger model when no choice uses the next hero top stat', async () => {
-    // Pip's top stat is mischief (4); the fixture choices are all might
-    const input = { ...baseInput(), nextCharacterName: 'Pip' };
-    mockStreamOnce(makeNarrationCompletion('Onward.'));
-    mockStreamOnce(makeChoicesCompletion());
-    // Coverage retry returns a mischief option
-    mockStreamOnce({
-      choices: [{
-        finish_reason: 'stop',
-        message: {
-          refusal: null,
-          parsed: { choices: [{ ...validChoice, stat: 'mischief', label: 'Sneak past the guard' }, validChoice, validChoice] },
-        },
-      }],
-    });
-
-    const orchestrator = new DmTurnOrchestrator();
-    const result = await orchestrator.orchestrate(input);
-
-    expect(result.choices.some(c => c.stat === 'mischief')).toBe(true);
-    expect(result.choicesFailed).toBe(false);
-    expect(result.agentDiagnostics.find(d => d.agent === 'choices-coverage-retry')?.status).toBe('ok');
-  });
-
-  it('injects top-stat fallback when the coverage retry fails', async () => {
-    const input = { ...baseInput(), nextCharacterName: 'Pip' };
-    mockStreamOnce(makeNarrationCompletion('Onward.'));
-    // All choices use might; Pip's top stat is mischief
-    mockStreamOnce(makeChoicesCompletion());
-    // Coverage retry fails
-    mocks.stream.mockReturnValueOnce({
-      on: vi.fn(),
-      finalChatCompletion: vi.fn().mockRejectedValue(new Error('retry failure')),
-    });
-
-    const orchestrator = new DmTurnOrchestrator();
-    const result = await orchestrator.orchestrate(input);
-
-    expect(result.choices).toHaveLength(3);
-    // The weakest-stat (might) choice at index 0 is replaced with the mischief fallback
-    expect(result.choices.some(c => c.stat === 'mischief')).toBe(true);
-    expect(result.choicesFailed).toBe(false);
   });
 
   it('hanging agents resolve to fallback at the deadline instead of hanging the turn', async () => {
@@ -586,13 +424,12 @@ describe('DmTurnOrchestrator.orchestrate', () => {
 
       const orchestrator = new DmTurnOrchestrator();
       const promise = orchestrator.orchestrate(baseInput());
-      // Narration deadline 6000ms; choices 3500ms + 3000ms retry = 6500ms
-      await vi.advanceTimersByTimeAsync(6600);
+      // Narration deadline 6000ms
+      await vi.advanceTimersByTimeAsync(6100);
       const result = await promise;
 
       expect(result.narrationFailed).toBe(true);
-      expect(result.choicesFailed).toBe(true);
-      expect(result.choices).toHaveLength(3);
+      expect(result.choices).toEqual([]);
       result.agentDiagnostics.forEach(d => {
         expect(d.status).toBe('timeout');
       });
@@ -639,9 +476,8 @@ describe('DmTurnOrchestrator.orchestrate', () => {
     const result = await orchestrator.orchestrate(baseInput());
 
     expect(result.narration).toBeTruthy();
-    expect(result.choices).toHaveLength(3);
+    expect(result.choices).toEqual([]);
     expect(result.narrationFailed).toBe(true);
-    expect(result.choicesFailed).toBe(true);
     expect(result.currentTensionLevel).toBeTruthy();
     expect(result.suggestedDamage).toBeNull();
     expect(result.suggestedInventoryAdd).toBeNull();
@@ -651,7 +487,6 @@ describe('DmTurnOrchestrator.orchestrate', () => {
     const input: NarrationInput = { ...baseInput(), actionAttempt: 'Trade the sword for a lantern' };
 
     mockStreamOnce(makeNarrationCompletion('The trade is struck.'));
-    mockStreamOnce(makeChoicesCompletion());
     // First inventory call: malformed (no parsed) -> triggers the single retry
     mockStreamOnce({ choices: [{ finish_reason: 'stop', message: { refusal: null, parsed: null } }] });
     mockStreamOnce({
@@ -671,7 +506,7 @@ describe('DmTurnOrchestrator.orchestrate', () => {
     const orchestrator = new DmTurnOrchestrator();
     const result = await orchestrator.orchestrate(input);
 
-    expect(mocks.stream).toHaveBeenCalledTimes(4);
+    expect(mocks.stream).toHaveBeenCalledTimes(3);
     expect(result.suggestedInventoryAdd?.name).toBe('🏮 Brass Lantern');
     const inventoryDiag = result.agentDiagnostics.find(d => d.agent === 'inventory');
     expect(inventoryDiag?.status).toBe('retry');
@@ -681,7 +516,6 @@ describe('DmTurnOrchestrator.orchestrate', () => {
     const input: NarrationInput = { ...baseInput(), actionAttempt: 'Trade the sword for a lantern' };
 
     mockStreamOnce(makeNarrationCompletion('The trade is struck.'));
-    mockStreamOnce(makeChoicesCompletion());
     // Both inventory attempts malformed -> fallback, no third attempt
     mockStreamOnce({ choices: [{ finish_reason: 'stop', message: { refusal: null, parsed: null } }] });
     mockStreamOnce({ choices: [{ finish_reason: 'stop', message: { refusal: null, parsed: null } }] });
@@ -689,7 +523,7 @@ describe('DmTurnOrchestrator.orchestrate', () => {
     const orchestrator = new DmTurnOrchestrator();
     const result = await orchestrator.orchestrate(input);
 
-    expect(mocks.stream).toHaveBeenCalledTimes(4);
+    expect(mocks.stream).toHaveBeenCalledTimes(3);
     expect(result.suggestedInventoryAdd).toBeNull();
     const inventoryDiag = result.agentDiagnostics.find(d => d.agent === 'inventory');
     expect(inventoryDiag?.status).toBe('fallback');
@@ -702,7 +536,6 @@ describe('DmTurnOrchestrator.orchestrate', () => {
     };
 
     mockStreamOnce(makeNarrationCompletion('The fight continues.'));
-    mockStreamOnce(makeChoicesCompletion());
     // Combat agent responds with a content refusal
     mocks.stream.mockReturnValueOnce({
       on: vi.fn(),
@@ -730,7 +563,6 @@ describe('DmTurnOrchestrator.orchestrate', () => {
       };
 
       mockStreamOnce(makeNarrationCompletion('The fight rages.'));
-      mockStreamOnce(makeChoicesCompletion());
       // Combat agent hangs past deadline
       mocks.stream.mockReturnValueOnce({
         on: vi.fn(),
@@ -752,40 +584,173 @@ describe('DmTurnOrchestrator.orchestrate', () => {
   });
 });
 
-describe('DmTurnOrchestrator.rerunChoices', () => {
-  it('returns fresh choices when the choices agent succeeds', async () => {
-    mockStreamOnce(makeChoicesCompletion());
-
-    const orchestrator = new DmTurnOrchestrator();
-    const choices = await orchestrator.rerunChoices(baseInput());
-
-    expect(choices).toHaveLength(3);
-    expect(choices?.[0].label).toBe('Press deeper');
-  });
-
-  it('returns null when the choices agent fails, leaving the caller on fallback choices', async () => {
-    mocks.stream.mockReturnValueOnce({
-      on: vi.fn(),
-      finalChatCompletion: vi.fn().mockRejectedValue(new Error('rerun failure')),
-    });
-
-    const orchestrator = new DmTurnOrchestrator();
-    const choices = await orchestrator.rerunChoices(baseInput());
-
-    expect(choices).toBeNull();
-  });
-});
-
 describe('DmTurnOrchestrator as NarrationProvider', () => {
   it('generateTurn delegates to orchestrate', async () => {
     mockStreamOnce(makeNarrationCompletion('Through the factory seam.'));
-    mockStreamOnce(makeChoicesCompletion());
 
     const orchestrator = new DmTurnOrchestrator();
     const result = await orchestrator.generateTurn(baseInput());
 
     expect(result.narration).toBe('Through the factory seam.');
-    expect(result.choices).toHaveLength(3);
+    expect(result.choices).toEqual([]);
+  });
+});
+
+// The choices flow behind "Give me ideas": retries, stale and top-stat guards, fallback.
+describe('ideas choices flow', () => {
+  it('choices agent malformed stream triggers the fallback choices', async () => {
+    mockStreamOnce({
+      choices: [{ finish_reason: 'stop', message: { refusal: null, parsed: null } }],
+    });
+    // The retry attempt also fails (malformed again)
+    mockStreamOnce({
+      choices: [{ finish_reason: 'stop', message: { refusal: null, parsed: null } }],
+    });
+
+    const result = await runChoicesWithRetry(baseInput());
+
+    expect(result.choices.choices).toHaveLength(3);
+    expect(result.usedFallback).toBe(true);
+  });
+
+  it('choices agent timeout retries once and uses the retry output', async () => {
+    vi.useFakeTimers();
+    try {
+      // First choices attempt hangs past its deadline
+      mocks.stream.mockReturnValueOnce({
+        on: vi.fn(),
+        finalChatCompletion: vi.fn(() => new Promise(() => {})),
+      });
+      // Retry succeeds
+      mockStreamOnce(makeChoicesCompletion());
+
+      const promise = runChoicesWithRetry(baseInput());
+      await vi.advanceTimersByTimeAsync(3600);
+      const result = await promise;
+
+      expect(result.choices.choices).toHaveLength(3);
+      expect(result.choices.choices[0].label).toBe('Press deeper');
+      expect(result.usedFallback).toBe(false);
+      const firstDiag = result.diagnostics.find(d => d.agent === 'choices');
+      const retryDiag = result.diagnostics.find(d => d.agent === 'choices-retry');
+      expect(firstDiag?.status).toBe('timeout');
+      expect(retryDiag?.status).toBe('ok');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('retries when choices agent returns the same labels as previousChoiceLabels', async () => {
+    const previousLabels = ['Press deeper', 'Press deeper', 'Press deeper'];
+    const input = { ...baseInput(), previousChoiceLabels: previousLabels, nextCharacterName: 'Pip' };
+    // First choices attempt returns the exact same labels as previous turn
+    mockStreamOnce(makeChoicesCompletion()); // validChoice label is 'Press deeper' x3
+    // Stale retry returns fresh choices
+    mockStreamOnce({
+      choices: [{
+        finish_reason: 'stop',
+        message: {
+          refusal: null,
+          parsed: {
+            choices: [
+              { ...validChoice, label: 'Smash through the barrier', stat: 'mischief' },
+              { ...validChoice, label: 'Scout the route ahead', stat: 'might' },
+              { ...validChoice, label: 'Rally the party', stat: 'magic' },
+            ],
+          },
+        },
+      }],
+    });
+
+    const result = await runChoicesWithRetry(input);
+
+    expect(result.choices.choices[0].label).toBe('Smash through the barrier');
+    expect(result.usedFallback).toBe(false);
+    const staleDiag = result.diagnostics.find(d => d.agent === 'choices-stale-retry');
+    expect(staleDiag?.status).toBe('ok');
+  });
+
+  it('uses stale choices as fallback and applies ensureTopStatCoverage when stale retry also fails', async () => {
+    const previousLabels = ['Press deeper', 'Press deeper', 'Press deeper'];
+    const input = { ...baseInput(), previousChoiceLabels: previousLabels, nextCharacterName: 'Pip' };
+    // First attempt: stale
+    mockStreamOnce(makeChoicesCompletion());
+    // Stale retry fails
+    mocks.stream.mockReturnValueOnce({
+      on: vi.fn(),
+      finalChatCompletion: vi.fn().mockRejectedValue(new Error('retry failure')),
+    });
+
+    const result = await runChoicesWithRetry(input);
+
+    // Falls back to the stale choices with ensureTopStatCoverage applied
+    // Pip's top stat is mischief (4); 'Press deeper' uses might, so one slot is replaced
+    expect(result.choices.choices).toHaveLength(3);
+    expect(result.choices.choices.some(c => c.stat === 'mischief')).toBe(true);
+    expect(result.usedFallback).toBe(false);
+  });
+
+  it('retries choices on the stronger model when no choice uses the next hero top stat', async () => {
+    // Pip's top stat is mischief (4); the fixture choices are all might
+    const input = { ...baseInput(), nextCharacterName: 'Pip' };
+    mockStreamOnce(makeChoicesCompletion());
+    // Coverage retry returns a mischief option
+    mockStreamOnce({
+      choices: [{
+        finish_reason: 'stop',
+        message: {
+          refusal: null,
+          parsed: { choices: [{ ...validChoice, stat: 'mischief', label: 'Sneak past the guard' }, validChoice, validChoice] },
+        },
+      }],
+    });
+
+    const result = await runChoicesWithRetry(input);
+
+    expect(result.choices.choices.some(c => c.stat === 'mischief')).toBe(true);
+    expect(result.usedFallback).toBe(false);
+    expect(result.diagnostics.find(d => d.agent === 'choices-coverage-retry')?.status).toBe('ok');
+  });
+
+  it('injects top-stat fallback when the coverage retry fails', async () => {
+    const input = { ...baseInput(), nextCharacterName: 'Pip' };
+    // All choices use might; Pip's top stat is mischief
+    mockStreamOnce(makeChoicesCompletion());
+    // Coverage retry fails
+    mocks.stream.mockReturnValueOnce({
+      on: vi.fn(),
+      finalChatCompletion: vi.fn().mockRejectedValue(new Error('retry failure')),
+    });
+
+    const result = await runChoicesWithRetry(input);
+
+    expect(result.choices.choices).toHaveLength(3);
+    // The weakest-stat (might) choice at index 0 is replaced with the mischief fallback
+    expect(result.choices.choices.some(c => c.stat === 'mischief')).toBe(true);
+    expect(result.usedFallback).toBe(false);
+  });
+
+  it('strips em dashes from idea labels and narration even when the model ignores the prompt rule', async () => {
+    mockStreamOnce({
+      choices: [{
+        finish_reason: 'stop',
+        message: {
+          refusal: null,
+          parsed: {
+            choices: [
+              { ...validChoice, label: 'Step through—carefully', narration: 'One step at a time—no sudden moves.' },
+              validChoice,
+              validChoice,
+            ],
+          },
+        },
+      }],
+    });
+
+    const { choices } = await new DmTurnOrchestrator().generateIdeas(baseInput());
+
+    expect(choices[0].label).toBe('Step through-carefully');
+    expect(choices[0].narration).toBe('One step at a time-no sudden moves.');
   });
 });
 
@@ -1133,47 +1098,11 @@ describe('choices request settings by tier', () => {
   it('never sends preview reasoning on narration or mechanics agent requests', async () => {
     process.env.OPENAI_REASONING_EFFORT_PREVIEW = 'none';
     mockStreamOnce(makeNarrationCompletion('Onward.'));
-    mockStreamOnce(makeChoicesCompletion());
 
     await new DmTurnOrchestrator().orchestrate(baseInput());
 
-    const [narrationRequest, choicesRequest] = mocks.stream.mock.calls.map(call => call[0]);
+    const [narrationRequest] = mocks.stream.mock.calls.map(call => call[0]);
     expect(narrationRequest.model).toBe('gpt-4.1-mini');
     expect(narrationRequest).not.toHaveProperty('reasoning_effort');
-    expect(choicesRequest.reasoning_effort).toBe('none');
-  });
-});
-
-describe('orchestrate choicesEscalated', () => {
-  it('is false when the initial choices pass the guards', async () => {
-    mockStreamOnce(makeNarrationCompletion('Onward.'));
-    mockStreamOnce(makeChoicesCompletion());
-
-    const result = await new DmTurnOrchestrator().orchestrate(baseInput());
-
-    expect(result.choicesEscalated).toBe(false);
-    expect(result.choicesFailed).toBe(false);
-  });
-
-  it('is true when a coverage retry starts, even though choices did not fall back', async () => {
-    mockStreamOnce(makeNarrationCompletion('Onward.'));
-    mockStreamOnce(makeChoicesCompletion());
-    mockStreamOnce(makeChoicesCompletion());
-
-    const result = await new DmTurnOrchestrator().orchestrate({ ...baseInput(), nextCharacterName: 'Pip' });
-
-    expect(result.choicesEscalated).toBe(true);
-    expect(result.choicesFailed).toBe(false);
-  });
-
-  it('is true alongside choicesFailed when the error retry also fails', async () => {
-    mockStreamOnce(makeNarrationCompletion('Onward.'));
-    mocks.stream.mockReturnValueOnce({ on: vi.fn(), finalChatCompletion: vi.fn().mockRejectedValue(new Error('down')) });
-    mocks.stream.mockReturnValueOnce({ on: vi.fn(), finalChatCompletion: vi.fn().mockRejectedValue(new Error('down')) });
-
-    const result = await new DmTurnOrchestrator().orchestrate(baseInput());
-
-    expect(result.choicesEscalated).toBe(true);
-    expect(result.choicesFailed).toBe(true);
   });
 });

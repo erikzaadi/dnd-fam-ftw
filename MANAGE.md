@@ -186,11 +186,19 @@ Narration-tier choices retries and all narration/async requests never receive pr
 
 The built-in preview model (`gpt-5.6-luna`) and its reasoning default (`none`) are defined together in `PREVIEW_DEFAULTS` (`backend/src/providers/ai/openAiClient.ts`) and roll back together. `gpt-4.1-nano` retires on 2026-10-23 and must not be restored as a default. Production does not pin either value: `deploy-backend.sh` leaves both unset, so the code defaults apply. Selection evidence is in `next-up-instructions/model-refresh-02-live-validation.md`. A preview reply that is empty with `finish_reason=length` logs a `console.warn` (`[AI] <caller> truncated: ...`) even though the caller falls back.
 
-`[Metrics] turn_complete` log lines include `choicesFailed=` (final choices fell back to deterministic choices) and `choicesEscalated=` (a narration-tier choices retry started, whatever its outcome).
+`[Metrics] turn_complete` log lines still include `choicesFailed=` and `choicesEscalated=`; both are always false now that turns carry no suggestions.
 
-### Turn strategy comparison (plan 4, experimental)
+### Ideas on demand
 
-`AI_TURN_STRATEGY` selects the turn pipeline. Unset or `parallel` is production: all agents run in parallel. `resolved_first` is a candidate: the combat, inventory and recovery agents run first, the engine applies their proposals once, and narration and choices are generated from those frozen facts (see `MULTI_AGENT_WORKFLOW.md`). Item turns always use `parallel` for now. Any other value stops the backend at startup. Do not enable `resolved_first` in production until the comparison below passes the Q1-Q3 gates.
+Turns never pre-generate suggested choices, in either turn pipeline (or the opening, rescue, and chapter-start turns): no choices agent, retry, rerun, or deterministic fallback runs per turn, and narration ends with an open question to the next hero. Players type what they try, or press **Give me ideas**, which calls `POST /session/:id/ideas` (same choices path, run on request, shared by every viewer, never advancing the story; 6 generations per session per minute).
+
+Per realm, the ⚙ menu setting **Ideas every turn** (`sessions.auto_ideas`) makes open views ask for ideas once after each turn; turns themselves stay fast. Turns saved before ideas moved on demand still show their stored choices.
+
+**Ask the DM** (`POST /session/:id/ask`, Session button, terminal `ask dm ...`, car "ask the DM ...") answers a question about the current scene in a sentence or two, from public facts only (never DM Prep, the chapter plan, or a riddle's answer). It is transient: nothing is stored, the story and revision do not move. 6 questions per session per minute; rejected while an action resolves or when the question targets an older turn or revision. (The `CHOICES_ON_DEMAND` opt-out was removed on 2026-09-25.)
+
+### Turn strategy
+
+`AI_TURN_STRATEGY` selects the turn pipeline. Unset or `resolved_first` is the default (since 2026-09-25): the combat, inventory and recovery agents run first, the engine applies their proposals once, and narration is generated from those settled facts (see `MULTI_AGENT_WORKFLOW.md`), so the story always matches what happened. Item turns apply the item first and then follow the same flow. `parallel` is the earlier pipeline, where narration runs beside the mechanics agents and repairs fix disagreements afterwards; keep it as an opt-out. Any other value stops the backend at startup. The comparison runner below still measures the two against each other.
 
 Every committed turn logs one `[TurnDiag] {json}` line (strategy, stage timings, first narration chunk, agent outcomes, repairs that fired, revisions). It contains no narration or player text.
 

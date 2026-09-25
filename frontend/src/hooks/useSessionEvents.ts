@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Session, TurnResult, Character, ImageReadyEvent, ActionAttempt, HpChange } from '../types';
+import type { Session, TurnResult, Character, ImageReadyEvent, ActionAttempt, HpChange, IdeasPayload } from '../types';
 import { apiUrl } from '../lib/api';
 import { devLog } from '../lib/devLog';
 
@@ -7,7 +7,7 @@ const SSE_STALE_TIMEOUT_MS = 60000;
 const SSE_STALE_CHECK_MS = 10000;
 const SSE_RECONNECT_DELAY_MS = 3000;
 
-interface NarratingPayload {
+export interface NarratingPayload {
   action?: string;
   statUsed?: string;
   difficulty?: string;
@@ -53,6 +53,9 @@ interface SessionEventHandlers {
   onAdventureConcluded?: (session: Session, turnResult: TurnResult | null, meta?: OperationEventMeta) => void;
   // An ending is being written (end-here request, or a resolved finale).
   onAdventureConcluding?: () => void;
+  // Ideas were generated for a turn (by this viewer or another). Not a turn: no narration,
+  // dice, or turn effects. Handlers must apply it idempotently.
+  onIdeasUpdated?: (payload: IdeasPayload) => void;
 }
 
 export type ConnectionState = 'connected' | 'reconnecting' | 'disconnected';
@@ -75,6 +78,7 @@ export const useSessionEvents = ({
   onGameOver,
   onAdventureConcluded,
   onAdventureConcluding,
+  onIdeasUpdated,
 }: SessionEventHandlers) => {
   const [connectionState, setConnectionState] = useState<ConnectionState>('connected');
   const setConnectionStateRef = useRef(setConnectionState);
@@ -171,6 +175,8 @@ export const useSessionEvents = ({
           onAdventureConcluding?.();
         } else if (data.type === 'adventure_concluded') {
           onAdventureConcluded?.(data.session, data.turnResult ?? null, meta);
+        } else if (data.type === 'ideas_updated') {
+          onIdeasUpdated?.(data as IdeasPayload);
         }
       };
 

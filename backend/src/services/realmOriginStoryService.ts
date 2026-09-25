@@ -71,47 +71,69 @@ Rules:
 - Keep it family-friendly and adventurous.`;
 }
 
-export const RealmOriginStoryService = {
-  async generate(sessionId: string): Promise<string> {
-    const session = await StateService.getSession(sessionId);
-    if (!session) {
-      throw new Error(`Session ${sessionId} not found`);
-    }
+// One generation per session at a time. Two viewers (or React StrictMode running the
+// fetch effect twice in dev) used to start two model calls, get two different stories,
+// and show one, then the other.
+const inFlight = new Map<string, Promise<string>>();
 
-    if (!session.party.length) {
-      throw new Error('Cannot generate origin story for empty party');
-    }
+async function generateOnce(sessionId: string): Promise<string> {
+  const session = await StateService.getSession(sessionId);
+  if (!session) {
+    throw new Error(`Session ${sessionId} not found`);
+  }
+  if (session.originStory) {
+    return session.originStory;
+  }
 
-    const prompt = buildPrompt(session);
-    const { client, model } = createChatClientForTier('async');
-    console.log(`[OriginStory] Generating for session=${sessionId} model=${model}`);
+  if (!session.party.length) {
+    throw new Error('Cannot generate origin story for empty party');
+  }
 
-    // Token budget tracks the party-scaled paragraph count used in the prompt
-    const maxTokens = Math.min(600, 140 * paragraphCount(session) + 60);
+  const prompt = buildPrompt(session);
+  const { client, model } = createChatClientForTier('async');
+  console.log(`[OriginStory] Generating for session=${sessionId} model=${model}`);
 
-    let text: string;
-    try {
-      const response = await client.chat.completions.create({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: maxTokens,
-      }, { signal: AbortSignal.timeout(30_000) });
-      const msg = response.choices[0].message;
-      const raw = msg.content || (msg as unknown as Record<string, string>)['reasoning_content'] || '';
-      text = raw.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/[—]/g, '-').trim();
-      if (!text) {
-        text = buildFallback(session);
-      }
-    } catch (err) {
-      console.warn(`[OriginStory] Generation failed for session=${sessionId}:`, err);
+  // Token budget tracks the party-scaled paragraph count used in the prompt
+  const maxTokens = Math.min(600, 140 * paragraphCount(session) + 60);
+
+  let text: string;
+  try {
+    const response = await client.chat.completions.create({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: maxTokens,
+    }, { signal: AbortSignal.timeout(30_000) });
+    const msg = response.choices[0].message;
+    const raw = msg.content || (msg as unknown as Record<string, string>)['reasoning_content'] || '';
+    text = raw.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/[—]/g, '-').trim();
+    if (!text) {
       text = buildFallback(session);
     }
+  } catch (err) {
+    console.warn(`[OriginStory] Generation failed for session=${sessionId}:`, err);
+    text = buildFallback(session);
+  }
 
-    await StateService.patchSession(sessionId, {
-      originStory: text,
-      originStoryGeneratedAt: new Date().toISOString(),
+  if (!StateService.setOriginStoryIfMissing(sessionId, text, new Date().toISOString())) {
+    // Another process stored one first: everyone gets that one.
+    const stored = (await StateService.getSession(sessionId))?.originStory;
+    console.log(`[OriginStory] Kept existing for session=${sessionId}`);
+    return stored || text;
+  }
+  console.log(`[OriginStory] Persisted for session=${sessionId}`);
+  return text;
+}
+
+export const RealmOriginStoryService = {
+  generate(sessionId: string): Promise<string> {
+    const pending = inFlight.get(sessionId);
+    if (pending) {
+      return pending;
+    }
+    const work = generateOnce(sessionId).finally(() => {
+      inFlight.delete(sessionId);
     });
-    console.log(`[OriginStory] Persisted for session=${sessionId}`);
-    return text;
+    inFlight.set(sessionId, work);
+    return work;
   },
 };

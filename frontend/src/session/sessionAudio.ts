@@ -16,3 +16,17 @@ export const applySessionTension = (session: Session | null | undefined, turnRes
     audioManager.setTension(turnResult.currentTensionLevel);
   }
 };
+
+// Dice sound, then the outcome sting once the dice settle.
+export const playRollSfx = (roll: { roll: number; success: boolean }): void => {
+  audioManager.playSfx('dice-roll');
+  setTimeout(() => {
+    if (roll.roll === 20) {
+      audioManager.playSfx('roll-20');
+    } else if (roll.success) {
+      audioManager.playSfx('success-roll');
+    } else {
+      audioManager.playSfx('failed-roll');
+    }
+  }, 600);
+};

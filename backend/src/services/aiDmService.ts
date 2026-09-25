@@ -194,7 +194,6 @@ export function toNarrationInput(input: AIInput): NarrationInput {
     ...(input.lastChoices.some(choice => choice.itemName) && { previousChoiceItemNames: input.lastChoices.map(choice => choice.itemName).filter((name): name is string => !!name) }),
     ...(previousChoiceFlavors.length > 0 && { previousChoiceFlavors }),
     ...(selectedChoice?.flavor && { selectedChoiceFlavor: selectedChoice.flavor }),
-    ...(selectedChoice?.environmentFeature && { selectedEnvironmentFeature: selectedChoice.environmentFeature }),
     ...(input.scenePressure && { scenePressure: input.scenePressure }),
     ...(input.sceneMomentum && { sceneMomentum: input.sceneMomentum }),
     ...(input.actionIntent && { actionIntent: input.actionIntent }),
@@ -285,8 +284,11 @@ export class AiDmService {
         }
         return String(error);
       })();
+      const fallback = buildNarrationFallback(narrationInput);
       return {
-        ...buildNarrationFallback(narrationInput),
+        ...fallback,
+        // Suggestions come from the ideas endpoint, so even a fallback turn has none.
+        choices: [],
         imagePrompt: null,
         imageSuggested: false,
         narrationFailed: true,

@@ -44,6 +44,11 @@ export const commitTurn = (input: CommitTurnInput): CommitTurnResult => withTran
   const turnId = turnHistoryRepository.insertTurnResultSync(input.sessionId, input.turn, input.characterId, input.operationId);
   const revision = input.expectedRevision + 1;
   getDb().prepare('UPDATE sessions SET revision = ? WHERE id = ?').run(revision, input.sessionId);
+  // The turn's choices (possibly none) belong to this revision and the hero who acts next.
+  turnHistoryRepository.setIdeasMetaSync(turnId, revision, input.state.activeCharacterId, !!input.turn.choicesFailed);
+  input.turn.ideasRevision = revision;
+  input.turn.ideasCharacterId = input.state.activeCharacterId || undefined;
+  input.turn.ideasDegraded = !!input.turn.choicesFailed || undefined;
   input.additionalWrites?.(revision, turnId);
 
   if (input.operationId) {

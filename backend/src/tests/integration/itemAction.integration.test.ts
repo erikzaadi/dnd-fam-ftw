@@ -1,13 +1,13 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StateService } from '../../services/stateService.js';
 import { executeTurnAction } from '../../services/turnService.js';
-import { FIXED_NARRATION_OUTPUT, mockGenerateTurn, resetMockNarrationProvider } from './mockNarrationProvider.js';
+import { FIXED_NARRATION_OUTPUT, TURN_STRATEGIES, expectTurnStrategy, mockGenerateTurn, mockNarrateResolved, mockProposeMechanics, narratingMock, narrationInputFor, scriptTurnOutput } from './mockNarrationProvider.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
 
 vi.mock('../../providers/ai/AiProviderFactory.js', async () => {
-  const { createMockNarrationProvider } = await import('./mockNarrationProvider.js');
+  const { createStagedMockNarrationProvider } = await import('./mockNarrationProvider.js');
   return {
-    createNarrationProvider: vi.fn(() => createMockNarrationProvider()),
+    createNarrationProvider: vi.fn(() => createStagedMockNarrationProvider()),
     createChatClientForTier: vi.fn(),
   };
 });
@@ -19,14 +19,25 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  resetMockNarrationProvider();
+  scriptTurnOutput();
+});
+
+afterEach(() => {
+  delete process.env.AI_TURN_STRATEGY;
 });
 
 afterAll(() => {
   cleanupIntegrationEnvironment(paths);
 });
 
-describe('executeTurnAction item action integration', () => {
+// Item effects are applied by the engine before any AI call, under either strategy.
+// The healing item must heal exactly once: resolved_first once added a second heal
+// from the attempt text through the free-action healing policy.
+describe.each(TURN_STRATEGIES)('executeTurnAction item action integration (%s)', (strategy) => {
+  beforeEach(() => {
+    process.env.AI_TURN_STRATEGY = strategy;
+  });
+
   it('uses a consumable healing item, persists HP/inventory changes, and reports change metadata', async () => {
     const pip = {
       ...makeTestSession().party[0],
@@ -41,12 +52,12 @@ describe('executeTurnAction item action integration', () => {
       }],
     };
     await insertSessionState(makeTestSession({
-      id: 'item-action-session',
+      id: `item-action-session-${strategy}`,
       party: [pip],
       activeCharacterId: 'char-pip',
     }));
 
-    const result = await executeTurnAction('item-action-session', 'local', {
+    const result = await executeTurnAction(`item-action-session-${strategy}`, 'local', {
       action: 'use item',
       statUsed: 'none',
       actionType: 'use_item',
@@ -60,11 +71,15 @@ describe('executeTurnAction item action integration', () => {
       return;
     }
 
-    expect(mockGenerateTurn).toHaveBeenCalledTimes(1);
-    expect(mockGenerateTurn.mock.calls[0][0].actionAttempt).toContain('Pip used Healing Potion');
-    expect(mockGenerateTurn.mock.calls[0][0].inventory).toEqual([]);
+    expectTurnStrategy(result, strategy);
+    expect(narratingMock(strategy)).toHaveBeenCalledTimes(1);
+    expect(narrationInputFor(strategy)?.actionAttempt).toContain('Pip used Healing Potion');
+    expect(narrationInputFor(strategy)?.inventory).toEqual([]);
+    if (strategy === 'resolved_first') {
+      expect(narrationInputFor(strategy)?.resolvedTurn?.facts.join(' ')).toContain('Pip regained 3 HP');
+    }
 
-    const stored = await StateService.getSession('item-action-session');
+    const stored = await StateService.getSession(`item-action-session-${strategy}`);
     expect(stored?.party[0].hp).toBe(7);
     expect(stored?.party[0].inventory).toHaveLength(0);
 
@@ -76,14 +91,12 @@ describe('executeTurnAction item action integration', () => {
       { characterName: 'Pip', itemName: 'Healing Potion', type: 'removed' },
     ]);
   });
-});
 
-describe('executeTurnAction item action turn_complete metrics', () => {
   it('logs choicesEscalated beside choicesFailed through production console.log', async () => {
-    resetMockNarrationProvider({ ...FIXED_NARRATION_OUTPUT, choicesFailed: false, choicesEscalated: true } as typeof FIXED_NARRATION_OUTPUT);
+    scriptTurnOutput({ ...FIXED_NARRATION_OUTPUT, choicesFailed: false, choicesEscalated: true } as typeof FIXED_NARRATION_OUTPUT);
     const log = vi.spyOn(console, 'log');
     await insertSessionState(makeTestSession({
-      id: 'item-action-metrics-session',
+      id: `item-action-metrics-session-${strategy}`,
       party: [{
         ...makeTestSession().party[0],
         hp: 4,
@@ -92,7 +105,7 @@ describe('executeTurnAction item action turn_complete metrics', () => {
       activeCharacterId: 'char-pip',
     }));
 
-    const result = await executeTurnAction('item-action-metrics-session', 'local', {
+    const result = await executeTurnAction(`item-action-metrics-session-${strategy}`, 'local', {
       action: 'use item',
       statUsed: 'none',
       actionType: 'use_item',
@@ -101,8 +114,8 @@ describe('executeTurnAction item action turn_complete metrics', () => {
       targetCharacterId: 'char-pip',
     });
 
-    expect(result.ok).toBe(true);
-    const line = log.mock.calls.map(call => String(call[0])).find(message => message.includes('[Metrics] turn_complete session=item-action-metrics-session'));
+    expectTurnStrategy(result, strategy);
+    const line = log.mock.calls.map(call => String(call[0])).find(message => message.includes(`[Metrics] turn_complete session=item-action-metrics-session-${strategy}`));
     expect(line).toContain('choicesFailed=false choicesEscalated=true');
     log.mockRestore();
   });
@@ -130,6 +143,8 @@ describe('executeTurnAction item action limits', () => {
       });
       expect(result).toMatchObject({ ok: false, status: 403, body: { error: 'turn_limit' } });
       expect(mockGenerateTurn).not.toHaveBeenCalled();
+      expect(mockProposeMechanics).not.toHaveBeenCalled();
+      expect(mockNarrateResolved).not.toHaveBeenCalled();
       expect((await StateService.getSession('item-action-limit-session'))?.party[0].inventory).toHaveLength(1);
     } finally {
       StateService.setNamespaceLimits('local', null, null);

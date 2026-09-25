@@ -10,6 +10,14 @@ import { devLog } from '../lib/devLog.js';
 export const STAT_FALLBACK = { might: 2, magic: 2, mischief: 3 };
 
 const PREVIEW_NARRATION_VOICE = 'The narration field must be third person present tense and name the character. Never write it in first person, never address the party, never begin with "Let\'s" or "We".';
+
+// A player describes an attempt, never a guaranteed result.
+const PREVIEW_ATTEMPT_RULE = 'The player describes what they TRY. "I persuade the guard" means they attempt to persuade; phrase the action as an attempt and never promise that it works.';
+
+// Offered only to clients that can show a question, and only below the round limit.
+const PREVIEW_CLARIFY_RULE = 'Set "clarify" to one short question (at most 12 words) ONLY when a missing or ambiguous target, item, or intent would clearly change what happens, for example "I throw it at them" with several possible targets. Name the options in the question ("At the goblin or the wolf?"). If the player already answered a question, combine their answer with the action. In every other case set "clarify" to null: never ask about style, risk, or details you can reasonably infer from the scene.';
+
+const MAX_CLARIFY_QUESTION_LENGTH = 160;
 export type SuggestedStat = 'might' | 'magic' | 'mischief';
 export type SessionActionStatSuggestion = FreeActionBonusPreview & { stat: SuggestedStat };
 export type PreviewActionIntent =
@@ -109,9 +117,9 @@ function parseEncounterFields(parsed: Record<string, unknown>, ctx: EncounterPre
 
 export async function previewFreeAction(
   sessionId: string,
-  input: { action?: string; context?: PreviewActionContext; encounterContext?: EncounterPreviewContext | null },
-): Promise<SessionActionStatSuggestion & { narration?: string; interpretedAction?: string; generatedAction?: string } & PreviewEncounterFields> {
-  const { action, context, encounterContext } = input;
+  input: { action?: string; context?: PreviewActionContext; encounterContext?: EncounterPreviewContext | null; allowClarification?: boolean },
+): Promise<SessionActionStatSuggestion & { narration?: string; interpretedAction?: string; generatedAction?: string; clarificationQuestion?: string } & PreviewEncounterFields> {
+  const { action, context, encounterContext, allowClarification = false } = input;
   const session = await StateService.getSession(sessionId);
   if (!session) {
     return { stat: 'mischief' };
@@ -196,12 +204,14 @@ ${storyContext ? `\nUse this story context so the preview fits the current scene
 ${encounterSection}
 Stat guide: might = physical/combat/force, magic = spells/arcane/healing/divine, mischief = stealth/trickery/charm/persuasion.${hasEncounter ? '\nWeakness labels are flavorful display text. Keep the exact label from the encounter data; do not rewrite it to a generic school. Only set weakPointMatch when a revealed, non-broken weakness on the likely target clearly matches this action\'s school or tags. Use "may exploit" wording when confidence is low.' : ''}
 ${PREVIEW_NARRATION_VOICE}
+${PREVIEW_ATTEMPT_RULE}${allowClarification ? `\n${PREVIEW_CLARIFY_RULE}` : ''}
 
 Reply with JSON:
 {
   "action": "<polished first-person or third-person action sentence, preserving the player's intent>",
   "stat": "might" | "magic" | "mischief",
-  "narration": "<one short evocative third-person sentence, 8-14 words, describing what the character does>"${hasEncounter ? `,
+  "narration": "<one short evocative third-person sentence, 8-14 words, describing what the character does>"${allowClarification ? `,
+  "clarify": "<one short question to the player>" | null` : ''}${hasEncounter ? `,
   "school": "<magic school this action uses: fire|frost|light|shadow|nature|storm|mind|force|holy|mechanical|null>",
   "actionTags": ["<optional descriptive tags>"],
   "likelyEnemyId": "<id of the enemy most likely targeted, or null>",
@@ -218,7 +228,7 @@ Reply with JSON:
       model,
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
-      max_completion_tokens: needsGeneratedAction ? (hasEncounter ? 220 : 120) : (hasEncounter ? 160 : 80),
+      max_completion_tokens: (needsGeneratedAction ? (hasEncounter ? 220 : 120) : (hasEncounter ? 160 : 80)) + (allowClarification ? 40 : 0),
       ...getTierRequestSettings('preview'),
     }, { signal: AbortSignal.timeout(8_000) });
     warnIfEmptyTruncation('PreviewAction', model, response.choices[0]);
@@ -242,7 +252,10 @@ Reply with JSON:
       }
 
       const interpretedAction = typeof parsed.action === 'string' ? parsed.action.trim() : undefined;
-      return { stat, ...(interpretedAction && { interpretedAction }), narration, ...bonusPreview, ...encounterFields };
+      const clarificationQuestion = allowClarification && typeof parsed.clarify === 'string' && parsed.clarify.trim()
+        ? parsed.clarify.trim().slice(0, MAX_CLARIFY_QUESTION_LENGTH)
+        : undefined;
+      return { stat, ...(interpretedAction && { interpretedAction }), narration, ...(clarificationQuestion && { clarificationQuestion }), ...bonusPreview, ...encounterFields };
     }
     const stat = (['might', 'magic', 'mischief'] as const).find(s => raw.includes(s)) ?? 'mischief';
     if (needsGeneratedAction) {

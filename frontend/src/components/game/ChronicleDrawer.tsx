@@ -163,14 +163,13 @@ const EncounterTurnBadge = ({ encounter, inProgress }: { encounter: EncounterSta
 };
 
 // Narrow-column expanded turn view, designed for ~380-420px panels
+// One turn, in the order it happened: who acted, what they tried, the roll, what
+// changed, then the narration of that outcome. The suggestions offered at the end of
+// the turn come last, with the one the next hero picked highlighted.
 const TurnDetail = ({
   turn,
   actor,
-  takenAction,
-  takenChar,
-  nextTurnHpChanges,
-  nextTurnInventoryChanges,
-  nextTurnBuffChanges,
+  nextActionLabel,
   encounter,
   encounterInProgress,
   ttsSettings,
@@ -178,11 +177,8 @@ const TurnDetail = ({
 }: {
   turn: TurnResult;
   actor: Character | null;
-  takenAction: ReturnType<typeof turn.lastAction extends infer T ? () => T : never> | null;
-  takenChar: Character | null;
-  nextTurnHpChanges?: HpChange[];
-  nextTurnInventoryChanges?: InventoryChange[];
-  nextTurnBuffChanges?: BuffChange[];
+  // What the next hero did, to highlight it among this turn's suggestions.
+  nextActionLabel: string;
   encounter?: EncounterState | null;
   encounterInProgress?: boolean;
   ttsSettings: TtsSettings;
@@ -190,11 +186,11 @@ const TurnDetail = ({
 }) => {
   const encounterEnemyChanges = turn.encounterEnemyChanges;
   const special = turn.turnType && turn.turnType !== 'normal' ? SPECIAL_TURNS[turn.turnType] : null;
+  const takenAction = turn.lastAction ?? null;
   const roll = takenAction?.actionResult;
   const hasRoll = roll && roll.statUsed !== 'none';
   const rollOutcome = getRollImpactOutcome(roll?.roll, roll?.success, roll?.impact);
   const takenLabel = takenAction?.actionAttempt ?? '';
-  const isCustom = takenLabel && !turn.choices.some(c => c.label === takenLabel);
 
   return (
     <div className={`flex flex-col gap-3 p-4 rounded-[24px] border bg-slate-900/50 ${special ? special.borderClass : 'border-slate-700/60'}`}>
@@ -223,20 +219,20 @@ const TurnDetail = ({
       )}
 
       {/* Actor + roll - roll takes center stage when present */}
-      {(takenChar || actor) && (
+      {actor && (
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <img
-              src={imgSrc((takenChar ?? actor)?.avatarUrl)}
+              src={imgSrc(actor.avatarUrl)}
               className="w-10 h-10 rounded-full object-cover border border-slate-600 shrink-0"
-              alt={(takenChar ?? actor)?.name}
+              alt={actor.name}
             />
             <div className="min-w-0">
               <div className="font-black text-sm uppercase tracking-wide text-slate-200 truncate">
-                {(takenChar ?? actor)?.name}
+                {actor.name}
               </div>
               <div className="text-xs text-slate-500 uppercase tracking-wide truncate">
-                {(takenChar ?? actor)?.class}
+                {actor.class}
               </div>
             </div>
           </div>
@@ -280,25 +276,25 @@ const TurnDetail = ({
         </div>
       )}
 
-      {/* HP changes from the action taken */}
-      {nextTurnHpChanges && nextTurnHpChanges.length > 0 && (
-        <HpChangeBadges hpChanges={nextTurnHpChanges} />
-      )}
-      {nextTurnInventoryChanges && nextTurnInventoryChanges.length > 0 && (
-        <InventoryChangeBadges inventoryChanges={nextTurnInventoryChanges} />
-      )}
-      {nextTurnBuffChanges && nextTurnBuffChanges.length > 0 && (
-        <BuffChangeBadges buffChanges={nextTurnBuffChanges} />
-      )}
-      {encounterEnemyChanges && encounterEnemyChanges.length > 0 && (
-        <EncounterEnemyChangeBadges changes={encounterEnemyChanges} />
-      )}
-
-      {/* Custom action */}
-      {isCustom && (
+      {/* What the action tried */}
+      {takenLabel && (
         <div className="px-3 py-2 bg-slate-800 rounded-xl border border-amber-400/40 text-amber-200 text-xs font-semibold italic">
           "{takenLabel}"
         </div>
+      )}
+
+      {/* What changed this turn */}
+      {turn.hpChanges && turn.hpChanges.length > 0 && (
+        <HpChangeBadges hpChanges={turn.hpChanges} />
+      )}
+      {turn.inventoryChanges && turn.inventoryChanges.length > 0 && (
+        <InventoryChangeBadges inventoryChanges={turn.inventoryChanges} />
+      )}
+      {turn.buffChanges && turn.buffChanges.length > 0 && (
+        <BuffChangeBadges buffChanges={turn.buffChanges} />
+      )}
+      {encounterEnemyChanges && encounterEnemyChanges.length > 0 && (
+        <EncounterEnemyChangeBadges changes={encounterEnemyChanges} />
       )}
 
       <p className="font-narrative text-base sm:text-lg md:text-xl lg:text-2xl xl:text-3xl 2xl:text-4xl leading-relaxed text-slate-100 italic">
@@ -312,11 +308,12 @@ const TurnDetail = ({
         turnId={turn.id}
       />
 
-      {/* Choices - vertical stack, chosen highlighted */}
+      {/* Suggestions offered after this turn, the one the next hero picked highlighted */}
       {turn.choices.length > 0 && (
         <div className="flex flex-col gap-1.5">
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Ideas offered next</span>
           {turn.choices.map((choice, i) => {
-            const isChosen = choice.label === takenLabel;
+            const isChosen = choice.label === nextActionLabel;
             return (
               <div
                 key={i}
@@ -430,9 +427,7 @@ export const ChronicleDrawer = ({
             const isSelected = viewedTurnIdx === i;
             const isExpanded = expandedIdx === i;
             const nextTurn = history[i + 1] ?? null;
-            const takenAction = nextTurn?.lastAction ?? null;
-            const takenChar = nextTurn?.characterId ? party.find(c => c.id === nextTurn.characterId) ?? null : null;
-            const roll = takenAction?.actionResult;
+            const roll = turn.lastAction?.actionResult;
             const hasRoll = roll && roll.statUsed !== 'none';
             const rollOutcome = getRollImpactOutcome(roll?.roll, roll?.success, roll?.impact);
             const turnEncounter = turn.encounterId ? encounterLookup.get(turn.encounterId) ?? null : null;
@@ -487,11 +482,7 @@ export const ChronicleDrawer = ({
                     <TurnDetail
                       turn={turn}
                       actor={actor ?? null}
-                      takenAction={takenAction}
-                      takenChar={takenChar}
-                      nextTurnHpChanges={nextTurn?.hpChanges}
-                      nextTurnInventoryChanges={nextTurn?.inventoryChanges}
-                      nextTurnBuffChanges={nextTurn?.buffChanges}
+                      nextActionLabel={nextTurn?.lastAction?.actionAttempt ?? ''}
                       encounter={turnEncounter}
                       encounterInProgress={encounterInProgress}
                       ttsSettings={ttsSettings}

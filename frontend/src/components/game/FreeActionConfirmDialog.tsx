@@ -92,18 +92,24 @@ export const FreeActionConfirmDialog = ({
           </div>
         )}
 
-        <div className="mt-3 flex flex-wrap items-center gap-2 px-1">
-          <StatImg stat={preview.stat} size="4" tooltip className="rounded-xl" />
-          <span className={`text-sm font-black ${STAT_TEXT_COLORS[preview.stat] ?? 'text-slate-300'}`}>
-            {preview.stat}
-          </span>
-          <span className="text-sm font-black text-slate-400">
-            {statTotal} vs {target}
-          </span>
-          <span className={`text-xs font-semibold uppercase tracking-wider ${risk.color}`}>
-            {risk.label}
-          </span>
-        </div>
+        {preview.itemAction ? (
+          <div className="mt-3 px-1 text-sm font-black text-amber-300">
+            No roll: {preview.itemAction.ownerName}'s {preview.itemAction.itemName} does what it does.
+          </div>
+        ) : (
+          <div className="mt-3 flex flex-wrap items-center gap-2 px-1">
+            <StatImg stat={preview.stat} size="4" tooltip className="rounded-xl" />
+            <span className={`text-sm font-black ${STAT_TEXT_COLORS[preview.stat] ?? 'text-slate-300'}`}>
+              {preview.stat}
+            </span>
+            <span className="text-sm font-black text-slate-400">
+              {statTotal} vs {target}
+            </span>
+            <span className={`text-xs font-semibold uppercase tracking-wider ${risk.color}`}>
+              {risk.label}
+            </span>
+          </div>
+        )}
 
         {bonusTotal > 0 && (
           <div className="mt-2 flex flex-wrap gap-2 px-1">

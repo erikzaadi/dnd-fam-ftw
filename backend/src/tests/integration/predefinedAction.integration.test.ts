@@ -1,15 +1,15 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ActionAttempt, TurnResult } from '../../types.js';
 import { GameEngine } from '../../services/gameEngine.js';
 import { StateService } from '../../services/stateService.js';
 import { executeTurnAction } from '../../services/turnService.js';
-import { FIXED_NARRATION_OUTPUT, mockGenerateTurn, resetMockNarrationProvider } from './mockNarrationProvider.js';
+import { FIXED_NARRATION_OUTPUT, TURN_STRATEGIES, expectTurnStrategy, narratingMock, narrationInputFor, pinTurnStrategy, scriptTurnOutput } from './mockNarrationProvider.js';
 import { choicesForSession, cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
 
 vi.mock('../../providers/ai/AiProviderFactory.js', async () => {
-  const { createMockNarrationProvider } = await import('./mockNarrationProvider.js');
+  const { createStagedMockNarrationProvider } = await import('./mockNarrationProvider.js');
   return {
-    createNarrationProvider: vi.fn(() => createMockNarrationProvider()),
+    createNarrationProvider: vi.fn(() => createStagedMockNarrationProvider()),
     createChatClientForTier: vi.fn(),
   };
 });
@@ -21,22 +21,31 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  resetMockNarrationProvider();
+  scriptTurnOutput();
+});
+
+afterEach(() => {
+  delete process.env.AI_TURN_STRATEGY;
 });
 
 afterAll(() => {
   cleanupIntegrationEnvironment(paths);
 });
 
-describe('executeTurnAction predefined action integration', () => {
+// Behavior that must hold under either turn strategy.
+describe.each(TURN_STRATEGIES)('executeTurnAction predefined action integration (%s)', (strategy) => {
+  beforeEach(() => {
+    process.env.AI_TURN_STRATEGY = strategy;
+  });
+
   it('resolves a suggested choice, writes the turn, and rotates active character', async () => {
     const session = makeTestSession({
-      id: 'predefined-action-session',
+      id: `predefined-action-session-${strategy}`,
       lastChoices: choicesForSession(),
     });
     await insertSessionState(session);
 
-    const result = await executeTurnAction('predefined-action-session', 'local', {
+    const result = await executeTurnAction(`predefined-action-session-${strategy}`, 'local', {
       action: 'Press the attack',
       statUsed: 'might',
       difficulty: 'normal',
@@ -47,6 +56,7 @@ describe('executeTurnAction predefined action integration', () => {
       return;
     }
 
+    expectTurnStrategy(result, strategy);
     expect(result.body.actionAttempt.actionAttempt).toBe('Press the attack');
     expect(result.body.actionAttempt.actionResult.statUsed).toBe('might');
     expect(result.body.actionAttempt.actionResult.roll).toBeGreaterThanOrEqual(1);
@@ -56,11 +66,11 @@ describe('executeTurnAction predefined action integration', () => {
     expect(result.body.turnResult.lastAction?.actionAttempt).toBe('Press the attack');
     expect(result.body.turnResult.characterId).toBe('char-pip');
 
-    const stored = await StateService.getSession('predefined-action-session');
+    const stored = await StateService.getSession(`predefined-action-session-${strategy}`);
     expect(stored?.turn).toBe(2);
     expect(stored?.activeCharacterId).toBe('char-zara');
 
-    const history = await StateService.getTurnHistory('predefined-action-session');
+    const history = await StateService.getTurnHistory(`predefined-action-session-${strategy}`);
     expect(history).toHaveLength(1);
     expect(history[0].narration).toBe(FIXED_NARRATION_OUTPUT.narration);
     expect(history[0].lastAction?.actionAttempt).toBe('Press the attack');
@@ -68,13 +78,13 @@ describe('executeTurnAction predefined action integration', () => {
 
   it('passes victory-exit momentum into narration after repeated successful combat beats', async () => {
     const session = makeTestSession({
-      id: 'predefined-action-victory-exit-session',
+      id: `predefined-action-victory-exit-session-${strategy}`,
       scene: 'A kitchen fight with animated pans',
       lastChoices: choicesForSession(),
     });
     await insertSessionState(session);
 
-    await StateService.addTurnResult('predefined-action-victory-exit-session', makeHistoryTurn({
+    await StateService.addTurnResult(`predefined-action-victory-exit-session-${strategy}`, makeHistoryTurn({
       narration: 'Pip drove an animated pan into the flour barrel.',
       actionAttempt: 'Strike the animated pan',
       difficultyTarget: 12,
@@ -94,16 +104,16 @@ describe('executeTurnAction predefined action integration', () => {
     const resolveSpy = vi.spyOn(GameEngine, 'resolveAction').mockReturnValue(resolvedAction);
 
     try {
-      const result = await executeTurnAction('predefined-action-victory-exit-session', 'local', {
+      const result = await executeTurnAction(`predefined-action-victory-exit-session-${strategy}`, 'local', {
         action: 'Press the attack',
         statUsed: 'might',
         difficulty: 'normal',
         difficultyValue: 12,
       });
 
-      expect(result.ok).toBe(true);
-      expect(mockGenerateTurn).toHaveBeenCalledTimes(1);
-      expect(mockGenerateTurn.mock.calls[0]?.[0].sceneMomentum).toMatchObject({
+      expectTurnStrategy(result, strategy);
+      expect(narratingMock(strategy)).toHaveBeenCalledTimes(1);
+      expect(narrationInputFor(strategy)?.sceneMomentum).toMatchObject({
         directive: 'victory_exit',
         justCompletedCombat: true,
       });
@@ -114,7 +124,7 @@ describe('executeTurnAction predefined action integration', () => {
 
   it('passes victory-exit momentum into narration after a hard challenge is completed', async () => {
     const session = makeTestSession({
-      id: 'predefined-action-hard-challenge-session',
+      id: `predefined-action-hard-challenge-session-${strategy}`,
       scene: 'A rune bridge challenge blocks the road',
       lastChoices: [
         { label: 'Disarm the rune bridge', difficulty: 'hard', stat: 'magic', difficultyValue: 15 },
@@ -138,16 +148,16 @@ describe('executeTurnAction predefined action integration', () => {
     const resolveSpy = vi.spyOn(GameEngine, 'resolveAction').mockReturnValue(resolvedAction);
 
     try {
-      const result = await executeTurnAction('predefined-action-hard-challenge-session', 'local', {
+      const result = await executeTurnAction(`predefined-action-hard-challenge-session-${strategy}`, 'local', {
         action: 'Disarm the rune bridge',
         statUsed: 'magic',
         difficulty: 'hard',
         difficultyValue: 15,
       });
 
-      expect(result.ok).toBe(true);
-      expect(mockGenerateTurn).toHaveBeenCalledTimes(1);
-      expect(mockGenerateTurn.mock.calls[0]?.[0].sceneMomentum).toMatchObject({
+      expectTurnStrategy(result, strategy);
+      expect(narratingMock(strategy)).toHaveBeenCalledTimes(1);
+      expect(narrationInputFor(strategy)?.sceneMomentum).toMatchObject({
         directive: 'victory_exit',
         justCompletedDifficultChallenge: true,
       });
@@ -155,6 +165,32 @@ describe('executeTurnAction predefined action integration', () => {
       resolveSpy.mockRestore();
     }
   });
+
+  it('logs choicesEscalated beside choicesFailed through production console.log', async () => {
+    scriptTurnOutput({ ...FIXED_NARRATION_OUTPUT, choicesFailed: true, choicesEscalated: true } as typeof FIXED_NARRATION_OUTPUT);
+    const log = vi.spyOn(console, 'log');
+    await insertSessionState(makeTestSession({
+      id: `predefined-metrics-session-${strategy}`,
+      lastChoices: choicesForSession(),
+    }));
+
+    const result = await executeTurnAction(`predefined-metrics-session-${strategy}`, 'local', {
+      action: 'Press the attack',
+      statUsed: 'might',
+      difficulty: 'normal',
+    });
+
+    expect(result.ok).toBe(true);
+    const line = log.mock.calls.map(call => String(call[0])).find(message => message.includes(`[Metrics] turn_complete session=predefined-metrics-session-${strategy}`));
+    expect(line).toContain('choicesFailed=true choicesEscalated=true');
+    log.mockRestore();
+  });
+});
+
+// Parallel only: the monolith's guard retry and its validation errors. resolved_first
+// narrates from settled facts and records no narration validation errors.
+describe('executeTurnAction predefined action integration (parallel narration guard)', () => {
+  pinTurnStrategy('parallel');
 
   it('persists only the safe fallback turn when narration fails after guard retry', async () => {
     const session = makeTestSession({
@@ -168,7 +204,7 @@ describe('executeTurnAction predefined action integration', () => {
     });
     await insertSessionState(session);
 
-    resetMockNarrationProvider({
+    scriptTurnOutput({
       narration: 'Pip presses into The Crimson Cliffs after the path opens.',
       choices: [
         { label: 'Press deeper into The Crimson Cliffs', difficulty: 'normal', stat: 'might', difficultyValue: 12 },
@@ -248,26 +284,4 @@ const makeHistoryTurn = (lastAction: {
       difficultyTarget: lastAction.difficultyTarget,
     },
   },
-});
-
-describe('executeTurnAction turn_complete metrics', () => {
-  it('logs choicesEscalated beside choicesFailed through production console.log', async () => {
-    resetMockNarrationProvider({ ...FIXED_NARRATION_OUTPUT, choicesFailed: true, choicesEscalated: true } as typeof FIXED_NARRATION_OUTPUT);
-    const log = vi.spyOn(console, 'log');
-    await insertSessionState(makeTestSession({
-      id: 'predefined-metrics-session',
-      lastChoices: choicesForSession(),
-    }));
-
-    const result = await executeTurnAction('predefined-metrics-session', 'local', {
-      action: 'Press the attack',
-      statUsed: 'might',
-      difficulty: 'normal',
-    });
-
-    expect(result.ok).toBe(true);
-    const line = log.mock.calls.map(call => String(call[0])).find(message => message.includes('[Metrics] turn_complete session=predefined-metrics-session'));
-    expect(line).toContain('choicesFailed=true choicesEscalated=true');
-    log.mockRestore();
-  });
 });

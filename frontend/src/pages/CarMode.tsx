@@ -39,6 +39,7 @@ export const CarMode = () => {
     endAdventure,
     clarification,
     clearClarification,
+    requestIdeas,
   } = useCarSessionRuntime({
     sessionId: id || '',
     onTurnComplete: () => {},
@@ -82,6 +83,7 @@ export const CarMode = () => {
     clearPreview,
     clarification,
     clearClarification,
+    requestIdeas,
     ttsSettings,
     hasTts: capabilities.hasTts,
     wrapUpAdventure,

@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import type { Session, Character, TurnResult, FreeActionPreview } from '../types';
+import type { ActionAttempt, Character, HpChange, TurnResult } from '../types';
 import { apiFetch, imgSrc } from '../lib/api';
-import { useSessionEvents, type OperationEventMeta } from '../hooks/useSessionEvents';
-import { useSessionOperations } from '../session/useSessionOperations';
+import { useSessionRuntime } from '../session/useSessionRuntime';
+import { playRollSfx } from '../session/sessionAudio';
 import { PageLoader } from '../components/PageLoader';
 import { CharacterPopup } from '../components/CharacterPopup';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -29,11 +29,12 @@ import { KeybindingsHelp } from '../components/KeybindingsHelp';
 import { OnboardingOverlay } from '../components/OnboardingOverlay';
 import { useOnboardingTutorial } from '../hooks/useOnboardingTutorial';
 import { OriginView } from '../components/OriginView';
-import { buildEncounterLookup, countEncounterTurns, getTurnEncounter, patchEncounterEnemyAvatar, patchEncounterAreaImage } from '../lib/encounters';
+import { buildEncounterLookup, countEncounterTurns, getTurnEncounter } from '../lib/encounters';
 import { devLog } from '../lib/devLog';
+import type { DraftAttachment } from '../lib/previewAction';
 import { AdventurePanel } from '../components/game/AdventurePanel';
 import { AdventureEnding } from '../components/game/AdventureEnding';
-import { findConclusionTurn, isAdventureCompleted, isAdventureConcluding, requestWrapUp, setAdventureFormat } from '../session/adventureActions';
+import { findConclusionTurn, isAdventureCompleted, isAdventureConcluding, requestWrapUp, setAdventureFormat, setAutoIdeas } from '../session/adventureActions';
 
 interface LastSubmittedAction {
   previewId?: string;
@@ -52,6 +53,31 @@ interface LastSubmittedAction {
   characterBonusLabel?: string;
   flavor?: string;
 }
+
+// How long the roll stays on screen, with its consequences, once the turn is committed.
+const ROLL_REVEAL_MS = 600;
+
+const toRollResult = (roll: NonNullable<ActionAttempt['actionResult']>, rollNarration: string | undefined, hpChanges: HpChange[] | undefined): RollResult => ({
+  roll: roll.roll,
+  success: roll.success,
+  stat: roll.statUsed,
+  statBonus: roll.statBonus,
+  itemBonus: roll.itemBonus,
+  helperBonus: roll.helperBonus,
+  helperCharacterName: roll.helperCharacterName,
+  choiceItemBonus: roll.choiceItemBonus,
+  choiceItemName: roll.choiceItemName,
+  choiceItemOwnerName: roll.choiceItemOwnerName,
+  characterBonus: roll.characterBonus,
+  characterBonusLabel: roll.characterBonusLabel,
+  buffBonus: roll.buffBonus,
+  buffBonusLabel: roll.buffBonusLabel,
+  impact: roll.impact,
+  isCritical: roll.isCritical,
+  difficultyTarget: roll.difficultyTarget,
+  rollNarration,
+  hpChanges,
+});
 
 const formatEncounterTurnSummary = (turn: TurnResult | null | undefined): string | undefined => {
   if (!turn) {
@@ -73,27 +99,20 @@ export const SessionPage = () => {
   const imageLoadingRef = useRef(false);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [session, setSession] = useState<Session | null>(null);
-  const [history, setHistory] = useState<TurnResult[]>([]);
   const [viewedTurnIdx, setViewedTurnIdx] = useState(-1);
-  const [loading, setLoading] = useState(false);
-  const [previewThinking, setPreviewThinking] = useState(false);
   const [customAction, setCustomAction] = useState("");
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [fullscreenNarration, setFullscreenNarration] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{message: string; confirmLabel?: string; onConfirm: () => void} | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
   const [rollResult, setRollResult] = useState<RollResult | null>(null);
-  const [consequencesPending, setConsequencesPending] = useState(false);
   const [interventionBanner, setInterventionBanner] = useState<string | null>(null);
   const [sanctuaryBanner, setSanctuaryBanner] = useState<string | null>(null);
   const [showFullInventory, setShowFullInventory] = useState(false);
   const [showChronicle, setShowChronicle] = useState(false);
   const [showKeybindingsHelp, setShowKeybindingsHelp] = useState(false);
   const [lastSubmittedAction, setLastSubmittedAction] = useState<LastSubmittedAction | null>(null);
-  const [gearActionPreview, setGearActionPreview] = useState<FreeActionPreview | null>(null);
   const [gearPreviewSubmitting, setGearPreviewSubmitting] = useState(false);
   const [currentTensionLevel, setCurrentTensionLevel] = useState<'low' | 'medium' | 'high' | null>(null);
   const [showBanner, setShowBanner] = useState(true);
@@ -103,16 +122,10 @@ export const SessionPage = () => {
   const [continuingWorld, setContinuingWorld] = useState(false);
   const [endingError, setEndingError] = useState<string | null>(null);
   const showBannerRef = useRef(showBanner);
-  showBannerRef.current = showBanner;
+  useEffect(() => {
+    showBannerRef.current = showBanner;
+  }, [showBanner]);
   const [storyFocusRequest, setStoryFocusRequest] = useState(0);
-  const { step: tutorialStep, advance: advanceTutorial } = useOnboardingTutorial({
-    isLoading: loading,
-    lastRollVisible: !!rollResult,
-  });
-  const historyRef = useRef<TurnResult[]>(history);
-  historyRef.current = history;
-  const loadingRef = useRef(loading);
-  loadingRef.current = loading;
   const displayTurnRef = useRef<TurnResult | null>(null);
   const previewPartyBoostActionRef = useRef<() => void>(() => undefined);
 
@@ -155,78 +168,162 @@ export const SessionPage = () => {
   }, []);
 
   const clearPendingTurnUi = useCallback(() => {
-    setLoading(false);
     setLastSubmittedAction(null);
     setRollResult(null);
-    setConsequencesPending(false);
     hasEarlyRollRef.current = false;
   }, []);
 
-  // Operation lifecycle shared with the car/terminal runtime: revision, pending
-  // operation, follow-up turns, snapshot reconciliation and guarded submission.
-  // Every (re)connection reconciles, so a missed event never strands the view.
-  const ops = useSessionOperations({
-    sessionId: id,
-    onSnapshot: snapshot => {
-      setSession(snapshot.session);
-      const wasEmpty = historyRef.current.length === 0;
-      const prevLastId = historyRef.current[historyRef.current.length - 1]?.id;
-      const nextLastId = snapshot.history[snapshot.history.length - 1]?.id;
-      if (snapshot.history.length > 0 || wasEmpty) {
-        setHistory(snapshot.history);
-        if (historyRef.current.length !== snapshot.history.length || prevLastId !== nextLastId) {
-          setViewedTurnIdx(snapshot.history.length - 1);
+  // Data, events, submission, previews and ideas come from the runtime shared with car
+  // and terminal. This page only decides how turns are shown: the roll reveal,
+  // banners, the viewed turn, the origin story and timing logs.
+  const runtime = useSessionRuntime({
+    sessionId: id!,
+    onboardingIdeas: true,
+    presenter: {
+      onHistoryLoaded: (loaded, { initial, wasEmpty, latestChanged, session: loadedSession }) => {
+        if (initial || latestChanged) {
+          setViewedTurnIdx(loaded.length - 1);
         }
-      }
-      if (wasEmpty && snapshot.history.length === 1) {
-        setShowOrigin(true);
-      }
-    },
-    setBusy: busy => {
-      if (busy) {
-        setLoading(true);
-      }
-    },
-    isBusy: () => loadingRef.current,
-    onWaitEnded: failed => {
+        if ((initial || wasEmpty) && loaded.length === 1) {
+          setShowOrigin(true);
+        }
+        const latest = loaded[loaded.length - 1];
+        if (initial && latest && !latest.imageUrl && !loadedSession.savingsMode) {
+          setImageLoading(true);
+        }
+      },
+      onTurnAppended: (_turn, index) => {
+        setViewedTurnIdx(index);
+      },
+      onNarrating: ({ action, statUsed, difficulty, difficultyValue, character, ...preview }) => {
+        if (action && statUsed && difficulty && character) {
+          setLastSubmittedAction(prev => prev
+            ? { ...prev, ...preview }
+            : { label: action, stat: statUsed, difficulty, difficultyValue, char: character, ...preview });
+        }
+        recordTimingEvent('dm_narrating');
+      },
+      onNarrationChunk: (_text, field) => {
+        if (field === 'narration' && !timingEventsRef.current['first_chunk']) {
+          recordTimingEvent('first_chunk');
+        }
+      },
+      onRollRevealed: (rollNarration, actionResult, hpChanges) => {
+        recordTimingEvent('roll_ready');
+        if (!actionResult || actionResult.statUsed === 'none') {
+          return;
+        }
+        hasEarlyRollRef.current = true;
+        setRollResult(toRollResult(actionResult, rollNarration ?? undefined, hpChanges));
+        playRollSfx(actionResult);
+      },
+      onNarrationStreamingDone: () => {
+        recordTimingEvent('streaming_done');
+      },
+      onNarrationChunkAbort: () => {
+        // The roll stays on screen: only the narration is retrying.
+        narrationTtsService.stopNarration();
+      },
+      onTurnComplete: (updatedSession, turnResult) => {
+        recordTimingEvent('turn_complete');
+        setContinuingWorld(false);
+        setLastSubmittedAction(null);
+        setCustomAction('');
+        if (turnResult?.currentTensionLevel) {
+          setCurrentTensionLevel(turnResult.currentTensionLevel);
+        }
+        const roll = turnResult?.lastAction?.actionResult;
+        const rolled = !!turnResult && !!roll && roll.statUsed !== 'none';
+        const turnEncounter = turnResult
+          ? getTurnEncounter(turnResult, buildEncounterLookup(updatedSession?.encounterState, updatedSession?.pastEncounters))
+          : null;
+        const consequences: Partial<RollResult> = turnResult ? {
+          hpChanges: turnResult.hpChanges,
+          inventoryChanges: turnResult.inventoryChanges,
+          encounterEnemyChanges: turnResult.encounterEnemyChanges,
+          encounterId: turnResult.encounterId,
+          encounterName: turnEncounter?.name,
+          encounterStatus: turnEncounter?.status,
+        } : {};
+        // The roll stays on screen a moment with its consequences, then the story takes focus.
+        const endReveal = () => {
+          setTimeout(() => {
+            setRollResult(null);
+            requestStoryFocus();
+            recordTimingEvent('unlock');
+          }, ROLL_REVEAL_MS);
+          return ROLL_REVEAL_MS;
+        };
+        if (hasEarlyRollRef.current) {
+          hasEarlyRollRef.current = false;
+          if (rolled) {
+            setRollResult(prev => prev ? { ...prev, ...consequences } : prev);
+          }
+          return endReveal();
+        }
+        if (rolled && roll && turnResult) {
+          setRollResult({ ...toRollResult(roll, turnResult.rollNarration, turnResult.hpChanges), ...consequences });
+          playRollSfx(roll);
+          return endReveal();
+        }
+        recordTimingEvent('unlock');
+        if (turnResult) {
+          requestStoryFocus();
+        }
+        return 0;
+      },
+      onFollowUpTurn: (kind, narration) => {
+        if (kind === 'conclusion') {
+          // Music settles for the ending; the tension effect follows this state.
+          setCurrentTensionLevel('low');
+          setContinuingWorld(false);
+        } else if (kind === 'intervention') {
+          setInterventionBanner(narration);
+          setTimeout(() => setInterventionBanner(null), 8000);
+        } else {
+          setSanctuaryBanner(narration);
+          setTimeout(() => setSanctuaryBanner(null), 10000);
+        }
+      },
+      onTurnError: () => {
+        clearPendingTurnUi();
+        recordTimingEvent('unlock');
+      },
       // Drafts live in separate state and are left untouched.
-      clearPendingTurnUi();
-      if (failed) {
-        setActionError(failed.errorMessage ?? 'Something went wrong. Please try again.');
-      }
+      onWaitEnded: () => {
+        clearPendingTurnUi();
+      },
+      onImageReady: event => {
+        if (event.target === 'scene') {
+          setImageLoading(false);
+        }
+      },
     },
   });
-  const revisionRef = ops.revisionRef;
+  const {
+    session,
+    history,
+    turnPhase,
+    busy,
+    actionError,
+    setActionError,
+    previewThinking,
+    actionPreview,
+    connectionState,
+    revisionRef,
+    updateSession,
+    submitTurn,
+    submitOperation,
+    previewSceneAction,
+    applyIdeas,
+  } = runtime;
+  // The dice are known and the DM is still narrating what they caused.
+  const consequencesPending = turnPhase === 'revealing';
 
-  const joinSession = useCallback(async (sessionId: string) => {
-    const res = await apiFetch(`/session/${sessionId}`);
-    if (!res.ok) {
-      navigate('/'); return;
-    }
-    const data = await res.json();
-    revisionRef.current = Math.max(revisionRef.current, data.revision ?? 0);
-    setSession(data);
-    const hRes = await apiFetch(`/session/${data.id}/history`);
-    const hData = await hRes.json();
-    setHistory(hData);
-    setViewedTurnIdx(hData.length - 1);
-    if (hData.length === 1) {
-      setShowOrigin(true);
-    }
-    apiFetch('/namespace/limits')
-      .then(r => r.json())
-      .catch(() => { /* limits unavailable */ });
-    const latestTurn = hData[hData.length - 1];
-    if (latestTurn && !latestTurn.imageUrl && !data.savingsMode) {
-      setImageLoading(true);
-    }
-  }, [navigate, revisionRef]);
-
-  useEffect(() => {
-    if (id) {
-      joinSession(id);
-    }
-  }, [id, joinSession]);
+  const { step: tutorialStep, advance: advanceTutorial } = useOnboardingTutorial({
+    isLoading: busy,
+    lastRollVisible: !!rollResult,
+  });
 
   useEffect(() => {
     if (history.length === 0) {
@@ -241,16 +338,16 @@ export const SessionPage = () => {
   }, [session?.encounterState?.status, currentTensionLevel, history.length]);
 
   useEffect(() => {
-    if (loading) {
+    if (busy) {
       audioManager.startNarrating();
     } else {
       audioManager.stopNarrating();
     }
-  }, [loading]);
+  }, [busy]);
 
   // TTS: auto-speak the latest narration once per new turn (fires after story is visible).
   useEffect(() => {
-    if (loading) {
+    if (busy) {
       return;
     }
     if (!ttsSettings.enabled || !ttsSettings.autoSpeakNarration) {
@@ -277,7 +374,7 @@ export const SessionPage = () => {
       turnId: latestTurn.id,
       mainNarration: true,
     });
-  }, [history, loading, ttsSettings, capabilities.hasTts]);
+  }, [history, busy, ttsSettings, capabilities.hasTts]);
 
   // Stop TTS when leaving session
   useEffect(() => {
@@ -367,279 +464,27 @@ export const SessionPage = () => {
     navigate(`/session/${id}/terminal`);
   });
 
-  const applyRecoveryTurn = (updatedSession: Session | null, turnResult: TurnResult | null, meta?: OperationEventMeta) => {
-    ops.onOperationEnded(meta);
-    setLoading(false);
-    if (updatedSession) {
-      setSession(updatedSession);
+  // Gear from the inventory joins the draft instead of acting at once: the player sees
+  // it in the preview and confirms it like any other action. A typed draft is kept.
+  const [draftAttachment, setDraftAttachment] = useState<DraftAttachment | null>(null);
+  const attachGearToDraft = (actionType: DraftAttachment['actionType'], ownerCharId: string, itemId: string, targetCharId: string | null | undefined) => {
+    const owner = session?.party.find(c => c.id === ownerCharId);
+    const item = owner?.inventory.find(i => i.id === itemId);
+    const target = targetCharId ? session?.party.find(c => c.id === targetCharId) : undefined;
+    if (!owner || !item) {
+      return;
     }
-    if (turnResult) {
-      setHistory(prev => {
-        if (turnResult.id && prev.some(t => t.id === turnResult.id)) {
-          return prev;
-        }
-        const u = [...prev, turnResult];
-        setViewedTurnIdx(u.length - 1);
-        return u;
-      });
+    const label = target && target.id !== owner.id ? `${item.name} → ${target.name}` : item.name;
+    setDraftAttachment({ actionType, itemId, ownerCharacterId: ownerCharId, ...(target && { targetCharacterId: target.id }), label });
+    if (!customAction.trim()) {
+      setCustomAction(actionType === 'give_item' && target
+        ? `${owner.name} gives ${item.name} to ${target.name}`
+        : target && target.id !== owner.id
+          ? `${owner.name} uses ${item.name} on ${target.name}`
+          : `${owner.name} uses ${item.name}`);
     }
+    setShowFullInventory(false);
   };
-
-  const { connectionState } = useSessionEvents({
-    sessionId: id!,
-    onConnected: () => {
-      void ops.reconcile();
-    },
-    onAdventureConcluding: () => {
-      setLoading(true);
-    },
-    onAdventureConcluded: (updatedSession, turnResult, meta) => {
-      // Music settles for the ending; the tension effect below follows this state.
-      setCurrentTensionLevel('low');
-      applyRecoveryTurn(updatedSession, turnResult, meta);
-      setContinuingWorld(false);
-    },
-    onSessionUpdated: (revision, changes) => {
-      ops.noteRevision(revision);
-      setSession(prev => prev ? { ...prev, ...changes, revision } : prev);
-      // Previews were computed against the old settings; the player re-previews.
-      setGearActionPreview(null);
-    },
-    onGameOver: (updatedSession, meta) => {
-      ops.onOperationEnded(meta);
-      setSession(updatedSession);
-    },
-    onNarrating: ({ action, statUsed, difficulty, difficultyValue, character, ...preview }) => {
-      setLoading(true);
-      if (action && statUsed && difficulty && character) {
-        setLastSubmittedAction(prev => prev
-          ? { ...prev, ...preview }
-          : { label: action, stat: statUsed, difficulty, difficultyValue, char: character, ...preview });
-      }
-      recordTimingEvent('dm_narrating');
-    },
-    onNarrationChunk: (_text, field) => {
-      if (field === 'narration') {
-        if (!timingEventsRef.current['first_chunk']) {
-          recordTimingEvent('first_chunk');
-        }
-      }
-    },
-    onRollNarrationDone: (rollNarration, actionResult, hpChanges) => {
-      recordTimingEvent('roll_ready');
-      if (!actionResult || actionResult.statUsed === 'none') {
-        return;
-      }
-      hasEarlyRollRef.current = true;
-      setRollResult({
-        roll: actionResult.roll,
-        success: actionResult.success,
-        stat: actionResult.statUsed,
-        statBonus: actionResult.statBonus,
-        itemBonus: actionResult.itemBonus,
-        helperBonus: actionResult.helperBonus,
-        helperCharacterName: actionResult.helperCharacterName,
-        choiceItemBonus: actionResult.choiceItemBonus,
-        choiceItemName: actionResult.choiceItemName,
-        choiceItemOwnerName: actionResult.choiceItemOwnerName,
-        characterBonus: actionResult.characterBonus,
-        characterBonusLabel: actionResult.characterBonusLabel,
-        buffBonus: actionResult.buffBonus,
-        buffBonusLabel: actionResult.buffBonusLabel,
-        impact: actionResult.impact,
-        isCritical: actionResult.isCritical,
-        difficultyTarget: actionResult.difficultyTarget,
-        rollNarration: rollNarration ?? undefined,
-        hpChanges,
-      });
-      setConsequencesPending(true);
-      audioManager.playSfx('dice-roll');
-      setTimeout(() => {
-        if (actionResult.roll === 20) {
-          audioManager.playSfx('roll-20');
-        } else if (actionResult.success) {
-          audioManager.playSfx('success-roll');
-        } else {
-          audioManager.playSfx('failed-roll');
-        }
-      }, 600);
-    },
-    onNarrationStreamingDone: (_narration, _rollNarration) => {
-      recordTimingEvent('streaming_done');
-    },
-    onNarrationChunkAbort: () => {
-      narrationTtsService.stopNarration();
-      // Roll result and consequencesPending stay as-is - the roll is valid, only the narration is retrying.
-      // onTurnComplete will arrive after the retry and handle cleanup via the normal early-roll path.
-    },
-    onTurnError: (_error, message, meta) => {
-      ops.onOperationEnded(meta);
-      setLoading(false);
-      setLastSubmittedAction(null);
-      setRollResult(null);
-      setConsequencesPending(false);
-      hasEarlyRollRef.current = false;
-      setActionError(message);
-      recordTimingEvent('unlock');
-    },
-    onTurnComplete: (updatedSession, turnResult, meta) => {
-      // Stays locked when the rescue turn (intervention/sanctuary_recovery) or the
-      // ending (adventure_concluded) still follows in the same operation.
-      ops.onTurnCommitted(meta);
-      recordTimingEvent('turn_complete');
-      setContinuingWorld(false);
-      setLastSubmittedAction(null);
-      setCustomAction('');
-      if (turnResult?.currentTensionLevel) {
-        setCurrentTensionLevel(turnResult.currentTensionLevel);
-      }
-      if (updatedSession) {
-        setSession(updatedSession);
-      }
-      const roll = turnResult?.lastAction?.actionResult;
-      const hasRollDetails = !!roll && roll.statUsed !== 'none';
-      const turnEncounter = turnResult
-        ? getTurnEncounter(turnResult, buildEncounterLookup(updatedSession?.encounterState, updatedSession?.pastEncounters))
-        : null;
-      if (hasRollDetails && turnResult) {
-        setHistory(prev => {
-          if (turnResult.id && prev.some(t => t.id === turnResult.id)) {
-            return prev;
-          }
-          const next = [...prev, turnResult];
-          setViewedTurnIdx(next.length - 1);
-          return next;
-        });
-      }
-      if (hasEarlyRollRef.current) {
-        hasEarlyRollRef.current = false;
-        if (hasRollDetails && turnResult) {
-          setRollResult(prev => prev ? {
-            ...prev,
-            hpChanges: turnResult.hpChanges,
-            inventoryChanges: turnResult.inventoryChanges,
-            encounterEnemyChanges: turnResult.encounterEnemyChanges,
-            encounterId: turnResult.encounterId,
-            encounterName: turnEncounter?.name,
-            encounterStatus: turnEncounter?.status,
-          } : prev);
-        }
-        setConsequencesPending(false);
-        setTimeout(() => {
-          setLoading(ops.isAwaitingFollowUp());
-          setRollResult(null);
-          requestStoryFocus();
-          recordTimingEvent('unlock');
-        }, 600);
-      } else if (hasRollDetails && roll) {
-        setRollResult({
-          roll: roll.roll,
-          success: roll.success,
-          stat: roll.statUsed,
-          statBonus: roll.statBonus,
-          itemBonus: roll.itemBonus,
-          helperBonus: roll.helperBonus,
-          helperCharacterName: roll.helperCharacterName,
-          choiceItemBonus: roll.choiceItemBonus,
-          choiceItemName: roll.choiceItemName,
-          choiceItemOwnerName: roll.choiceItemOwnerName,
-          characterBonus: roll.characterBonus,
-          characterBonusLabel: roll.characterBonusLabel,
-          buffBonus: roll.buffBonus,
-          buffBonusLabel: roll.buffBonusLabel,
-          impact: roll.impact,
-          isCritical: roll.isCritical,
-          difficultyTarget: roll.difficultyTarget,
-          rollNarration: turnResult.rollNarration,
-          hpChanges: turnResult.hpChanges,
-          inventoryChanges: turnResult.inventoryChanges,
-          encounterEnemyChanges: turnResult.encounterEnemyChanges,
-          encounterId: turnResult.encounterId,
-          encounterName: turnEncounter?.name,
-          encounterStatus: turnEncounter?.status,
-        });
-        setConsequencesPending(false);
-        audioManager.playSfx('dice-roll');
-        setTimeout(() => {
-          if (roll.roll === 20) {
-            audioManager.playSfx('roll-20');
-          } else if (roll.success) {
-            audioManager.playSfx('success-roll');
-          } else {
-            audioManager.playSfx('failed-roll');
-          }
-        }, 600);
-        setTimeout(() => {
-          setLoading(ops.isAwaitingFollowUp());
-          setRollResult(null);
-          requestStoryFocus();
-          recordTimingEvent('unlock');
-        }, 600);
-      } else {
-        setLoading(ops.isAwaitingFollowUp());
-        recordTimingEvent('unlock');
-        if (turnResult) {
-          setHistory(prev => {
-            if (turnResult.id && prev.some(t => t.id === turnResult.id)) {
-              return prev;
-            }
-            const next = [...prev, turnResult];
-            setViewedTurnIdx(next.length - 1);
-            return next;
-          });
-          requestStoryFocus();
-        }
-      }
-    },
-    onImageReady: (event) => {
-      if (event.target === 'scene') {
-        const { imageUrl, turnId } = event;
-        setImageLoading(false);
-        setHistory(prev => {
-          const idx = prev.findIndex(t => t.id === turnId);
-          if (idx === -1) {
-            return prev;
-          }
-          const updated = [...prev];
-          updated[idx] = { ...updated[idx], imageUrl };
-          return updated;
-        });
-      } else if (event.target === 'encounter_enemy') {
-        setSession(prev => prev
-          ? patchEncounterEnemyAvatar(prev, event.encounterId, event.enemyId, event.imageUrl)
-          : prev,
-        );
-      } else if (event.target === 'encounter_area') {
-        setSession(prev => prev
-          ? patchEncounterAreaImage(prev, event.encounterId, event.areaId, event.imageUrl)
-          : prev,
-        );
-      } else if (event.target === 'character_avatar') {
-        setSession(prev => prev ? {
-          ...prev,
-          party: prev.party.map(c => c.id === event.characterId ? { ...c, avatarUrl: event.imageUrl } : c),
-        } : prev);
-      }
-    },
-    onIntervention: (narration, updatedSession, turnResult, meta) => {
-      applyRecoveryTurn(updatedSession, turnResult, meta);
-      setInterventionBanner(narration);
-      setTimeout(() => setInterventionBanner(null), 8000);
-    },
-    onSanctuaryRecovery: (narration, updatedSession, turnResult, meta) => {
-      applyRecoveryTurn(updatedSession, turnResult, meta);
-      setSanctuaryBanner(narration);
-      setTimeout(() => setSanctuaryBanner(null), 10000);
-    },
-    onPartyUpdate: (updatedSession) => {
-      if (updatedSession) {
-        ops.noteRevision(updatedSession.revision);
-        setSession(updatedSession);
-      } else {
-        joinSession(id!);
-      }
-    },
-  });
 
   const toggleSavingsMode = async () => {
     if (!session) {
@@ -654,14 +499,13 @@ export const SessionPage = () => {
     if (enabled) {
       setImageLoading(false);
     }
-    setSession({ ...session, savingsMode: enabled });
+    updateSession({ savingsMode: enabled });
   };
 
   const submitAction = async (action: string, statUsed: string = 'none', difficulty: string = 'normal', difficultyValue: number | null = null, ownerCharId: string | null = null, itemId: string | null = null, targetCharId: string | null = null, preview: Partial<LastSubmittedAction> = {}, actionIntent?: string) => {
     if (!session) {
       return;
     }
-    setActionError(null);
     const itemOwner = ownerCharId ? session.party.find(c => c.id === ownerCharId) ?? null : activeChar;
     const itemTarget = targetCharId ? session.party.find(c => c.id === targetCharId) ?? null : null;
     const item = itemOwner && itemId ? itemOwner.inventory.find(i => i.id === itemId) ?? null : null;
@@ -673,41 +517,29 @@ export const SessionPage = () => {
         : action;
     setLastSubmittedAction({ label: displayAction, stat: statUsed, char: itemOwner, difficulty, difficultyValue: difficultyValue ?? undefined, ...preview });
     recordTimingEvent('submit');
-    setLoading(true);
     setMobileActionsOpen(false);
     audioManager.stopNarrating();
     narrationTtsService.stopNarration();
-    try {
-      const result = await ops.submit(`/session/${id}/action`, {
-        action,
-        statUsed,
-        difficulty,
-        difficultyValue,
-        characterId: ownerCharId ?? undefined,
-        actionType,
-        itemId: itemId ?? undefined,
-        targetCharacterId: targetCharId ?? undefined,
-        ...(actionIntent && { actionIntent }),
-        ...(preview.previewId && { previewId: preview.previewId }),
-        ...(preview.choiceId !== undefined && { choiceId: preview.choiceId }),
-      });
-      if (result.kind === 'accepted') {
-        // Turn is queued - the outcome arrives via turn_complete SSE (or turn_error).
-        return;
-      }
-      // A 409 refreshes the snapshot inside ops.submit; the typed draft stays in the action box.
-      setActionError(result.message);
-      setLoading(false);
-      setLastSubmittedAction(null);
-    } catch {
-      setActionError('Could not reach the realm. Check your connection and try again.');
-      setLoading(false);
+    const result = await submitTurn({
+      action,
+      statUsed,
+      difficulty,
+      difficultyValue,
+      characterId: ownerCharId,
+      itemId,
+      targetCharacterId: targetCharId,
+      actionIntent,
+      previewId: preview.previewId,
+      choiceId: preview.choiceId,
+    });
+    if (!result.ok) {
+      // A 409 refreshes the snapshot in the runtime; the typed draft stays in the action box.
       setLastSubmittedAction(null);
     }
   };
 
   const previewGearAction = async (ownerCharId: string, itemId: string) => {
-    if (!session || loading) {
+    if (!session || busy || previewThinking) {
       return;
     }
 
@@ -717,7 +549,6 @@ export const SessionPage = () => {
       return;
     }
 
-    setActionError(null);
     setShowFullInventory(false);
     await previewSceneAction({
       intent: 'use_item_scene',
@@ -731,61 +562,8 @@ export const SessionPage = () => {
     }, `Use ${item.name} to help with the current situation`);
   };
 
-  const previewSceneAction = async (
-    request: { action?: string; intent?: string; targetCharacterId?: string; itemOwnerCharacterId?: string; itemId?: string; method?: string },
-    defaults: Partial<FreeActionPreview> = {},
-    fallbackAction = request.action ?? 'Try a support action for the current situation',
-  ) => {
-    const actionText = request.action ?? fallbackAction;
-    let preview: FreeActionPreview = {
-      originalAction: actionText,
-      interpretedAction: actionText,
-      stat: 'mischief',
-      difficulty: 'normal',
-      warnings: [],
-      ...defaults,
-    };
-
-    try {
-      const res = await apiFetch(`/session/${id}/preview-action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
-      });
-      if (res.ok) {
-        const responsePreview = await res.json() as Partial<FreeActionPreview>;
-        preview = {
-          ...preview,
-          ...responsePreview,
-          originalAction: responsePreview.originalAction ?? actionText,
-          interpretedAction: responsePreview.interpretedAction ?? actionText,
-          warnings: responsePreview.warnings ?? [],
-          choiceItemBonus: responsePreview.choiceItemBonus ?? preview.choiceItemBonus,
-          choiceItemName: responsePreview.choiceItemName ?? preview.choiceItemName,
-          choiceItemOwnerName: responsePreview.choiceItemOwnerName ?? preview.choiceItemOwnerName,
-          flavor: responsePreview.flavor ?? preview.flavor,
-        };
-      } else {
-        preview = {
-          ...preview,
-          warnings: ['Preview failed - submitting with default stat. You can still confirm or cancel.'],
-        };
-      }
-    } catch {
-      preview = {
-        ...preview,
-        warnings: ['Preview failed - submitting with default stat. You can still confirm or cancel.'],
-      };
-    }
-    setGearActionPreview({
-      ...preview,
-      ...(request.intent && { pendingIntent: request.intent }),
-      ...(request.targetCharacterId && { pendingTargetCharacterId: request.targetCharacterId }),
-    });
-  };
-
   const previewImproveGearAction = async (ownerCharId: string, itemId: string, method: 'enchant' | 'craft' | 'tinker') => {
-    if (!session || loading || previewThinking) {
+    if (!session || busy || previewThinking) {
       return;
     }
     const owner = session.party.find(c => c.id === ownerCharId);
@@ -795,9 +573,7 @@ export const SessionPage = () => {
       return;
     }
 
-    setActionError(null);
     setShowFullInventory(false);
-    setPreviewThinking(true);
     await previewSceneAction({
       intent: 'improve_item',
       itemOwnerCharacterId: owner.id,
@@ -809,11 +585,10 @@ export const SessionPage = () => {
       choiceItemOwnerName: owner.name,
       flavor: 'item',
     }, `${actor.name} tries to ${method} ${owner.name}'s ${item.name}`);
-    setPreviewThinking(false);
   };
 
   const previewCharacterSupportAction = async (targetCharacterId: string, kind: 'bless' | 'aid') => {
-    if (!session || loading || previewThinking) {
+    if (!session || busy || previewThinking) {
       return;
     }
     const actor = session.party.find(c => c.id === session.activeCharacterId);
@@ -822,9 +597,7 @@ export const SessionPage = () => {
       return;
     }
 
-    setActionError(null);
     setSelectedCharacter(null);
-    setPreviewThinking(true);
     await previewSceneAction({
       intent: kind === 'bless' ? 'bless_character' : 'aid_character',
       targetCharacterId: target.id,
@@ -835,11 +608,10 @@ export const SessionPage = () => {
     }, kind === 'bless'
       ? `${actor.name} blesses ${target.name} with short-lived protective magic`
       : `${actor.name} aids ${target.name} with a coordinated setup`);
-    setPreviewThinking(false);
   };
 
   const previewPartyBoostAction = async () => {
-    if (!session || loading || previewThinking) {
+    if (!session || busy || previewThinking) {
       return;
     }
     const actor = session.party.find(c => c.id === session.activeCharacterId);
@@ -852,46 +624,54 @@ export const SessionPage = () => {
       { stat: 'magic' as const, value: actor.stats.magic },
       { stat: 'mischief' as const, value: actor.stats.mischief },
     ].sort((a, b) => b.value - a.value)[0]?.stat) ?? 'mischief';
-    setPreviewThinking(true);
     await previewSceneAction({ intent: 'party_boost' }, {
       characterBonus: 2,
       characterBonusLabel: strongest === 'magic' ? 'spotlight' : 'social edge',
       flavor: strongest === 'magic' ? 'spotlight' : 'social',
     }, `${actor.name} rallies the whole party with a short-lived boost`);
-    setPreviewThinking(false);
   };
-  previewPartyBoostActionRef.current = () => {
-    void previewPartyBoostAction();
-  };
+  // The keyboard handler reads the latest version through this ref.
+  useEffect(() => {
+    previewPartyBoostActionRef.current = () => {
+      void previewPartyBoostAction();
+    };
+  });
+
+  // The keyboard handler (n / f) reads the shown turn and image state through refs.
+  const shownTurn = history[viewedTurnIdx] ?? null;
+  useEffect(() => {
+    displayTurnRef.current = shownTurn;
+    imageLoadingRef.current = imageLoading;
+  }, [shownTurn, imageLoading]);
 
   const confirmGearAction = async () => {
-    if (!gearActionPreview) {
+    if (!actionPreview) {
       return;
     }
     setGearPreviewSubmitting(true);
     const preview: Partial<LastSubmittedAction> = {
-      ...(gearActionPreview.previewId !== undefined && { previewId: gearActionPreview.previewId }),
-      ...(gearActionPreview.helperBonus !== undefined && { helperBonus: gearActionPreview.helperBonus }),
-      ...(gearActionPreview.helperCharacterName !== undefined && { helperCharacterName: gearActionPreview.helperCharacterName }),
-      ...(gearActionPreview.choiceItemBonus !== undefined && { choiceItemBonus: gearActionPreview.choiceItemBonus }),
-      ...(gearActionPreview.choiceItemName !== undefined && { choiceItemName: gearActionPreview.choiceItemName }),
-      ...(gearActionPreview.choiceItemOwnerName !== undefined && { choiceItemOwnerName: gearActionPreview.choiceItemOwnerName }),
-      ...(gearActionPreview.characterBonus !== undefined && { characterBonus: gearActionPreview.characterBonus }),
-      ...(gearActionPreview.characterBonusLabel !== undefined && { characterBonusLabel: gearActionPreview.characterBonusLabel }),
-      ...(gearActionPreview.flavor !== undefined && { flavor: gearActionPreview.flavor }),
+      ...(actionPreview.previewId !== undefined && { previewId: actionPreview.previewId }),
+      ...(actionPreview.helperBonus !== undefined && { helperBonus: actionPreview.helperBonus }),
+      ...(actionPreview.helperCharacterName !== undefined && { helperCharacterName: actionPreview.helperCharacterName }),
+      ...(actionPreview.choiceItemBonus !== undefined && { choiceItemBonus: actionPreview.choiceItemBonus }),
+      ...(actionPreview.choiceItemName !== undefined && { choiceItemName: actionPreview.choiceItemName }),
+      ...(actionPreview.choiceItemOwnerName !== undefined && { choiceItemOwnerName: actionPreview.choiceItemOwnerName }),
+      ...(actionPreview.characterBonus !== undefined && { characterBonus: actionPreview.characterBonus }),
+      ...(actionPreview.characterBonusLabel !== undefined && { characterBonusLabel: actionPreview.characterBonusLabel }),
+      ...(actionPreview.flavor !== undefined && { flavor: actionPreview.flavor }),
     };
-    const { interpretedAction, stat, difficulty, difficultyValue, pendingIntent, pendingTargetCharacterId } = gearActionPreview;
-    setGearActionPreview(null);
+    const { interpretedAction, stat, difficulty, difficultyValue, pendingIntent, pendingTargetCharacterId } = actionPreview;
+    runtime.clearPreview();
     setGearPreviewSubmitting(false);
     await submitAction(interpretedAction, stat, difficulty, difficultyValue ?? null, null, null, pendingTargetCharacterId ?? null, preview, pendingIntent);
   };
 
   const editGearAction = () => {
-    if (!gearActionPreview) {
+    if (!actionPreview) {
       return;
     }
-    setCustomAction(gearActionPreview.interpretedAction);
-    setGearActionPreview(null);
+    setCustomAction(actionPreview.interpretedAction);
+    runtime.dismissPreview();
   };
 
   const handleWrapUp = async () => {
@@ -903,8 +683,20 @@ export const SessionPage = () => {
       setActionError(result.message);
       return;
     }
-    revisionRef.current = Math.max(revisionRef.current, result.revision);
-    setSession(prev => prev && result.adventure ? { ...prev, adventure: result.adventure, revision: result.revision } : prev);
+    updateSession(result.adventure ? { adventure: result.adventure } : {}, result.revision);
+  };
+
+  const handleToggleAutoIdeas = async () => {
+    if (!session) {
+      return;
+    }
+    const next = !session.autoIdeas;
+    const result = await setAutoIdeas(session.id, next, revisionRef.current);
+    if (!result.ok) {
+      setActionError(result.message);
+      return;
+    }
+    updateSession({ autoIdeas: next }, result.revision);
   };
 
   const handleToggleLongLived = async (longLived: boolean) => {
@@ -916,8 +708,7 @@ export const SessionPage = () => {
       setActionError(result.message);
       return;
     }
-    revisionRef.current = Math.max(revisionRef.current, result.revision);
-    setSession(prev => prev && result.adventure ? { ...prev, adventure: result.adventure, revision: result.revision } : prev);
+    updateSession(result.adventure ? { adventure: result.adventure } : {}, result.revision);
   };
 
   const handleEndHere = () => {
@@ -929,14 +720,10 @@ export const SessionPage = () => {
       confirmLabel: 'End here',
       onConfirm: () => {
         void (async () => {
-          setActionError(null);
-          setLoading(true);
-          const result = await ops.submit(`/session/${session.id}/adventure/end`, {}, { expectsFollowUp: true });
-          if (result.kind === 'accepted') {
-            return;
+          const message = await submitOperation('/adventure/end', {}, { expectsFollowUp: true });
+          if (message) {
+            setActionError(message);
           }
-          setLoading(false);
-          setActionError(result.message);
         })();
       },
     });
@@ -948,15 +735,12 @@ export const SessionPage = () => {
     }
     setEndingError(null);
     setContinuingWorld(true);
-    setLoading(true);
-    const result = await ops.submit(`/session/${session.id}/adventure/continue`, { adventureFormat: format });
-    if (result.kind === 'accepted') {
-      // The new chapter's opening arrives via turn_complete.
-      return;
+    // The new chapter's opening arrives via turn_complete.
+    const message = await submitOperation('/adventure/continue', { adventureFormat: format });
+    if (message) {
+      setContinuingWorld(false);
+      setEndingError(message);
     }
-    setLoading(false);
-    setContinuingWorld(false);
-    setEndingError(result.message);
   };
 
   if (!session) {
@@ -1027,24 +811,25 @@ export const SessionPage = () => {
     );
   }
 
-  const displayTurn = history[viewedTurnIdx] ?? null;
-  displayTurnRef.current = displayTurn;
-  imageLoadingRef.current = imageLoading;
+  const displayTurn = shownTurn;
+  // The action dock always acts on the latest turn: ideas belong to it, and choices of
+  // an older turn can no longer be picked.
+  const latestTurn = history[history.length - 1] ?? null;
   const stageFullscreenImageUrl = displayTurn?.imageUrl
     ? imgSrc(displayTurn.imageUrl)
     : (!imageLoading && !session.savingsMode ? imgSrc('/images/default_scene.png') : null);
   const activeChar = session.party.find(c => c.id === session.activeCharacterId) || null;
   const isDown = activeChar?.status === 'downed';
 
-  const showNarrationOnlyLoading = loading;
-  const showStoryOnlyMobile = !loading && !mobileActionsOpen && tutorialStep !== 3;
-  const showMobileActionsOverlay = !loading && (mobileActionsOpen || tutorialStep === 3);
+  const showNarrationOnlyLoading = busy;
+  const showStoryOnlyMobile = !busy && !mobileActionsOpen && tutorialStep !== 3;
+  const showMobileActionsOverlay = !busy && (mobileActionsOpen || tutorialStep === 3);
   const sessionGridRows = showNarrationOnlyLoading
     ? 'grid-rows-[minmax(0,1fr)]'
     : showStoryOnlyMobile
       ? 'grid-rows-[minmax(0,1fr)]'
       : 'grid-rows-[minmax(0,2fr)_minmax(0,3fr)]';
-  const showInlineActionPanel = loading;
+  const showInlineActionPanel = busy;
   const actionAreaClass = showInlineActionPanel
     ? 'block'
     : 'hidden xl:block';
@@ -1082,9 +867,6 @@ export const SessionPage = () => {
             void previewCharacterSupportAction(targetCharacterId, 'aid');
           }}
           previewThinking={previewThinking}
-          onPartyBoost={() => {
-            void previewPartyBoostAction();
-          }}
         />
       )}
 
@@ -1111,6 +893,10 @@ export const SessionPage = () => {
           <GearPopover
             savingsMode={session.savingsMode}
             onToggleSavingsMode={toggleSavingsMode}
+            autoIdeas={!!session.autoIdeas}
+            onToggleAutoIdeas={() => {
+              void handleToggleAutoIdeas();
+            }}
             audioSettings={settings}
             onMuteToggle={() => {
               setMasterMuted(!settings.masterMuted);
@@ -1187,7 +973,7 @@ export const SessionPage = () => {
             {session.adventure && session.adventure.status === 'active' && (
               <AdventurePanel
                 adventure={session.adventure}
-                disabled={loading || previewThinking}
+                disabled={busy || previewThinking}
                 onWrapUp={() => {
                   void handleWrapUp();
                 }}
@@ -1197,7 +983,7 @@ export const SessionPage = () => {
                 }}
               />
             )}
-            {isAdventureConcluding(session) && !loading && (
+            {isAdventureConcluding(session) && !busy && (
               <button
                 type="button"
                 onClick={handleEndHere}
@@ -1216,8 +1002,8 @@ export const SessionPage = () => {
             )}
             <div className="min-h-0 flex-1">
               <ActionDock
-                turn={displayTurn}
-                loading={loading || previewThinking}
+                turn={latestTurn}
+                loading={busy || previewThinking}
                 previewThinking={previewThinking}
                 activeCharacter={activeChar}
                 isDown={isDown}
@@ -1230,13 +1016,25 @@ export const SessionPage = () => {
                 onSubmit={submitAction}
                 onShowPartyGear={() => setShowFullInventory(true)}
                 onCharacterClick={setSelectedCharacter}
+                onIdeas={applyIdeas}
+                attachment={draftAttachment}
+                onClearAttachment={() => setDraftAttachment(null)}
+                onBless={targetCharacterId => {
+                  void previewCharacterSupportAction(targetCharacterId, 'bless');
+                }}
+                onAid={targetCharacterId => {
+                  void previewCharacterSupportAction(targetCharacterId, 'aid');
+                }}
+                onRally={() => {
+                  void previewPartyBoostAction();
+                }}
               />
             </div>
           </div>
         </div>
       )}
 
-      {!showChronicle && !loading && !showMobileActionsOverlay && (
+      {!showChronicle && !busy && !showMobileActionsOverlay && (
         <nav className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[80] grid grid-cols-3 gap-2 rounded-2xl border border-slate-700/80 bg-slate-950/92 p-2 shadow-2xl backdrop-blur-md xl:hidden" aria-label="Session mobile tools">
           <button
             type="button"
@@ -1304,14 +1102,14 @@ export const SessionPage = () => {
 
         {/* Chronicle / Action area: bottom-left on md, center col on xl */}
         <div className={`min-h-0 ${actionAreaClass}`} data-tutorial="action-dock">
-          {loading ? (
+          {busy ? (
             <DmDecisionRecapPanel lastSubmittedAction={lastSubmittedAction} ttsSettings={ttsSettings} rollResult={rollResult} consequencesPending={consequencesPending} />
           ) : (
             <div className="flex h-full min-h-0 flex-col gap-2">
               {session.adventure && session.adventure.status === 'active' && (
                 <AdventurePanel
                   adventure={session.adventure}
-                  disabled={loading || previewThinking}
+                  disabled={busy || previewThinking}
                   onWrapUp={() => {
                     void handleWrapUp();
                   }}
@@ -1321,7 +1119,7 @@ export const SessionPage = () => {
                   }}
                 />
               )}
-              {isAdventureConcluding(session) && !loading && (
+              {isAdventureConcluding(session) && !busy && (
                 <button
                   type="button"
                   onClick={handleEndHere}
@@ -1340,8 +1138,8 @@ export const SessionPage = () => {
               )}
               <div className="min-h-0 flex-1">
                 <ActionDock
-                  turn={displayTurn}
-                  loading={loading || previewThinking}
+                  turn={latestTurn}
+                  loading={busy || previewThinking}
                   previewThinking={previewThinking}
                   activeCharacter={activeChar}
                   isDown={isDown}
@@ -1354,6 +1152,18 @@ export const SessionPage = () => {
                   onSubmit={submitAction}
                   onShowPartyGear={() => setShowFullInventory(true)}
                   onCharacterClick={setSelectedCharacter}
+                  onIdeas={applyIdeas}
+                  attachment={draftAttachment}
+                  onClearAttachment={() => setDraftAttachment(null)}
+                  onBless={targetCharacterId => {
+                    void previewCharacterSupportAction(targetCharacterId, 'bless');
+                  }}
+                  onAid={targetCharacterId => {
+                    void previewCharacterSupportAction(targetCharacterId, 'aid');
+                  }}
+                  onRally={() => {
+                    void previewPartyBoostAction();
+                  }}
                 />
               </div>
             </div>
@@ -1373,8 +1183,7 @@ export const SessionPage = () => {
               party={session.party}
               activeCharacterId={session.activeCharacterId}
               onUseItem={(ownerCharId, itemId, targetCharId) => {
-                submitAction('use item', 'none', 'easy', null, ownerCharId, itemId, targetCharId);
-                setShowFullInventory(false);
+                attachGearToDraft('use_item', ownerCharId, itemId, targetCharId);
               }}
               onUseItemInScene={(ownerCharId, itemId) => {
                 void previewGearAction(ownerCharId, itemId);
@@ -1383,30 +1192,29 @@ export const SessionPage = () => {
                 void previewImproveGearAction(ownerCharId, itemId, method);
               }}
               onGiveItem={(ownerCharId, itemId, targetCharId) => {
-                submitAction('give item', 'none', 'easy', null, ownerCharId, itemId, targetCharId);
-                setShowFullInventory(false);
+                attachGearToDraft('give_item', ownerCharId, itemId, targetCharId);
               }}
-              disabled={loading || previewThinking}
+              disabled={busy || previewThinking}
               previewThinking={previewThinking}
             />
           </div>
         </div>
       )}
 
-      {gearActionPreview && (() => {
-        const previewStat = gearActionPreview.stat;
+      {actionPreview && (() => {
+        const previewStat = actionPreview.stat;
         const base = activeChar?.stats[previewStat] ?? 0;
         const itemBonus = activeChar?.inventory.reduce((s, item) => s + (item.statBonuses?.[previewStat] ?? 0), 0) ?? 0;
         return (
           <FreeActionConfirmDialog
-            preview={gearActionPreview}
+            preview={actionPreview}
             statBonus={base + itemBonus}
             submitting={gearPreviewSubmitting}
             onConfirm={() => {
               void confirmGearAction();
             }}
             onEdit={editGearAction}
-            onCancel={() => setGearActionPreview(null)}
+            onCancel={runtime.dismissPreview}
           />
         );
       })()}
@@ -1501,6 +1309,9 @@ export const SessionPage = () => {
           bindings={[
             { key: '1 / 2 / 3 / ...', action: 'Focus action choice (Enter submits)' },
             { key: 'next number', action: 'Focus custom action input' },
+            { key: 'u', action: 'Unleash the typed action' },
+            { key: 'g', action: 'Give me ideas' },
+            { key: 'Esc / z', action: 'Undo an action that is about to be sent' },
             { key: 'v', action: 'Start voice action' },
             { key: 'i', action: 'Open inventory' },
             { key: 'n', action: 'Toggle fullscreen narration' },

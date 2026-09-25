@@ -16,6 +16,8 @@ export type SpeechIntent =
   | { type: 'where-are-we'; transcript: string }
   | { type: 'wrap-up'; transcript: string }
   | { type: 'end-here'; transcript: string }
+  // "Ask the DM ...": a question answered without taking a turn.
+  | { type: 'ask'; question: string; transcript: string }
   | { type: 'custom'; text: string; transcript: string };
 
 const CHOICE_PHRASES: Record<0 | 1 | 2 | 3, string[]> = {
@@ -25,13 +27,14 @@ const CHOICE_PHRASES: Record<0 | 1 | 2 | 3, string[]> = {
   3: ['4', 'four', 'fourth', 'option four', 'option 4', 'action four', 'action 4', 'choice four', 'choice 4', 'number four', 'number 4'],
 };
 
-const COMMAND_PHRASES: Record<Exclude<SpeechIntent['type'], 'choice' | 'custom'>, string[]> = {
+const COMMAND_PHRASES: Record<Exclude<SpeechIntent['type'], 'choice' | 'custom' | 'ask'>, string[]> = {
   confirm: ['confirm', 'yes', 'accept', 'submit', 'do it', 'confirm action', 'yes please', 'yep', 'yeah'],
   cancel: ['cancel', 'no', 'abort', 'go back', 'cancel action', 'no thanks', 'nope', 'nay'],
   retry: ['retry', 'try again', 'change', 'retry action', 'retry option', 'try once more', 'try again option'],
   repeat: ['repeat', 'say again', 'repeat choices', 'repeat prompt', 'repeat options'],
   'story-repeat': ['repeat story', 'repeat narration', 'story', 'repeat details', 'repeat last narration'],
-  options: ['options', 'say options', 'what are the options', 'read choices', 'read options', 'choice list'],
+  // Also the way to ask for ideas when there are none yet.
+  options: ['options', 'say options', 'what are the options', 'read choices', 'read options', 'choice list', 'ideas', 'give me ideas', 'give me some ideas', 'any ideas', 'ideas please', 'suggestions'],
   pause: ['pause', 'pause game', 'stop', 'pause play', 'hold'],
   resume: ['resume', 'continue', 'play', 'resume game', 'start again'],
   help: ['help', 'what can i say', 'commands', 'voice commands', 'show help'],
@@ -44,6 +47,9 @@ const COMMAND_PHRASES: Record<Exclude<SpeechIntent['type'], 'choice' | 'custom'>
   'wrap-up': ['wrap up', 'wrap up our adventure', 'wrap up the adventure', 'start the finale', 'lets wrap up'],
   'end-here': ['end here', 'end the adventure', 'end the adventure here', 'end here with an epilogue', 'finish the story'],
 };
+
+// Explicit forms only: "ask the guard for directions" is an ordinary action.
+const ASK_DM_RE = /^(?:(?:please\s+)?ask\s+(?:the\s+)?|hey\s+)(?:(?:dm|dungeon\s+master)\b|d\.m\.)[\s,:-]*(.+)$/i;
 
 const normalize = (text: string) => text
   .trim()
@@ -63,8 +69,13 @@ export function parseSpeechIntent(transcript: string): SpeechIntent {
 
   for (const [type, phrases] of Object.entries(COMMAND_PHRASES)) {
     if (phrases.includes(normalized)) {
-      return { type: type as Exclude<SpeechIntent['type'], 'choice' | 'custom'>, transcript: trimmed };
+      return { type: type as Exclude<SpeechIntent['type'], 'choice' | 'custom' | 'ask'>, transcript: trimmed };
     }
+  }
+
+  const question = trimmed.match(ASK_DM_RE)?.[1]?.trim();
+  if (question) {
+    return { type: 'ask', question, transcript: trimmed };
   }
 
   return { type: 'custom', text: trimmed, transcript: trimmed };
@@ -72,5 +83,5 @@ export function parseSpeechIntent(transcript: string): SpeechIntent {
 
 // Commands that keep working while a DM question is open; any other input answers it.
 export const QUESTION_PASSTHROUGH_INTENTS: ReadonlySet<SpeechIntent['type']> = new Set<SpeechIntent['type']>([
-  'help', 'status', 'party', 'gear', 'encounter', 'where-are-we', 'story-repeat', 'pause', 'resume', 'wrap-up', 'end-here',
+  'help', 'status', 'party', 'gear', 'encounter', 'where-are-we', 'story-repeat', 'pause', 'resume', 'wrap-up', 'end-here', 'ask',
 ]);

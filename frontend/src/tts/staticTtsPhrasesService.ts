@@ -9,6 +9,9 @@ const CACHE_KEY_TO_SLUG: Record<string, string> = {
   'car:v1:status:reconnected': 'reconnected',
   'car:v1:error:retry-prompt': 'retry-prompt',
   'car:v1:orientation': 'orientation',
+  'car:v2:orientation': 'orientation-v2',
+  'car:v3:info:help': 'help-v3',
+  'car:v1:prompt:open-action': 'open-action',
 };
 
 export function getStaticPhrasePath(cacheKey: string, voice: OpenAiTtsVoice): string | null {

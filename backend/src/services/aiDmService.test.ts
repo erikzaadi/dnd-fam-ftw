@@ -205,7 +205,6 @@ describe('toNarrationInput', () => {
       'Take the careful path',
     ]);
     expect(out.selectedChoiceFlavor).toBe('environment');
-    expect(out.selectedEnvironmentFeature).toBe('falling bridge stones');
   });
 
   it('statUsed "none" becomes undefined', () => {

@@ -80,7 +80,6 @@ export type NarrationInput = {
   previousChoiceItemNames?: string[];
   previousChoiceFlavors?: ChoiceFlavor[];
   selectedChoiceFlavor?: ChoiceFlavor;
-  selectedEnvironmentFeature?: string;
   tone: string;
   gameMode?: GameMode;
   dmPrep?: string;
@@ -190,6 +189,9 @@ export type ResolvedPresentation = Pick<NarrationOutput,
 
 export interface NarrationProvider {
   generateTurn(input: NarrationInput, callbacks?: NarrationStreamCallbacks): Promise<NarrationOutput>;
+  // Suggested actions on request ("Give me ideas") for the scene as it stands. degraded:
+  // the deterministic fallback was used.
+  generateIdeas?(input: NarrationInput): Promise<{ choices: NarrationChoice[]; degraded: boolean }>;
   // Optional stages for the resolved_first strategy. Providers without them fall
   // back to generateTurn (the parallel comparator).
   proposeMechanics?(input: NarrationInput): Promise<MechanicsProposal>;

@@ -30,8 +30,14 @@ export const generateResolvedFirstTurn = async (params: {
   actingCharId: string;
   actionIntent: string | undefined;
   targetCharName: string | undefined;
-  streamCallbacks: NarrationStreamCallbacks;
+  streamCallbacks?: NarrationStreamCallbacks;
   diagnostics: TurnDiagnostics;
+  // Facts are reported against this state. Item turns apply the item's own effect before
+  // the mechanics agents run, so their facts start from the session before the item.
+  factsBaseline?: SessionState;
+  // Item turns: the engine already applied the item, so the free-action policies (which
+  // read the attempt text, e.g. "healing Pip") must not add their own effect on top.
+  itemTurn?: boolean;
 }): Promise<ResolvedFirstTurn | null> => {
   const { session, aiInput, actionAttempt, actingCharId, diagnostics } = params;
   const provider = createNarrationProvider();
@@ -50,14 +56,16 @@ export const generateResolvedFirstTurn = async (params: {
     imageSuggested: false,
     ...mechanics,
   };
-  proposal = applyTurnPolicies(session, actionAttempt, proposal, params.actionIntent, params.targetCharName, diagnostics);
+  if (!params.itemTurn) {
+    proposal = applyTurnPolicies(session, actionAttempt, proposal, params.actionIntent, params.targetCharName, diagnostics);
+  }
 
   // Apply exactly once. A throwaway copy absorbs engine narration hooks (loot claims),
   // and with no narration there is no prose-derived encounter inference: only the
   // combat agent's proposal can start a fight.
   const frozen = GameEngine.applyTurnProposal(session, actionAttempt, { ...proposal });
   await repairEncounterNameIfNeeded(session, frozen, { narration: null, actionAttempt: actionAttempt.actionAttempt });
-  const facts = buildResolvedTurnFacts({ previousSession: session, resolvedState: frozen, actionAttempt, actingCharId });
+  const facts = buildResolvedTurnFacts({ previousSession: params.factsBaseline ?? session, resolvedState: frozen, actionAttempt, actingCharId });
   stepStart = diagnostics.stage('resolve', stepStart);
 
   // Narration and choices see the post-turn party and encounter plus the facts.

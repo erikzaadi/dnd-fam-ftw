@@ -11,6 +11,7 @@ import {
   SECTION_CONTINUITY_SHORT,
   SECTION_ACTING_SHORT,
   SECTION_POSED_RIDDLE,
+  SECTION_OPEN_INVITATION,
   SECTION_CHOICES_ACTOR,
   SECTION_CHOICES_FORMAT,
   SECTION_CHOICES_RIDDLE,
@@ -83,6 +84,8 @@ export function buildNarrationAgentSystemPrompt(input: NarrationInput): string {
     SECTION_CONTINUITY_SHORT,
     SECTION_ACTING_SHORT,
     SECTION_POSED_RIDDLE,
+    // No suggested choices follow narration: it ends with an open question to the next hero.
+    SECTION_OPEN_INVITATION,
     ...(hasFrozen ? [SECTION_FROZEN_CONFRONTATION] : []),
     ...(hasStall ? [SECTION_LOCATION_STALL] : []),
     ...(input.adventureDirective ? [SECTION_ADVENTURE_ARC] : []),

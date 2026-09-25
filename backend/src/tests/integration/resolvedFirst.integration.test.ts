@@ -99,7 +99,9 @@ describe('resolved_first strategy (plan 4 candidate)', () => {
   it('falls back to the parallel comparator when the provider has no staged methods', async () => {
     const factory = await import('../../providers/ai/AiProviderFactory.js');
     const { createMockNarrationProvider } = await import('./mockNarrationProvider.js');
-    vi.mocked(factory.createNarrationProvider).mockImplementation(() => createMockNarrationProvider());
+    // Once: the resolved-first check gets a provider without staged methods. A lasting
+    // mockImplementation would leak into later tests (restoreAllMocks does not reset vi.fn).
+    vi.mocked(factory.createNarrationProvider).mockImplementationOnce(() => createMockNarrationProvider());
     await insertSessionState(makeTestSession({ id: 'rf-fallback' }));
 
     const result = await executeTurnAction('rf-fallback', 'local', { action: 'Hum a tune', statUsed: 'magic' });
@@ -135,4 +137,30 @@ describe('resolved_first strategy (plan 4 candidate)', () => {
     expect(answers.find(c => c.riddleCorrect)?.riddleAnswer).toBe('a bottle');
     expect(answers.find(c => c.riddleCorrect === false)?.riddleAnswer).toBe('a shirt');
   });
+
+  it('narrates an item turn from settled facts that include the item itself', async () => {
+    const pip = { ...makeTestSession().party[0], hp: 4, inventory: [{ id: 'potion-1', name: 'Healing Potion', description: 'Restores 3 HP', healValue: 3, consumable: true, transferable: true }] };
+    await insertSessionState(makeTestSession({ id: 'rf-item', party: [pip, makeTestSession().party[1]], activeCharacterId: 'char-pip' }));
+
+    const result = await executeTurnAction('rf-item', 'local', {
+      action: 'use item', statUsed: 'none', actionType: 'use_item', itemId: 'potion-1', characterId: 'char-pip', targetCharacterId: 'char-pip',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(mockProposeMechanics).toHaveBeenCalledTimes(1);
+    expect(mockNarrateResolved).toHaveBeenCalledTimes(1);
+    expect(mockGenerateTurn).not.toHaveBeenCalled();
+    expect(mockNarrateResolved.mock.calls[0][0].resolvedTurn?.facts.join(' ')).toContain('Pip regained 3 HP');
+    expect(result.ok && result.diagnostics?.strategy).toBe('resolved_first');
+    expect((await StateService.getSession('rf-item'))?.party[0].hp).toBe(7);
+  });
+
+  it('is the default strategy', async () => {
+    delete process.env.AI_TURN_STRATEGY;
+    const { getTurnStrategy } = await import('../../config/env.js');
+    expect(getTurnStrategy()).toBe('resolved_first');
+    process.env.AI_TURN_STRATEGY = 'parallel';
+    expect(getTurnStrategy()).toBe('parallel');
+  });
 });
+
