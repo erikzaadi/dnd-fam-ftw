@@ -7,6 +7,12 @@ vi.mock('../../repositories/usageRepository.js', () => ({
   usageRepository: { recordProviderUsage: vi.fn() },
 }));
 
+vi.mock('../../services/usageLimitService.js', () => ({
+  checkProviderAdmission: vi.fn(() => null),
+}));
+
+const allowAll = () => null;
+
 const recorded = () => vi.mocked(usageRepository.recordProviderUsage).mock.calls.map(call => call[0]);
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
@@ -21,7 +27,7 @@ beforeEach(() => {
 
 describe('createUsageRecordingFetch', () => {
   it('records chat usage attributed to the current usage context', async () => {
-    const recordingFetch = createUsageRecordingFetch(async () => jsonResponse({ usage: { prompt_tokens: 1000, completion_tokens: 500 } }));
+    const recordingFetch = createUsageRecordingFetch(async () => jsonResponse({ usage: { prompt_tokens: 1000, completion_tokens: 500 } }), allowAll);
     await runWithUsageContext({ namespaceId: 'ns-1', userId: 'user-1', sessionId: 'session-1' }, () =>
       recordingFetch('https://api.openai.com/v1/chat/completions', { method: 'POST', body: JSON.stringify({ model: 'gpt-4.1-mini' }) }));
     await flush();
@@ -40,21 +46,21 @@ describe('createUsageRecordingFetch', () => {
   });
 
   it('records work outside a request with a null namespace', async () => {
-    const recordingFetch = createUsageRecordingFetch(async () => jsonResponse({}));
+    const recordingFetch = createUsageRecordingFetch(async () => jsonResponse({}), allowAll);
     await recordingFetch('https://api.openai.com/v1/images/generations', { method: 'POST', body: JSON.stringify({ model: 'gpt-image-2' }) });
     await flush();
     expect(recorded()[0]).toMatchObject({ namespaceId: null, kind: 'image', imageCount: 1 });
   });
 
   it('records failed provider responses without cost', async () => {
-    const recordingFetch = createUsageRecordingFetch(async () => jsonResponse({ error: 'rate limited' }, 429));
+    const recordingFetch = createUsageRecordingFetch(async () => jsonResponse({ error: 'rate limited' }, 429), allowAll);
     const response = await recordingFetch('https://api.openai.com/v1/images/generations', { method: 'POST', body: '{}' });
     expect(response.status).toBe(429);
     expect(recorded()[0]).toMatchObject({ success: false, estimatedCostUsd: 0 });
   });
 
   it('records TTS characters from the request input', async () => {
-    const recordingFetch = createUsageRecordingFetch(async () => new Response('audio', { headers: { 'content-type': 'audio/mpeg' } }));
+    const recordingFetch = createUsageRecordingFetch(async () => new Response('audio', { headers: { 'content-type': 'audio/mpeg' } }), allowAll);
     await recordingFetch('https://api.openai.com/v1/audio/speech', { method: 'POST', body: JSON.stringify({ model: 'gpt-4o-mini-tts', input: 'Hello realm' }) });
     expect(recorded()[0]).toMatchObject({ kind: 'tts', ttsCharacters: 11 });
   });
@@ -65,15 +71,27 @@ describe('createUsageRecordingFetch', () => {
       'data: {"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":2}}\n\n',
       'data: [DONE]\n\n',
     ];
-    const recordingFetch = createUsageRecordingFetch(async () => new Response(events.join(''), { headers: { 'content-type': 'text/event-stream' } }));
+    const recordingFetch = createUsageRecordingFetch(async () => new Response(events.join(''), { headers: { 'content-type': 'text/event-stream' } }), allowAll);
     const response = await recordingFetch('https://api.openai.com/v1/chat/completions', { method: 'POST', body: JSON.stringify({ model: 'gpt-4.1', stream: true }) });
     expect(await response.text()).toBe(events.join(''));
     await flush();
     expect(recorded()[0]).toMatchObject({ inputTokens: 10, outputTokens: 2, success: true });
   });
 
+  it('refuses over-limit requests without calling the provider or recording usage', async () => {
+    const baseFetch = vi.fn(async () => jsonResponse({}));
+    const recordingFetch = createUsageRecordingFetch(baseFetch, () => ({
+      error: 'limit_reached', kind: 'pictures', tier: 'free', message: 'Painters resting', resetsAt: null,
+    }));
+    const response = await recordingFetch('https://api.openai.com/v1/images/generations', { method: 'POST', body: '{}' });
+    expect(response.status).toBe(429);
+    expect(response.headers.get('x-should-retry')).toBe('false');
+    expect(baseFetch).not.toHaveBeenCalled();
+    expect(recorded()).toEqual([]);
+  });
+
   it('does not record non-billable endpoints', async () => {
-    const recordingFetch = createUsageRecordingFetch(async () => jsonResponse({ data: [] }));
+    const recordingFetch = createUsageRecordingFetch(async () => jsonResponse({ data: [] }), allowAll);
     await recordingFetch('https://api.openai.com/v1/models');
     await flush();
     expect(recorded()).toEqual([]);

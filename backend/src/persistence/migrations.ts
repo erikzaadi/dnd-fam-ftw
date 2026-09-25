@@ -523,4 +523,10 @@ export const migrate = (db: DB): void => {
     CREATE INDEX IF NOT EXISTS idx_provider_usage_namespace_time ON provider_usage(namespace_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_provider_usage_time ON provider_usage(created_at);
   `);
+  // Usage tier: 'free' | 'supporter' | 'unlimited'. Every existing and CLI-created
+  // namespace is 'unlimited'; only self-service signup creates 'free' namespaces.
+  const namespaceColsTier = (db.prepare("PRAGMA table_info(namespaces)").all() as { name: string }[]).map(r => r.name);
+  if (!namespaceColsTier.includes('tier')) {
+    db.prepare("ALTER TABLE namespaces ADD COLUMN tier TEXT NOT NULL DEFAULT 'unlimited'").run();
+  }
 };

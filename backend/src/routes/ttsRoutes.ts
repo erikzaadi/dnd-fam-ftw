@@ -3,6 +3,7 @@ import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { OPENAI_TTS_VOICES, OPENAI_TTS_DEFAULT_VOICE } from '@dnd-fam-ftw/shared';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireTextBudget } from '../middleware/usageAdmission.js';
 import { StateService } from '../services/stateService.js';
 import { generateSpeech, normalizeTextForSpeech, resolveEffectiveTtsVoice, TTS_MAX_INPUT_CHARS } from '../services/ttsService.js';
 import { parseBody } from './routeValidation.js';
@@ -15,7 +16,7 @@ const ttsBodySchema = z.object({
 export const createTtsRouter = () => {
   const router = Router();
 
-  router.post('/tts', authMiddleware, asyncHandler(async (req, res) => {
+  router.post('/tts', authMiddleware, requireTextBudget, asyncHandler(async (req, res) => {
     if (!process.env.OPENAI_API_KEY) {
       res.status(503).json({ error: 'tts_not_configured', message: 'OpenAI TTS is not configured' });
       return;

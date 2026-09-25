@@ -7,6 +7,7 @@ import { StateService } from './stateService.js';
 import { StorySummaryService } from './storySummaryService.js';
 import { devLog } from '../lib/devLog.js';
 import { generateImageBrief } from '../providers/ai/images/imageBriefProvider.js';
+import { currentPictureBudgetExhausted } from './usageLimitService.js';
 
 interface CompletedTurnSideEffectsInput {
   sessionId: string;
@@ -56,7 +57,8 @@ const queueTurnImageGeneration = (
   turnResult: TurnResult,
 ) => {
   devLog.log(`[Action] savingsMode=${previousSession.savingsMode}`);
-  if (previousSession.savingsMode) {
+  // Daily picture budget spent: skip the image (and its brief) and keep playing.
+  if (previousSession.savingsMode || currentPictureBudgetExhausted()) {
     return;
   }
 

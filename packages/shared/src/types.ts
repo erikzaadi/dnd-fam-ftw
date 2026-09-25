@@ -468,6 +468,21 @@ export interface AppSettings {
 
 export type SignupMode = 'invite_only' | 'open';
 
+// Usage tiers, shown as "Adventurer", "Patron of the Realm", and "Founding Realm".
+export type UsageTier = 'free' | 'supporter' | 'unlimited';
+
+export type UsageLimitKind = 'text' | 'pictures' | 'sessions' | 'turns';
+
+// Error body for requests refused by a usage limit (HTTP 429).
+export interface LimitReachedResponse {
+  error: 'limit_reached';
+  kind: UsageLimitKind;
+  tier: UsageTier;
+  message: string;
+  // When the daily budget resets (ISO), or null for limits that do not reset.
+  resetsAt: string | null;
+}
+
 // GET /auth/config: public, never contains secrets.
 export interface AuthConfigResponse {
   enabled: boolean;

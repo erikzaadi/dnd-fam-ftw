@@ -9,6 +9,7 @@
  *   namespaces      list | create <name> | rename <id> <name> | delete <id>
  *                   sessions <id> | assign-session <sessionId> <nsId>
  *                   add-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
+ *                   tier <id> [free|supporter|unlimited]
  *   sessions        list [--json] | nuke | seed | export | import | regenerate-dm-prep <id>
  *   metrics         [--json] [--since <ISO date>] | usage [--json] [--since <ISO date>] [--namespace <id>]
  *                   | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]
@@ -27,6 +28,7 @@ import Database from 'libsql';
 import { StateService } from '../services/stateService.js';
 import { StorySummaryService } from '../services/storySummaryService.js';
 import { getConfig } from '../config/env.js';
+import { USAGE_TIERS, getEffectiveLimits, isUsageTier, tierLabel } from '../services/usageLimitService.js';
 
 const [, , resource, subcommand, ...rest] = process.argv;
 const allArgs = [subcommand, ...rest].filter(Boolean);
@@ -176,14 +178,14 @@ case 'namespaces': {
       console.log('No namespaces found.');
     } else {
       const col = (s: string | number, w: number) => String(s).padEnd(w);
-      console.log(`\n${col('ID', 12)} ${col('Name', 24)} ${col('Users', 7)} ${col('Sessions', 10)} ${col('Limits', 22)} Created`);
-      console.log('-'.repeat(95));
+      console.log(`\n${col('ID', 12)} ${col('Name', 24)} ${col('Tier', 10)} ${col('Users', 7)} ${col('Sessions', 10)} ${col('Limits', 22)} Created`);
+      console.log('-'.repeat(106));
       for (const n of ns) {
         const limits = [
           n.max_sessions != null ? `sess<=${n.max_sessions}` : null,
           n.max_turns != null ? `turns<=${n.max_turns}` : null,
-        ].filter(Boolean).join(', ') || 'unlimited';
-        console.log(`${col(n.id, 12)} ${col(n.name, 24)} ${col(n.user_count, 7)} ${col(n.session_count, 10)} ${col(limits, 22)} ${n.created_at}`);
+        ].filter(Boolean).join(', ') || 'tier default';
+        console.log(`${col(n.id, 12)} ${col(n.name, 24)} ${col(n.tier, 10)} ${col(n.user_count, 7)} ${col(n.session_count, 10)} ${col(limits, 22)} ${n.created_at}`);
       }
       console.log();
     }
@@ -328,8 +330,8 @@ case 'namespaces': {
     if (maxSessions === undefined && maxTurns === undefined) {
       const limits = StateService.getNamespaceLimits(id);
       console.log(`Namespace "${ns.name}" (${id}) limits:`);
-      console.log(`  max-sessions: ${limits.maxSessions ?? 'unlimited'}`);
-      console.log(`  max-turns:    ${limits.maxTurns ?? 'unlimited'}`);
+      console.log(`  max-sessions: ${limits.maxSessions ?? 'tier default'}`);
+      console.log(`  max-turns:    ${limits.maxTurns ?? 'tier default'}`);
       break;
     }
     const current = StateService.getNamespaceLimits(id);
@@ -337,8 +339,34 @@ case 'namespaces': {
     const newMaxTurns = maxTurns !== undefined ? maxTurns : current.maxTurns;
     StateService.setNamespaceLimits(id, newMaxSessions, newMaxTurns);
     console.log(`Updated limits for "${ns.name}" (${id}):`);
-    console.log(`  max-sessions: ${newMaxSessions ?? 'unlimited'}`);
-    console.log(`  max-turns:    ${newMaxTurns ?? 'unlimited'}`);
+    console.log(`  max-sessions: ${newMaxSessions ?? 'tier default'}`);
+    console.log(`  max-turns:    ${newMaxTurns ?? 'tier default'}`);
+    break;
+  }
+  case 'tier': {
+    const [id, tier] = positional;
+    if (!id) {
+      fail(`Usage: cli namespaces tier <id> [${USAGE_TIERS.join('|')}]`);
+    }
+    const ns = StateService.getNamespaceById(id);
+    if (!ns) {
+      fail(`Namespace not found: ${id}`);
+    }
+    if (!tier) {
+      const effective = getEffectiveLimits(id);
+      const format = (value: number | null) => value ?? 'unlimited';
+      console.log(`Namespace "${ns.name}" (${id}): ${effective.tier} (${tierLabel(effective.tier)})`);
+      console.log(`  text credits/day: ${format(effective.textCreditsPerDay)}`);
+      console.log(`  pictures/day:     ${format(effective.picturesPerDay)}`);
+      console.log(`  max-sessions:     ${format(effective.maxSessions)}`);
+      console.log(`  max-turns:        ${format(effective.maxTurns)}`);
+      break;
+    }
+    if (!isUsageTier(tier)) {
+      fail(`Unknown tier "${tier}". Use one of: ${USAGE_TIERS.join(', ')}`);
+    }
+    StateService.setNamespaceTier(id, tier);
+    console.log(`Namespace "${ns.name}" (${id}) is now ${tier} (${tierLabel(tier)}).`);
     break;
   }
   default:
@@ -352,7 +380,8 @@ namespaces <sub-command> [args]
   assign-session <sessionId> <nsId>   Move a session to a namespace
   add-user <nsId> <email>             Grant user access to a namespace
   remove-user <nsId> <email>          Remove user access from a namespace
-  set-limits <id> [--max-sessions N] [--max-turns N]  Set or view limits
+  set-limits <id> [--max-sessions N] [--max-turns N]  Set or view per-namespace overrides (null = tier default)
+  tier <id> [free|supporter|unlimited]  View effective limits or change the usage tier
 
 Options:
   --json   Output as JSON (list and sessions only)

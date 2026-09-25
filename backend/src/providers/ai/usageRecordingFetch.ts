@@ -1,6 +1,10 @@
 import { getUsageContext } from '../../lib/usageContext.js';
 import { usageRepository } from '../../repositories/usageRepository.js';
 import { estimateCostUsd, type UsageKind } from '../../services/usagePricing.js';
+import { checkProviderAdmission } from '../../services/usageLimitService.js';
+import type { LimitReachedResponse } from '../../types.js';
+
+type Admission = (kind: UsageKind) => LimitReachedResponse | null;
 
 type Fetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
@@ -21,11 +25,21 @@ interface RequestInfo {
 // Every OpenAI SDK request goes through this fetch, so each attempt that reaches the
 // provider (SDK retries included) is recorded once, attributed to the current request's
 // usage context. Recording never changes or fails the provider call.
-export function createUsageRecordingFetch(baseFetch: Fetch = fetch): Fetch {
+// Admission is the usage-limit backstop: a refused request never reaches the provider
+// and gets a 429 the SDK does not retry, which callers already handle as a failed call.
+export function createUsageRecordingFetch(baseFetch: Fetch = fetch, admit: Admission = checkProviderAdmission): Fetch {
   return async (input, init) => {
     const info = describeRequest(input, init);
     if (!info) {
       return baseFetch(input, init);
+    }
+
+    const refusal = admit(info.kind);
+    if (refusal) {
+      return new Response(JSON.stringify({ error: { message: refusal.message, type: 'usage_limit', code: refusal.kind } }), {
+        status: 429,
+        headers: { 'content-type': 'application/json', 'x-should-retry': 'false' },
+      });
     }
 
     let response: Response;

@@ -8,6 +8,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { assertAuthConfig, getConfig, getTurnStrategy, isAllowedOrigin, isAuthEnabled } from './config/env.js';
 import { authMiddleware } from './middleware/auth.js';
+import { usageAdmissionMiddleware } from './middleware/usageAdmission.js';
 import { getImageStorageProvider } from './providers/storage/storageProviderFactory.js';
 import { getOpenAIMaxRetries, getPreviewReasoningEffort } from './providers/ai/openAiClient.js';
 import { StateService } from './services/stateService.js';
@@ -114,6 +115,7 @@ app.use((req, res, next) => {
   }
   authMiddleware(req, res, next);
 });
+app.use(usageAdmissionMiddleware);
 
 app.use(createNamespaceRouter());
 app.use(createEventsRouter());

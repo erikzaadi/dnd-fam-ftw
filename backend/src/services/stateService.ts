@@ -212,6 +212,10 @@ export class StateService {
     return namespaceRepository.getNamespaceLimits(namespaceId);
   }
 
+  public static setNamespaceTier(namespaceId: string, tier: string): boolean {
+    return namespaceRepository.setNamespaceTier(namespaceId, tier);
+  }
+
   public static setNamespaceLimits(namespaceId: string, maxSessions: number | null, maxTurns: number | null): boolean {
     return namespaceRepository.setNamespaceLimits(namespaceId, maxSessions, maxTurns);
   }

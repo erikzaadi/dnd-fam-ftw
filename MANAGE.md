@@ -65,10 +65,20 @@ Manage namespaces (isolated session spaces). Users can be granted access to addi
 ./dnd-fam-ftw-cli namespaces set-limits <id>                              # show current limits
 ./dnd-fam-ftw-cli namespaces set-limits <id> --max-sessions 5            # cap number of sessions
 ./dnd-fam-ftw-cli namespaces set-limits <id> --max-turns 100             # cap turns per session
-./dnd-fam-ftw-cli namespaces set-limits <id> --max-sessions null         # remove session limit
+./dnd-fam-ftw-cli namespaces set-limits <id> --max-sessions null         # back to the tier default
+./dnd-fam-ftw-cli namespaces tier <id>                                   # show tier and effective limits
+./dnd-fam-ftw-cli namespaces tier <id> supporter                         # change tier: free | supporter | unlimited
 ```
 
-`NULL` limits mean unlimited (the default for new namespaces).
+Every namespace has a usage tier: `free` ("Adventurer", self-service signups), `supporter` ("Patron of the Realm"), or `unlimited` ("Founding Realm", all existing and CLI-created namespaces, and `local`). The tier sets daily text credits (AI text calls, plus one per started 1000 TTS characters), daily pictures, max sessions, and max turns per session. `set-limits` values override the tier's session/turn limits; `NULL` means "use the tier default".
+
+| Tier | Text credits/day | Pictures/day | Sessions | Turns/session |
+| --- | --- | --- | --- | --- |
+| `free` | 150 | 20 | 3 | 100 |
+| `supporter` | 600 | 150 | 15 | unlimited |
+| `unlimited` | unlimited | unlimited | unlimited | unlimited |
+
+Override the defaults with `USAGE_TIER_LIMITS` (JSON, e.g. `{"free":{"picturesPerDay":30}}`). Days reset at 00:00 UTC. When the pictures run out, turns continue without images; when text credits run out, new paid requests get HTTP 429 `limit_reached`. `DAILY_SPEND_LIMIT_USD` (unset = off) is a global estimated-spend limit: at the limit, pictures stop for `free`/`supporter` and new signups pause; at twice the limit, text stops for `free`. `unlimited` namespaces are never limited.
 
 ### sessions
 

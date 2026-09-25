@@ -8,6 +8,7 @@ export type NamespaceListItem = {
   session_count: number;
   max_sessions: number | null;
   max_turns: number | null;
+  tier: string;
   created_at: string;
 };
 
@@ -16,7 +17,7 @@ export const namespaceRepository = {
     const db = getDb();
     return db.prepare(`
       SELECT
-        n.id, n.name, n.created_at, n.max_sessions, n.max_turns,
+        n.id, n.name, n.created_at, n.max_sessions, n.max_turns, n.tier,
         COUNT(DISTINCT un.user_id) as user_count,
         COUNT(DISTINCT s.id) as session_count
       FROM namespaces n
@@ -72,6 +73,15 @@ export const namespaceRepository = {
     const db = getDb();
     const row = db.prepare('SELECT max_sessions, max_turns FROM namespaces WHERE id = ?').get(namespaceId) as { max_sessions: number | null; max_turns: number | null } | undefined;
     return { maxSessions: row?.max_sessions ?? null, maxTurns: row?.max_turns ?? null };
+  },
+
+  getNamespaceTier(namespaceId: string): string | null {
+    const row = getDb().prepare('SELECT tier FROM namespaces WHERE id = ?').get(namespaceId) as { tier: string } | undefined;
+    return row?.tier ?? null;
+  },
+
+  setNamespaceTier(namespaceId: string, tier: string): boolean {
+    return getDb().prepare('UPDATE namespaces SET tier = ? WHERE id = ?').run(tier, namespaceId).changes > 0;
   },
 
   setNamespaceLimits(namespaceId: string, maxSessions: number | null, maxTurns: number | null): boolean {

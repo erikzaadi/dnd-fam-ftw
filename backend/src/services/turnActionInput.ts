@@ -2,7 +2,7 @@ import type { Choice, Difficulty, SessionState, Stat } from '../types.js';
 import { lookupActionPreview, type StoredActionPreview } from './actionPreviewStore.js';
 import { assessRiddleAction, ensureActiveRiddle, RIDDLE_ANSWER_UNKNOWN_MESSAGE, type RiddleActionInput } from './riddleService.js';
 import { scheduleRiddleRecovery } from './riddleRecoveryService.js';
-import { StateService } from './stateService.js';
+import { getEffectiveLimits } from './usageLimitService.js';
 
 // Wire format of POST /session/:id/action. Kept for compatibility: older clients send
 // legacy aliases (ownerCharId, targetCharId, 'use item').
@@ -203,7 +203,7 @@ export const validateTurnAction = (
   }
 
   // Item turns count against the namespace turn limit like any other turn.
-  const limits = StateService.getNamespaceLimits(namespaceId ?? 'local');
+  const limits = getEffectiveLimits(namespaceId ?? 'local');
   if (limits.maxTurns !== null && session.turn > limits.maxTurns) {
     return rejectTurnAction(403, { error: 'turn_limit', message: `This session has reached its limit of ${limits.maxTurns} turn(s). The adventure must end here.` });
   }

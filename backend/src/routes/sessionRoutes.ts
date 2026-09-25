@@ -25,6 +25,7 @@ import { acceptSessionOperation, respondToAcceptance, runSessionOperation } from
 import { generateAndCommitInitialTurn } from '../services/initialTurnService.js';
 import { attachTurnImage } from '../services/turnSideEffectService.js';
 import { toPublicSession } from '../services/sessionProjection.js';
+import { getEffectiveLimits } from '../services/usageLimitService.js';
 
 const createSessionBodySchema = z.object({
   worldDescription: z.string().optional(),
@@ -62,7 +63,7 @@ export const createSessionRouter = () => {
   }));
 
   router.post('/session/quick-start', asyncHandler(async (req, res) => {
-    const limits = StateService.getNamespaceLimits(req.namespaceId);
+    const limits = getEffectiveLimits(req.namespaceId);
     if (limits.maxSessions !== null) {
       const count = StateService.countSessionsInNamespace(req.namespaceId);
       if (count >= limits.maxSessions) {
@@ -76,7 +77,7 @@ export const createSessionRouter = () => {
   }));
 
   router.post('/session/instant-start', asyncHandler(async (req, res) => {
-    const limits = StateService.getNamespaceLimits(req.namespaceId);
+    const limits = getEffectiveLimits(req.namespaceId);
     if (limits.maxSessions !== null) {
       const count = StateService.countSessionsInNamespace(req.namespaceId);
       if (count >= limits.maxSessions) {
@@ -135,7 +136,7 @@ export const createSessionRouter = () => {
     const { worldDescription, difficulty, gameMode, dmPrep } = body;
     const adventureFormat = body.adventureFormat ?? 'one_evening';
     try {
-      const limits = StateService.getNamespaceLimits(req.namespaceId);
+      const limits = getEffectiveLimits(req.namespaceId);
       if (limits.maxSessions !== null) {
         const count = StateService.countSessionsInNamespace(req.namespaceId);
         if (count >= limits.maxSessions) {

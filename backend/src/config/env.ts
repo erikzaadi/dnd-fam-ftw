@@ -18,6 +18,8 @@ export type AppConfig = {
   FRONTEND_URL?: string;
   APP_BASE_PATH: string;
   APP_VERSION: string;
+  // Estimated AI spend per UTC day across all namespaces. Unset: no global limit.
+  DAILY_SPEND_LIMIT_USD: number | null;
 };
 
 export type AuthMode = 'disabled' | 'enabled';
@@ -93,6 +95,18 @@ function toOrigin(url: string | undefined): string | null {
   }
 }
 
+function parseOptionalPositiveNumber(name: string): number | null {
+  const raw = process.env[name]?.trim();
+  if (!raw) {
+    return null;
+  }
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`[Config] Invalid ${name}: "${raw}". Must be a positive number.`);
+  }
+  return value;
+}
+
 function parseAuthMode(): AuthMode {
   const raw = process.env.AUTH_MODE?.trim();
   if (!raw) {
@@ -140,6 +154,7 @@ function parse(): AppConfig {
     FRONTEND_URL: process.env.FRONTEND_URL ?? '',
     APP_BASE_PATH: process.env.APP_BASE_PATH ?? '/',
     APP_VERSION: process.env.APP_VERSION ?? 'dev',
+    DAILY_SPEND_LIMIT_USD: parseOptionalPositiveNumber('DAILY_SPEND_LIMIT_USD'),
   };
 }
 

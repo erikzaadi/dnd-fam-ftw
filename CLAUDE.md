@@ -119,7 +119,7 @@ Routes with a session id should use `registerSessionIdParam()` so missing sessio
 
 `StateService.deleteSession()` deletes all S3/local turn images and character avatars before deleting DB rows.
 
-Per-namespace session/turn limits (NULL = unlimited): see `MANAGE.md`.
+Usage tiers (`free` | `supporter` | `unlimited`) and daily text/picture budgets live in `services/usageLimitService.ts`; per-namespace session/turn overrides (NULL = tier default): see `MANAGE.md`. Every AI provider request is recorded in `provider_usage` by the SDK fetch in `providers/ai/usageRecordingFetch.ts`, attributed via `lib/usageContext.ts`.
 
 ## Management CLI
 
