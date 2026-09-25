@@ -11,8 +11,9 @@ export interface JwtPayload {
   type?: JwtType;
   // Stable user binding for full sessions. Older full tokens have no userId.
   userId?: string;
-  // Issued-at (seconds), set by jsonwebtoken.
+  // Issued-at and expiry (seconds), set by jsonwebtoken.
   iat?: number;
+  exp?: number;
 }
 
 export interface GoogleIdentity {
@@ -112,7 +113,7 @@ export async function exchangeCodeForIdentity(code: string, codeVerifier: string
 export function signJwt(payload: JwtPayload, shortLived: boolean = false): string {
   const config = getConfig();
   // Never copy a previous token's iat/exp into a new token.
-  const { iat: _iat, ...claims } = payload;
+  const { iat: _iat, exp: _exp, ...claims } = payload;
   return jwt.sign(claims, config.JWT_SECRET!, { expiresIn: shortLived ? '10m' : '30d' });
 }
 

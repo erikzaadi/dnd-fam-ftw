@@ -26,10 +26,11 @@ const authenticate = (token?: string) => {
   const req = { cookies: token ? { jwt: token } : {} } as Request;
   const status = vi.fn().mockReturnThis();
   const json = vi.fn();
-  const res = { status, json } as unknown as Response;
+  const cookie = vi.fn();
+  const res = { status, json, cookie } as unknown as Response;
   const next = vi.fn();
   authMiddleware(req, res, next);
-  return { req, status, json, next };
+  return { req, status, json, cookie, next };
 };
 
 const expectRejected = (result: ReturnType<typeof authenticate>) => {
@@ -143,6 +144,23 @@ describe('authMiddleware', () => {
   it('rejects a legacy email-only token issued before the account was created', () => {
     vi.mocked(userRepository.getUserCreatedAt).mockReturnValue('2999-01-01 00:00:00');
     expectRejected(authenticate(sign(fullPayload)));
+  });
+
+  it('refreshes a session with less than a week left, bound to the user id', () => {
+    const exp = Math.floor(Date.now() / 1000) + 2 * 24 * 60 * 60;
+    const result = authenticate(sign({ ...fullPayload, exp }));
+    expect(result.next).toHaveBeenCalledOnce();
+    expect(result.cookie).toHaveBeenCalledOnce();
+    const [name, token] = result.cookie.mock.calls[0] as [string, string];
+    expect(name).toBe('jwt');
+    const refreshed = jwt.verify(token, 'middleware-auth-test-secret') as { userId: string; exp: number };
+    expect(refreshed.userId).toBe('user-1');
+    expect(refreshed.exp).toBeGreaterThan(exp);
+  });
+
+  it('does not refresh a session with more than a week left', () => {
+    const exp = Math.floor(Date.now() / 1000) + 20 * 24 * 60 * 60;
+    expect(authenticate(sign({ ...fullPayload, exp })).cookie).not.toHaveBeenCalled();
   });
 
   it('preserves explicitly auth-disabled local behavior without querying users', () => {

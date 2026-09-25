@@ -15,6 +15,8 @@ const backendEnv = [
   'LOCAL_IMAGE_PUBLIC_BASE_URL=/test-images',
   'IMAGE_STORAGE_PROVIDER=local',
   'TEST_AI_MOCK=true',
+  // Explicit: a JWT_SECRET left in the root .env must not switch these runs to login mode.
+  'AUTH_MODE=disabled',
   'OPENAI_API_KEY=readme-screenshots-key',
   `PORT=${BACKEND_PORT}`,
 ].join(' ');

@@ -1314,6 +1314,8 @@ export const SessionPage = () => {
             { key: 'next number', action: 'Focus custom action input' },
             { key: 'u', action: 'Unleash the typed action' },
             { key: 'g', action: 'Give me ideas' },
+            { key: 'd', action: 'Ask the DM (the typed question, without taking a turn)' },
+            { key: 'o', action: 'Help someone (open / close)' },
             { key: 'Esc / z', action: 'Undo an action that is about to be sent' },
             { key: 'v', action: 'Start voice action' },
             { key: 'i', action: 'Open inventory' },

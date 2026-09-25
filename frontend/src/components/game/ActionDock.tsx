@@ -212,6 +212,12 @@ export const ActionDock = ({
   // its turn and revision are current.
   const [askLoading, setAskLoading] = useState(false);
   const [askError, setAskError] = useState<string | null>(null);
+  // Tapping "Ask the DM" with an empty box explains where the question goes.
+  const [askHint, setAskHint] = useState(false);
+  // "Help someone" panel, also opened with the o shortcut (which focuses its first option).
+  const [helpOpen, setHelpOpen] = useState(false);
+  const helpFocusPendingRef = useRef(false);
+  const helpRef = useRef<HTMLDivElement>(null);
   const [dmAnswer, setDmAnswer] = useState<AskDmPayload | null>(null);
   if (ideasTurnId !== turn?.id) {
     setIdeasTurnId(turn?.id);
@@ -343,6 +349,24 @@ export const ActionDock = ({
       setAskError(result.message);
     }
   }, [customAction, latestTurnId, revision, sessionId, setCustomAction]);
+  // Ask the DM from the button or the d shortcut. With an empty box, point to it instead.
+  const requestAsk = useCallback(() => {
+    if (!customAction.trim()) {
+      setAskHint(true);
+      textareaRef.current?.focus();
+      return;
+    }
+    setAskHint(false);
+    void askTheDm();
+  }, [askTheDm, customAction]);
+
+  useEffect(() => {
+    if (helpOpen && helpFocusPendingRef.current) {
+      helpFocusPendingRef.current = false;
+      helpRef.current?.querySelector<HTMLButtonElement>('[role="group"] button:not(:disabled)')?.focus();
+    }
+  }, [helpOpen]);
+
   const visibleAnswer = dmAnswer && dmAnswer.turnId === turn?.id && dmAnswer.revision === (revision ?? 0) ? dmAnswer : null;
 
   const startOverClarification = useCallback(() => {
@@ -537,12 +561,23 @@ export const ActionDock = ({
           e.preventDefault();
           void askForIdeas(false);
         }
+      } else if (e.key.toLowerCase() === 'd') {
+        if (!clarification && !askLoading && !pendingSend && !statThinking && !previewThinking && latestTurnId !== undefined) {
+          e.preventDefault();
+          requestAsk();
+        }
+      } else if (e.key.toLowerCase() === 'o') {
+        if (!pendingSend && !statThinking && !previewThinking) {
+          e.preventDefault();
+          helpFocusPendingRef.current = !helpOpen;
+          setHelpOpen(!helpOpen);
+        }
       }
     };
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [askForIdeas, choices, customAction, customActionShortcut, ideasLoading, latestTurnId, loading, isDown, onShowPartyGear, pendingSend, previewThinking, statThinking, submitCustomText, toggleSpeech]);
+  }, [askForIdeas, askLoading, choices, clarification, customAction, customActionShortcut, helpOpen, ideasLoading, latestTurnId, loading, isDown, onShowPartyGear, pendingSend, previewThinking, requestAsk, statThinking, submitCustomText, toggleSpeech]);
 
   const submitCustom = async () => {
     await submitCustomText(customAction);
@@ -829,18 +864,19 @@ export const ActionDock = ({
                 </button>
               </div>
               {!clarification && (
-                <Tooltip content="Ask a question about the scene without taking a turn" position="top" portal wrapperClassName="inline-flex self-end">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void askTheDm();
-                    }}
-                    disabled={askLoading || loading || statThinking || previewThinking || !!pendingSend || !customAction.trim() || turn?.id === undefined}
-                    className="min-h-11 px-2 text-sm font-bold text-sky-300 underline underline-offset-2 hover:text-sky-200 disabled:opacity-40"
-                  >
-                    {askLoading ? 'The DM is answering...' : 'Ask the DM instead'}
-                  </button>
-                </Tooltip>
+                <div className="relative self-end">
+                  <ShortcutBadge keyLabel="d" description="Ask the DM" />
+                  <Tooltip content="Ask a question about the scene without taking a turn" position="top" portal wrapperClassName="inline-flex">
+                    <button
+                      type="button"
+                      onClick={requestAsk}
+                      disabled={askLoading || loading || statThinking || previewThinking || !!pendingSend || turn?.id === undefined}
+                      className="min-h-11 px-2 text-sm font-bold text-sky-300 underline underline-offset-2 hover:text-sky-200 disabled:opacity-40"
+                    >
+                      {askLoading ? 'The DM is answering...' : 'Ask the DM instead'}
+                    </button>
+                  </Tooltip>
+                </div>
               )}
               {visibleAnswer && (
                 <div role="status" className="rounded-xl border border-sky-500/40 bg-sky-500/10 p-3">
@@ -856,6 +892,9 @@ export const ActionDock = ({
                   </button>
                 </div>
               )}
+              {askHint && !customAction.trim() && !clarification && (
+                <p role="status" className="text-sm text-sky-200">Type your question in the box above, then tap Ask the DM.</p>
+              )}
               {askError && (
                 <div role="status" className="rounded-xl border border-rose-700/40 bg-rose-950/30 px-3 py-2 text-sm text-rose-200">
                   {askError}
@@ -863,14 +902,19 @@ export const ActionDock = ({
               )}
             </div>
 
-            <HelpSomeone
-              party={party}
-              activeCharacterId={activeCharacter?.id}
-              disabled={loading || statThinking || previewThinking || !!pendingSend}
-              onBless={onBless}
-              onAid={onAid}
-              onRally={onRally}
-            />
+            <div ref={helpRef} className="relative">
+              <ShortcutBadge keyLabel="o" description="Help someone" />
+              <HelpSomeone
+                open={helpOpen}
+                onOpenChange={setHelpOpen}
+                party={party}
+                activeCharacterId={activeCharacter?.id}
+                disabled={loading || statThinking || previewThinking || !!pendingSend}
+                onBless={onBless}
+                onAid={onAid}
+                onRally={onRally}
+              />
+            </div>
 
             {/* Ideas: suggestions on request */}
             {choices.length === 0 && turn?.id !== undefined && (

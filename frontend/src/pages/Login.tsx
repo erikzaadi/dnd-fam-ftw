@@ -10,7 +10,7 @@ import type { EmailSignInErrorResponse, EmailSignInStartResponse } from '../type
 const ERROR_MESSAGES: Record<string, string> = {
   unauthorized: "That account isn't on the guest list. Ask the DM to add you.",
   oauth: "Google sign-in didn't finish. Please try again.",
-  use_email_code: 'To create an account with that address, sign in with an email code first.',
+  use_email_code: 'New here? Create your account with an email code first. After that, Google sign-in works too.',
 };
 
 const startErrorMessage = (body: EmailSignInErrorResponse | null): string => {

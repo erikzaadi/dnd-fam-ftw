@@ -10,6 +10,8 @@ export const HelpSomeone = ({
   onBless,
   onAid,
   onRally,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   party: Character[];
   activeCharacterId: string | undefined;
@@ -17,8 +19,17 @@ export const HelpSomeone = ({
   onBless?: (targetCharacterId: string) => void;
   onAid?: (targetCharacterId: string) => void;
   onRally?: () => void;
+  // Optional control from the parent (keyboard shortcut).
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) => {
-  const [open, setOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = controlledOpen ?? localOpen;
+  const setOpen = (next: boolean | ((prev: boolean) => boolean)) => {
+    const value = typeof next === 'function' ? next(open) : next;
+    setLocalOpen(value);
+    onOpenChange?.(value);
+  };
   const allies = party.filter(c => c.id !== activeCharacterId && c.status !== 'downed');
   const canHelpAlly = !!(onBless || onAid) && allies.length > 0;
   if (!onRally && !canHelpAlly) {

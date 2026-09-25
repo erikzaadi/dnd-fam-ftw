@@ -59,17 +59,13 @@ export function resolveVerifiedSignIn(email: string, method: SignInMethod, now: 
   return { kind: 'full', userId, email: canonical, namespaceId, created: true };
 }
 
-// Google is authoritative for its own consumer addresses. Other addresses on a Google
-// account must prove the mailbox with an email code before an account is created.
-export function isGoogleAuthoritativeEmail(email: string): boolean {
-  const domain = canonicalEmail(email).split('@')[1];
-  return domain === 'gmail.com' || domain === 'googlemail.com';
-}
-
+// Google signs in existing accounts only. New accounts are always created by an email
+// code first; after that, Google works for the same address. With signup closed (invite
+// only, paused, or capped), unknown Google users get the invite-request flow as before.
 export function resolveGoogleSignIn(email: string, now: Date = new Date()): SignInOutcome | { kind: 'use-email-code' } {
   const db = getDb();
   return db.transaction(() => {
-    if (!userRepository.getUserByEmail(email) && canCreateAccounts(now) && !isGoogleAuthoritativeEmail(email)) {
+    if (!userRepository.getUserByEmail(email) && canCreateAccounts(now)) {
       return { kind: 'use-email-code' as const };
     }
     return resolveVerifiedSignIn(email, 'google', now);

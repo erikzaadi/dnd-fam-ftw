@@ -17,7 +17,32 @@ import { imgSrc } from '../lib/api';
 import { computeChoiceOdds } from '../lib/game';
 import { isDropQuestionCommand } from '../lib/previewAction';
 import { currentIdeas } from '../lib/ideas';
-import type { Choice, Session } from '../types';
+import type { Choice, FreeActionPreview, Session } from '../types';
+
+// A clean preview is sent after a short Undo window; previews with warnings (claimed
+// outcomes, missing items, riddle answers, a failed preview) or gear still wait for
+// 'confirm'. 'confirm on' makes every action wait, per viewer.
+const TERMINAL_ALWAYS_CONFIRM_KEY = 'dnd-fam-ftw:terminal:always-confirm';
+const TERMINAL_AUTO_SEND_DELAY_MS = 3000;
+
+const loadTerminalAlwaysConfirm = (): boolean => {
+  try {
+    return window.localStorage.getItem(TERMINAL_ALWAYS_CONFIRM_KEY) === 'true';
+  } catch {
+    return false;
+  }
+};
+
+const saveTerminalAlwaysConfirm = (value: boolean): void => {
+  try {
+    window.localStorage.setItem(TERMINAL_ALWAYS_CONFIRM_KEY, String(value));
+  } catch {
+    // Preference just won't persist.
+  }
+};
+
+const previewNeedsConfirm = (preview: FreeActionPreview, alwaysConfirm: boolean): boolean =>
+  alwaysConfirm || (preview.warnings?.length ?? 0) > 0 || !!preview.itemAction;
 
 
 interface TerminalEntry {
@@ -54,6 +79,21 @@ export const TerminalMode: React.FC = () => {
   const [actionPreviewText, setActionPreviewText] = useState<string | null>(null);
   const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
   const [isFullscreenMode, setIsFullscreenMode] = useState(false);
+
+  const [alwaysConfirm, setAlwaysConfirm] = useState(loadTerminalAlwaysConfirm);
+  const alwaysConfirmRef = useRef(alwaysConfirm);
+  // The Undo window of an auto-sent action, and the send function the timer calls.
+  const autoSendTimerRef = useRef<number | null>(null);
+  const sendPreviewRef = useRef<(preview: FreeActionPreview) => Promise<void>>(async () => {});
+
+  const cancelAutoSend = useCallback(() => {
+    if (autoSendTimerRef.current !== null) {
+      window.clearTimeout(autoSendTimerRef.current);
+      autoSendTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => cancelAutoSend, [cancelAutoSend]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -107,6 +147,7 @@ export const TerminalMode: React.FC = () => {
   } = useCarSessionRuntime({
     sessionId: id || '',
     onTurnComplete: (updatedSession, turn) => {
+      cancelAutoSend();
       setActionPreviewText(null);
       clearPreview();
 
@@ -166,10 +207,20 @@ export const TerminalMode: React.FC = () => {
           addLogEntry('system', `Warning: ${w}`);
         });
       }
-      addLogEntry('system', `Type 'confirm' to execute, 'cancel' to abort, or 'retry [action]' to change.`);
+      cancelAutoSend();
+      if (previewNeedsConfirm(preview, alwaysConfirmRef.current)) {
+        addLogEntry('system', `Type 'confirm' to execute, 'cancel' to abort, or 'retry [action]' to change.`);
+      } else {
+        addLogEntry('system', `Sending in ${TERMINAL_AUTO_SEND_DELAY_MS / 1000}s... type 'cancel' or press [Esc] to undo.`);
+        autoSendTimerRef.current = window.setTimeout(() => {
+          autoSendTimerRef.current = null;
+          void sendPreviewRef.current(preview);
+        }, TERMINAL_AUTO_SEND_DELAY_MS);
+      }
       shouldScrollRef.current = true;
     },
     onClarification: (question) => {
+      cancelAutoSend();
       setActionPreviewText(null);
       addLogEntry('system', `The DM asks: ${question}`);
       addLogEntry('system', `Type your answer, or 'cancel' to start over.`);
@@ -181,6 +232,31 @@ export const TerminalMode: React.FC = () => {
       shouldScrollRef.current = true;
     },
   });
+
+  const sendPreview = useCallback(async (preview: FreeActionPreview) => {
+    cancelAutoSend();
+    addLogEntry('system', 'Sending action to backend...');
+    setActionPreviewText(null);
+    clearPreview();
+    try {
+      await submitAction(
+        preview.interpretedAction,
+        preview.stat,
+        preview.difficulty,
+        preview.difficultyValue ?? null,
+        null,
+        null,
+        null
+      );
+    } catch {
+      addLogEntry('error', 'Action execution failed.');
+    }
+    shouldScrollRef.current = true;
+  }, [addLogEntry, cancelAutoSend, clearPreview, submitAction]);
+
+  useEffect(() => {
+    sendPreviewRef.current = sendPreview;
+  }, [sendPreview]);
 
   useEffect(() => {
     if (prevEncounterStatus) {
@@ -317,6 +393,18 @@ export const TerminalMode: React.FC = () => {
       return;
     }
 
+    const confirmToggle = trimmedCommand.toLowerCase().match(/^confirm (on|off)$/);
+    if (confirmToggle) {
+      const value = confirmToggle[1] === 'on';
+      setAlwaysConfirm(value);
+      alwaysConfirmRef.current = value;
+      saveTerminalAlwaysConfirm(value);
+      addLogEntry('system', value
+        ? "Confirm mode on: every action waits for 'confirm'."
+        : 'Confirm mode off: actions are sent after a short undo window.');
+      return;
+    }
+
     const intent = parseSpeechIntent(trimmedCommand);
 
     // An open DM question: the next line answers it ("yes" and "no" included), unless it
@@ -356,28 +444,12 @@ export const TerminalMode: React.FC = () => {
     if (actionPreviewText) {
       if (intent.type === 'confirm') {
         if (actionPreview) {
-          addLogEntry('system', 'Sending action to backend...');
-          const preview = actionPreview;
-          setActionPreviewText(null);
-          clearPreview();
-
-          try {
-            await submitAction(
-              preview.interpretedAction,
-              preview.stat,
-              preview.difficulty,
-              preview.difficultyValue ?? null,
-              null,
-              null,
-              null
-            );
-          } catch {
-            addLogEntry('error', 'Action execution failed.');
-          }
+          await sendPreview(actionPreview);
         } else {
           addLogEntry('system', 'Interpretation still in progress, please wait.');
         }
       } else if (intent.type === 'cancel') {
+        cancelAutoSend();
         addLogEntry('system', 'Action cancelled.');
         setActionPreviewText(null);
         clearPreview();
@@ -389,6 +461,7 @@ export const TerminalMode: React.FC = () => {
             ? intent.text
             : '';
 
+        cancelAutoSend();
         if (newText) {
           addLogEntry('system', `Retrying action: "${newText}"...`);
           setActionPreviewText(newText);
@@ -400,7 +473,9 @@ export const TerminalMode: React.FC = () => {
           clearPreview();
         }
       } else {
-        addLogEntry('system', "Waiting for confirmation. Type 'confirm', 'cancel', or 'retry [new action]'.");
+        addLogEntry('system', autoSendTimerRef.current !== null
+          ? "Sending in a moment. Type 'cancel' to undo, or 'confirm' to send now."
+          : "Waiting for confirmation. Type 'confirm', 'cancel', or 'retry [new action]'.");
       }
       return;
     }
@@ -425,6 +500,7 @@ export const TerminalMode: React.FC = () => {
       addLogEntry('system', '  ideas / options   - Ask the DM for ideas (or list the current ones)');
       addLogEntry('system', '  [1-4]             - Pick a numbered idea, once ideas are shown');
       addLogEntry('system', '  ask dm [question] - Ask the DM about the scene without taking a turn');
+      addLogEntry('system', `  confirm on / off  - Always wait for 'confirm' before sending (now ${alwaysConfirm ? 'on' : 'off'})`);
       addLogEntry('system', '  gear / inventory  - Inspect party and character inventory items');
       addLogEntry('system', '  status / info     - Show active character details and current scene state');
       addLogEntry('system', '  party / members   - View HP and state of all characters');
@@ -484,7 +560,7 @@ export const TerminalMode: React.FC = () => {
     } else {
       addLogEntry('system', 'Unknown command. Type "help" for a list of valid commands.');
     }
-  }, [addLogEntry, actionPreviewText, actionPreview, clearPreview, submitAction, submitChoice, history, previewAction, session, wrapUpAdventure, endAdventure, clarification, clearClarification, ideas, requestIdeas]);
+  }, [addLogEntry, actionPreviewText, actionPreview, alwaysConfirm, cancelAutoSend, clearPreview, sendPreview, submitChoice, history, previewAction, session, wrapUpAdventure, endAdventure, clarification, clearClarification, ideas, requestIdeas]);
 
   const handleHelp = useCallback(() => {
     void executeCommand('help');
@@ -505,6 +581,7 @@ export const TerminalMode: React.FC = () => {
         if (activeImageUrl) {
           setActiveImageUrl(null);
         } else if (actionPreviewText) {
+          cancelAutoSend();
           addLogEntry('system', 'Action cancelled.');
           setActionPreviewText(null);
           clearPreview();
@@ -530,7 +607,7 @@ export const TerminalMode: React.FC = () => {
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [id, navigate, inputValue, actionPreviewText, activeImageUrl, ideas, session, clearPreview, addLogEntry, toggleFullscreenMode, handleCarMode, handleHelp, handleClear]);
+  }, [id, navigate, inputValue, actionPreviewText, activeImageUrl, ideas, session, cancelAutoSend, clearPreview, addLogEntry, toggleFullscreenMode, handleCarMode, handleHelp, handleClear]);
 
   // Sync fullscreen change events with local state and output log notices
   useEffect(() => {
@@ -772,7 +849,7 @@ export const TerminalMode: React.FC = () => {
               onChange={e => setInputValue(e.target.value)}
               onKeyDown={handleInputKeyDown}
               disabled={loading || connectionState !== 'connected'}
-              placeholder={actionPreviewText ? "Type confirm, cancel or retry..." : clarification ? "Type your answer, or cancel..." : "What do you try? (or type 'ideas')"}
+              placeholder={actionPreviewText ? "Type cancel to undo, or confirm..." : clarification ? "Type your answer, or cancel..." : "What do you try? (or type 'ideas')"}
               aria-label="Terminal command"
               className="flex-1 bg-transparent text-emerald-400 font-mono border-none outline-none focus:ring-0 text-base md:text-lg crt-input"
               autoFocus

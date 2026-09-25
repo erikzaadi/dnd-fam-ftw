@@ -217,6 +217,108 @@ describe('TerminalMode', () => {
     );
   });
 
+  describe('auto-send', () => {
+    const cleanPreview: FreeActionPreview = {
+      originalAction: 'kick the door',
+      interpretedAction: 'Kick the door open',
+      stat: 'might',
+      difficulty: 'normal',
+      difficultyValue: 10,
+      warnings: [],
+    };
+
+    const previewArrives = (preview: FreeActionPreview) => {
+      vi.mocked(useCarSessionRuntime).mockImplementation(({ onPreviewReady }) => {
+        capturedOnPreviewReady = onPreviewReady;
+        return {
+          session: mockSession,
+          history: mockHistory,
+          loading: false,
+          actionError: null,
+          connectionState: 'connected',
+          prevEncounterStatus: 'none',
+          submitAction: mockSubmitAction,
+          submitChoice: mockSubmitChoice,
+          previewAction: mockPreviewAction,
+          actionPreview: preview,
+          clearPreview: mockClearPreview,
+          previewThinking: false,
+          ideas: mockHistory[0].choices,
+          requestIdeas: mockRequestIdeas,
+        } as unknown as ReturnType<typeof useCarSessionRuntime>;
+      });
+      act(() => {
+        capturedOnPreviewReady?.(preview);
+      });
+    };
+
+    const typeCommand = (value: string) => {
+      const input = screen.getByLabelText('Terminal command');
+      fireEvent.change(input, { target: { value } });
+      fireEvent.submit(input.closest('form')!);
+    };
+
+    it('sends a clean preview after the undo window', () => {
+      vi.useFakeTimers();
+      try {
+        renderComponent();
+        typeCommand('kick the door');
+        previewArrives(cleanPreview);
+        expect(screen.getByText(/Sending in 3s/i)).toBeInTheDocument();
+        expect(mockSubmitAction).not.toHaveBeenCalled();
+        act(() => {
+          vi.advanceTimersByTime(3000);
+        });
+        expect(mockSubmitAction).toHaveBeenCalledWith('Kick the door open', 'might', 'normal', 10, null, null, null);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('cancel during the undo window stops the send', () => {
+      vi.useFakeTimers();
+      try {
+        renderComponent();
+        typeCommand('kick the door');
+        previewArrives(cleanPreview);
+        typeCommand('cancel');
+        act(() => {
+          vi.advanceTimersByTime(5000);
+        });
+        expect(screen.getByText(/Action cancelled/i)).toBeInTheDocument();
+        expect(mockSubmitAction).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('waits for confirm when the preview has warnings, or with confirm mode on', () => {
+      vi.useFakeTimers();
+      try {
+        renderComponent();
+        typeCommand('kick the door');
+        previewArrives({ ...cleanPreview, warnings: ['The dragon is already asleep.'] });
+        act(() => {
+          vi.advanceTimersByTime(5000);
+        });
+        expect(mockSubmitAction).not.toHaveBeenCalled();
+        typeCommand('cancel');
+
+        typeCommand('confirm on');
+        expect(screen.getByText(/Confirm mode on/i)).toBeInTheDocument();
+        typeCommand('kick the door');
+        previewArrives(cleanPreview);
+        act(() => {
+          vi.advanceTimersByTime(5000);
+        });
+        expect(mockSubmitAction).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+        window.localStorage.removeItem('dnd-fam-ftw:terminal:always-confirm');
+      }
+    });
+  });
+
   it('handles Ctrl+L to clear screen', () => {
     renderComponent();
 

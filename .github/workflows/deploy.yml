@@ -228,7 +228,9 @@ jobs:
           S3_IMAGE_PREFIX=generated/
           S3_IMAGE_PUBLIC_BASE_URL=https://$FRONTEND_DOMAIN
 
-          # Auth
+          # Auth. Email, signup, and usage settings (EMAIL_PROVIDER, EMAIL_FROM,
+          # SIGNUP_MODE, SUPPORT_URL, DAILY_SPEND_LIMIT_USD, ...) are SSM parameters.
+          AUTH_MODE=enabled
           FRONTEND_URL=https://$FRONTEND_DOMAIN
           GOOGLE_CALLBACK_URL=https://$API_DOMAIN/auth/google/callback
           APPENV

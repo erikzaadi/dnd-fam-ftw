@@ -108,7 +108,8 @@ When enabled:
 - `SIGNUP_MODE=invite_only`: only pre-registered emails (`npm run cli -- users add <email>`) can log in; others get the invite-request flow. `open`: a verified email gets a private `free` namespace (`services/signupService.ts`, one transaction with the challenge and the signup notice in `email_outbox`)
 - `ADMIN_EMAIL` auto-creates that user on startup
 - JWT stored as HttpOnly cookie; `req.namespaceId` + `req.userEmail` attached by `authMiddleware`
-- JWT `type` field: `full` | `pending-namespace` | `pending-invite` | `invite-requested`. New full tokens carry `userId`; email-only full tokens are accepted only for accounts created before the token was issued
+- JWT `type` field: `full` | `pending-namespace` | `pending-invite` | `invite-requested`. New full tokens carry `userId`; email-only full tokens are accepted only for accounts created before the token was issued. `authMiddleware` re-issues the 30-day full cookie when less than 7 days are left (sliding session)
+- Google sign-in never creates accounts (`resolveGoogleSignIn`): new accounts come from an email code first
 - Google OAuth uses a browser-bound `state` + PKCE cookie (`oauth_google`) and requires `email_verified`
 - CORS allows only the `FRONTEND_URL` / `GOOGLE_CALLBACK_URL` origins (plus localhost outside production); state-changing `/auth/*` POSTs also check `Origin`. `trust proxy` is `loopback` (nginx)
 

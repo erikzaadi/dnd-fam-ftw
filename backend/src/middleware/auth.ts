@@ -3,6 +3,11 @@ import { verifyJwt, JwtPayload } from '../services/authService.js';
 import { isAuthEnabled } from '../config/env.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { runWithUsageContext } from '../lib/usageContext.js';
+import { setFullAuthCookie } from '../routes/authCookies.js';
+
+// Sliding session: an active player whose login has less than this left gets a fresh
+// 30-day cookie, so only people who stop playing have to sign in again.
+const REFRESH_WITHIN_SECONDS = 7 * 24 * 60 * 60;
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -43,6 +48,13 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   if (!user || !userRepository.getUserNamespaces(user.email).some(namespace => namespace.id === payload.namespaceId)) {
     res.status(401).json({ error: 'Invalid or expired session' });
     return;
+  }
+
+  if (typeof payload.exp === 'number' && payload.exp - Date.now() / 1000 < REFRESH_WITHIN_SECONDS) {
+    // Re-issued with userId, which also upgrades older email-only tokens.
+    setFullAuthCookie(res, { email: user.email, namespaceId: payload.namespaceId, type: 'full', userId: user.id }, {
+      isProduction: process.env.NODE_ENV === 'production',
+    });
   }
 
   req.namespaceId = payload.namespaceId;

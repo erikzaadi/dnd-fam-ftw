@@ -74,8 +74,8 @@ describe('Login', () => {
     expect(mocks.navigate).not.toHaveBeenCalled();
   });
 
-  it('asks non-Gmail Google users to use an email code', () => {
+  it('asks new Google users to create their account with an email code', () => {
     renderLogin('/login?error=use_email_code');
-    expect(screen.getByText('To create an account with that address, sign in with an email code first.')).toBeTruthy();
+    expect(screen.getByText('New here? Create your account with an email code first. After that, Google sign-in works too.')).toBeTruthy();
   });
 });

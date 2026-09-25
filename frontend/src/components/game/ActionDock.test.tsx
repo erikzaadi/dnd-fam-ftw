@@ -661,4 +661,38 @@ describe('ActionDock Ask the DM', () => {
     expect(await screen.findByText('Lots of questions already!')).toBeInTheDocument();
     expect(setCustomAction).not.toHaveBeenCalled();
   });
+
+  it('asks the typed question with the d shortcut', async () => {
+    mocks.apiFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ turnId: 7, revision: 3, question: 'Is the door locked?', answer: 'It is, but the hinges are rusty.' }),
+    });
+    renderDock({ turn: ASK_TURN, customAction: 'Is the door locked?', revision: 3 });
+
+    await userEvent.keyboard('d');
+
+    expect(await screen.findByText('It is, but the hinges are rusty.')).toBeInTheDocument();
+  });
+
+  it('opens Help someone with the o shortcut and focuses its first option', async () => {
+    const onRally = vi.fn();
+    renderDock({ turn: ASK_TURN, onRally });
+
+    await userEvent.keyboard('o');
+
+    const rally = await screen.findByRole('button', { name: /Rally everyone/ });
+    expect(rally).toHaveFocus();
+    await userEvent.keyboard('o');
+    expect(screen.queryByRole('button', { name: /Rally everyone/ })).not.toBeInTheDocument();
+  });
+
+  it('stays clickable with an empty box and explains where the question goes', async () => {
+    renderDock({ turn: ASK_TURN, customAction: '', revision: 3 });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Ask the DM instead' }));
+
+    expect(screen.getByText('Type your question in the box above, then tap Ask the DM.')).toBeInTheDocument();
+    expect(mocks.apiFetch).not.toHaveBeenCalled();
+  });
 });

@@ -175,7 +175,7 @@ Operator notification emails (currently "New adventurer signed up", sent to `SIG
 | `SIGNUP_NOTIFY_EMAIL` | Where new-signup and "ask for more" notices go (defaults to `ADMIN_EMAIL`). |
 | `SUPPORT_URL` | Donation page (https, e.g. `https://ko-fi.com/<you>`) behind the "Support the realm" button in Your Realm. Unset hides the button. |
 
-Email sign-in sends an 8-digit code valid for 10 minutes, usable only in the browser that asked for it, 5 attempts per code, 60 seconds between resends, 5 sends per address and 20 per IP per hour. Google sign-in creates new accounts only for `gmail.com`/`googlemail.com` addresses; other Google-account addresses are asked to use an email code first. New signups are also paused while `DAILY_SPEND_LIMIT_USD` is exceeded.
+Email sign-in sends an 8-digit code valid for 10 minutes, usable only in the browser that asked for it, 5 attempts per code, 60 seconds between resends, 5 sends per address and 20 per IP per hour. Google sign-in never creates accounts: new players create their account with an email code first, after which "Continue with Google" works for the same address. Login cookies last 30 days and are renewed automatically when a signed-in player uses the app with less than a week left. New signups are also paused while `DAILY_SPEND_LIMIT_USD` is exceeded.
 
 ---
 
@@ -336,7 +336,7 @@ Checks that the API health endpoint and frontend are reachable after a deploy.
 
 ### deploy-backend.sh
 
-Builds the backend locally, rsyncs the `dist/` output to the instance, pulls secrets from SSM, writes the app env file, and restarts the systemd service. Called by CI but can be run manually.
+Manual backend deploy: builds the backend locally, rsyncs the `dist/` output to the instance, pulls parameters from SSM, writes the app env file, and restarts the systemd service. CI does not call it; `.github/workflows/deploy.yml` builds and writes `app.env` itself, from the same SSM parameters.
 
 ```bash
 ./scripts/deploy/deploy-backend.sh
@@ -376,12 +376,56 @@ These run once during initial infrastructure setup. Not needed for day-to-day op
 
 ### Email sign-in (SES) setup
 
-1. Update the Terraform user's policy with the new `SESManagement` statement in `terraform/terraform-iam-policy.json` (re-run `./scripts/create-terraform-user.sh` or update the policy in the console).
-2. Set `mail_domain` (e.g. `mail.yourdomain.com`) in `terraform/terraform.tfvars` and `terraform apply`. This creates the SES domain identity with Easy DKIM, a custom MAIL FROM (`bounce.<mail_domain>`) with MX/SPF, a DMARC record, account-level suppression for bounces and complaints, and `ses:SendEmail` for the app IAM user scoped to that identity.
-3. In the SES console for `aws_region`, wait for the identity to show as verified, then **request production access** (the sandbox only sends to verified addresses).
-4. Once production access is granted, set `EMAIL_SIGN_IN=true` in `scripts/deploy/.env.deploy` and deploy the backend. `EMAIL_FROM` comes from the `email_from` Terraform output.
-5. Smoke test: `./scripts/deploy/dnd-fam-ftw-prod-cli email-outbox send-test <address>` to a Gmail, an Outlook, and a non-Google custom-domain mailbox. Check spam placement and DKIM/SPF/DMARC pass in the headers. Then sign in with an email code from a fresh browser.
-6. To open signup: set `SIGNUP_MODE=open` (and optionally `SIGNUP_DAILY_CAP`, `DAILY_SPEND_LIMIT_USD`) in `.env.deploy` and deploy. Roll back by setting `SIGNUP_MODE=invite_only` again; email and Google sign-in keep working for existing accounts.
+Email, signup, and usage settings are **SSM parameters** under the SSM prefix (default `/dnd-fam-ftw/prod`). Both the CI deploy (`.github/workflows/deploy.yml`) and `deploy-backend.sh` append every parameter under that prefix to `app.env`, so SSM is the single source for them. Never create one with a placeholder value: an invalid value (e.g. `EMAIL_PROVIDER=PLACEHOLDER`) stops the new release from starting and the deploy rolls back.
+
+| SSM parameter | Value |
+| --- | --- |
+| `EMAIL_PROVIDER` | `ses` (absent = no email sign-in) |
+| `EMAIL_FROM` | `terraform output -raw email_from` |
+| `SIGNUP_MODE` | `invite_only` (default when absent) or `open` |
+| `SUPPORT_URL` | optional, e.g. `https://ko-fi.com/<you>` |
+| `DAILY_SPEND_LIMIT_USD` | optional, e.g. `3` |
+| `SIGNUP_DAILY_CAP` | optional, default 25 |
+| `SIGNUP_NOTIFY_EMAIL` | optional, default `ADMIN_EMAIL` |
+
+`AUTH_MODE=enabled` is written by the deploy itself; `SES_REGION` falls back to the deploy's `AWS_REGION`.
+
+1. **Terraform user permissions.** Re-run `./scripts/create-terraform-user.sh <admin-profile>` so the Terraform user gets the `SESManagement` statement from `terraform/terraform-iam-policy.json`. Existing keys stay valid.
+2. **Infrastructure.** Set `mail_domain` (e.g. `mail.yourdomain.com`, under `hosted_zone_name`) in `terraform/terraform.tfvars`, then:
+   ```bash
+   cd terraform
+   export AWS_PROFILE=dnd-fam-ftw-terraform
+   terraform init
+   terraform plan -out ses.plan    # expect module.email[0] creates + in-place app user policy update, no destroys
+   terraform apply ses.plan
+   terraform output -raw email_from
+   ```
+   This creates the SES domain identity with Easy DKIM, a custom MAIL FROM (`bounce.<mail_domain>`) with MX/SPF, a DMARC record, account-level suppression for bounces and complaints, and `ses:SendEmail` for the app IAM user scoped to that identity.
+3. **Wait for verification** (`<region>` = `aws_region` from `terraform.tfvars`):
+   ```bash
+   aws sesv2 get-email-identity --region <region> --email-identity mail.yourdomain.com \
+     --query '{Sending:VerifiedForSendingStatus,Dkim:DkimAttributes.Status}'
+   ```
+4. **Production access** (once per region, needs an admin profile; the Terraform user cannot request it):
+   ```bash
+   AWS_PROFILE=<admin-profile> aws sesv2 put-account-details --region <region> \
+     --production-access-enabled --mail-type TRANSACTIONAL \
+     --website-url https://app.yourdomain.com --contact-language EN \
+     --use-case-description "One-time sign-in codes for a small family game, sent only on request, plus occasional owner notices. No marketing."
+   aws sesv2 get-account --region <region> --query '{Production:ProductionAccessEnabled,Review:Details.ReviewDetails.Status,Quota:SendQuota}'
+   ```
+   Wait for `Production: true` (the sandbox only sends to verified addresses).
+5. **Enable email sign-in** (signup stays invite-only):
+   ```bash
+   P=/dnd-fam-ftw/prod
+   aws ssm put-parameter --region <region> --type String --name $P/EMAIL_PROVIDER --value ses
+   aws ssm put-parameter --region <region> --type String --name $P/EMAIL_FROM --value "$(cd terraform && terraform output -raw email_from)"
+   aws ssm put-parameter --region <region> --type String --name $P/SUPPORT_URL --value https://ko-fi.com/<you>        # optional
+   aws ssm put-parameter --region <region> --type String --name $P/DAILY_SPEND_LIMIT_USD --value 3                    # optional
+   ```
+   Then deploy the backend: the Deploy workflow via workflow_dispatch with `force_backend` (SSM changes are not detected as code changes), or a version tag.
+6. **Smoke test:** `./scripts/deploy/dnd-fam-ftw-prod-cli email-outbox send-test <address>` to a Gmail, an Outlook, and a non-Google custom-domain mailbox. Check spam placement and DKIM/SPF/DMARC pass in the headers. Then sign in with an email code from a fresh browser.
+7. **Open signup:** `aws ssm put-parameter --region <region> --type String --overwrite --name $P/SIGNUP_MODE --value open` (create without `--overwrite` the first time) and force a backend deploy. Roll back with `--value invite_only` and another deploy; email and Google sign-in keep working for existing accounts.
 
 ---
 
