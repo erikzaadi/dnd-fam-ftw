@@ -14,6 +14,7 @@ _dnd_subcommands() {
     sessions)        echo "list nuke seed export import" ;;
     metrics)         echo "usage narration" ;;
     invite-requests) echo "list approve clear" ;;
+    email-outbox)    echo "list retry" ;;
     *)               echo "" ;;
   esac
 }
@@ -21,7 +22,7 @@ _dnd_subcommands() {
 # Subcommands that support --json / -j output
 _dnd_supports_json() {
   case "$1/$2" in
-    users/list|namespaces/list|namespaces/sessions|sessions/list|metrics/|metrics/usage|metrics/narration|invite-requests/list) return 0 ;;
+    users/list|namespaces/list|namespaces/sessions|sessions/list|metrics/|metrics/usage|metrics/narration|invite-requests/list|email-outbox/list) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -36,6 +37,7 @@ _dnd_flags() {
     metrics/narration) echo "--format= --csv --failed-only --namespace= --session= --since=" ;;
     namespaces/set-limits) echo "--max-sessions= --max-turns=" ;;
     invite-requests/approve) echo "--namespace=" ;;
+    email-outbox/list) echo "--status=" ;;
     *) echo "" ;;
   esac
 }
@@ -59,7 +61,7 @@ _dnd_complete() {
 
   if [[ -z "$resource" ]]; then
     # shellcheck disable=SC2207
-    COMPREPLY=($(compgen -W "users namespaces sessions metrics invite-requests" -- "$cur"))
+    COMPREPLY=($(compgen -W "users namespaces sessions metrics invite-requests email-outbox" -- "$cur"))
   elif [[ -z "$subcommand" ]]; then
     # shellcheck disable=SC2207
     COMPREPLY=($(compgen -W "$(_dnd_subcommands "$resource")" -- "$cur"))

@@ -2,11 +2,15 @@ import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
-import { getConfig, isAllowedOrigin, isAuthEnabled, isGoogleAuthConfigured } from '../config/env.js';
+import { getConfig, isAllowedOrigin, isAuthEnabled, isEmailAuthEnabled, isGoogleAuthConfigured } from '../config/env.js';
+import { resendEmailCode, startEmailSignIn, verifyEmailCode } from '../services/emailAuthService.js';
+import { dispatchOutbox } from '../services/emailService.js';
+import { resolveGoogleSignIn, type SignInOutcome } from '../services/signupService.js';
 import { authMiddleware, requirePendingInviteToken, requirePendingNamespaceToken } from '../middleware/auth.js';
 import { buildGoogleAuthUrl, createOAuthState, createPkcePair, exchangeCodeForIdentity, getAuthPublicConfig, safeEqual } from '../services/authService.js';
 import { StateService } from '../services/stateService.js';
 import {
+  EMAIL_CHALLENGE_COOKIE,
   clearAllAuthCookies,
   clearOAuthCookie,
   clearPendingAuthCookies,
@@ -14,9 +18,16 @@ import {
   setFullAuthCookie,
   setOAuthCookie,
   setPendingInviteCookie,
+  setEmailChallengeCookie,
   setPendingNamespaceCookie,
 } from './authCookies.js';
-import type { AuthMeResponse } from '../types.js';
+import type {
+  AuthMeResponse,
+  EmailSignInErrorResponse,
+  EmailSignInResendResponse,
+  EmailSignInStartResponse,
+  EmailSignInVerifyResponse,
+} from '../types.js';
 import { parseBody } from './routeValidation.js';
 
 interface AuthRoutesOptions {
@@ -29,6 +40,19 @@ const selectNamespaceBodySchema = z.object({
 
 const requestInviteBodySchema = z.object({
   message: z.string().optional(),
+});
+
+const emailStartBodySchema = z.object({
+  email: z.string().max(320),
+});
+
+const emailVerifyBodySchema = z.object({
+  challengeId: z.string().min(1).max(64),
+  code: z.string().max(32),
+});
+
+const emailResendBodySchema = z.object({
+  challengeId: z.string().min(1).max(64),
 });
 
 export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
@@ -47,6 +71,115 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
     next();
   };
   router.post('/auth/*path', requireAllowedOrigin);
+
+  // Shared by Google and email sign-in: issue the right cookie for a verified email
+  // and return where the app should go next.
+  const completeSignIn = (res: Response, outcome: SignInOutcome): EmailSignInVerifyResponse['next'] => {
+    if (outcome.kind === 'pick-namespace') {
+      setPendingNamespaceCookie(res, { email: outcome.email, namespaceId: '', type: 'pending-namespace' }, { isProduction });
+      return '/namespace-picker';
+    }
+    if (outcome.kind === 'invite') {
+      console.warn(`[Auth] Sign-in without an account (signup ${config.SIGNUP_MODE}): ${outcome.email}`);
+      const type = outcome.alreadyRequested ? 'invite-requested' : 'pending-invite';
+      setPendingInviteCookie(res, { email: outcome.email, namespaceId: '', type }, { isProduction });
+      return '/request-invite';
+    }
+    StateService.recordLogin(outcome.email);
+    clearPendingAuthCookies(res);
+    setFullAuthCookie(res, { email: outcome.email, namespaceId: outcome.namespaceId, type: 'full', userId: outcome.userId }, { isProduction });
+    if (outcome.created) {
+      void dispatchOutbox();
+    }
+    return '/';
+  };
+
+  const emailError = (res: Response, status: number, body: EmailSignInErrorResponse) => {
+    res.status(status).json(body);
+  };
+
+  const requireEmailAuth = (_req: Request, res: Response, next: NextFunction) => {
+    if (!isEmailAuthEnabled()) {
+      res.status(404).json({ error: 'Email sign-in not configured' });
+      return;
+    }
+    next();
+  };
+
+  router.post('/auth/email/start', requireEmailAuth, asyncHandler(async (req, res) => {
+    const body = parseBody(req, res, emailStartBodySchema);
+    if (!body) {
+      return;
+    }
+    const result = await startEmailSignIn(body.email, req.ip ?? 'unknown');
+    if (result.status === 'invalid_email') {
+      emailError(res, 400, { error: 'invalid_email' });
+      return;
+    }
+    if (result.status === 'rate_limited') {
+      emailError(res, 429, { error: 'rate_limited', retryAfterSeconds: result.retryAfterSeconds });
+      return;
+    }
+    if (result.status === 'unavailable') {
+      emailError(res, 503, { error: 'email_unavailable' });
+      return;
+    }
+    setEmailChallengeCookie(res, result.browserToken, { isProduction });
+    const response: EmailSignInStartResponse = {
+      challengeId: result.challengeId,
+      maskedEmail: result.maskedEmail,
+      resendAfterSeconds: result.resendAfterSeconds,
+      expiresInSeconds: result.expiresInSeconds,
+    };
+    res.status(202).json(response);
+  }));
+
+  router.post('/auth/email/verify', requireEmailAuth, (req, res) => {
+    const body = parseBody(req, res, emailVerifyBodySchema);
+    if (!body) {
+      return;
+    }
+    const browserToken = (req.cookies as Record<string, string> | undefined)?.[EMAIL_CHALLENGE_COOKIE];
+    const result = verifyEmailCode(body.challengeId, body.code, browserToken, req.ip ?? 'unknown');
+    if (result.status === 'invalid_code') {
+      emailError(res, 400, { error: 'invalid_code', attemptsLeft: result.attemptsLeft });
+      return;
+    }
+    if (result.status === 'rate_limited') {
+      emailError(res, 429, { error: 'rate_limited', retryAfterSeconds: result.retryAfterSeconds });
+      return;
+    }
+    if (result.status === 'expired') {
+      emailError(res, 410, { error: 'expired' });
+      return;
+    }
+    res.clearCookie(EMAIL_CHALLENGE_COOKIE, { path: '/' });
+    const response: EmailSignInVerifyResponse = { next: completeSignIn(res, result.outcome) };
+    res.json(response);
+  });
+
+  router.post('/auth/email/resend', requireEmailAuth, asyncHandler(async (req, res) => {
+    const body = parseBody(req, res, emailResendBodySchema);
+    if (!body) {
+      return;
+    }
+    const browserToken = (req.cookies as Record<string, string> | undefined)?.[EMAIL_CHALLENGE_COOKIE];
+    const result = await resendEmailCode(body.challengeId, browserToken, req.ip ?? 'unknown');
+    if (result.status === 'expired') {
+      emailError(res, 410, { error: 'expired' });
+      return;
+    }
+    if (result.status === 'rate_limited') {
+      emailError(res, 429, { error: 'rate_limited', retryAfterSeconds: result.retryAfterSeconds });
+      return;
+    }
+    if (result.status === 'unavailable') {
+      emailError(res, 503, { error: 'email_unavailable' });
+      return;
+    }
+    const response: EmailSignInResendResponse = { resendAfterSeconds: result.resendAfterSeconds, expiresInSeconds: result.expiresInSeconds };
+    res.json(response);
+  }));
 
   router.get('/auth/config', (_req, res) => {
     res.json(getAuthPublicConfig());
@@ -105,35 +238,13 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
       res.redirect(loginErrorUrl());
       return;
     }
-    const user = StateService.getUserByEmail(email);
-    const frontendUrl = config.FRONTEND_URL ?? '';
-    const basePath = config.APP_BASE_PATH;
-  
-    if (!user) {
-      // User is a real Google account but not registered - issue pending-invite or invite-requested JWT
-      console.warn(`[Auth] Login denied for unregistered email: ${email}`);
-      const alreadyRequested = StateService.hasInviteRequest(email);
-      const jwtType = alreadyRequested ? 'invite-requested' : 'pending-invite';
-      setPendingInviteCookie(res, { email, namespaceId: '', type: jwtType }, { isProduction });
-      res.redirect(`${frontendUrl}${basePath}request-invite`);
+    const outcome = resolveGoogleSignIn(email);
+    if (outcome.kind === 'use-email-code') {
+      res.redirect(`${config.FRONTEND_URL ?? ''}${config.APP_BASE_PATH}login?error=use_email_code`);
       return;
     }
-  
-    const namespaces = StateService.getUserNamespaces(email);
-    console.log(`[Auth] Login for ${email}: found ${namespaces.length} namespace(s): ${namespaces.map(n => n.name).join(', ')}`);
-    if (namespaces.length > 1) {
-      // User has multiple namespaces - issue pending-namespace JWT and show picker
-      setPendingNamespaceCookie(res, { email, namespaceId: '', type: 'pending-namespace' }, { isProduction });
-      res.redirect(`${frontendUrl}${basePath}namespace-picker`);
-      return;
-    }
-  
-    const namespaceId = namespaces[0]?.id ?? user.namespace_id;
-    StateService.recordLogin(email);
-    clearPendingAuthCookies(res);
-    setFullAuthCookie(res, { email: user.email, namespaceId, type: 'full', userId: user.id }, { isProduction });
-  
-    res.redirect(`${frontendUrl}${basePath}`);
+    const next = completeSignIn(res, outcome);
+    res.redirect(`${config.FRONTEND_URL ?? ''}${config.APP_BASE_PATH}${next.slice(1)}`);
   }));
   
   router.post('/auth/logout', (_req, res) => {

@@ -1,5 +1,6 @@
 import { createId } from '../lib/ids.js';
 import { getDb } from '../persistence/database.js';
+import { canonicalEmail } from '../lib/email.js';
 
 export type UserRecord = {
   id: string;
@@ -18,7 +19,7 @@ export type UserListItem = UserRecord & {
 export const userRepository = {
   getUserByEmail(email: string): UserRecord | null {
     const db = getDb();
-    return (db.prepare('SELECT id, email, namespace_id, role FROM users WHERE email = ?').get(email) as UserRecord) ?? null;
+    return (db.prepare('SELECT id, email, namespace_id, role FROM users WHERE email_canonical = ?').get(canonicalEmail(email)) as UserRecord) ?? null;
   },
 
   getUserById(id: string): (UserRecord & { created_at: string }) | null {
@@ -27,26 +28,35 @@ export const userRepository = {
   },
 
   getUserCreatedAt(email: string): string | null {
-    const row = getDb().prepare('SELECT created_at FROM users WHERE email = ?').get(email) as { created_at: string } | undefined;
+    const row = getDb().prepare('SELECT created_at FROM users WHERE email_canonical = ?').get(canonicalEmail(email)) as { created_at: string } | undefined;
     return row?.created_at ?? null;
   },
 
-  createUser(email: string, namespaceName?: string, role: string = 'member'): { userId: string; namespaceId: string } {
+  // User + private namespace + membership in one transaction. Callers that need more
+  // in the same transaction (self-service signup) wrap this in their own; SQLite nests
+  // it as a savepoint.
+  createUser(email: string, namespaceName?: string, role: string = 'member', tier: string = 'unlimited'): { userId: string; namespaceId: string } {
     const db = getDb();
     const namespaceId = createId();
     const userId = createId();
-    const nsName = namespaceName ?? email.split('@')[0];
-    db.prepare('INSERT INTO namespaces (id, name) VALUES (?, ?)').run(namespaceId, nsName);
-    db.prepare('INSERT INTO users (id, email, namespace_id, role) VALUES (?, ?, ?, ?)').run(userId, email, namespaceId, role);
-    db.prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(userId, namespaceId);
+    const nsName = namespaceName ?? email.trim().split('@')[0];
+    db.transaction(() => {
+      db.prepare('INSERT INTO namespaces (id, name, tier) VALUES (?, ?, ?)').run(namespaceId, nsName, tier);
+      db.prepare('INSERT INTO users (id, email, email_canonical, namespace_id, role) VALUES (?, ?, ?, ?, ?)')
+        .run(userId, email.trim(), canonicalEmail(email), namespaceId, role);
+      db.prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(userId, namespaceId);
+    })();
     return { userId, namespaceId };
   },
 
   createUserInExistingNamespace(email: string, namespaceId: string, role: string = 'member'): { userId: string; namespaceId: string } {
     const db = getDb();
     const userId = createId();
-    db.prepare('INSERT INTO users (id, email, namespace_id, role) VALUES (?, ?, ?, ?)').run(userId, email, namespaceId, role);
-    db.prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(userId, namespaceId);
+    db.transaction(() => {
+      db.prepare('INSERT INTO users (id, email, email_canonical, namespace_id, role) VALUES (?, ?, ?, ?, ?)')
+        .run(userId, email.trim(), canonicalEmail(email), namespaceId, role);
+      db.prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(userId, namespaceId);
+    })();
     return { userId, namespaceId };
   },
 
@@ -79,7 +89,7 @@ export const userRepository = {
 
   recordLogin(email: string): void {
     const db = getDb();
-    db.prepare('UPDATE users SET lastLogin = CURRENT_TIMESTAMP WHERE email = ?').run(email);
+    db.prepare('UPDATE users SET lastLogin = CURRENT_TIMESTAMP WHERE email_canonical = ?').run(canonicalEmail(email));
   },
 
   deleteUser(email: string): boolean {
@@ -88,15 +98,23 @@ export const userRepository = {
     if (!user) {
       return false;
     }
-    db.prepare('DELETE FROM users WHERE email = ?').run(email);
-    // Remove namespace if no other users reference it (and it's not 'local').
-    if (user.namespace_id !== 'local') {
-      const otherUsers = db.prepare('SELECT COUNT(*) as count FROM users WHERE namespace_id = ?').get(user.namespace_id) as { count: number };
-      if (otherUsers.count === 0) {
-        db.prepare('DELETE FROM namespace_settings WHERE namespace_id = ?').run(user.namespace_id);
-        db.prepare('DELETE FROM namespaces WHERE id = ?').run(user.namespace_id);
+    // All-or-nothing, and nothing left behind that could bind to a later account
+    // with the same email (sign-in codes, pending signup notices).
+    db.transaction(() => {
+      db.prepare('DELETE FROM user_namespaces WHERE user_id = ?').run(user.id);
+      db.prepare('DELETE FROM users WHERE id = ?').run(user.id);
+      db.prepare('DELETE FROM auth_email_challenges WHERE email_canonical = ?').run(canonicalEmail(email));
+      db.prepare("UPDATE email_outbox SET status = 'cancelled' WHERE event_key = ? AND status = 'pending'").run(`signup:${user.id}`);
+      // Remove namespace if no other users reference it (and it's not 'local').
+      if (user.namespace_id !== 'local') {
+        const otherUsers = db.prepare('SELECT COUNT(*) as count FROM users WHERE namespace_id = ?').get(user.namespace_id) as { count: number };
+        if (otherUsers.count === 0) {
+          db.prepare('DELETE FROM user_namespaces WHERE namespace_id = ?').run(user.namespace_id);
+          db.prepare('DELETE FROM namespace_settings WHERE namespace_id = ?').run(user.namespace_id);
+          db.prepare('DELETE FROM namespaces WHERE id = ?').run(user.namespace_id);
+        }
       }
-    }
+    })();
     return true;
   },
 
@@ -113,9 +131,9 @@ export const userRepository = {
       FROM namespaces n
       JOIN user_namespaces un ON un.namespace_id = n.id
       JOIN users u ON u.id = un.user_id
-      WHERE u.email = ?
+      WHERE u.email_canonical = ?
       ORDER BY n.created_at
-    `).all(email) as { id: string; name: string }[];
+    `).all(canonicalEmail(email)) as { id: string; name: string }[];
   },
 
   addUserToNamespace(userId: string, namespaceId: string): void {

@@ -493,6 +493,32 @@ export interface AuthConfigResponse {
   };
 }
 
+// POST /auth/email/start (202)
+export interface EmailSignInStartResponse {
+  challengeId: string;
+  maskedEmail: string;
+  resendAfterSeconds: number;
+  expiresInSeconds: number;
+}
+
+// POST /auth/email/resend (200)
+export interface EmailSignInResendResponse {
+  resendAfterSeconds: number;
+  expiresInSeconds: number;
+}
+
+// POST /auth/email/verify (200): where the app should go next, relative to its base path.
+export interface EmailSignInVerifyResponse {
+  next: '/' | '/namespace-picker' | '/request-invite';
+}
+
+// Error bodies from the /auth/email/* endpoints.
+export interface EmailSignInErrorResponse {
+  error: 'invalid_email' | 'invalid_code' | 'expired' | 'rate_limited' | 'email_unavailable';
+  attemptsLeft?: number;
+  retryAfterSeconds?: number;
+}
+
 // GET /auth/me
 export interface AuthMeResponse {
   enabled: boolean;

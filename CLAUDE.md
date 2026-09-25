@@ -104,7 +104,8 @@ Optional - `AUTH_MODE=disabled|enabled` in `.env`. Unset, it is `enabled` when a
 
 When enabled:
 - Set `GOOGLE_CALLBACK_URL` (local dev: `http://localhost:5173/api/auth/google/callback`)
-- Only pre-registered emails (`npm run users add <email>`) can log in
+- Sign-in providers: Google OAuth and/or passwordless email codes (`EMAIL_PROVIDER=ses|capture`, see `services/emailAuthService.ts`). Emails are matched by `users.email_canonical` (trimmed, lowercased; `lib/email.ts`)
+- `SIGNUP_MODE=invite_only`: only pre-registered emails (`npm run cli -- users add <email>`) can log in; others get the invite-request flow. `open`: a verified email gets a private `free` namespace (`services/signupService.ts`, one transaction with the challenge and the signup notice in `email_outbox`)
 - `ADMIN_EMAIL` auto-creates that user on startup
 - JWT stored as HttpOnly cookie; `req.namespaceId` + `req.userEmail` attached by `authMiddleware`
 - JWT `type` field: `full` | `pending-namespace` | `pending-invite` | `invite-requested`. New full tokens carry `userId`; email-only full tokens are accepted only for accounts created before the token was issued

@@ -20,7 +20,17 @@ export type AppConfig = {
   APP_VERSION: string;
   // Estimated AI spend per UTC day across all namespaces. Unset: no global limit.
   DAILY_SPEND_LIMIT_USD: number | null;
+  // Email: sign-in codes and operator notifications. 'none' disables email sign-in.
+  EMAIL_PROVIDER: EmailProviderName;
+  EMAIL_FROM?: string;
+  SES_REGION?: string;
+  // Keyed hash for sign-in codes. Unset: derived from JWT_SECRET.
+  EMAIL_CODE_HMAC_SECRET?: string;
+  // New-signup notices go here. Defaults to ADMIN_EMAIL.
+  SIGNUP_NOTIFY_EMAIL?: string;
 };
+
+export type EmailProviderName = 'none' | 'ses' | 'capture';
 
 export type AuthMode = 'disabled' | 'enabled';
 export type SignupMode = 'invite_only' | 'open';
@@ -36,6 +46,19 @@ export function getConfig(): AppConfig {
 
 export function isAuthEnabled(): boolean {
   return getConfig().AUTH_MODE === 'enabled';
+}
+
+export function isEmailConfigured(): boolean {
+  const c = getConfig();
+  if (c.EMAIL_PROVIDER === 'capture') {
+    return true;
+  }
+  return c.EMAIL_PROVIDER === 'ses' && !!c.EMAIL_FROM && !!c.SES_REGION;
+}
+
+// Email sign-in needs auth enabled and a working email provider.
+export function isEmailAuthEnabled(): boolean {
+  return isAuthEnabled() && isEmailConfigured();
 }
 
 export function isGoogleAuthConfigured(): boolean {
@@ -63,8 +86,22 @@ export function assertAuthConfig(isProduction: boolean): void {
   if (partialGoogle) {
     throw new Error('[Config] Google sign-in needs GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_CALLBACK_URL.');
   }
-  if (!isGoogleAuthConfigured()) {
-    throw new Error('[Config] AUTH_MODE=enabled requires at least one sign-in provider (Google). Set AUTH_MODE=disabled for local play without login.');
+  if (c.EMAIL_PROVIDER === 'ses' && !isEmailConfigured()) {
+    throw new Error('[Config] EMAIL_PROVIDER=ses needs EMAIL_FROM and SES_REGION (or AWS_REGION).');
+  }
+  if (c.EMAIL_PROVIDER === 'capture' && isProduction) {
+    throw new Error('[Config] EMAIL_PROVIDER=capture only prints mail and is not allowed in production.');
+  }
+  if (!isGoogleAuthConfigured() && !isEmailConfigured()) {
+    throw new Error('[Config] AUTH_MODE=enabled requires at least one sign-in provider (Google or email). Set AUTH_MODE=disabled for local play without login.');
+  }
+  if (c.SIGNUP_MODE === 'open') {
+    if (!isEmailConfigured()) {
+      throw new Error('[Config] SIGNUP_MODE=open requires email (EMAIL_PROVIDER) for verification and signup notices.');
+    }
+    if (!c.SIGNUP_NOTIFY_EMAIL) {
+      throw new Error('[Config] SIGNUP_MODE=open requires SIGNUP_NOTIFY_EMAIL or ADMIN_EMAIL for new-signup notices.');
+    }
   }
 }
 
@@ -93,6 +130,17 @@ function toOrigin(url: string | undefined): string | null {
   } catch {
     return null;
   }
+}
+
+function parseEmailProvider(): EmailProviderName {
+  const raw = process.env.EMAIL_PROVIDER?.trim();
+  if (!raw) {
+    return 'none';
+  }
+  if (raw !== 'none' && raw !== 'ses' && raw !== 'capture') {
+    throw new Error(`[Config] Invalid EMAIL_PROVIDER: "${raw}". Must be "none", "ses", or "capture".`);
+  }
+  return raw;
 }
 
 function parseOptionalPositiveNumber(name: string): number | null {
@@ -155,6 +203,11 @@ function parse(): AppConfig {
     APP_BASE_PATH: process.env.APP_BASE_PATH ?? '/',
     APP_VERSION: process.env.APP_VERSION ?? 'dev',
     DAILY_SPEND_LIMIT_USD: parseOptionalPositiveNumber('DAILY_SPEND_LIMIT_USD'),
+    EMAIL_PROVIDER: parseEmailProvider(),
+    EMAIL_FROM: process.env.EMAIL_FROM?.trim() || undefined,
+    SES_REGION: process.env.SES_REGION?.trim() || process.env.AWS_REGION || undefined,
+    EMAIL_CODE_HMAC_SECRET: process.env.EMAIL_CODE_HMAC_SECRET || undefined,
+    SIGNUP_NOTIFY_EMAIL: process.env.SIGNUP_NOTIFY_EMAIL?.trim() || process.env.ADMIN_EMAIL?.trim() || undefined,
   };
 }
 

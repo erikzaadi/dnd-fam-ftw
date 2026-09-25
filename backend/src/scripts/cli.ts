@@ -14,6 +14,7 @@
  *   metrics         [--json] [--since <ISO date>] | usage [--json] [--since <ISO date>] [--namespace <id>]
  *                   | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]
  *   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
+ *   email-outbox    list [--status <s>] [--json] | retry <id>
  */
 
 import path from 'path';
@@ -28,6 +29,7 @@ import Database from 'libsql';
 import { StateService } from '../services/stateService.js';
 import { StorySummaryService } from '../services/storySummaryService.js';
 import { getConfig } from '../config/env.js';
+import { emailOutboxRepository, type EmailOutboxStatus } from '../repositories/emailOutboxRepository.js';
 import { USAGE_TIERS, getEffectiveLimits, isUsageTier, tierLabel } from '../services/usageLimitService.js';
 
 const [, , resource, subcommand, ...rest] = process.argv;
@@ -1070,6 +1072,55 @@ invite-requests <sub-command>
   break;
 }
 
+// ── email-outbox ──────────────────────────────────────────────────────────────
+
+case 'email-outbox': {
+  switch (subcommand) {
+  case 'list': {
+    const statusArg = parseArgValue(allArgs.find(a => a === '--status' || a.startsWith('--status=')));
+    if (statusArg && !['pending', 'sent', 'failed', 'cancelled'].includes(statusArg)) {
+      fail('Usage: cli email-outbox list [--status pending|sent|failed|cancelled] [--json]');
+    }
+    const rows = emailOutboxRepository.list(statusArg as EmailOutboxStatus | undefined)
+      .map(({ text_body: _text, html_body: _html, ...row }) => row);
+    if (jsonMode) {
+      process.stdout.write(JSON.stringify(rows, null, 2) + '\n');
+    } else if (rows.length === 0) {
+      console.log('No notification emails found.');
+    } else {
+      console.table(rows.map(row => ({
+        id: row.id,
+        event: row.event_key,
+        to: row.recipient,
+        status: row.status,
+        attempts: row.attempts,
+        created: row.created_at,
+        error: row.last_error ?? '',
+      })));
+    }
+    break;
+  }
+  case 'retry': {
+    const id = Number(positional[0]);
+    if (!Number.isInteger(id)) {
+      fail('Usage: cli email-outbox retry <id>');
+    }
+    if (!emailOutboxRepository.requeue(id, Date.now())) {
+      fail(`No failed notification with id ${id}.`);
+    }
+    console.log(`Requeued notification ${id}. The running backend sends it within a few minutes.`);
+    break;
+  }
+  default:
+    console.log(`
+email-outbox <sub-command>
+  list [--status pending|sent|failed|cancelled] [--json]  Show operator notification emails (e.g. new signups)
+  retry <id>                                               Requeue a failed notification
+`);
+  }
+  break;
+}
+
 // ── default ───────────────────────────────────────────────────────────────────
 
 default:
@@ -1086,6 +1137,7 @@ Resources:
   sessions        list [--json] | nuke | seed | export | import
   metrics         [--json] [--since <ISO date>] | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]
   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
+  email-outbox    list [--status <s>] [--json] | retry <id>
 
 Run cli <resource> for sub-command help.
 

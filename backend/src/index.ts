@@ -6,9 +6,11 @@ dotenv.config({ path: path.join(import.meta.dirname, '../../.env') });
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import { assertAuthConfig, getConfig, getTurnStrategy, isAllowedOrigin, isAuthEnabled } from './config/env.js';
+import { assertAuthConfig, getConfig, getTurnStrategy, isAllowedOrigin, isAuthEnabled, isGoogleAuthConfigured } from './config/env.js';
 import { authMiddleware } from './middleware/auth.js';
 import { usageAdmissionMiddleware } from './middleware/usageAdmission.js';
+import { startEmailAuthMaintenance } from './services/emailAuthService.js';
+import { startOutboxDispatcher } from './services/emailService.js';
 import { getImageStorageProvider } from './providers/storage/storageProviderFactory.js';
 import { getOpenAIMaxRetries, getPreviewReasoningEffort } from './providers/ai/openAiClient.js';
 import { StateService } from './services/stateService.js';
@@ -95,10 +97,12 @@ StateService.initialize();
 // explicitly so clients stop waiting and can retry as a new operation.
 reconcileInterruptedOperations();
 if (isAuthEnabled()) {
-  console.log(`[Auth] Enabled (signup: ${config.SIGNUP_MODE}) - Google OAuth callback: ${config.GOOGLE_CALLBACK_URL}`);
+  console.log(`[Auth] Enabled (signup: ${config.SIGNUP_MODE}, google: ${isGoogleAuthConfigured() ? 'on' : 'off'}, email: ${config.EMAIL_PROVIDER})`);
   if (config.ADMIN_EMAIL) {
     StateService.ensureAdminUser(config.ADMIN_EMAIL);
   }
+  startEmailAuthMaintenance();
+  startOutboxDispatcher();
 } else {
   console.log('[Auth] Disabled (AUTH_MODE=disabled) - all requests use the local namespace');
 }

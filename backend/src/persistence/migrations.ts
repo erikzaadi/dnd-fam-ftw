@@ -529,4 +529,64 @@ export const migrate = (db: DB): void => {
   if (!namespaceColsTier.includes('tier')) {
     db.prepare("ALTER TABLE namespaces ADD COLUMN tier TEXT NOT NULL DEFAULT 'unlimited'").run();
   }
+
+  // Canonical (trimmed, lowercased) email for all lookups. Accounts that collide on it
+  // are never merged automatically: startup stops and names them for manual repair.
+  const userColsCanonical = (db.prepare("PRAGMA table_info(users)").all() as { name: string }[]).map(r => r.name);
+  if (!userColsCanonical.includes('email_canonical')) {
+    db.prepare("ALTER TABLE users ADD COLUMN email_canonical TEXT").run();
+  }
+  db.prepare("UPDATE users SET email_canonical = lower(trim(email)) WHERE email_canonical IS NULL").run();
+  const collisions = db.prepare(`
+    SELECT email_canonical, group_concat(id || ' <' || email || '>', ', ') AS accounts
+    FROM users GROUP BY email_canonical HAVING COUNT(*) > 1
+  `).all() as { email_canonical: string; accounts: string }[];
+  if (collisions.length > 0) {
+    const details = collisions.map(c => `${c.email_canonical}: ${c.accounts}`).join('; ');
+    throw new Error(`[Migration] Users share a canonical email and must be merged or removed manually before startup: ${details}`);
+  }
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_canonical ON users(email_canonical);`);
+
+  // Passwordless email sign-in. Codes are stored only as keyed HMACs; the browser that
+  // asked for a code holds a random binding token whose hash is stored here.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS auth_email_challenges (
+      id TEXT PRIMARY KEY,
+      email_canonical TEXT NOT NULL,
+      code_hmac TEXT NOT NULL,
+      browser_hash TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      last_sent_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      consumed_at INTEGER,
+      superseded_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_auth_email_challenges_email ON auth_email_challenges(email_canonical);
+    CREATE INDEX IF NOT EXISTS idx_auth_email_challenges_expires ON auth_email_challenges(expires_at);
+
+    CREATE TABLE IF NOT EXISTS auth_rate_limits (
+      bucket TEXT NOT NULL,
+      window_start INTEGER NOT NULL,
+      count INTEGER NOT NULL,
+      PRIMARY KEY (bucket, window_start)
+    );
+
+    CREATE TABLE IF NOT EXISTS email_outbox (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_key TEXT NOT NULL UNIQUE,
+      recipient TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      text_body TEXT NOT NULL,
+      html_body TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      attempts INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at INTEGER NOT NULL,
+      last_error TEXT,
+      provider_message_id TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      sent_at DATETIME
+    );
+    CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status, next_attempt_at);
+  `);
 };

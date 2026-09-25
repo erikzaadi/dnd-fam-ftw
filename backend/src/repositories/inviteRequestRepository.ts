@@ -1,4 +1,5 @@
 import { getDb } from '../persistence/database.js';
+import { canonicalEmail } from '../lib/email.js';
 
 export type InviteRequest = {
   id: number;
@@ -10,13 +11,13 @@ export type InviteRequest = {
 export const inviteRequestRepository = {
   hasInviteRequest(email: string): boolean {
     const db = getDb();
-    const row = db.prepare('SELECT id FROM invite_requests WHERE email = ?').get(email) as { id: number } | undefined;
+    const row = db.prepare('SELECT id FROM invite_requests WHERE lower(trim(email)) = ?').get(canonicalEmail(email)) as { id: number } | undefined;
     return !!row;
   },
 
   addInviteRequest(email: string, message?: string): void {
     const db = getDb();
-    db.prepare('INSERT OR IGNORE INTO invite_requests (email, message) VALUES (?, ?)').run(email, message ?? null);
+    db.prepare('INSERT OR IGNORE INTO invite_requests (email, message) VALUES (?, ?)').run(canonicalEmail(email), message ?? null);
   },
 
   listInviteRequests(): InviteRequest[] {
@@ -26,7 +27,7 @@ export const inviteRequestRepository = {
 
   removeInviteRequest(email: string): boolean {
     const db = getDb();
-    const result = db.prepare('DELETE FROM invite_requests WHERE email = ?').run(email);
+    const result = db.prepare('DELETE FROM invite_requests WHERE lower(trim(email)) = ?').run(canonicalEmail(email));
     return result.changes > 0;
   },
 

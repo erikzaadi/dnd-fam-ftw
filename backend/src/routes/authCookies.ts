@@ -30,7 +30,13 @@ export const setPendingInviteCookie = (res: Response, payload: JwtPayload, { isP
 };
 
 const OAUTH_COOKIE = 'oauth_google';
-const ALL_AUTH_COOKIES = ['jwt', 'jwt_pending', 'jwt_pending_invite', OAUTH_COOKIE];
+export const EMAIL_CHALLENGE_COOKIE = 'email_challenge';
+const ALL_AUTH_COOKIES = ['jwt', 'jwt_pending', 'jwt_pending_invite', OAUTH_COOKIE, EMAIL_CHALLENGE_COOKIE];
+
+// Binds an email sign-in code to the browser that asked for it. Only a hash is stored.
+export const setEmailChallengeCookie = (res: Response, browserToken: string, { isProduction }: CookieOptions) => {
+  res.cookie(EMAIL_CHALLENGE_COOKIE, browserToken, sessionCookieOptions(TEN_MINUTES_MS + 60 * 1000, isProduction));
+};
 
 // Browser-bound OAuth state and PKCE verifier, consumed once by the callback.
 // SameSite=Lax still sends it on Google's top-level redirect back to the callback.
@@ -54,6 +60,7 @@ export const clearOAuthCookie = (res: Response) => {
 export const clearPendingAuthCookies = (res: Response) => {
   res.clearCookie('jwt_pending', { path: '/' });
   res.clearCookie('jwt_pending_invite', { path: '/' });
+  res.clearCookie(EMAIL_CHALLENGE_COOKIE, { path: '/' });
   clearOAuthCookie(res);
 };
 

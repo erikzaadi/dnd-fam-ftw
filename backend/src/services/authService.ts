@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import { getConfig, isAuthEnabled, isGoogleAuthConfigured } from '../config/env.js';
+import { getConfig, isAuthEnabled, isEmailAuthEnabled, isGoogleAuthConfigured } from '../config/env.js';
 import type { AuthConfigResponse } from '../types.js';
 
 export type JwtType = 'full' | 'pending-namespace' | 'pending-invite' | 'invite-requested';
@@ -28,7 +28,7 @@ export function getAuthPublicConfig(): AuthConfigResponse {
     signupMode: config.SIGNUP_MODE,
     providers: {
       google: enabled && isGoogleAuthConfigured(),
-      email: false,
+      email: isEmailAuthEnabled(),
     },
   };
 }

@@ -129,7 +129,7 @@ The weekly metrics workflow tracks the timestamp of its last run in SSM and pass
 
 ### invite-requests
 
-View and manage invite requests from unregistered Google users.
+View and manage invite requests from people without an account (Google or email sign-in) while `SIGNUP_MODE=invite_only`, or when open signup is paused or at its daily cap.
 
 ```bash
 ./dnd-fam-ftw-cli invite-requests list
@@ -137,6 +137,31 @@ View and manage invite requests from unregistered Google users.
 ./dnd-fam-ftw-cli invite-requests approve <email> [--namespace <name>]   # approve request, creates user + namespace
 ./dnd-fam-ftw-cli invite-requests clear                                   # delete all requests
 ```
+
+### email-outbox
+
+Operator notification emails (currently "New adventurer signed up", sent to `SIGNUP_NOTIFY_EMAIL`, default `ADMIN_EMAIL`). The backend sends them right after signup and retries failures every 3 minutes with backoff, up to 10 attempts. Sign-in codes are sent directly and never stored.
+
+```bash
+./dnd-fam-ftw-cli email-outbox list
+./dnd-fam-ftw-cli email-outbox list --status failed --json
+./dnd-fam-ftw-cli email-outbox retry <id>                                # requeue a failed notification
+```
+
+### Sign-in and signup settings
+
+| Env var | Meaning |
+| --- | --- |
+| `AUTH_MODE` | `disabled` or `enabled` (see README). |
+| `SIGNUP_MODE` | `invite_only` (default) or `open`. Open creates a private `free` namespace for any verified email. Requires email to be configured and a notification mailbox. |
+| `SIGNUP_DAILY_CAP` | Max new self-service accounts per UTC day (default 25). Past the cap, new people get the invite-request flow. |
+| `EMAIL_PROVIDER` | `none` (default, no email sign-in), `ses`, or `capture` (prints mail to the backend log, local development only). |
+| `EMAIL_FROM` | Sender address for SES, e.g. `DnD Fam FTW <no-reply@mail.example.com>`. |
+| `SES_REGION` | SES region (defaults to `AWS_REGION`). |
+| `EMAIL_CODE_HMAC_SECRET` | Key for hashing sign-in codes. Unset: derived from `JWT_SECRET`. |
+| `SIGNUP_NOTIFY_EMAIL` | Where new-signup notices go (defaults to `ADMIN_EMAIL`). |
+
+Email sign-in sends an 8-digit code valid for 10 minutes, usable only in the browser that asked for it, 5 attempts per code, 60 seconds between resends, 5 sends per address and 20 per IP per hour. Google sign-in creates new accounts only for `gmail.com`/`googlemail.com` addresses; other Google-account addresses are asked to use an email code first. New signups are also paused while `DAILY_SPEND_LIMIT_USD` is exceeded.
 
 ---
 
