@@ -14,7 +14,7 @@
  *   metrics         [--json] [--since <ISO date>] | usage [--json] [--since <ISO date>] [--namespace <id>]
  *                   | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]
  *   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
- *   email-outbox    list [--status <s>] [--json] | retry <id>
+ *   email-outbox    list [--status <s>] [--json] | retry <id> | send-test <address>
  */
 
 import path from 'path';
@@ -30,6 +30,7 @@ import { StateService } from '../services/stateService.js';
 import { StorySummaryService } from '../services/storySummaryService.js';
 import { getConfig } from '../config/env.js';
 import { emailOutboxRepository, type EmailOutboxStatus } from '../repositories/emailOutboxRepository.js';
+import { getEmailProvider } from '../providers/email/emailProviderFactory.js';
 import { USAGE_TIERS, getEffectiveLimits, isUsageTier, tierLabel } from '../services/usageLimitService.js';
 
 const [, , resource, subcommand, ...rest] = process.argv;
@@ -1100,6 +1101,28 @@ case 'email-outbox': {
     }
     break;
   }
+  case 'send-test': {
+    const [to] = positional;
+    if (!to) {
+      fail('Usage: cli email-outbox send-test <address>');
+    }
+    const provider = getEmailProvider();
+    if (!provider) {
+      fail('Email is not configured (EMAIL_PROVIDER / EMAIL_FROM / SES_REGION).');
+    }
+    try {
+      const { messageId } = await provider.send({
+        to,
+        subject: 'Test email from dnd-fam-ftw',
+        text: 'If you can read this, email delivery works. Check the headers for DKIM/SPF/DMARC pass and whether it landed in spam.',
+        html: '<p>If you can read this, email delivery works. Check the headers for DKIM/SPF/DMARC pass and whether it landed in spam.</p>',
+      });
+      console.log(`Accepted by the provider (message id: ${messageId ?? 'n/a'}). Acceptance is not proof of inbox delivery.`);
+    } catch (err) {
+      fail(`Send failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    break;
+  }
   case 'retry': {
     const id = Number(positional[0]);
     if (!Number.isInteger(id)) {
@@ -1116,6 +1139,7 @@ case 'email-outbox': {
 email-outbox <sub-command>
   list [--status pending|sent|failed|cancelled] [--json]  Show operator notification emails (e.g. new signups)
   retry <id>                                               Requeue a failed notification
+  send-test <address>                                      Send a test email now through the configured provider
 `);
   }
   break;
@@ -1137,7 +1161,7 @@ Resources:
   sessions        list [--json] | nuke | seed | export | import
   metrics         [--json] [--since <ISO date>] | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]
   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
-  email-outbox    list [--status <s>] [--json] | retry <id>
+  email-outbox    list [--status <s>] [--json] | retry <id> | send-test <address>
 
 Run cli <resource> for sub-command help.
 

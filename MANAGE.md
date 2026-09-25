@@ -146,6 +146,7 @@ Operator notification emails (currently "New adventurer signed up", sent to `SIG
 ./dnd-fam-ftw-cli email-outbox list
 ./dnd-fam-ftw-cli email-outbox list --status failed --json
 ./dnd-fam-ftw-cli email-outbox retry <id>                                # requeue a failed notification
+./dnd-fam-ftw-cli email-outbox send-test you@example.com                  # send a test email now
 ```
 
 ### Sign-in and signup settings
@@ -359,6 +360,15 @@ These run once during initial infrastructure setup. Not needed for day-to-day op
 | `./scripts/install-ubuntu.sh` | Legacy local laptop deploy - installs deps and systemd service on an Ubuntu server |
 | `./scripts/re-deploy.sh` | Legacy local laptop deploy - pushes local changes and restarts the service |
 | `./scripts/sync-to-server.sh` | Legacy local laptop deploy - rsync only, no restart |
+
+### Email sign-in (SES) setup
+
+1. Update the Terraform user's policy with the new `SESManagement` statement in `terraform/terraform-iam-policy.json` (re-run `./scripts/create-terraform-user.sh` or update the policy in the console).
+2. Set `mail_domain` (e.g. `mail.yourdomain.com`) in `terraform/terraform.tfvars` and `terraform apply`. This creates the SES domain identity with Easy DKIM, a custom MAIL FROM (`bounce.<mail_domain>`) with MX/SPF, a DMARC record, account-level suppression for bounces and complaints, and `ses:SendEmail` for the app IAM user scoped to that identity.
+3. In the SES console for `aws_region`, wait for the identity to show as verified, then **request production access** (the sandbox only sends to verified addresses).
+4. Once production access is granted, set `EMAIL_SIGN_IN=true` in `scripts/deploy/.env.deploy` and deploy the backend. `EMAIL_FROM` comes from the `email_from` Terraform output.
+5. Smoke test: `./scripts/deploy/dnd-fam-ftw-prod-cli email-outbox send-test <address>` to a Gmail, an Outlook, and a non-Google custom-domain mailbox. Check spam placement and DKIM/SPF/DMARC pass in the headers. Then sign in with an email code from a fresh browser.
+6. To open signup: set `SIGNUP_MODE=open` (and optionally `SIGNUP_DAILY_CAP`, `DAILY_SPEND_LIMIT_USD`) in `.env.deploy` and deploy. Roll back by setting `SIGNUP_MODE=invite_only` again; email and Google sign-in keep working for existing accounts.
 
 ---
 

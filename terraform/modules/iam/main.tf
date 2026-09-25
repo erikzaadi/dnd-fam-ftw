@@ -47,6 +47,15 @@ data "aws_iam_policy_document" "app" {
     # Note: prefix must not end with /
     resources = ["arn:aws:ssm:*:*:parameter${var.ssm_parameter_prefix}/*"]
   }
+
+  # Sign-in codes and operator notices, only from the app's own sending identity
+  dynamic "statement" {
+    for_each = var.ses_identity_arn == "" ? [] : [var.ses_identity_arn]
+    content {
+      actions   = ["ses:SendEmail"]
+      resources = [statement.value]
+    }
+  }
 }
 
 resource "aws_iam_user_policy" "app" {

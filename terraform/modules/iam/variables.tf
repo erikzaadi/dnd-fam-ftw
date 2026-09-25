@@ -17,3 +17,9 @@ variable "snapshots_bucket_name" {
   description = "S3 snapshots bucket name - used to scope the db-backups IAM policy"
   type        = string
 }
+
+variable "ses_identity_arn" {
+  description = "SES identity the app may send from. Empty: no SES permission."
+  type        = string
+  default     = ""
+}

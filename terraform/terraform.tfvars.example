@@ -21,5 +21,11 @@ db_disk_size_gb        = 8
 # per deploy/renew run using aws lightsail open/close-instance-public-ports.
 
 ssm_parameter_prefix = "/dnd-fam-ftw/prod"
+
+# Email sign-in (SES). Leave empty to skip. After apply, request SES production
+# access for aws_region in the AWS console before enabling email sign-in.
+mail_domain        = "mail.yourdomain.com"
+email_from_name    = "DnD Fam FTW"
+dmarc_report_email = ""
 # Copy this file to terraform.tfvars and fill in your values.
 # terraform.tfvars is gitignored - never commit it.

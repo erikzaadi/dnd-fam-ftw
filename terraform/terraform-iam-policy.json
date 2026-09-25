@@ -216,6 +216,23 @@
         "kms:ListGrants"
       ],
       "Resource": "arn:aws:kms:*:*:alias/aws/ssm"
+    },
+    {
+      "Sid": "SESManagement",
+      "Effect": "Allow",
+      "Action": [
+        "ses:CreateEmailIdentity",
+        "ses:DeleteEmailIdentity",
+        "ses:GetEmailIdentity",
+        "ses:PutEmailIdentityDkimSigningAttributes",
+        "ses:PutEmailIdentityMailFromAttributes",
+        "ses:GetAccount",
+        "ses:PutAccountSuppressionAttributes",
+        "ses:TagResource",
+        "ses:UntagResource",
+        "ses:ListTagsForResource"
+      ],
+      "Resource": "*"
     }
   ]
 }

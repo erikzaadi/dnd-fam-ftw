@@ -67,3 +67,23 @@ variable "ssm_parameter_prefix" {
   type        = string
   default     = "/dnd-fam-ftw/prod"
 }
+
+# --- Email (SES) ---
+
+variable "mail_domain" {
+  description = "Dedicated SES sending domain for sign-in codes and notices (e.g. mail.yourdomain.com). Empty disables the SES module."
+  type        = string
+  default     = ""
+}
+
+variable "email_from_name" {
+  description = "Display name for outgoing email"
+  type        = string
+  default     = "DnD Fam FTW"
+}
+
+variable "dmarc_report_email" {
+  description = "Optional mailbox for DMARC aggregate reports"
+  type        = string
+  default     = ""
+}

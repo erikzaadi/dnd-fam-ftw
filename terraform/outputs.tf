@@ -83,3 +83,8 @@ output "certbot_secret_access_key" {
   value     = module.iam.certbot_secret_access_key
   sensitive = true
 }
+
+# Used as EMAIL_FROM by deploy-backend.sh (empty when SES is not configured)
+output "email_from" {
+  value = var.mail_domain == "" ? "" : "${var.email_from_name} <no-reply@${var.mail_domain}>"
+}

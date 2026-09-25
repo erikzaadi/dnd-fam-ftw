@@ -67,12 +67,22 @@ module "snapshots" {
   bucket_name = var.snapshots_bucket_name
 }
 
+module "email" {
+  count              = var.mail_domain == "" ? 0 : 1
+  source             = "./modules/email"
+  hosted_zone_id     = data.aws_route53_zone.main.zone_id
+  mail_domain        = var.mail_domain
+  aws_region         = var.aws_region
+  dmarc_report_email = var.dmarc_report_email
+}
+
 module "iam" {
   source                = "./modules/iam"
   image_bucket_name     = var.image_bucket_name
   ssm_parameter_prefix  = var.ssm_parameter_prefix
   hosted_zone_id        = data.aws_route53_zone.main.zone_id
   snapshots_bucket_name = var.snapshots_bucket_name
+  ses_identity_arn      = var.mail_domain == "" ? "" : module.email[0].identity_arn
 }
 
 # App IAM credentials - stored in SSM so deploy workflows read them automatically

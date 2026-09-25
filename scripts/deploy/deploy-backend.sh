@@ -67,6 +67,14 @@ SSM_PARAMS=$(aws ssm get-parameters-by-path \
   --query 'Parameters[*].[Name,Value]' \
   --output text)
 
+# Email sign-in is opt-in: set EMAIL_SIGN_IN=true in .env.deploy once SES production
+# access is granted (the SES sandbox cannot send to arbitrary addresses).
+EMAIL_PROVIDER_VALUE=none
+if [[ "${EMAIL_SIGN_IN:-false}" == "true" ]]; then
+  require_var EMAIL_FROM
+  EMAIL_PROVIDER_VALUE=ses
+fi
+
 # Build app.env: static config + secrets from SSM
 APP_ENV=$(cat << ENV
 # Written by deploy-backend.sh on $(date -u +"%Y-%m-%dT%H:%M:%SZ") - do not edit manually
@@ -93,9 +101,18 @@ OPENAI_IMAGE_MODEL=gpt-image-2
 
 # Auth
 AUTH_MODE=enabled
-SIGNUP_MODE=invite_only
+SIGNUP_MODE=${SIGNUP_MODE:-invite_only}
 FRONTEND_URL=https://$FRONTEND_DOMAIN
 GOOGLE_CALLBACK_URL=https://$API_DOMAIN/auth/google/callback
+
+# Email (SES)
+EMAIL_PROVIDER=$EMAIL_PROVIDER_VALUE
+EMAIL_FROM="${EMAIL_FROM:-}"
+SES_REGION=$AWS_REGION
+
+# Usage limits (empty = off)
+DAILY_SPEND_LIMIT_USD=${DAILY_SPEND_LIMIT_USD:-}
+SIGNUP_DAILY_CAP=${SIGNUP_DAILY_CAP:-}
 ENV
 )
 

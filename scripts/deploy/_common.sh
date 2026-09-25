@@ -36,6 +36,7 @@ load_terraform_outputs() {
   FRONTEND_DOMAIN="${FRONTEND_DOMAIN:-$(terraform_output frontend_url | sed 's|https://||')}"
   IMAGE_BUCKET_URL="${IMAGE_BUCKET_URL:-$(terraform_output image_bucket_url)}"
   IMAGE_BUCKET_NAME="${IMAGE_BUCKET_NAME:-$(terraform_output image_bucket_name)}"
+  EMAIL_FROM="${EMAIL_FROM:-$(terraform_output email_from)}"
   AWS_REGION="${AWS_REGION:-eu-west-1}"
   SSM_PREFIX="${SSM_PREFIX:-/dnd-fam-ftw/prod}"
   AWS_PROFILE="${AWS_PROFILE:-dnd-fam-ftw-terraform}"

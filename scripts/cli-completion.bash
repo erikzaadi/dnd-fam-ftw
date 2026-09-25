@@ -14,7 +14,7 @@ _dnd_subcommands() {
     sessions)        echo "list nuke seed export import" ;;
     metrics)         echo "usage narration" ;;
     invite-requests) echo "list approve clear" ;;
-    email-outbox)    echo "list retry" ;;
+    email-outbox)    echo "list retry send-test" ;;
     *)               echo "" ;;
   esac
 }
