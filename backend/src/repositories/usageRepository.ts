@@ -7,7 +7,12 @@ export type TtsUsage = {
 
 export type ProviderUsageRecord = {
   namespaceId: string | null;
+  // The acting user.
   userId: string | null;
+  // The namespace owner when the attempt was dispatched. Rows from before owner
+  // attribution existed have attribution 'legacy_unknown' and no owner.
+  ownerUserId: string | null;
+  attribution: 'verified' | 'system';
   sessionId: string | null;
   kind: 'text' | 'image' | 'tts';
   endpoint: string;
@@ -42,11 +47,11 @@ export const usageRepository = {
   recordProviderUsage(record: ProviderUsageRecord): void {
     getDb().prepare(`
       INSERT INTO provider_usage (
-        namespace_id, user_id, session_id, kind, endpoint, model,
+        namespace_id, user_id, owner_user_id, attribution, session_id, kind, endpoint, model,
         input_tokens, output_tokens, tts_characters, image_count, success, estimated_cost_usd
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      record.namespaceId, record.userId, record.sessionId, record.kind, record.endpoint, record.model,
+      record.namespaceId, record.userId, record.ownerUserId, record.attribution, record.sessionId, record.kind, record.endpoint, record.model,
       record.inputTokens, record.outputTokens, record.ttsCharacters, record.imageCount,
       record.success ? 1 : 0, record.estimatedCostUsd,
     );

@@ -12,7 +12,7 @@ const DB_PATH = path.join(os.tmpdir(), `dnd-usage-limits-test-${Date.now()}.sqli
 const recordCalls = (namespaceId: string, kind: 'text' | 'image' | 'tts', count: number, ttsCharacters: number | null = null) => {
   for (let i = 0; i < count; i++) {
     usageRepository.recordProviderUsage({
-      namespaceId, userId: null, sessionId: null, kind, endpoint: '/test', model: null,
+      namespaceId, userId: null, ownerUserId: null, attribution: 'system', sessionId: null, kind, endpoint: '/test', model: null,
       inputTokens: null, outputTokens: null, ttsCharacters, imageCount: kind === 'image' ? 1 : null,
       success: true, estimatedCostUsd: 0.001,
     });

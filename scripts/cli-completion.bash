@@ -36,7 +36,7 @@ _dnd_flags() {
     sessions/export)  echo "--session= --namespace= --output=" ;;
     sessions/import)  echo "--namespace-id=" ;;
     metrics/)           echo "--since=" ;;
-    metrics/usage)     echo "--since= --namespace=" ;;
+    metrics/usage)     echo "--since= --namespace= --by-owner --owner-user-id=" ;;
     metrics/narration) echo "--format= --csv --failed-only --namespace= --session= --since=" ;;
     namespaces/set-limits) echo "--max-sessions= --max-turns=" ;;
     namespaces/owners) echo "--apply" ;;

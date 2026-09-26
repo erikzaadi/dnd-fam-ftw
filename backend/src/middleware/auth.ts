@@ -3,6 +3,7 @@ import { verifyJwt, JwtPayload } from '../services/authService.js';
 import { isAuthEnabled } from '../config/env.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { runWithUsageContext } from '../lib/usageContext.js';
+import { createUsageContext } from '../services/usageAttribution.js';
 import { setFullAuthCookie } from '../routes/authCookies.js';
 import type { NamespaceAccessLostResponse, NamespaceChangedResponse } from '../types.js';
 
@@ -38,7 +39,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   if (!isAuthEnabled()) {
     req.namespaceId = 'local';
     req.userEmail = null;
-    runWithUsageContext({ namespaceId: 'local', userId: null }, next);
+    runWithUsageContext(createUsageContext('local', null), next);
     return;
   }
 
@@ -66,8 +67,8 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   req.namespaceId = identity.namespaceId;
   req.userEmail = identity.email;
   // Provider calls made for this request (and background work it starts) are
-  // attributed to this namespace and user.
-  runWithUsageContext({ namespaceId: identity.namespaceId, userId: identity.userId }, next);
+  // attributed to this namespace, user, and the namespace owner as of now.
+  runWithUsageContext(createUsageContext(identity.namespaceId, identity.userId), next);
 }
 
 // A valid full sign-in whose namespace may no longer be a membership. Only for the

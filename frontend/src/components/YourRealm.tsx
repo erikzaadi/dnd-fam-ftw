@@ -26,7 +26,7 @@ const Meter = ({ label, used, limit, hint }: { label: string; used: number; limi
 };
 
 // "Support the realm" (donation link) and "Ask for more" (a note to the owner, who can
-// raise the group's tier). With Ko-fi matching on, a donation from the sign-in email
+// raise the group's tier). With Ko-fi matching on, a donation from the owner's sign-in email
 // raises the tier for donationUpgradeDays.
 const MoreAdventures = ({ usage, onRequested }: { usage: NamespaceUsageResponse; onRequested: () => void }) => {
   const [asking, setAsking] = useState(false);
@@ -101,7 +101,7 @@ const MoreAdventures = ({ usage, onRequested }: { usage: NamespaceUsageResponse;
       ) : null}
       {usage.supportUrl && usage.donationUpgradeDays !== null && (
         <p className="text-xs text-slate-500">
-          Donating with the email you sign in with gives your group higher limits for {usage.donationUpgradeDays} days.
+          When the realm owner donates with the email they sign in with, this realm gets higher limits for {usage.donationUpgradeDays} days.
         </p>
       )}
       <div className="flex flex-col sm:flex-row gap-2">

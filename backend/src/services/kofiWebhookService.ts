@@ -79,7 +79,14 @@ export function handleKofiWebhook(body: unknown, now: number = Date.now()): Kofi
     const user = email ? userRepository.getUserByEmail(email) : null;
     let outcome: KofiPaymentOutcome = 'no_account';
     let supporterUntil: number | null = null;
-    const namespaceId = user?.namespace_id ?? null;
+    // The donor's own realm: the one namespace they own. Not their primary namespace,
+    // which for an invited player is someone else's realm. None or several owned
+    // realms go to the operator instead of guessing.
+    const owned = user ? namespaceRepository.listOwnedNamespaceIds(user.id) : [];
+    const namespaceId = owned.length === 1 ? owned[0] : null;
+    if (user && !namespaceId) {
+      outcome = 'needs_review';
+    }
 
     if (namespaceId) {
       const stored = namespaceRepository.getNamespaceTier(namespaceId);

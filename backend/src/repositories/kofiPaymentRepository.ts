@@ -3,7 +3,8 @@ import { getDb } from '../persistence/database.js';
 // upgraded: the group became (or stayed) a supporter until supporter_until.
 // already_upgraded: the group has a tier that never expires (unlimited, or an owner-set supporter).
 // no_account: no user has the donor email; the owner decides by hand.
-export type KofiPaymentOutcome = 'upgraded' | 'already_upgraded' | 'no_account';
+// needs_review: the donor has an account but owns no realm, or several; decided by hand.
+export type KofiPaymentOutcome = 'upgraded' | 'already_upgraded' | 'no_account' | 'needs_review';
 
 export type KofiPaymentRow = {
   transaction_id: string;

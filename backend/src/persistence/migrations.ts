@@ -761,4 +761,20 @@ export const migrate = (db: DB): void => {
     db.prepare("ALTER TABLE namespaces ADD COLUMN member_invites_enabled INTEGER NOT NULL DEFAULT 0 CHECK (member_invites_enabled IN (0, 1))").run();
   }
   db.exec("CREATE INDEX IF NOT EXISTS idx_namespaces_owner ON namespaces(owner_user_id)");
+
+  // Owner attribution for provider usage. user_id stays the acting user; owner_user_id
+  // is the namespace owner when the attempt was dispatched (no FK: history outlives
+  // accounts). Rows from before this migration keep attribution 'legacy_unknown':
+  // current membership says nothing about who was responsible back then. The
+  // applied_migrations timestamp for this entry is the attribution cutover.
+  const usageColsOwner = (db.prepare("PRAGMA table_info(provider_usage)").all() as { name: string }[]).map(r => r.name);
+  runOnce('provider_usage_owner_attribution', () => {
+    if (!usageColsOwner.includes('owner_user_id')) {
+      db.prepare("ALTER TABLE provider_usage ADD COLUMN owner_user_id TEXT").run();
+    }
+    if (!usageColsOwner.includes('attribution')) {
+      db.prepare("ALTER TABLE provider_usage ADD COLUMN attribution TEXT NOT NULL DEFAULT 'legacy_unknown' CHECK (attribution IN ('verified', 'legacy_unknown', 'system'))").run();
+    }
+  });
+  db.exec("CREATE INDEX IF NOT EXISTS idx_provider_usage_owner_time ON provider_usage(owner_user_id, created_at)");
 };

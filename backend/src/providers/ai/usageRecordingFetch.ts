@@ -1,4 +1,4 @@
-import { getUsageContext } from '../../lib/usageContext.js';
+import { getUsageContext, type UsageContext } from '../../lib/usageContext.js';
 import { usageRepository } from '../../repositories/usageRepository.js';
 import { estimateCostUsd, type UsageKind } from '../../services/usagePricing.js';
 import { checkProviderAdmission } from '../../services/usageLimitService.js';
@@ -34,6 +34,17 @@ export function createUsageRecordingFetch(baseFetch: Fetch = fetch, admit: Admis
       return baseFetch(input, init);
     }
 
+    // Attribution is fixed when the attempt is dispatched, including for a stream that
+    // finishes later; each SDK retry passes through here and gets its own snapshot.
+    const context = getUsageContext();
+    const attribution = snapshotAttribution(context);
+    if (context?.attribution === 'unresolved') {
+      return new Response(JSON.stringify({ error: { message: 'This realm has no owner yet. Ask the site operator to fix it.', type: 'usage_limit', code: 'realm_owner_missing' } }), {
+        status: 403,
+        headers: { 'content-type': 'application/json', 'x-should-retry': 'false' },
+      });
+    }
+
     const refusal = admit(info.kind);
     if (refusal) {
       return new Response(JSON.stringify({ error: { message: refusal.message, type: 'usage_limit', code: refusal.kind } }), {
@@ -46,28 +57,28 @@ export function createUsageRecordingFetch(baseFetch: Fetch = fetch, admit: Admis
     try {
       response = await baseFetch(input, init);
     } catch (err) {
-      record(info, false, { inputTokens: null, outputTokens: null });
+      record(info, attribution, false, { inputTokens: null, outputTokens: null });
       throw err;
     }
 
     if (!response.ok) {
-      record(info, false, { inputTokens: null, outputTokens: null });
+      record(info, attribution, false, { inputTokens: null, outputTokens: null });
       return response;
     }
 
     const isEventStream = info.stream || (response.headers.get('content-type') ?? '').includes('text/event-stream');
     if (isEventStream && response.body) {
       const [forCaller, forUsage] = response.body.tee();
-      void readStreamUsage(forUsage).then(usage => record(info, true, usage));
+      void readStreamUsage(forUsage).then(usage => record(info, attribution, true, usage));
       return new Response(forCaller, { status: response.status, statusText: response.statusText, headers: response.headers });
     }
 
     if ((response.headers.get('content-type') ?? '').includes('application/json')) {
       void response.clone().json()
-        .then(json => record(info, true, extractUsage(json)))
-        .catch(() => record(info, true, { inputTokens: null, outputTokens: null }));
+        .then(json => record(info, attribution, true, extractUsage(json)))
+        .catch(() => record(info, attribution, true, { inputTokens: null, outputTokens: null }));
     } else {
-      record(info, true, { inputTokens: null, outputTokens: null });
+      record(info, attribution, true, { inputTokens: null, outputTokens: null });
     }
     return response;
   };
@@ -171,13 +182,29 @@ async function readStreamUsage(stream: ReadableStream<Uint8Array>): Promise<Toke
   return usage;
 }
 
-function record(info: RequestInfo, success: boolean, usage: TokenUsage): void {
+interface AttributionSnapshot {
+  namespaceId: string | null;
+  userId: string | null;
+  ownerUserId: string | null;
+  sessionId: string | null;
+  attribution: 'verified' | 'system';
+}
+
+// Work outside any request (scripts, startup jobs) is system usage with no owner.
+function snapshotAttribution(context: UsageContext | undefined): AttributionSnapshot {
+  return {
+    namespaceId: context?.namespaceId ?? null,
+    userId: context?.userId ?? null,
+    ownerUserId: context?.ownerUserId ?? null,
+    sessionId: context?.sessionId ?? null,
+    attribution: context?.attribution === 'verified' ? 'verified' : 'system',
+  };
+}
+
+function record(info: RequestInfo, attribution: AttributionSnapshot, success: boolean, usage: TokenUsage): void {
   try {
-    const context = getUsageContext();
     usageRepository.recordProviderUsage({
-      namespaceId: context?.namespaceId ?? null,
-      userId: context?.userId ?? null,
-      sessionId: context?.sessionId ?? null,
+      ...attribution,
       kind: info.kind,
       endpoint: info.endpoint,
       model: info.model,

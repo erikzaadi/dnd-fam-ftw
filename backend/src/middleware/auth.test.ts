@@ -10,6 +10,10 @@ vi.mock('../config/env.js', () => ({
   getConfig: () => ({ JWT_SECRET: 'middleware-auth-test-secret' }),
 }));
 
+vi.mock('../services/usageAttribution.js', () => ({
+  createUsageContext: (namespaceId: string, userId: string | null) => ({ namespaceId, userId, ownerUserId: null, attribution: 'system' }),
+}));
+
 vi.mock('../repositories/userRepository.js', () => ({
   userRepository: {
     getUserByEmail: vi.fn(),

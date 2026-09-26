@@ -96,4 +96,13 @@ describe('handleKofiWebhook', () => {
     const unmatched = kofiPaymentRepository.list({ outcome: 'no_account' });
     expect(unmatched.map(row => row.email_canonical)).toEqual(expect.arrayContaining(['stranger@example.com', null]));
   });
+
+  it('never upgrades the realm an invited donor plays in, and sends the payment to review', () => {
+    const hostNs = userRepository.createUser('host-kofi@example.com', 'Hosts', 'member', 'free').namespaceId;
+    // Invite-created shape: the host's realm is the donor's primary, and they own none.
+    userRepository.createUserInExistingNamespace('guest-kofi@example.com', hostNs);
+    expect(handleKofiWebhook(kofiBody({ email: 'guest-kofi@example.com' }), NOW)).toMatchObject({ status: 200, outcome: 'needs_review', namespaceId: null });
+    expect(namespaceRepository.getNamespaceTier(hostNs)).toMatchObject({ tier: 'free' });
+    expect(kofiPaymentRepository.list({ outcome: 'needs_review' }).map(row => row.email_canonical)).toContain('guest-kofi@example.com');
+  });
 });

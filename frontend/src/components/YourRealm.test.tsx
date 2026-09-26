@@ -60,7 +60,7 @@ describe('YourRealm', () => {
     respond(usage({ tier: 'supporter', tierLabel: 'Patron of the Realm', tierExpiresAt: '2026-12-25T12:00:00.000Z', supportUrl: 'https://ko-fi.com/example', donationUpgradeDays: 90 }));
     render(<YourRealm />);
     expect(await screen.findByText(/higher limits last until/)).toBeTruthy();
-    expect(screen.getByText('Donating with the email you sign in with gives your group higher limits for 90 days.')).toBeTruthy();
+    expect(screen.getByText('When the realm owner donates with the email they sign in with, this realm gets higher limits for 90 days.')).toBeTruthy();
   });
 
   it('hides the support link when none is configured and shows a pending request', async () => {

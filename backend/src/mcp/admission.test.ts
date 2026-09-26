@@ -41,7 +41,7 @@ describe('admitPaidCall', () => {
     const limit = getTierLimits('free').textCreditsPerDay!;
     for (let i = 0; i < limit; i++) {
       usageRepository.recordProviderUsage({
-        namespaceId: 'ns-free', userId: null, sessionId: null, kind: 'text', endpoint: '/test', model: null,
+        namespaceId: 'ns-free', userId: null, ownerUserId: null, attribution: 'system', sessionId: null, kind: 'text', endpoint: '/test', model: null,
         inputTokens: null, outputTokens: null, ttsCharacters: null, imageCount: null, success: true, estimatedCostUsd: 0.001,
       });
     }

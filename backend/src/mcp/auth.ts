@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { isMcpEnabled } from '../config/env.js';
 import { runWithUsageContext } from '../lib/usageContext.js';
+import { createUsageContext } from '../services/usageAttribution.js';
 import { accessTokenService, type McpPrincipal } from '../services/accessTokenService.js';
 
 // Per-token request ceiling, independent of model cooperation. In memory: the backend
@@ -66,5 +67,5 @@ export function mcpAuthMiddleware(req: Request, res: Response, next: NextFunctio
   }
   res.locals.mcpPrincipal = principal;
   // Provider calls made by tools are attributed like website requests.
-  runWithUsageContext({ namespaceId: principal.namespaceId, userId: principal.userId }, next);
+  runWithUsageContext(createUsageContext(principal.namespaceId, principal.userId), next);
 }

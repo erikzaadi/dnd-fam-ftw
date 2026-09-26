@@ -128,6 +128,7 @@ const KOFI_OUTCOME_TEXT: Record<KofiPaymentOutcome, string> = {
   upgraded: 'The group is now a supporter.',
   already_upgraded: 'The group already has a tier that does not expire; nothing changed.',
   no_account: 'No account uses this email. Find the group by hand and use cli namespaces tier <id> supporter.',
+  needs_review: 'The donor has an account but does not own exactly one realm (for example they only play in a realm they were invited to). Pick the group by hand and use cli namespaces tier <id> supporter.',
 };
 
 export function enqueueKofiPaymentNotice(notice: KofiPaymentNotice): void {

@@ -13,7 +13,7 @@
  *                   owners [--apply] [--json] | set-owner <nsId> <email>
  *                   tier <id> [free|supporter|unlimited]
  *   sessions        list [--json] | nuke | seed | export | import | regenerate-dm-prep <id>
- *   metrics         [--json] [--since <ISO date>] | usage [--json] [--since <ISO date>] [--namespace <id>]
+ *   metrics         [--json] [--since <ISO date>] | usage [--json] [--since <ISO date>] [--namespace <id>] [--by-owner] [--owner-user-id <id>]
  *                   | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]
  *   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
  *   limit-requests  list [--status <s>] [--json] | approve <id> [--tier <tier>] | deny <id>
@@ -847,10 +847,13 @@ sessions <sub-command>
 
 case 'metrics': {
   if (subcommand === 'usage') {
+    // Grouped by namespace by default. --by-owner (or --owner-user-id) groups by the
+    // realm owner recorded when each attempt was dispatched; --namespace narrows either.
     interface UsageRow {
       day: string;
-      namespace_id: string | null;
-      namespace_name: string | null;
+      group_id: string | null;
+      group_name: string | null;
+      attribution: string | null;
       text_calls: number;
       failed_calls: number;
       images: number;
@@ -860,6 +863,8 @@ case 'metrics': {
       estimated_cost_usd: number;
     }
     const namespaceFilter = parseArgValue(allArgs.find(a => a === '--namespace' || a.startsWith('--namespace=')));
+    const ownerFilter = parseArgValue(allArgs.find(a => a === '--owner-user-id' || a.startsWith('--owner-user-id=')));
+    const byOwner = process.argv.includes('--by-owner') || ownerFilter !== undefined;
     const sinceArg = parseArgValue(allArgs.find(a => a === '--since' || a.startsWith('--since=')));
     const since = sinceArg ?? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const conditions = ['datetime(pu.created_at) >= datetime(?)'];
@@ -868,14 +873,27 @@ case 'metrics': {
       conditions.push('pu.namespace_id = ?');
       params.push(namespaceFilter);
     }
+    // Coverage note for owner reports: pre-cutover rows in the same range, any owner.
+    const legacyConditions = [...conditions, "pu.attribution = 'legacy_unknown'"];
+    const legacyParams = [...params];
+    if (ownerFilter) {
+      conditions.push('pu.owner_user_id = ?');
+      params.push(ownerFilter);
+    }
+    const groupSelect = byOwner
+      ? 'pu.owner_user_id AS group_id, u.email AS group_name, pu.attribution AS attribution'
+      : 'pu.namespace_id AS group_id, n.name AS group_name, NULL AS attribution';
+    const groupJoin = byOwner ? 'LEFT JOIN users u ON u.id = pu.owner_user_id' : 'LEFT JOIN namespaces n ON n.id = pu.namespace_id';
+    const groupBy = byOwner ? 'day, pu.owner_user_id, pu.attribution' : 'day, pu.namespace_id';
     const db = new Database(path.resolve(getConfig().SQLITE_DB_PATH), { readonly: true });
     let rows: UsageRow[];
+    let legacyRows = 0;
+    let cutover: string | null = null;
     try {
       rows = db.prepare(`
         SELECT
           substr(pu.created_at, 1, 10) AS day,
-          pu.namespace_id,
-          n.name AS namespace_name,
+          ${groupSelect},
           SUM(CASE WHEN pu.kind = 'text' THEN 1 ELSE 0 END) AS text_calls,
           SUM(CASE WHEN pu.success = 0 THEN 1 ELSE 0 END) AS failed_calls,
           SUM(CASE WHEN pu.kind = 'image' THEN COALESCE(pu.image_count, 1) ELSE 0 END) AS images,
@@ -884,16 +902,33 @@ case 'metrics': {
           COALESCE(SUM(pu.tts_characters), 0) AS tts_characters,
           ROUND(COALESCE(SUM(pu.estimated_cost_usd), 0), 4) AS estimated_cost_usd
         FROM provider_usage pu
-        LEFT JOIN namespaces n ON n.id = pu.namespace_id
+        ${groupJoin}
         WHERE ${conditions.join(' AND ')}
-        GROUP BY day, pu.namespace_id
+        GROUP BY ${groupBy}
         ORDER BY day DESC, estimated_cost_usd DESC
       `).all(...params) as UsageRow[];
+      if (byOwner) {
+        legacyRows = (db.prepare(`SELECT COUNT(*) AS count FROM provider_usage pu WHERE ${legacyConditions.join(' AND ')}`)
+          .get(...legacyParams) as { count: number }).count;
+        cutover = (db.prepare("SELECT applied_at FROM applied_migrations WHERE name = 'provider_usage_owner_attribution'").get() as { applied_at: string } | undefined)?.applied_at ?? null;
+      }
     } catch (err) {
       db.close();
       fail(`Could not read provider usage (has the backend started since upgrading?): ${err instanceof Error ? err.message : String(err)}`);
     }
     db.close();
+    const label = (row: UsageRow) => {
+      if (!byOwner) {
+        return row.group_name ?? row.group_id ?? '(system)';
+      }
+      if (row.attribution === 'legacy_unknown') {
+        return '(before owner tracking)';
+      }
+      if (row.attribution === 'system' || !row.group_id) {
+        return '(system)';
+      }
+      return row.group_name ?? `${row.group_id} (deleted account)`;
+    };
     if (jsonMode) {
       process.stdout.write(JSON.stringify(rows, null, 2) + '\n');
     } else if (rows.length === 0) {
@@ -901,7 +936,7 @@ case 'metrics': {
     } else {
       console.table(rows.map(row => ({
         day: row.day,
-        namespace: row.namespace_name ?? row.namespace_id ?? '(system)',
+        [byOwner ? 'owner' : 'namespace']: label(row),
         text: row.text_calls,
         images: row.images,
         failed: row.failed_calls,
@@ -910,6 +945,9 @@ case 'metrics': {
       })));
       const total = rows.reduce((sum, row) => sum + row.estimated_cost_usd, 0);
       console.log(`\nEstimated total since ${since}: $${total.toFixed(2)} (estimates; the provider dashboard is authoritative)`);
+    }
+    if (byOwner && legacyRows > 0) {
+      console.log(`Note: ${legacyRows} provider call(s) in this range predate owner tracking (cutover ${cutover ?? 'unknown'} UTC) and have no owner.`);
     }
     break;
   }
@@ -1437,7 +1475,7 @@ email-outbox <sub-command>
 case 'donations': {
   switch (subcommand) {
   case 'list': {
-    const outcomes: KofiPaymentOutcome[] = ['upgraded', 'already_upgraded', 'no_account'];
+    const outcomes: KofiPaymentOutcome[] = ['upgraded', 'already_upgraded', 'no_account', 'needs_review'];
     const outcomeArg = parseArgValue(allArgs.find(a => a === '--outcome' || a.startsWith('--outcome=')));
     if (outcomeArg && !(outcomes as string[]).includes(outcomeArg)) {
       fail(`Usage: cli donations list [--outcome ${outcomes.join('|')}] [--since <ISO date>] [--json]`);
@@ -1472,8 +1510,8 @@ case 'donations': {
   default:
     console.log(`
 donations <sub-command>
-  list [--outcome upgraded|already_upgraded|no_account] [--since <ISO date>] [--json]
-       Ko-fi payments received by /webhooks/kofi, newest first. no_account payments
+  list [--outcome upgraded|already_upgraded|no_account|needs_review] [--since <ISO date>] [--json]
+       Ko-fi payments received by /webhooks/kofi, newest first. no_account and needs_review payments
        need a manual "cli namespaces tier <id> supporter".
 `);
   }
@@ -1497,6 +1535,7 @@ Resources:
                   owners [--apply] [--json] | set-owner <nsId> <email>
   sessions        list [--json] | nuke | seed | export | import
   metrics         [--json] [--since <ISO date>] | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]
+                  usage [--json] [--since <ISO date>] [--namespace <id>] [--by-owner] [--owner-user-id <id>]
   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
   limit-requests  list [--status <s>] [--json] | approve <id> [--tier <tier>] | deny <id>
   mcp-requests    list [--status <s>] [--json] | approve <id> | deny <id>

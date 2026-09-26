@@ -28,12 +28,14 @@ beforeEach(() => {
 describe('createUsageRecordingFetch', () => {
   it('records chat usage attributed to the current usage context', async () => {
     const recordingFetch = createUsageRecordingFetch(async () => jsonResponse({ usage: { prompt_tokens: 1000, completion_tokens: 500 } }), allowAll);
-    await runWithUsageContext({ namespaceId: 'ns-1', userId: 'user-1', sessionId: 'session-1' }, () =>
+    await runWithUsageContext({ namespaceId: 'ns-1', userId: 'user-1', ownerUserId: 'owner-1', attribution: 'verified', sessionId: 'session-1' }, () =>
       recordingFetch('https://api.openai.com/v1/chat/completions', { method: 'POST', body: JSON.stringify({ model: 'gpt-4.1-mini' }) }));
     await flush();
     expect(recorded()).toEqual([expect.objectContaining({
       namespaceId: 'ns-1',
       userId: 'user-1',
+      ownerUserId: 'owner-1',
+      attribution: 'verified',
       sessionId: 'session-1',
       kind: 'text',
       endpoint: '/chat/completions',
@@ -49,7 +51,42 @@ describe('createUsageRecordingFetch', () => {
     const recordingFetch = createUsageRecordingFetch(async () => jsonResponse({}), allowAll);
     await recordingFetch('https://api.openai.com/v1/images/generations', { method: 'POST', body: JSON.stringify({ model: 'gpt-image-2' }) });
     await flush();
-    expect(recorded()[0]).toMatchObject({ namespaceId: null, kind: 'image', imageCount: 1 });
+    expect(recorded()[0]).toMatchObject({ namespaceId: null, ownerUserId: null, attribution: 'system', kind: 'image', imageCount: 1 });
+  });
+
+  it('refuses paid calls for a realm without a valid owner, without recording', async () => {
+    const baseFetch = vi.fn(async () => jsonResponse({}));
+    const recordingFetch = createUsageRecordingFetch(baseFetch, allowAll);
+    const response = await runWithUsageContext({ namespaceId: 'ns-orphan', userId: 'user-1', ownerUserId: null, attribution: 'unresolved' }, () =>
+      recordingFetch('https://api.openai.com/v1/chat/completions', { method: 'POST', body: '{}' }));
+    expect(response.status).toBe(403);
+    expect(response.headers.get('x-should-retry')).toBe('false');
+    expect(baseFetch).not.toHaveBeenCalled();
+    expect(recorded()).toEqual([]);
+  });
+
+  it('keeps the owner from dispatch time for a stream that finishes later', async () => {
+    const encoder = new TextEncoder();
+    let finish: () => void = () => undefined;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('data: {"usage":{"prompt_tokens":3,"completion_tokens":4}}\n\n'));
+        finish = () => {
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        };
+      },
+    });
+    const recordingFetch = createUsageRecordingFetch(async () => new Response(body, { headers: { 'content-type': 'text/event-stream' } }), allowAll);
+    const context = { namespaceId: 'ns-r', userId: 'user-b', ownerUserId: 'owner-a', attribution: 'verified' as const, sessionId: 'session-r' };
+    const response = await runWithUsageContext(context, () =>
+      recordingFetch('https://api.openai.com/v1/chat/completions', { method: 'POST', body: JSON.stringify({ stream: true }) }));
+    // The session id changing after dispatch does not rewrite this attempt's attribution.
+    context.sessionId = 'session-other';
+    finish();
+    await response.text();
+    await flush();
+    expect(recorded()[0]).toMatchObject({ namespaceId: 'ns-r', userId: 'user-b', ownerUserId: 'owner-a', sessionId: 'session-r' });
   });
 
   it('records failed provider responses without cost', async () => {
