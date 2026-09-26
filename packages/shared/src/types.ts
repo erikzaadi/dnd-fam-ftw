@@ -573,7 +573,7 @@ export interface AuthMeResponse {
   namespaceId: string;
 }
 
-// Personal access tokens for the MCP endpoint (invite-only pilot). A token grants one
+// Personal access tokens for the MCP endpoint. A token grants one
 // namespace and these scopes; the secret is shown once at creation.
 export type AccessTokenScope = 'adventures:read' | 'adventures:play' | 'adventures:create' | 'images:generate';
 
@@ -593,12 +593,30 @@ export interface AccessTokenSummary {
 
 // GET /access-tokens
 export interface AccessTokenListResponse {
-  // MCP is enabled on this server and the signed-in user is in the pilot.
+  // MCP is enabled on this server and the signed-in user has MCP access in this realm
+  // (per-user override, or the realm tier is in MCP_DEFAULT_TIERS).
   eligible: boolean;
+  // MCP is enabled on this server at all (Settings shows the section to everyone).
+  mcpAvailable: boolean;
+  // The user may ask for access now (not eligible, not blocked, nothing open, under the cap).
+  canRequestAccess: boolean;
+  // The user's latest access request while it is still relevant (open or declined).
+  accessRequest: McpAccessRequestState | null;
   mcpUrl: string | null;
   namespaceName: string | null;
   maxActiveTokens: number;
   tokens: AccessTokenSummary[];
+}
+
+export interface McpAccessRequestState {
+  status: 'pending' | 'denied';
+  createdAt: string;
+}
+
+// POST /access-tokens/request errors
+export interface McpAccessRequestErrorResponse {
+  error: 'not_available' | 'not_needed' | 'already_requested' | 'too_many_requests';
+  message: string;
 }
 
 // POST /access-tokens and POST /access-tokens/:id/rotate (201)

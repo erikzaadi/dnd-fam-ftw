@@ -16,6 +16,7 @@ _dnd_subcommands() {
     invite-requests) echo "list approve clear" ;;
     email-outbox)    echo "list retry send-test" ;;
     limit-requests)  echo "list approve deny" ;;
+    mcp-requests)    echo "list approve deny" ;;
     donations)       echo "list" ;;
     *)               echo "" ;;
   esac
@@ -24,7 +25,7 @@ _dnd_subcommands() {
 # Subcommands that support --json / -j output
 _dnd_supports_json() {
   case "$1/$2" in
-    users/list|users/mcp-list|namespaces/list|namespaces/sessions|sessions/list|metrics/|metrics/usage|metrics/narration|invite-requests/list|email-outbox/list|limit-requests/list|donations/list) return 0 ;;
+    users/list|users/mcp-list|namespaces/list|namespaces/sessions|sessions/list|metrics/|metrics/usage|metrics/narration|invite-requests/list|email-outbox/list|limit-requests/list|mcp-requests/list|donations/list) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -41,6 +42,7 @@ _dnd_flags() {
     invite-requests/approve) echo "--namespace=" ;;
     email-outbox/list) echo "--status=" ;;
     limit-requests/list) echo "--status=" ;;
+    mcp-requests/list) echo "--status=" ;;
     limit-requests/approve) echo "--tier=" ;;
     donations/list) echo "--outcome= --since=" ;;
     *) echo "" ;;
@@ -66,7 +68,7 @@ _dnd_complete() {
 
   if [[ -z "$resource" ]]; then
     # shellcheck disable=SC2207
-    COMPREPLY=($(compgen -W "users namespaces sessions metrics invite-requests limit-requests email-outbox donations" -- "$cur"))
+    COMPREPLY=($(compgen -W "users namespaces sessions metrics invite-requests limit-requests mcp-requests email-outbox donations" -- "$cur"))
   elif [[ -z "$subcommand" ]]; then
     # shellcheck disable=SC2207
     COMPREPLY=($(compgen -W "$(_dnd_subcommands "$resource")" -- "$cur"))

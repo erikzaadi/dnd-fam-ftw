@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { SiteHeader } from '../components/SiteHeader';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { AutoConfirmSettings } from '../components/AutoConfirmSettings';
+import { AssistantAccessRequest } from '../components/AssistantAccessRequest';
 import { apiFetch, apiUrl } from '../lib/api';
 import type { AccessTokenCreatedResponse, AccessTokenListResponse, AccessTokenScope, AccessTokenSummary } from '../types';
 
@@ -33,7 +34,7 @@ const setupSnippets = (mcpUrl: string) => [
   },
   {
     client: 'Codex (~/.codex/config.toml)',
-    code: `[mcp_servers.dnd-fam-ftw]\nurl = "${mcpUrl}"\nbearer_token_env_var = "DM_MCP_TOKEN"`,
+    code: `[mcp_servers.dnd-fam-ftw]\nurl = "${mcpUrl}"\nbearer_token_env_var = "DM_MCP_TOKEN"\n# If Codex says DM_MCP_TOKEN is not set, use this line instead\n# (keep this file private, it then holds the token):\n# http_headers = { Authorization = "Bearer <your token>" }`,
   },
   {
     client: 'Cursor (.cursor/mcp.json)',
@@ -90,7 +91,8 @@ const NewSecret = ({ created, mcpUrl, onDone }: { created: AccessTokenCreatedRes
 type PendingAction = { kind: 'revoke' | 'rotate'; token: AccessTokenSummary };
 
 // Personal access tokens that let an AI assistant (Claude Code, Codex, Cursor) play
-// adventures in this realm through the server's MCP endpoint. Invite-only pilot.
+// adventures in this realm through the server's MCP endpoint. Players without access
+// can ask for it here.
 export const AccessTokens = () => {
   const [data, setData] = useState<AccessTokenListResponse | null>(null);
   const [unavailable, setUnavailable] = useState(false);
@@ -193,11 +195,7 @@ export const AccessTokens = () => {
           {unavailable && <p className="text-slate-400">Assistant access needs sign-in, which is off on this server.</p>}
           {!data && !unavailable && <p className="text-slate-500 text-sm">Checking your access...</p>}
 
-          {data && !data.eligible && (
-            <p className="p-5 bg-amber-950/20 rounded-[20px] border-2 border-slate-800 text-slate-300">
-              Assistant access is invite-only while we try it out. Ask the realm keeper if you would like to join.
-            </p>
-          )}
+          {data && !data.eligible && <AssistantAccessRequest data={data} onRequested={load} />}
 
           {error && <p role="alert" className="text-sm text-rose-300">{error}</p>}
 

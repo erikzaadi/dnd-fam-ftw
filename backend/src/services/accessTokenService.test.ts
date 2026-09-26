@@ -4,14 +4,15 @@ import fs from 'fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getDb, initializeDatabase } from '../persistence/database.js';
 import { userRepository } from '../repositories/userRepository.js';
-import { accessTokenService, MAX_ACTIVE_TOKENS_PER_USER, TOKEN_LIFETIME_MS } from './accessTokenService.js';
+import { namespaceRepository } from '../repositories/namespaceRepository.js';
+import { accessTokenService, isMcpEligible, MAX_ACTIVE_TOKENS_PER_USER, TOKEN_LIFETIME_MS } from './accessTokenService.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-access-tokens-test-${Date.now()}.sqlite`);
 
 let seq = 0;
 const pilotUser = (email = `hero${++seq}@example.com`) => {
   const { userId, namespaceId } = userRepository.createUser(email);
-  userRepository.setMcpAccess(userId, true);
+  userRepository.setMcpAccess(userId, 'on');
   return { userId, namespaceId, email };
 };
 
@@ -36,9 +37,30 @@ afterAll(() => {
 });
 
 describe('accessTokenService', () => {
-  it('refuses users outside the pilot allowlist', () => {
-    const { userId, namespaceId } = userRepository.createUser('outsider@example.com');
+  it('refuses users in a realm tier without MCP by default', () => {
+    const { userId, namespaceId } = userRepository.createUser('outsider@example.com', undefined, 'member', 'free');
     expect(accessTokenService.create({ userId, namespaceId, label: 'x', scopes: [] })).toEqual({ ok: false, error: 'not_eligible' });
+    userRepository.setMcpAccess(userId, 'on');
+    expect(accessTokenService.create({ userId, namespaceId, label: 'x', scopes: [] }).ok).toBe(true);
+  });
+
+  it('grants MCP_DEFAULT_TIERS realms (unlimited when unset) unless the user is turned off', () => {
+    const { userId, namespaceId } = userRepository.createUser('founder@example.com', undefined, 'member', 'unlimited');
+    expect(userRepository.getMcpAccess(userId)).toBe('default');
+    expect(isMcpEligible(userId, namespaceId)).toBe(true);
+    userRepository.setMcpAccess(userId, 'off');
+    expect(isMcpEligible(userId, namespaceId)).toBe(false);
+    expect(accessTokenService.create({ userId, namespaceId, label: 'x', scopes: [] })).toEqual({ ok: false, error: 'not_eligible' });
+  });
+
+  it('stops authenticating a tier-granted token when the realm drops to another tier', () => {
+    const { userId, namespaceId } = userRepository.createUser('patron@example.com', undefined, 'member', 'unlimited');
+    const { secret } = mint(userId, namespaceId);
+    expect(accessTokenService.authenticate(secret)).not.toBeNull();
+    namespaceRepository.setNamespaceTier(namespaceId, 'free');
+    expect(accessTokenService.authenticate(secret)).toBeNull();
+    namespaceRepository.setNamespaceTier(namespaceId, 'unlimited', Date.now() - 1000);
+    expect(accessTokenService.authenticate(secret)).toBeNull();
   });
 
   it('refuses a namespace the user is not a member of', () => {
@@ -102,9 +124,9 @@ describe('accessTokenService', () => {
   it('stops authenticating when pilot access or namespace membership is removed', () => {
     const { userId, namespaceId } = pilotUser();
     const { secret } = mint(userId, namespaceId);
-    userRepository.setMcpAccess(userId, false);
+    userRepository.setMcpAccess(userId, 'off');
     expect(accessTokenService.authenticate(secret)).toBeNull();
-    userRepository.setMcpAccess(userId, true);
+    userRepository.setMcpAccess(userId, 'on');
     expect(accessTokenService.authenticate(secret)).not.toBeNull();
     userRepository.removeUserFromNamespace(userId, namespaceId);
     expect(accessTokenService.authenticate(secret)).toBeNull();

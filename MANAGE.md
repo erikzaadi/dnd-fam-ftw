@@ -45,12 +45,12 @@ Manage registered users. Each user gets their own primary namespace on creation.
 ./dnd-fam-ftw-cli users add <email> [name]                  # create user + namespace
 ./dnd-fam-ftw-cli users remove <email>                      # delete user (and their namespace if empty)
 ./dnd-fam-ftw-cli users set-primary <email> <namespaceId>   # change a user's primary namespace
-./dnd-fam-ftw-cli users mcp-access <email> [on|off]         # show or change MCP pilot access
-./dnd-fam-ftw-cli users mcp-list [--json]                   # pilot users and their active token counts
+./dnd-fam-ftw-cli users mcp-access <email> [on|off|default] # show or change a user's MCP access override
+./dnd-fam-ftw-cli users mcp-list [--json]                   # users with an on/off override and their active token counts
 ./dnd-fam-ftw-cli users mcp-revoke <email>                  # revoke all of a user's MCP access tokens
 ```
 
-MCP pilot access lets a user create personal access tokens under **Settings > AI assistants** for playing through an AI assistant (see [docs/mcp/SETUP.md](docs/mcp/SETUP.md)). It only matters when `MCP_ENABLED=true`. Turning it off blocks the user's tokens on the next request; the tokens stay listed so the user can still revoke them. Removing a user deletes their tokens.
+MCP access lets a user create personal access tokens under **Settings > AI assistants** for playing through an AI assistant (see [docs/mcp/SETUP.md](docs/mcp/SETUP.md)). It only matters when `MCP_ENABLED=true`. Access is decided per realm: members of a realm whose tier is in `MCP_DEFAULT_TIERS` (default: `unlimited`, the Founding Realms) have it unless their override is `off`; anyone else needs `on`. `default` removes the override. When access ends (override `off`, or the realm drops to another tier), the user's tokens for that realm stop working on the next request; they stay listed so the user can still revoke them. Removing a user deletes their tokens.
 
 ### namespaces
 
@@ -155,6 +155,17 @@ View and manage invite requests from people without an account (Google or email 
 ./dnd-fam-ftw-cli limit-requests deny <id>
 ```
 
+### mcp-requests
+
+"Request assistant access" requests from players without MCP access (any tier, `free` included), sent from **Settings > AI assistants** with an optional note. Only shown while `MCP_ENABLED=true`. One open request per player, at most 3 per 30 days; each new request emails `SIGNUP_NOTIFY_EMAIL` (default `ADMIN_EMAIL`). Approving sets the player's `users mcp-access` override to `on` and emails them (when email is configured). Denying closes the request quietly; the player can ask again within the cap. Players whose override is `off` cannot ask. `users mcp-access <email> on|off` also closes an open request.
+
+```bash
+./dnd-fam-ftw-cli mcp-requests list                        # pending requests
+./dnd-fam-ftw-cli mcp-requests list --status approved --json
+./dnd-fam-ftw-cli mcp-requests approve <id>                # override -> on, player is emailed
+./dnd-fam-ftw-cli mcp-requests deny <id>
+```
+
 ### donations
 
 Ko-fi payments received by `POST /webhooks/kofi` (enabled by `KOFI_VERIFICATION_TOKEN`). Every payment type (donation, subscription, shop order, commission) counts. When the Ko-fi email matches a user's sign-in email (canonical match), that user's primary group becomes `supporter` for 90 days, extended from the current expiry when it is still a supporter, and any open "ask for more" request is approved. After the expiry the group falls back to `free` on its own. `unlimited` groups and supporters set by hand (no expiry) are left alone. Payments with no matching account are recorded as `no_account` for a manual `namespaces tier <id> supporter`. Each payment emails `SIGNUP_NOTIFY_EMAIL`; webhook retries are ignored by Ko-fi transaction id. `namespaces tier` always clears a donation expiry.
@@ -192,9 +203,10 @@ Operator notification emails (new signups, invite requests, and "ask for more" r
 | `SIGNUP_NOTIFY_EMAIL` | Where new-signup and "ask for more" notices go (defaults to `ADMIN_EMAIL`). |
 | `SUPPORT_URL` | Donation page (https, e.g. `https://ko-fi.com/<you>`) behind the "Support the realm" button in Your Realm. Unset hides the button. |
 | `KOFI_VERIFICATION_TOKEN` | Ko-fi webhook verification token. Enables `POST /webhooks/kofi` (90-day supporter upgrade for a matching sign-in email). Unset: the endpoint returns 404. |
-| `MCP_ENABLED` | `true` opens the `/mcp` endpoint for AI assistants (default `false`, which returns 404 there). Requires `AUTH_MODE=enabled`: startup fails otherwise. Only users with `users mcp-access` on can create tokens. Setting it back to `false` is the kill switch; website login is unaffected. |
+| `MCP_ENABLED` | `true` opens the `/mcp` endpoint for AI assistants (default `false`, which returns 404 there). Requires `AUTH_MODE=enabled`: startup fails otherwise. Who can create tokens: see `MCP_DEFAULT_TIERS` and `users mcp-access`. Setting it back to `false` is the kill switch; website login is unaffected. |
 | `MCP_PUBLIC_URL` | Endpoint address shown on the Access tokens page, e.g. `https://<api domain>/mcp` (https, or http on localhost). Unset: the page derives it from the API address. |
 | `MCP_DAILY_PAID_CALLS_PER_TOKEN` | Paid MCP tool calls (previews, turns, questions, new adventures) per token per UTC day, on top of the realm's usage budget. Default 200. `0` pauses paid tools while reading keeps working. |
+| `MCP_DEFAULT_TIERS` | Comma-separated realm tiers whose members get MCP access without a per-user grant (default `unlimited`; `none` for nobody). Example: `unlimited,supporter`. A `users mcp-access` override of `on` or `off` wins. Invalid values stop startup. |
 
 Email sign-in sends an 8-digit code valid for 10 minutes, usable only in the browser that asked for it, 5 attempts per code, 60 seconds between resends, 5 sends per address and 20 per IP per hour. Google sign-in never creates accounts: new players create their account with an email code first, after which "Continue with Google" works for the same address. Login cookies last 30 days and are renewed automatically when a signed-in player uses the app with less than a week left. New signups are also paused while `DAILY_SPEND_LIMIT_USD` is exceeded.
 
@@ -409,6 +421,7 @@ Email, signup, and usage settings are **SSM parameters** under the SSM prefix (d
 | `MCP_ENABLED` | optional, `true` for the AI assistant pilot |
 | `MCP_PUBLIC_URL` | optional, `https://<api domain>/mcp` |
 | `MCP_DAILY_PAID_CALLS_PER_TOKEN` | optional, default 200 |
+| `MCP_DEFAULT_TIERS` | optional, default `unlimited`, e.g. `unlimited,supporter` |
 | `DAILY_SPEND_LIMIT_USD` | optional, e.g. `3` |
 | `SIGNUP_DAILY_CAP` | optional, default 25 |
 | `SIGNUP_NOTIFY_EMAIL` | optional, default `ADMIN_EMAIL` |

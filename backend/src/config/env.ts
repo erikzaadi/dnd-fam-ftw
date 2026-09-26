@@ -1,3 +1,5 @@
+import type { UsageTier } from '../types.js';
+
 export type AppConfig = {
   SQLITE_DB_PATH: string;
   IMAGE_STORAGE_PROVIDER: 'local' | 's3';
@@ -39,6 +41,9 @@ export type AppConfig = {
   // Paid MCP tool calls (previews, turns, questions, new adventures) per token per UTC
   // day, on top of the namespace's usage budget. 0 turns paid tools off, reads still work.
   MCP_DAILY_PAID_CALLS_PER_TOKEN: number;
+  // Realm tiers whose members get MCP access without a per-user grant. A per-user
+  // override (cli users mcp-access on|off) wins either way.
+  MCP_DEFAULT_TIERS: UsageTier[];
 };
 
 export type EmailProviderName = 'none' | 'ses' | 'capture';
@@ -213,6 +218,22 @@ function parseMcpPublicUrl(): string | null {
   }
 }
 
+// Comma-separated tiers, e.g. "unlimited,supporter". Unset: unlimited only. Empty
+// string or "none": no tier gets access by default.
+function parseMcpDefaultTiers(): UsageTier[] {
+  const raw = process.env.MCP_DEFAULT_TIERS;
+  if (raw === undefined) {
+    return ['unlimited'];
+  }
+  const known: readonly UsageTier[] = ['free', 'supporter', 'unlimited'];
+  const values = raw.split(',').map(v => v.trim().toLowerCase()).filter(v => v && v !== 'none');
+  const invalid = values.filter(v => !(known as readonly string[]).includes(v));
+  if (invalid.length > 0) {
+    throw new Error(`[Config] Invalid MCP_DEFAULT_TIERS: "${raw}". Use a comma-separated list of ${known.join(', ')}, or "none".`);
+  }
+  return known.filter(tier => values.includes(tier));
+}
+
 function parseEmailProvider(): EmailProviderName {
   const raw = process.env.EMAIL_PROVIDER?.trim();
   if (!raw) {
@@ -294,6 +315,7 @@ function parse(): AppConfig {
     MCP_ENABLED: parseBooleanFlag('MCP_ENABLED'),
     MCP_PUBLIC_URL: parseMcpPublicUrl(),
     MCP_DAILY_PAID_CALLS_PER_TOKEN: parseNonNegativeInt('MCP_DAILY_PAID_CALLS_PER_TOKEN', 200),
+    MCP_DEFAULT_TIERS: parseMcpDefaultTiers(),
   };
 }
 

@@ -630,7 +630,8 @@ export const migrate = (db: DB): void => {
     );
   `);
 
-  // MCP pilot. users.mcp_access is the operator-managed allowlist (cli users mcp-access).
+  // MCP pilot. users.mcp_access is the operator override (cli users mcp-access): 1 = on,
+  // 0 = by realm tier (MCP_DEFAULT_TIERS), -1 = off.
   // access_tokens are personal bearer tokens for the /mcp endpoint, one namespace each.
   // Only a SHA-256 digest of the secret is stored; user deletion removes the rows.
   const userColsMcp = (db.prepare("PRAGMA table_info(users)").all() as { name: string }[]).map(r => r.name);
@@ -708,5 +709,21 @@ export const migrate = (db: DB): void => {
       updated_at INTEGER NOT NULL,
       PRIMARY KEY (session_id, turn_id)
     );
+  `);
+
+  // "Request assistant access": a player without MCP access asks the operator. At most
+  // one open request per user; approving sets users.mcp_access to on (cli mcp-requests).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS mcp_access_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      namespace_id TEXT NOT NULL,
+      email TEXT NOT NULL,
+      note TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at INTEGER NOT NULL,
+      resolved_at INTEGER
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_mcp_access_requests_open ON mcp_access_requests(user_id) WHERE status = 'pending';
   `);
 };

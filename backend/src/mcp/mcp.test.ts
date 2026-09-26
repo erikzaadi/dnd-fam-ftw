@@ -53,8 +53,8 @@ beforeAll(async () => {
 
   const a = userRepository.createUser('pilot-a@example.com');
   const b = userRepository.createUser('pilot-b@example.com');
-  userRepository.setMcpAccess(a.userId, true);
-  userRepository.setMcpAccess(b.userId, true);
+  userRepository.setMcpAccess(a.userId, 'on');
+  userRepository.setMcpAccess(b.userId, 'on');
   insertSession('sess-a', a.namespaceId, 'Troll Bridge');
   insertSession('sess-b', b.namespaceId, 'Other Family');
   await StateService.addTurnResult('sess-a', {
@@ -104,7 +104,7 @@ describe('/mcp authentication', () => {
   it('rejects unknown and revoked tokens', async () => {
     expect((await callTool('dndmcp_unknown', 'list_adventures', {})).status).toBe(401);
     const user = userRepository.createUser('pilot-revoked@example.com');
-    userRepository.setMcpAccess(user.userId, true);
+    userRepository.setMcpAccess(user.userId, 'on');
     const minted = accessTokenService.create({ userId: user.userId, namespaceId: user.namespaceId, label: 'R', scopes: [] });
     if (!minted.ok) {
       throw new Error('mint failed');

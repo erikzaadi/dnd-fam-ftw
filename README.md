@@ -69,7 +69,7 @@ Every hero gets a generated portrait and carries their quirk into the story:
 
 ![Terminal mode - retro adventure shell](docs/terminal-mode.png)
 
-- **AI assistants (MCP, invite-only pilot)** : play from Claude Code, Codex, or Cursor through the `/mcp` endpoint with a personal access token from Settings. The server stays the DM; the assistant previews and confirms actions with you. Setup: [docs/mcp/SETUP.md](docs/mcp/SETUP.md)
+- **AI assistants (MCP, opt-in pilot)** : play from Claude Code, Codex, or Cursor through the `/mcp` endpoint with a personal access token from Settings. The server stays the DM; the assistant previews and confirms actions with you. Setup: [docs/mcp/SETUP.md](docs/mcp/SETUP.md)
 
 ### Audio
 

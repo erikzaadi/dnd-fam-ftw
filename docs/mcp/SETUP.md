@@ -1,19 +1,19 @@
-# Playing through an AI assistant (MCP pilot)
+# Playing through an AI assistant (MCP)
 
 The backend has a Streamable HTTP MCP endpoint at `/mcp`. An AI assistant such as Claude Code, Codex, or Cursor can connect to it with a personal access token and use the realm's adventures. The server stays the Dungeon Master: the assistant passes along what the player wants to do and shows the story that comes back.
 
-Status: invite-only pilot. Tools: list, read, preview and confirm turns, wait for results, ask the DM, start adventures (text-only or pictures on request), wrap up, end, or continue them, and show or paint scene pictures on request. Reference: [TOOLS.md](TOOLS.md). How an assistant should play: [PLAY_GUIDE.md](PLAY_GUIDE.md).
+Status: opt-in pilot. Founding Realms (or the tiers in `MCP_DEFAULT_TIERS`) have access; anyone else can request it from Settings. Tools: list, read, preview and confirm turns, wait for results, ask the DM, start adventures (text-only or pictures on request), wrap up, end, or continue them, and show or paint scene pictures on request. Reference: [TOOLS.md](TOOLS.md). How an assistant should play: [PLAY_GUIDE.md](PLAY_GUIDE.md).
 
 ## Server setup (operator)
 
 1. Auth must be on (`AUTH_MODE=enabled`). Set `MCP_ENABLED=true`, and optionally `MCP_PUBLIC_URL=https://<api domain>/mcp`. See [MANAGE.md](../../MANAGE.md#sign-in-and-signup-settings).
-2. Allow a player into the pilot: `npm run cli -- users mcp-access <email> on`.
-3. `MCP_ENABLED=false` closes the endpoint again without affecting website login. `users mcp-access <email> off` or `users mcp-revoke <email>` cut off one player.
+2. Choose who gets access. Members of realms whose tier is in `MCP_DEFAULT_TIERS` (default `unlimited`, the Founding Realms) have it automatically. Anyone else can press **Request access** under **Settings > AI assistants**; approve with `npm run cli -- mcp-requests approve <id>` (you get an email per request), or grant directly with `npm run cli -- users mcp-access <email> on`.
+3. `MCP_ENABLED=false` closes the endpoint again without affecting website login. `users mcp-access <email> off` or `users mcp-revoke <email>` cut off one player. A realm that drops to a tier outside `MCP_DEFAULT_TIERS` loses access for members without an `on` override.
 
 ## Getting a token (player)
 
 1. Sign in on the website with the realm you want the assistant to use.
-2. Open **Settings > AI assistants > Assistant access tokens** and create a token. Name it after the assistant or computer that will use it.
+2. Open **Settings > AI assistants > Assistant access tokens** and create a token. Name it after the assistant or computer that will use it. No access yet? Press **Request access** there; you get an email when it is turned on.
 3. Copy the token. It is shown once. Store it in an environment variable, for example `DM_MCP_TOKEN`, in your shell profile or a password manager integration.
 
 A token covers one realm (the one you were signed in to), lasts 30 days, and can be replaced or revoked from the same page. At most 5 tokens can be active at a time. Never paste a token into a chat, a URL, a shared config file, or a commit.
@@ -34,6 +34,14 @@ Codex (`~/.codex/config.toml`):
 [mcp_servers.dnd-fam-ftw]
 url = "https://<api domain>/mcp"
 bearer_token_env_var = "DM_MCP_TOKEN"
+```
+
+If Codex says `DM_MCP_TOKEN` is not set (it only sees variables from the environment that started it), putting the header in directly is often simpler. The token then lives in this file, so keep `~/.codex/config.toml` private and never commit or share it:
+
+```toml
+[mcp_servers.dnd-fam-ftw]
+url = "https://<api domain>/mcp"
+http_headers = { Authorization = "Bearer dndmcp_..." }
 ```
 
 Cursor (`.cursor/mcp.json`, keep it out of shared repositories):
@@ -86,7 +94,7 @@ curl -s http://localhost:3001/mcp \
 ## How it works
 
 - Transport: stateless Streamable HTTP with JSON responses (`@modelcontextprotocol/sdk` 1.30.1). Only `POST /mcp`; no MCP session IDs.
-- Every request checks the token digest, expiry, revocation, the user's pilot access, and current membership of the token's realm. Website cookies are ignored on `/mcp`, and tokens do not work on website routes.
+- Every request checks the token digest, expiry, revocation, the user's MCP access for that realm (override or realm tier), and current membership of the token's realm. Website cookies are ignored on `/mcp`, and tokens do not work on website routes.
 - Tools only see adventures in the token's realm. Results use an explicit player-facing allowlist: no DM Prep, adventure plans, riddle answers, prompts, or image URLs.
 - 120 requests per minute per token. Paid tools also count against the realm's daily usage budget and `MCP_DAILY_PAID_CALLS_PER_TOKEN` (default 200 per token per UTC day). Each tool call logs token, user, tool, adventure, outcome, and duration, never action text.
 - Adventures created through MCP never paint pictures by themselves (image policy `off`, or `on_demand` when asked). Adventures started on the website keep their own setting. Pictures are sent inline (max 1 MiB) only by `get_scene_image` / `generate_scene_image`; tool results never contain image URLs.
@@ -97,5 +105,5 @@ curl -s http://localhost:3001/mcp \
 | Client | Version | Token setup | Read tools | Play (create, preview, confirm) |
 | --- | --- | --- | --- | --- |
 | Claude Code | not yet tested | | | |
-| Codex CLI | 0.157.0 | `http_headers` in `~/.codex/config.toml` works; `bearer_token_env_var` reported the variable unset even when exported in the same tmux pane (unresolved) | works (2026-09-26) | preview, confirm, and Esc to stop the Undo window work (2026-09-26) |
+| Codex CLI | 0.157.0 | `http_headers` with a direct bearer works; `bearer_token_env_var` reported the variable unset once (likely an environment setup issue, not rechecked) | works (2026-09-26) | preview, confirm, and Esc to stop the Undo window work (2026-09-26) |
 | Cursor | not yet tested | | | |

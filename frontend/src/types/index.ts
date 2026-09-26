@@ -65,6 +65,8 @@ export type {
   AccessTokenScope,
   AccessTokenSummary,
   AccessTokenListResponse,
+  McpAccessRequestState,
+  McpAccessRequestErrorResponse,
   AccessTokenCreatedResponse,
   AutoConfirmListResponse,
   ImagePolicy,

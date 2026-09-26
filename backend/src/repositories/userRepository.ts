@@ -16,6 +16,11 @@ export type UserListItem = UserRecord & {
   lastLogin: string | null;
 };
 
+// users.mcp_access: 1 = on, 0 = by realm tier, -1 = off.
+export type McpAccessOverride = 'on' | 'default' | 'off';
+const MCP_ACCESS_VALUES: Record<McpAccessOverride, number> = { on: 1, default: 0, off: -1 };
+const fromMcpAccessValue = (value: number): McpAccessOverride => (value > 0 ? 'on' : value < 0 ? 'off' : 'default');
+
 export const userRepository = {
   getUserByEmail(email: string): UserRecord | null {
     const db = getDb();
@@ -103,6 +108,7 @@ export const userRepository = {
       db.prepare('DELETE FROM user_namespaces WHERE user_id = ?').run(user.id);
       db.prepare('DELETE FROM access_tokens WHERE user_id = ?').run(user.id);
       db.prepare('DELETE FROM mcp_auto_confirm WHERE user_id = ?').run(user.id);
+      db.prepare('DELETE FROM mcp_access_requests WHERE user_id = ?').run(user.id);
       db.prepare('DELETE FROM users WHERE id = ?').run(user.id);
       db.prepare('DELETE FROM auth_email_challenges WHERE email_canonical = ?').run(canonicalEmail(email));
       db.prepare("UPDATE email_outbox SET status = 'cancelled' WHERE event_key = ? AND status = 'pending'").run(`signup:${user.id}`);
@@ -145,18 +151,21 @@ export const userRepository = {
     getDb().prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(userId, namespaceId);
   },
 
-  // MCP pilot allowlist. Turning it off keeps tokens but blocks them on every request.
-  hasMcpAccess(userId: string): boolean {
+  // MCP access override. 'default' leaves it to the realm tier (MCP_DEFAULT_TIERS);
+  // 'off' blocks the user's tokens on every request but keeps them listed.
+  getMcpAccess(userId: string): McpAccessOverride {
     const row = getDb().prepare('SELECT mcp_access FROM users WHERE id = ?').get(userId) as { mcp_access: number } | undefined;
-    return row?.mcp_access === 1;
+    return fromMcpAccessValue(row?.mcp_access ?? 0);
   },
 
-  setMcpAccess(userId: string, enabled: boolean): void {
-    getDb().prepare('UPDATE users SET mcp_access = ? WHERE id = ?').run(enabled ? 1 : 0, userId);
+  setMcpAccess(userId: string, mode: McpAccessOverride): void {
+    getDb().prepare('UPDATE users SET mcp_access = ? WHERE id = ?').run(MCP_ACCESS_VALUES[mode], userId);
   },
 
-  listMcpUsers(): { id: string; email: string }[] {
-    return getDb().prepare('SELECT id, email FROM users WHERE mcp_access = 1 ORDER BY email').all() as { id: string; email: string }[];
+  // Users with an explicit on or off override.
+  listMcpOverrides(): { id: string; email: string; access: McpAccessOverride }[] {
+    const rows = getDb().prepare('SELECT id, email, mcp_access FROM users WHERE mcp_access != 0 ORDER BY email').all() as { id: string; email: string; mcp_access: number }[];
+    return rows.map(row => ({ id: row.id, email: row.email, access: fromMcpAccessValue(row.mcp_access) }));
   },
 
   removeUserFromNamespace(userId: string, namespaceId: string): boolean {

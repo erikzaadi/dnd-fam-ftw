@@ -32,6 +32,9 @@ const token = (overrides: Partial<AccessTokenSummary> = {}): AccessTokenSummary 
 
 const list = (overrides: Partial<AccessTokenListResponse> = {}): AccessTokenListResponse => ({
   eligible: true,
+  mcpAvailable: true,
+  canRequestAccess: false,
+  accessRequest: null,
   mcpUrl: 'https://api.example.com/mcp',
   namespaceName: 'The Burrow',
   maxActiveTokens: 5,
@@ -67,11 +70,41 @@ beforeEach(() => {
 const tokenCalls = () => mocks.apiFetch.mock.calls.filter(([path]) => !String(path).startsWith('/access-tokens/auto-confirm'));
 
 describe('AccessTokens', () => {
-  it('explains the invite-only pilot to users outside it', async () => {
-    respondWith(json(list({ eligible: false, mcpUrl: null })));
+  it('lets players without access request it, then shows the open request', async () => {
+    respondWith(
+      json(list({ eligible: false, mcpUrl: null, canRequestAccess: true })),
+      json({ ok: true }, 201),
+      json(list({ eligible: false, mcpUrl: null, accessRequest: { status: 'pending', createdAt: '2026-09-26T10:00:00.000Z' } })),
+    );
     renderPage();
-    expect(await screen.findByText(/invite-only while we try it out/)).toBeTruthy();
+    fireEvent.change(await screen.findByLabelText(/Anything to add/), { target: { value: 'Claude Code please' } });
     expect(screen.queryByRole('button', { name: 'Create token' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Request access' }));
+    expect(await screen.findByText(/You asked for assistant access on/)).toBeTruthy();
+    const [path, init] = tokenCalls()[1];
+    expect(path).toBe('/access-tokens/request');
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({ note: 'Claude Code please' });
+  });
+
+  it('shows the server message when a request is refused', async () => {
+    respondWith(
+      json(list({ eligible: false, mcpUrl: null, canRequestAccess: true })),
+      json({ error: 'too_many_requests', message: 'You can ask 3 times a month. Try again later.' }, 429),
+    );
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Request access' }));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/3 times a month/);
+  });
+
+  it('offers no request when access is blocked or MCP is off', async () => {
+    respondWith(json(list({ eligible: false, mcpUrl: null, canRequestAccess: false })));
+    const { unmount } = renderPage();
+    expect(await screen.findByText(/not available for your account/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Request access' })).toBeNull();
+    unmount();
+    respondWith(json(list({ eligible: false, mcpAvailable: false, mcpUrl: null })));
+    renderPage();
+    expect(await screen.findByText(/turned off on this server/)).toBeTruthy();
   });
 
   it('shows a new secret once with setup instructions', async () => {

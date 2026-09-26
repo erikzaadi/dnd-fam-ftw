@@ -181,6 +181,58 @@ export function enqueueInviteRequestNotice(notice: InviteRequestNotice): void {
   }, notice.requestedAt.getTime());
 }
 
+export interface McpAccessRequestNotice {
+  requestId: number;
+  email: string;
+  namespaceId: string;
+  namespaceName: string | null;
+  tier: string;
+  note: string | null;
+  requestedAt: Date;
+}
+
+export function enqueueMcpAccessRequestNotice(notice: McpAccessRequestNotice): void {
+  const recipient = ownerNoticeRecipient();
+  if (!recipient) {
+    return;
+  }
+  const lines = [
+    `Player: ${notice.email}`,
+    `Realm: ${notice.namespaceName ?? notice.namespaceId} (${notice.namespaceId}), tier ${notice.tier}`,
+    `Requested: ${notice.requestedAt.toISOString()}`,
+    `Note: ${notice.note ?? '(none)'}`,
+  ];
+  const approve = `cli mcp-requests approve ${notice.requestId}`;
+  emailOutboxRepository.enqueue({
+    eventKey: `mcp-access-request:${notice.requestId}`,
+    recipient,
+    subject: 'A player asked for AI assistant access',
+    textBody: `A player asked to play through an AI assistant (MCP).\n\n${lines.join('\n')}\n\nApprove with: ${approve}\n`,
+    htmlBody: `<!doctype html><html><body style="font-family:sans-serif"><p>A player asked to play through an AI assistant (MCP).</p><ul>${lines.map(line => `<li>${escapeHtml(line)}</li>`).join('')}</ul><p>Approve with: <code>${escapeHtml(approve)}</code></p></body></html>`,
+  }, notice.requestedAt.getTime());
+}
+
+// Tells the player their request was approved. Needs a working email provider.
+export function enqueueMcpAccessGrantedNotice(notice: { requestId: number; email: string; grantedAt: Date }): void {
+  if (!getEmailProvider()) {
+    return;
+  }
+  const pageUrl = `${getAppUrl()}access-tokens`;
+  const link = pageUrl.startsWith('http') ? pageUrl : null;
+  const text = [
+    'Good news: you can now play your adventures from an AI assistant such as Claude Code, Codex, or Cursor.',
+    '',
+    `Create a token under Settings > AI assistants${link ? `: ${link}` : '.'}`,
+  ].join('\n');
+  emailOutboxRepository.enqueue({
+    eventKey: `mcp-access-granted:${notice.requestId}`,
+    recipient: notice.email,
+    subject: 'Your AI assistant access is ready',
+    textBody: `${text}\n`,
+    htmlBody: `<!doctype html><html><body style="font-family:sans-serif;color:#0f172a"><p>Good news: you can now play your adventures from an AI assistant such as Claude Code, Codex, or Cursor.</p><p>Create a token under Settings &gt; AI assistants${link ? `: <a href="${escapeHtml(link)}">${escapeHtml(link)}</a>` : '.'}</p></body></html>`,
+  }, notice.grantedAt.getTime());
+}
+
 // One dispatcher per backend process; runs never overlap. With more than one backend
 // replica this needs a lease before it can run safely in each.
 let dispatching: Promise<void> | null = null;

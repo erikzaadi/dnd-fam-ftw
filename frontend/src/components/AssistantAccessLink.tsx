@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import type { AccessTokenListResponse } from '../types';
 
-// Settings entry to the Access tokens page. Shown only to MCP pilot users, or to
-// anyone who still has tokens to revoke.
+// Settings entry to the Access tokens page. Shown to everyone while MCP is on (players
+// without access can request it there), and to anyone who still has tokens to revoke.
 export const AssistantAccessLink = () => {
   const [visible, setVisible] = useState(false);
   const navigate = useNavigate();
@@ -14,7 +14,7 @@ export const AssistantAccessLink = () => {
       .then(async res => {
         if (res.ok) {
           const body = await res.json() as AccessTokenListResponse;
-          setVisible(body.eligible || body.tokens.length > 0);
+          setVisible(body.mcpAvailable || body.tokens.length > 0);
         }
       })
       .catch(() => undefined);

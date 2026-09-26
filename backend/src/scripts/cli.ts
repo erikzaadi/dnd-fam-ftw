@@ -6,7 +6,7 @@
  *
  * Resources:
  *   users           list | add <email> [name] | remove <email> | set-primary <e> <ns>
- *                   mcp-access <email> [on|off] | mcp-list [--json] | mcp-revoke <email>
+ *                   mcp-access <email> [on|off|default] | mcp-list [--json] | mcp-revoke <email>
  *   namespaces      list | create <name> | rename <id> <name> | delete <id>
  *                   sessions <id> | assign-session <sessionId> <nsId>
  *                   add-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
@@ -16,6 +16,7 @@
  *                   | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]
  *   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
  *   limit-requests  list [--status <s>] [--json] | approve <id> [--tier <tier>] | deny <id>
+ *   mcp-requests    list [--status <s>] [--json] | approve <id> | deny <id>
  *   email-outbox    list [--status <s>] [--json] | retry <id> | send-test <address>
  *   donations       list [--outcome <o>] [--since <ISO date>] [--json]
  */
@@ -39,7 +40,10 @@ import { userRepository } from '../repositories/userRepository.js';
 import { kofiPaymentRepository, type KofiPaymentOutcome } from '../repositories/kofiPaymentRepository.js';
 import { toSqliteTimestamp } from '../repositories/usageRepository.js';
 import { getEmailProvider } from '../providers/email/emailProviderFactory.js';
-import { USAGE_TIERS, getEffectiveLimits, isUsageTier, tierLabel } from '../services/usageLimitService.js';
+import { USAGE_TIERS, getEffectiveLimits, getNamespaceTier, isUsageTier, tierLabel } from '../services/usageLimitService.js';
+import { isMcpEligible } from '../services/accessTokenService.js';
+import { mcpAccessRequestService } from '../services/mcpAccessRequestService.js';
+import { mcpAccessRequestRepository, type McpAccessRequestStatus } from '../repositories/mcpAccessRequestRepository.js';
 
 const [, , resource, subcommand, ...rest] = process.argv;
 const allArgs = [subcommand, ...rest].filter(Boolean);
@@ -162,40 +166,54 @@ case 'users': {
     }
     break;
   }
-  // MCP pilot allowlist. Off blocks the user's tokens immediately; they stay listed
-  // on the Access tokens page so the user can still revoke them.
+  // MCP access override. 'default' leaves it to the realm tier (MCP_DEFAULT_TIERS).
+  // Off blocks the user's tokens immediately; they stay listed on the Access tokens
+  // page so the user can still revoke them.
   case 'mcp-access': {
     const [email, value] = positional;
-    if (!email || (value !== undefined && value !== 'on' && value !== 'off')) {
-      fail('Usage: cli users mcp-access <email> [on|off]');
+    if (!email || (value !== undefined && value !== 'on' && value !== 'off' && value !== 'default')) {
+      fail('Usage: cli users mcp-access <email> [on|off|default]');
     }
     const user = StateService.getUserByEmail(email);
     if (!user) {
       fail(`User not found: ${email}`);
     }
     if (value !== undefined) {
-      userRepository.setMcpAccess(user.id, value === 'on');
+      userRepository.setMcpAccess(user.id, value);
+      // An on or off decision also answers any open "Request assistant access".
+      if (value !== 'default' && mcpAccessRequestRepository.resolveOpenForUser(user.id, value === 'on' ? 'approved' : 'denied', Date.now())) {
+        console.log(`Closed their open assistant access request as ${value === 'on' ? 'approved' : 'denied'}.`);
+      }
     }
-    console.log(`MCP access for ${user.email}: ${userRepository.hasMcpAccess(user.id) ? 'on' : 'off'}`);
-    if (value === 'on' && !getConfig().MCP_ENABLED) {
+    console.log(`MCP access override for ${user.email}: ${userRepository.getMcpAccess(user.id)}`);
+    for (const ns of userRepository.getUserNamespaces(user.email)) {
+      const tier = getNamespaceTier(ns.id);
+      console.log(`  ${ns.name.padEnd(30)} ${tier.padEnd(10)} ${isMcpEligible(user.id, ns.id) ? 'can use MCP' : 'no MCP'}`);
+    }
+    if (!getConfig().MCP_ENABLED) {
       console.log('Note: MCP_ENABLED is not true in this environment, so the endpoint stays closed.');
+    } else {
+      console.log(`Realm tiers with MCP by default: ${getConfig().MCP_DEFAULT_TIERS.join(', ') || 'none'}`);
     }
     break;
   }
   case 'mcp-list': {
     const now = Date.now();
-    const users = userRepository.listMcpUsers().map(u => ({
+    const users = userRepository.listMcpOverrides().map(u => ({
       ...u,
       activeTokens: accessTokenRepository.countActiveForUser(u.id, now),
     }));
     if (jsonMode) {
       process.stdout.write(JSON.stringify(users, null, 2) + '\n');
     } else if (users.length === 0) {
-      console.log('No users have MCP access.');
+      console.log('No users have an MCP access override.');
     } else {
       for (const u of users) {
-        console.log(`${u.email.padEnd(35)} active tokens: ${u.activeTokens}`);
+        console.log(`${u.email.padEnd(35)} ${u.access.padEnd(4)} active tokens: ${u.activeTokens}`);
       }
+    }
+    if (!jsonMode) {
+      console.log(`Everyone else follows their realm tier: ${getConfig().MCP_DEFAULT_TIERS.join(', ') || 'none'}`);
     }
     break;
   }
@@ -1207,6 +1225,67 @@ limit-requests <sub-command>
   break;
 }
 
+// ── mcp-requests ──────────────────────────────────────────────────────────────
+
+case 'mcp-requests': {
+  switch (subcommand) {
+  case 'list': {
+    const statusArg = parseArgValue(allArgs.find(a => a === '--status' || a.startsWith('--status=')));
+    if (statusArg && !['pending', 'approved', 'denied'].includes(statusArg)) {
+      fail('Usage: cli mcp-requests list [--status pending|approved|denied] [--json]');
+    }
+    const rows = mcpAccessRequestRepository.list((statusArg ?? 'pending') as McpAccessRequestStatus);
+    if (jsonMode) {
+      process.stdout.write(JSON.stringify(rows, null, 2) + '\n');
+    } else if (rows.length === 0) {
+      console.log(`No ${statusArg ?? 'pending'} assistant access requests.`);
+    } else {
+      console.table(rows.map(row => ({
+        id: row.id,
+        email: row.email,
+        realm: row.namespace_name ?? row.namespace_id,
+        tier: row.tier,
+        note: row.note ?? '',
+        status: row.status,
+        created: new Date(row.created_at).toISOString(),
+      })));
+    }
+    break;
+  }
+  case 'approve': {
+    const id = Number(positional[0]);
+    if (!Number.isInteger(id)) {
+      fail('Usage: cli mcp-requests approve <id>');
+    }
+    const request = mcpAccessRequestService.approve(id);
+    if (!request) {
+      fail(`No pending assistant access request with id ${id}.`);
+    }
+    console.log(`Approved request ${id}: MCP access for ${request.email} is now on. They get an email if email is configured.`);
+    break;
+  }
+  case 'deny': {
+    const id = Number(positional[0]);
+    if (!Number.isInteger(id)) {
+      fail('Usage: cli mcp-requests deny <id>');
+    }
+    if (!mcpAccessRequestService.deny(id)) {
+      fail(`No pending assistant access request with id ${id}.`);
+    }
+    console.log(`Denied request ${id}. The player can ask again later; use users mcp-access <email> off to stop that.`);
+    break;
+  }
+  default:
+    console.log(`
+mcp-requests <sub-command>
+  list [--status pending|approved|denied] [--json]  Show "Request assistant access" requests (default: pending)
+  approve <id>                                      Turn MCP access on for the player and email them
+  deny <id>                                         Close the request without changes
+`);
+  }
+  break;
+}
+
 // ── email-outbox ──────────────────────────────────────────────────────────────
 
 case 'email-outbox': {
@@ -1337,7 +1416,7 @@ Usage: npm run cli -- <resource> [sub-command] [args...] [--json]
 
 Resources:
   users           list | add <email> [name] | remove <email> | set-primary <e> <ns>
-                  mcp-access <email> [on|off] | mcp-list | mcp-revoke <email>
+                  mcp-access <email> [on|off|default] | mcp-list | mcp-revoke <email>
   namespaces      list | create <name> | rename <id> <name> | delete <id>
                   sessions <id> | assign-session <sessionId> <nsId>
                   add-user <nsId> <email> | remove-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
@@ -1345,6 +1424,7 @@ Resources:
   metrics         [--json] [--since <ISO date>] | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]
   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
   limit-requests  list [--status <s>] [--json] | approve <id> [--tier <tier>] | deny <id>
+  mcp-requests    list [--status <s>] [--json] | approve <id> | deny <id>
   email-outbox    list [--status <s>] [--json] | retry <id> | send-test <address>
   donations       list [--outcome <o>] [--since <ISO date>] [--json]
 

@@ -39,7 +39,7 @@ export const setMcpTestEnv = (dbPath?: string): void => {
 
 export const createPilot = (email: string, scopes: AccessTokenScope[] = ['adventures:play', 'adventures:create']) => {
   const { userId, namespaceId } = userRepository.createUser(email);
-  userRepository.setMcpAccess(userId, true);
+  userRepository.setMcpAccess(userId, 'on');
   const minted = accessTokenService.create({ userId, namespaceId, label: email, scopes });
   if (!minted.ok) {
     throw new Error(`could not mint token: ${minted.error}`);

@@ -1,16 +1,17 @@
 import crypto from 'crypto';
-import { isMcpEnabled } from '../config/env.js';
+import { getConfig, isMcpEnabled } from '../config/env.js';
 import { createId } from '../lib/ids.js';
 import { withTransaction } from '../persistence/transaction.js';
 import { accessTokenRepository, type AccessTokenRow } from '../repositories/accessTokenRepository.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
+import { getNamespaceTier } from './usageLimitService.js';
 import { ACCESS_TOKEN_SCOPE_VALUES, type AccessTokenScope, type AccessTokenSummary } from '../types.js';
 
-// Personal access tokens for the MCP endpoint (invite-only pilot). The secret is
-// 256 random bits, shown once; only its SHA-256 digest is stored. A token is valid
-// only while it is unexpired, unrevoked, its user is in the MCP pilot, and the user is
-// still a member of the token's namespace. Website cookies never work on /mcp and MCP
+// Personal access tokens for the MCP endpoint. The secret is 256 random bits, shown
+// once; only its SHA-256 digest is stored. A token is valid only while it is unexpired,
+// unrevoked, its user is eligible for the token's namespace (isMcpEligible), and the
+// user is still a member of that namespace. Website cookies never work on /mcp and MCP
 // tokens never work as website sessions.
 
 export const TOKEN_PREFIX = 'dndmcp_';
@@ -55,7 +56,18 @@ export const toAccessTokenSummary = (row: AccessTokenRow): AccessTokenSummary =>
   revokedAt: toIso(row.revoked_at),
 });
 
-export const isMcpEligible = (userId: string): boolean => isMcpEnabled() && userRepository.hasMcpAccess(userId);
+// A per-user override wins; otherwise the realm's current tier decides, so a realm
+// that drops to a tier outside MCP_DEFAULT_TIERS loses access on the next request.
+export const isMcpEligible = (userId: string, namespaceId: string, now: number = Date.now()): boolean => {
+  if (!isMcpEnabled()) {
+    return false;
+  }
+  const access = userRepository.getMcpAccess(userId);
+  if (access !== 'default') {
+    return access === 'on';
+  }
+  return getConfig().MCP_DEFAULT_TIERS.includes(getNamespaceTier(namespaceId, now));
+};
 
 const insertToken = (userId: string, namespaceId: string, label: string, scopes: AccessTokenScope[], now: number): { row: AccessTokenRow; secret: string } => {
   const secret = `${TOKEN_PREFIX}${crypto.randomBytes(32).toString('base64url')}`;
@@ -83,7 +95,7 @@ export const accessTokenService = {
 
   create(input: { userId: string; namespaceId: string; label: string; scopes: readonly AccessTokenScope[]; now?: number }): CreateTokenResult {
     const now = input.now ?? Date.now();
-    if (!isMcpEligible(input.userId)) {
+    if (!isMcpEligible(input.userId, input.namespaceId, now)) {
       return { ok: false, error: 'not_eligible' };
     }
     if (!userRepository.isNamespaceMember(input.userId, input.namespaceId)) {
@@ -100,9 +112,6 @@ export const accessTokenService = {
 
   // Issues a replacement with the same label, namespace, and scopes, then revokes the old one.
   rotate(userId: string, tokenId: string, now: number = Date.now()): CreateTokenResult {
-    if (!isMcpEligible(userId)) {
-      return { ok: false, error: 'not_eligible' };
-    }
     return withTransaction((): CreateTokenResult => {
       const old = accessTokenRepository.getForUser(userId, tokenId);
       if (!old || old.revoked_at !== null || old.expires_at <= now) {
@@ -110,6 +119,9 @@ export const accessTokenService = {
       }
       if (!userRepository.isNamespaceMember(userId, old.namespace_id)) {
         return { ok: false, error: 'not_member' };
+      }
+      if (!isMcpEligible(userId, old.namespace_id, now)) {
+        return { ok: false, error: 'not_eligible' };
       }
       const { row, secret } = insertToken(userId, old.namespace_id, old.label, parseScopes(old.scopes), now);
       accessTokenRepository.revoke(userId, old.id, now);
@@ -132,7 +144,7 @@ export const accessTokenService = {
       return null;
     }
     const user = userRepository.getUserById(row.user_id);
-    if (!user || !userRepository.hasMcpAccess(user.id) || !userRepository.isNamespaceMember(user.id, row.namespace_id)) {
+    if (!user || !isMcpEligible(user.id, row.namespace_id, now) || !userRepository.isNamespaceMember(user.id, row.namespace_id)) {
       return null;
     }
     accessTokenRepository.touch(row.id, now);
