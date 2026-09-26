@@ -573,6 +573,32 @@ export interface AuthMeResponse {
   namespaceId: string;
 }
 
+// 409 body when the browser's X-Namespace-Id header (the namespace it believes is
+// active) no longer matches the cookie, e.g. another tab switched realms. The header
+// is a consistency check only: the cookie, not the header, selects the namespace.
+export interface NamespaceChangedResponse {
+  error: 'namespace_changed';
+}
+
+// 401 body when the sign-in is valid but the cookie's namespace is no longer one
+// of the user's memberships. The client can recover via the session namespace routes.
+export interface NamespaceAccessLostResponse {
+  error: 'Invalid or expired session';
+  code: 'namespace_access_lost';
+}
+
+export interface SessionNamespace {
+  id: string;
+  name: string;
+}
+
+// GET /auth/session/namespaces - memberships of the signed-in user.
+export interface SessionNamespacesResponse {
+  // Null when the cookie's namespace is no longer a membership.
+  currentNamespaceId: string | null;
+  namespaces: SessionNamespace[];
+}
+
 // Personal access tokens for the MCP endpoint. A token grants one
 // namespace and these scopes; the secret is shown once at creation.
 export type AccessTokenScope = 'adventures:read' | 'adventures:play' | 'adventures:create' | 'images:generate';

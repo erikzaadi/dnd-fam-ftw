@@ -39,6 +39,9 @@ app.set('trust proxy', 'loopback');
 app.use(cors({
   credentials: true,
   origin: (origin, callback) => callback(null, isAllowedOrigin(origin, isProduction)),
+  // Every API call carries X-Namespace-Id, so cross-origin deployments preflight
+  // even GETs. Let browsers cache the preflight instead of repeating it per request.
+  maxAge: 600,
 }));
 app.use(express.json());
 app.use(cookieParser());

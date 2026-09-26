@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { isAuthEnabled } from '../config/env.js';
 import { userRepository } from '../repositories/userRepository.js';
-import { authMiddleware } from './auth.js';
+import { authMiddleware, requireFullIdentity } from './auth.js';
 
 vi.mock('../config/env.js', () => ({
   isAuthEnabled: vi.fn(() => true),
@@ -22,14 +22,17 @@ vi.mock('../repositories/userRepository.js', () => ({
 const fullPayload = { type: 'full', email: 'hero@example.com', namespaceId: 'ns-primary' };
 const sign = (payload: object) => jwt.sign(payload, 'middleware-auth-test-secret');
 
-const authenticate = (token?: string) => {
-  const req = { cookies: token ? { jwt: token } : {} } as Request;
+const authenticate = (token?: string, headers: Record<string, string> = {}, middleware = authMiddleware) => {
+  const req = {
+    cookies: token ? { jwt: token } : {},
+    get: (name: string) => headers[name.toLowerCase()],
+  } as unknown as Request;
   const status = vi.fn().mockReturnThis();
   const json = vi.fn();
   const cookie = vi.fn();
   const res = { status, json, cookie } as unknown as Response;
   const next = vi.fn();
-  authMiddleware(req, res, next);
+  middleware(req, res, next);
   return { req, status, json, cookie, next };
 };
 
@@ -171,5 +174,48 @@ describe('authMiddleware', () => {
     expect(result.req.userEmail).toBeNull();
     expect(userRepository.getUserByEmail).not.toHaveBeenCalled();
     expect(userRepository.getUserNamespaces).not.toHaveBeenCalled();
+  });
+
+  it('marks a lost membership so the client can recover without signing in again', () => {
+    vi.mocked(userRepository.getUserNamespaces).mockReturnValue([{ id: 'ns-shared', name: 'Shared' }]);
+    const result = authenticate(sign(fullPayload));
+    expectRejected(result);
+    expect(result.json).toHaveBeenCalledWith({ error: 'Invalid or expired session', code: 'namespace_access_lost' });
+  });
+
+  it('accepts a matching expected-namespace header', () => {
+    const result = authenticate(sign(fullPayload), { 'x-namespace-id': 'ns-primary' });
+    expect(result.next).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a stale tab whose expected namespace no longer matches the cookie', () => {
+    const result = authenticate(sign(fullPayload), { 'x-namespace-id': 'ns-shared' });
+    expect(result.status).toHaveBeenCalledWith(409);
+    expect(result.json).toHaveBeenCalledWith({ error: 'namespace_changed' });
+    expect(result.next).not.toHaveBeenCalled();
+    expect(result.req.namespaceId).toBeUndefined();
+  });
+});
+
+describe('requireFullIdentity', () => {
+  it('accepts a valid sign-in whose namespace membership was removed', () => {
+    vi.mocked(userRepository.getUserNamespaces).mockReturnValue([{ id: 'ns-shared', name: 'Shared' }]);
+    const result = authenticate(sign({ ...fullPayload, userId: 'user-1' }), {}, requireFullIdentity);
+    expect(result.next).toHaveBeenCalledOnce();
+    expect(result.req.fullIdentity).toMatchObject({ userId: 'user-1', email: fullPayload.email, namespaceId: 'ns-primary' });
+    expect(result.req.namespaceId).toBeUndefined();
+  });
+
+  it.each(['pending-invite', 'invite-requested', 'pending-namespace'])('rejects a %s token', type => {
+    const result = authenticate(sign({ ...fullPayload, type }), {}, requireFullIdentity);
+    expect(result.status).toHaveBeenCalledWith(401);
+    expect(result.next).not.toHaveBeenCalled();
+  });
+
+  it('rejects a token for a deleted account', () => {
+    vi.mocked(userRepository.getUserById).mockReturnValue(null);
+    const result = authenticate(sign({ ...fullPayload, userId: 'user-1' }), {}, requireFullIdentity);
+    expect(result.status).toHaveBeenCalledWith(401);
+    expect(result.next).not.toHaveBeenCalled();
   });
 });

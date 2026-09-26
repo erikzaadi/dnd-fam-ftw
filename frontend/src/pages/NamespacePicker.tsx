@@ -1,37 +1,55 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiFetch } from '../lib/api';
+import { apiFetch, switchNamespace } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { SiteHeader } from '../components/SiteHeader';
 import { DmFooter } from '../components/DmFooter';
 
-interface Namespace {
-  id: string;
-  name: string;
-}
+import type { SessionNamespace, SessionNamespacesResponse } from '../types';
+
+// 'login': choosing a realm while signing in (pending cookie).
+// 'session': already signed in, but the active realm was removed; pick another one.
+type PickerMode = 'login' | 'session';
 
 export const NamespacePicker = () => {
-  const [namespaces, setNamespaces] = useState<Namespace[]>([]);
+  const [namespaces, setNamespaces] = useState<SessionNamespace[]>([]);
+  const [mode, setMode] = useState<PickerMode>('login');
+  const [noRealms, setNoRealms] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selecting, setSelecting] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { refetch } = useAuth();
+  const { refetch, logout } = useAuth();
 
   useEffect(() => {
-    apiFetch('/auth/namespaces')
-      .then(async res => {
-        if (!res.ok) {
-          setError('Your session has expired. Please sign in again.');
-          return;
-        }
-        const data = await res.json() as { namespaces: Namespace[] };
+    const load = async () => {
+      const pending = await apiFetch('/auth/namespaces');
+      if (pending.ok) {
+        const data = await pending.json() as { namespaces: SessionNamespace[] };
         setNamespaces(data.namespaces);
-      })
-      .catch(() => setError('Failed to load namespaces. Please try again.'));
+        return;
+      }
+      const session = await apiFetch('/auth/session/namespaces');
+      if (!session.ok) {
+        setError('Your session has expired. Please sign in again.');
+        return;
+      }
+      const data = await session.json() as SessionNamespacesResponse;
+      setMode('session');
+      setNamespaces(data.namespaces);
+      setNoRealms(data.namespaces.length === 0);
+    };
+    load().catch(() => setError('Failed to load namespaces. Please try again.'));
   }, []);
 
   const select = async (namespaceId: string) => {
     setSelecting(namespaceId);
+    if (mode === 'session') {
+      if (!await switchNamespace(namespaceId)) {
+        setError('Could not enter that realm. Please try again.');
+        setSelecting(null);
+      }
+      return;
+    }
     try {
       const res = await apiFetch('/auth/select-namespace', {
         method: 'POST',
@@ -59,7 +77,11 @@ export const NamespacePicker = () => {
           <div>
             <div className="text-4xl mb-2">🗺</div>
             <h2 className="text-2xl font-display font-black text-amber-400 italic tracking-tighter">Choose Your Realm</h2>
-            <p className="text-slate-400 text-sm mt-2">You have access to multiple adventure groups. Which one are you joining today?</p>
+            <p className="text-slate-400 text-sm mt-2">
+              {mode === 'session'
+                ? 'You no longer have access to the realm you were in. Pick another one to keep playing.'
+                : 'You have access to multiple adventure groups. Which one are you joining today?'}
+            </p>
           </div>
 
           {error && (
@@ -83,7 +105,19 @@ export const NamespacePicker = () => {
             </div>
           )}
 
-          {!error && namespaces.length === 0 && (
+          {noRealms && (
+            <div className="space-y-4">
+              <p className="text-slate-400 text-sm">You are not a member of any realm right now. Ask a realm owner to invite you again.</p>
+              <button
+                onClick={() => void logout().then(() => navigate('/login'))}
+                className="w-full py-3 bg-slate-800 hover:bg-slate-700 rounded-[20px] font-black uppercase italic tracking-tighter transition-colors text-slate-300 border border-slate-700"
+              >
+                Sign out
+              </button>
+            </div>
+          )}
+
+          {!error && !noRealms && namespaces.length === 0 && (
             <div className="text-slate-500 text-sm">Loading realms...</div>
           )}
         </div>

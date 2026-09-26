@@ -3,21 +3,18 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { imgSrc } from '../lib/api';
 import { FullscreenImage } from './FullscreenImage';
 import { useAuth } from '../contexts/AuthContext';
+import { AccountMenu } from './AccountMenu';
 
 export const SiteHeader = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isHome = location.pathname === '/';
   const [fullscreen, setFullscreen] = useState(false);
-  const { enabled, user, logout } = useAuth();
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
+  const { enabled, user } = useAuth();
 
   return (
-    <div className="flex-shrink-0">
+    <div className="relative flex-shrink-0 z-[20]">
+      {enabled && user && <AccountMenu />}
       {fullscreen && <FullscreenImage url={imgSrc('/images/home_banner.png')} onClose={() => setFullscreen(false)} />}
       <div
         className={`relative ${isHome ? 'h-40 md:h-52' : 'h-28 md:h-36'} overflow-hidden border-b border-slate-800/60 shadow-2xl cursor-zoom-in`}
@@ -32,18 +29,6 @@ export const SiteHeader = () => {
             aria-label="Back to home"
           >
             ←
-          </button>
-        )}
-        {enabled && user && (
-          <button
-            onClick={e => {
-              e.stopPropagation(); void handleLogout();
-            }}
-            className="absolute top-3 right-3 z-10 text-slate-300 hover:text-white bg-slate-950/60 backdrop-blur-sm rounded-full px-3 h-9 flex items-center gap-1.5 text-xs font-bold transition-colors"
-            aria-label="Sign out"
-          >
-            <span className="hidden sm:inline truncate max-w-[120px]">{user.email.split('@')[0]}</span>
-            <span>↩</span>
           </button>
         )}
         <img src={imgSrc('/images/home_banner.png')} className="w-full h-full object-cover animate-ken-burns" alt="" />

@@ -6,7 +6,7 @@ import { getConfig, isAllowedOrigin, isAuthEnabled, isEmailAuthEnabled, isGoogle
 import { resendEmailCode, startEmailSignIn, verifyEmailCode } from '../services/emailAuthService.js';
 import { dispatchOutbox, enqueueInviteRequestNotice } from '../services/emailService.js';
 import { resolveGoogleSignIn, type SignInOutcome } from '../services/signupService.js';
-import { authMiddleware, requirePendingInviteToken, requirePendingNamespaceToken } from '../middleware/auth.js';
+import { authMiddleware, requireFullIdentity, requirePendingInviteToken, requirePendingNamespaceToken } from '../middleware/auth.js';
 import { buildGoogleAuthUrl, createOAuthState, createPkcePair, exchangeCodeForIdentity, getAuthPublicConfig, safeEqual } from '../services/authService.js';
 import { StateService } from '../services/stateService.js';
 import {
@@ -27,8 +27,10 @@ import type {
   EmailSignInResendResponse,
   EmailSignInStartResponse,
   EmailSignInVerifyResponse,
+  SessionNamespacesResponse,
 } from '../types.js';
 import { parseBody } from './routeValidation.js';
+import { requireBrowserJsonPost } from './browserPost.js';
 
 interface AuthRoutesOptions {
   isProduction: boolean;
@@ -275,6 +277,33 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
     res.json({ ok: true });
   }));
   
+  // Realm switching for an already signed-in user. Uses the identity-only check so a
+  // user removed from their active realm can still list and pick another membership.
+  router.get('/auth/session/namespaces', requireFullIdentity, (req, res) => {
+    const identity = req.fullIdentity!;
+    const namespaces = StateService.getUserNamespaces(identity.email);
+    const body: SessionNamespacesResponse = {
+      currentNamespaceId: namespaces.some(n => n.id === identity.namespaceId) ? identity.namespaceId : null,
+      namespaces,
+    };
+    res.json(body);
+  });
+
+  router.post('/auth/session/namespace', requireBrowserJsonPost(isProduction), requireFullIdentity, (req, res) => {
+    const body = parseBody(req, res, selectNamespaceBodySchema);
+    if (!body) {
+      return;
+    }
+    const identity = req.fullIdentity!;
+    // Fresh membership lookup: the target must be a membership right now.
+    if (!StateService.getUserNamespaces(identity.email).some(n => n.id === body.namespaceId)) {
+      res.status(403).json({ error: 'Namespace access denied' });
+      return;
+    }
+    setFullAuthCookie(res, { email: identity.email, namespaceId: body.namespaceId, type: 'full', userId: identity.userId }, { isProduction });
+    res.json({ ok: true });
+  });
+
   router.get('/auth/invite-info', requirePendingInviteToken, (req, res) => {
     res.json({ email: req.pendingPayload!.email, alreadyRequested: req.pendingPayload!.type === 'invite-requested' });
   });

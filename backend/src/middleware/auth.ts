@@ -4,10 +4,23 @@ import { isAuthEnabled } from '../config/env.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { runWithUsageContext } from '../lib/usageContext.js';
 import { setFullAuthCookie } from '../routes/authCookies.js';
+import type { NamespaceAccessLostResponse, NamespaceChangedResponse } from '../types.js';
 
 // Sliding session: an active player whose login has less than this left gets a fresh
 // 30-day cookie, so only people who stop playing have to sign in again.
 const REFRESH_WITHIN_SECONDS = 7 * 24 * 60 * 60;
+
+// Browser API calls carry the namespace the page believes is active. Only a
+// consistency check against another tab switching realms; the cookie decides access.
+export const NAMESPACE_HEADER = 'x-namespace-id';
+
+export interface FullIdentity {
+  userId: string;
+  email: string;
+  // The namespace in the cookie. Not yet checked against current memberships.
+  namespaceId: string;
+  payload: JwtPayload;
+}
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -16,6 +29,7 @@ declare global {
       namespaceId: string;
       userEmail: string | null;
       pendingPayload?: JwtPayload;
+      fullIdentity?: FullIdentity;
     }
   }
 }
@@ -28,10 +42,57 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
     return;
   }
 
+  const identity = resolveFullIdentity(req, res);
+  if (!identity) {
+    return;
+  }
+
+  // Cookie names are client-controlled. Only full sessions for a current member
+  // authorize gameplay, even when a pending or revoked token has a valid signature.
+  if (!isMember(identity)) {
+    const body: NamespaceAccessLostResponse = { error: 'Invalid or expired session', code: 'namespace_access_lost' };
+    res.status(401).json(body);
+    return;
+  }
+
+  const expected = req.get(NAMESPACE_HEADER);
+  if (expected !== undefined && expected !== identity.namespaceId) {
+    const body: NamespaceChangedResponse = { error: 'namespace_changed' };
+    res.status(409).json(body);
+    return;
+  }
+
+  refreshFullCookie(res, identity);
+  req.namespaceId = identity.namespaceId;
+  req.userEmail = identity.email;
+  // Provider calls made for this request (and background work it starts) are
+  // attributed to this namespace and user.
+  runWithUsageContext({ namespaceId: identity.namespaceId, userId: identity.userId }, next);
+}
+
+// A valid full sign-in whose namespace may no longer be a membership. Only for the
+// routes that list memberships and switch namespace, so a user removed from their
+// active realm can pick another one without signing in again. Gameplay routes use
+// authMiddleware, which also requires current membership.
+export function requireFullIdentity(req: Request, res: Response, next: NextFunction): void {
+  if (!isAuthEnabled()) {
+    res.status(404).json({ error: 'Auth not configured' });
+    return;
+  }
+  const identity = resolveFullIdentity(req, res);
+  if (!identity) {
+    return;
+  }
+  req.fullIdentity = identity;
+  req.userEmail = identity.email;
+  next();
+}
+
+function resolveFullIdentity(req: Request, res: Response): FullIdentity | null {
   const token = (req.cookies as Record<string, string>)?.jwt;
   if (!token) {
     res.status(401).json({ error: 'Unauthorized' });
-    return;
+    return null;
   }
 
   const payload = verifyJwt(token);
@@ -39,29 +100,28 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
     || typeof payload.email !== 'string' || !payload.email.trim()
     || typeof payload.namespaceId !== 'string' || !payload.namespaceId.trim()) {
     res.status(401).json({ error: 'Invalid or expired session' });
-    return;
+    return null;
   }
 
-  // Cookie names are client-controlled. Only full sessions for a current member
-  // authorize gameplay, even when a pending or revoked token has a valid signature.
   const user = resolveSessionUser(payload);
-  if (!user || !userRepository.getUserNamespaces(user.email).some(namespace => namespace.id === payload.namespaceId)) {
+  if (!user) {
     res.status(401).json({ error: 'Invalid or expired session' });
-    return;
+    return null;
   }
+  return { userId: user.id, email: user.email, namespaceId: payload.namespaceId, payload };
+}
 
-  if (typeof payload.exp === 'number' && payload.exp - Date.now() / 1000 < REFRESH_WITHIN_SECONDS) {
+function isMember(identity: FullIdentity): boolean {
+  return userRepository.getUserNamespaces(identity.email).some(namespace => namespace.id === identity.namespaceId);
+}
+
+function refreshFullCookie(res: Response, identity: FullIdentity): void {
+  if (typeof identity.payload.exp === 'number' && identity.payload.exp - Date.now() / 1000 < REFRESH_WITHIN_SECONDS) {
     // Re-issued with userId, which also upgrades older email-only tokens.
-    setFullAuthCookie(res, { email: user.email, namespaceId: payload.namespaceId, type: 'full', userId: user.id }, {
+    setFullAuthCookie(res, { email: identity.email, namespaceId: identity.namespaceId, type: 'full', userId: identity.userId }, {
       isProduction: process.env.NODE_ENV === 'production',
     });
   }
-
-  req.namespaceId = payload.namespaceId;
-  req.userEmail = user.email;
-  // Provider calls made for this request (and background work it starts) are
-  // attributed to this namespace and user.
-  runWithUsageContext({ namespaceId: payload.namespaceId, userId: user.id }, next);
 }
 
 // New full tokens carry a userId, so a deleted account's cookie can never match a

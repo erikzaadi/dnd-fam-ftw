@@ -36,7 +36,7 @@ function AuthUnavailable({ onRetry }: { onRetry: () => void }) {
 }
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { enabled, user, loading, unavailable, refetch } = useAuth();
+  const { enabled, user, loading, unavailable, namespaceLost, refetch } = useAuth();
 
   if (loading) {
     return (
@@ -48,6 +48,10 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (unavailable) {
     return <AuthUnavailable onRetry={() => void refetch()} />;
+  }
+
+  if (enabled && !user && namespaceLost) {
+    return <Navigate to="/namespace-picker" replace />;
   }
 
   if (enabled && !user) {
