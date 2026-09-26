@@ -84,6 +84,7 @@ export type {
   McpAccessRequestErrorResponse,
   OAuthConsentDetailsResponse,
   OAuthConsentDecisionResponse,
+  OAuthGrantSummary,
   AccessTokenCreatedResponse,
   AutoConfirmListResponse,
   ImagePolicy,

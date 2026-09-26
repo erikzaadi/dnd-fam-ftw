@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AccessTokenCreatedResponse, AccessTokenListResponse, AccessTokenSummary } from '../types';
+import type { AccessTokenCreatedResponse, AccessTokenListResponse, AccessTokenSummary, OAuthGrantSummary } from '../types';
 import { AccessTokens } from './AccessTokens';
 
 const mocks = vi.hoisted(() => ({ apiFetch: vi.fn() }));
@@ -50,6 +50,7 @@ const renderPage = () => render(<MemoryRouter><AccessTokens /></MemoryRouter>);
 // realm list answer separately.
 let queue: Response[] = [];
 let autoConfirm: unknown = { adventures: [] };
+let grants: OAuthGrantSummary[] = [];
 const respondWith = (...responses: Response[]) => {
   queue = responses;
 };
@@ -57,9 +58,16 @@ const respondWith = (...responses: Response[]) => {
 beforeEach(() => {
   vi.clearAllMocks();
   autoConfirm = { adventures: [] };
+  grants = [];
   mocks.apiFetch.mockImplementation(async (path: string, init?: RequestInit) => {
     if (path === '/access-tokens/auto-confirm') {
       return json(autoConfirm);
+    }
+    if (path === '/access-tokens/grants') {
+      return json(grants);
+    }
+    if (path.startsWith('/access-tokens/grants/')) {
+      return json({ ok: true });
     }
     // The header's account menu lists the user's realms.
     if (path === '/auth/session/namespaces') {
@@ -72,7 +80,7 @@ beforeEach(() => {
   });
 });
 
-const tokenCalls = () => mocks.apiFetch.mock.calls.filter(([path]) => String(path).startsWith('/access-tokens') && !String(path).startsWith('/access-tokens/auto-confirm'));
+const tokenCalls = () => mocks.apiFetch.mock.calls.filter(([path]) => String(path).startsWith('/access-tokens') && !String(path).startsWith('/access-tokens/auto-confirm') && !String(path).startsWith('/access-tokens/grants'));
 
 describe('AccessTokens', () => {
   it('lets players without access request it, then shows the open request', async () => {
@@ -135,6 +143,21 @@ describe('AccessTokens', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Revoke' }));
     expect(await screen.findByText('revoked')).toBeTruthy();
     expect(tokenCalls()[1][0]).toBe('/access-tokens/tok1/revoke');
+  });
+
+  it('lists connected assistants and disconnects one after confirmation', async () => {
+    grants = [{
+      id: 'ogr_1', clientName: 'Claude Code', verifiedHost: 'claude.ai', namespaceId: 'ns', namespaceName: 'The Burrow',
+      scopes: ['adventures:read', 'adventures:play'], createdAt: '2026-09-20T10:00:00.000Z', expiresAt: '2099-10-20T10:00:00.000Z',
+      lastUsedAt: null, revokedAt: null,
+    }];
+    respondWith(json(list()));
+    renderPage();
+    expect(await screen.findByText(/Verified app from claude\.ai/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }));
+    const dialog = screen.getByText(/It stops working right away/).parentElement!;
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Disconnect' }));
+    await vi.waitFor(() => expect(mocks.apiFetch.mock.calls.some(([path]) => path === '/access-tokens/grants/ogr_1/revoke')).toBe(true));
   });
 
   it('lets a pilot user choose to be asked before every action in one adventure', async () => {

@@ -73,8 +73,4 @@ export const oauthAuthorizationRepository = {
     getDb().prepare('DELETE FROM oauth_authorization_requests WHERE expires_at < ?').run(before);
     getDb().prepare('DELETE FROM oauth_codes WHERE expires_at < ?').run(before);
   },
-
-  deleteForUser(userId: string): void {
-    getDb().prepare('DELETE FROM oauth_codes WHERE user_id = ?').run(userId);
-  },
 };

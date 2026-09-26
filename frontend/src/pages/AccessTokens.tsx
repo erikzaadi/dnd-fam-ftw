@@ -3,6 +3,7 @@ import { SiteHeader } from '../components/SiteHeader';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { AutoConfirmSettings } from '../components/AutoConfirmSettings';
 import { AssistantAccessRequest } from '../components/AssistantAccessRequest';
+import { ConnectedAssistants } from '../components/ConnectedAssistants';
 import { apiFetch, apiUrl } from '../lib/api';
 import type { AccessTokenCreatedResponse, AccessTokenListResponse, AccessTokenScope, AccessTokenSummary } from '../types';
 
@@ -241,6 +242,8 @@ export const AccessTokens = () => {
           )}
 
           {data?.eligible && <AutoConfirmSettings namespaceName={data.namespaceName} />}
+
+          <ConnectedAssistants />
 
           {data && data.tokens.length > 0 && (
             <section className="space-y-3" aria-labelledby="tokens-heading">

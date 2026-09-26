@@ -718,6 +718,21 @@ export interface McpAccessRequestErrorResponse {
   message: string;
 }
 
+// GET /access-tokens/grants: assistants connected through OAuth sign-in.
+export interface OAuthGrantSummary {
+  id: string;
+  clientName: string | null;
+  // Host of the app's Client ID Metadata Document URL; null for unverified apps.
+  verifiedHost: string | null;
+  namespaceId: string;
+  namespaceName: string | null;
+  scopes: AccessTokenScope[];
+  createdAt: string;
+  expiresAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+}
+
 // GET /oauth-consent/:requestId: what an MCP client asks for, shown on the consent page.
 export interface OAuthConsentDetailsResponse {
   client: {

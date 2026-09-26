@@ -83,6 +83,9 @@ export function deleteNamespaceRows(namespaceId: string): void {
   db.prepare('DELETE FROM namespace_settings WHERE namespace_id = ?').run(namespaceId);
   db.prepare('DELETE FROM tts_usage WHERE namespace_id = ?').run(namespaceId);
   db.prepare('DELETE FROM access_tokens WHERE namespace_id = ?').run(namespaceId);
+  db.prepare('DELETE FROM oauth_tokens WHERE grant_id IN (SELECT id FROM oauth_grants WHERE namespace_id = ?)').run(namespaceId);
+  db.prepare('DELETE FROM oauth_grants WHERE namespace_id = ?').run(namespaceId);
+  db.prepare('DELETE FROM oauth_codes WHERE namespace_id = ?').run(namespaceId);
   db.prepare('DELETE FROM namespaces WHERE id = ?').run(namespaceId);
 }
 
@@ -199,6 +202,9 @@ export const userRepository = {
       db.prepare('DELETE FROM access_tokens WHERE user_id = ?').run(user.id);
       db.prepare('DELETE FROM mcp_auto_confirm WHERE user_id = ?').run(user.id);
       db.prepare('DELETE FROM mcp_access_requests WHERE user_id = ?').run(user.id);
+      db.prepare('DELETE FROM oauth_tokens WHERE grant_id IN (SELECT id FROM oauth_grants WHERE user_id = ?)').run(user.id);
+      db.prepare('DELETE FROM oauth_grants WHERE user_id = ?').run(user.id);
+      db.prepare('DELETE FROM oauth_codes WHERE user_id = ?').run(user.id);
       db.prepare("UPDATE namespace_invites SET status = 'revoked', resolved_at = ? WHERE inviter_user_id = ? AND status = 'pending'").run(Date.now(), user.id);
       db.prepare('DELETE FROM users WHERE id = ?').run(user.id);
       db.prepare('DELETE FROM auth_email_challenges WHERE email_canonical = ?').run(canonicalEmail(email));

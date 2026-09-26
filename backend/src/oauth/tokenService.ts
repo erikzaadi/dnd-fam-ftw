@@ -3,10 +3,10 @@ import { isMcpOAuthEnabled } from '../config/env.js';
 import { withTransaction } from '../persistence/transaction.js';
 import { oauthAuthorizationRepository } from '../repositories/oauthAuthorizationRepository.js';
 import { oauthClientRepository } from '../repositories/oauthClientRepository.js';
-import { oauthGrantRepository, type OAuthGrantRow } from '../repositories/oauthGrantRepository.js';
+import { oauthGrantRepository, type OAuthGrantListItem, type OAuthGrantRow } from '../repositories/oauthGrantRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { isMcpEligible, type McpPrincipal } from '../services/accessTokenService.js';
-import type { AccessTokenScope } from '../types.js';
+import type { AccessTokenScope, OAuthGrantSummary } from '../types.js';
 import { parseScopeParam } from './authorizationService.js';
 import { digestSecret, newSecret, verifyPkce } from './secrets.js';
 import { mcpResource, resolveResource } from './urls.js';
@@ -68,6 +68,21 @@ const issuePair = (grant: Pick<OAuthGrantRow, 'id' | 'expires_at'>, scopes: stri
     scope: scopes,
   };
 };
+
+const toIso = (ms: number | null): string | null => (ms === null ? null : new Date(ms).toISOString());
+
+export const toGrantSummary = (row: OAuthGrantListItem): OAuthGrantSummary => ({
+  id: row.id,
+  clientName: row.client_name,
+  verifiedHost: row.client_kind === 'cimd' ? new URL(row.client_id).hostname : null,
+  namespaceId: row.namespace_id,
+  namespaceName: row.namespace_name,
+  scopes: row.scopes.split(' ') as AccessTokenScope[],
+  createdAt: new Date(row.created_at).toISOString(),
+  expiresAt: new Date(row.expires_at).toISOString(),
+  lastUsedAt: toIso(row.last_used_at),
+  revokedAt: toIso(row.revoked_at),
+});
 
 type ResultOrReplay = { ok: true; tokens: OAuthTokenResponse } | { ok: false; replayOf: string | null };
 
@@ -215,6 +230,16 @@ export const oauthTokenService = {
       scopes: token.scopes.split(' ') as AccessTokenScope[],
       expiresAt: token.expires_at,
     };
+  },
+
+  // Connected assistants for the Access tokens page, newest first.
+  listGrants(userId: string): OAuthGrantSummary[] {
+    return oauthGrantRepository.listForUser(userId).map(toGrantSummary);
+  },
+
+  // The player ends a connection from the website. Works while the OAuth flag is off.
+  revokeGrant(userId: string, grantId: string, now: number = Date.now()): boolean {
+    return oauthGrantRepository.revokeGrantForUser(userId, grantId, now);
   },
 
   // RFC 7009: revoking either token kind ends the whole grant. Unknown tokens, and

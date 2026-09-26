@@ -219,3 +219,27 @@ describe('revocation', () => {
     expect(grantOf(tokens).revoked_at).not.toBeNull();
   });
 });
+
+describe('connected assistants', () => {
+  it('lists a player\'s grants and lets only that player disconnect them', async () => {
+    const { user, tokens } = await connect();
+    const other = userRepository.createUser(`token-other-${++seq}@example.com`);
+    const [listed] = oauthTokenService.listGrants(user.userId);
+    expect(listed).toMatchObject({ clientName: 'Assistant', verifiedHost: null, namespaceId: user.namespaceId, revokedAt: null });
+    expect(oauthTokenService.revokeGrant(other.userId, listed.id)).toBe(false);
+    expect(oauthTokenService.revokeGrant(user.userId, listed.id)).toBe(true);
+    expect(grantOf(tokens).revoked_at).not.toBeNull();
+    expect(oauthTokenService.authenticate(tokens.access_token)).toBeNull();
+  });
+
+  it('authenticates an access token as its grant, and removes everything with the user', async () => {
+    const { user, tokens } = await connect();
+    const principal = oauthTokenService.authenticate(tokens.access_token);
+    expect(principal).toMatchObject({ grantId: grantOf(tokens).id, userId: user.userId, namespaceId: user.namespaceId, credential: { kind: 'oauth' } });
+    expect(oauthTokenService.authenticate(tokens.refresh_token)).toBeNull();
+    const grantId = grantOf(tokens).id;
+    userRepository.deleteUser(`token-user-${seq}@example.com`);
+    expect(oauthGrantRepository.getGrant(grantId)).toBeNull();
+    expect(oauthGrantRepository.getToken(digestSecret(tokens.access_token))).toBeNull();
+  });
+});

@@ -7,8 +7,9 @@ import { getConfig, isAllowedOrigin, isAuthEnabled, isMcpEnabled } from '../conf
 import { accessTokenService, isMcpEligible, MAX_ACTIVE_TOKENS_PER_USER, type CreateTokenResult } from '../services/accessTokenService.js';
 import { dispatchOutbox } from '../services/emailService.js';
 import { mcpAccessRequestService, MAX_REQUESTS_PER_WINDOW } from '../services/mcpAccessRequestService.js';
-import { ACCESS_TOKEN_SCOPE_VALUES, type AccessTokenCreatedResponse, type AccessTokenListResponse, type AutoConfirmListResponse, type McpAccessRequestErrorResponse } from '../types.js';
+import { ACCESS_TOKEN_SCOPE_VALUES, type AccessTokenCreatedResponse, type AccessTokenListResponse, type AutoConfirmListResponse, type McpAccessRequestErrorResponse, type OAuthGrantSummary } from '../types.js';
 import { autoConfirmRepository } from '../repositories/autoConfirmRepository.js';
+import { oauthTokenService } from '../oauth/tokenService.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { parseBody } from './routeValidation.js';
 
@@ -143,6 +144,23 @@ export const createAccessTokenRouter = ({ isProduction }: { isProduction: boolea
       return;
     }
     console.log(`[MCP] Token ${req.params.tokenId as string} revoked by user ${userId}`);
+    res.json({ ok: true });
+  });
+
+  // Assistants connected through OAuth sign-in. Listing and revoking keep working while
+  // MCP_OAUTH_ENABLED is off, so players can always end a connection.
+  router.get('/access-tokens/grants', requireUser, (_req, res) => {
+    const body: OAuthGrantSummary[] = oauthTokenService.listGrants(getUsageContext()!.userId!);
+    res.json(body);
+  });
+
+  router.post('/access-tokens/grants/:grantId/revoke', requireOwnOrigin, requireUser, (req, res) => {
+    const userId = getUsageContext()!.userId!;
+    if (!oauthTokenService.revokeGrant(userId, req.params.grantId as string)) {
+      res.status(404).json({ error: 'not_found', message: 'Connection not found or already ended.' });
+      return;
+    }
+    console.log(`[OAuth] Grant ${req.params.grantId as string} revoked by user ${userId}`);
     res.json({ ok: true });
   });
 

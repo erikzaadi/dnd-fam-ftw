@@ -100,10 +100,4 @@ export const oauthGrantRepository = {
     db.prepare(`DELETE FROM oauth_tokens WHERE grant_id IN (
       SELECT id FROM oauth_grants WHERE expires_at < ? OR (revoked_at IS NOT NULL AND revoked_at < ?))`).run(grantsEndedBefore, grantsEndedBefore);
   },
-
-  deleteForUser(userId: string): void {
-    const db = getDb();
-    db.prepare('DELETE FROM oauth_tokens WHERE grant_id IN (SELECT id FROM oauth_grants WHERE user_id = ?)').run(userId);
-    db.prepare('DELETE FROM oauth_grants WHERE user_id = ?').run(userId);
-  },
 };

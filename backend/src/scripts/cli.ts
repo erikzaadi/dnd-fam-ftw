@@ -19,6 +19,7 @@
  *   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
  *   limit-requests  list [--status <s>] [--json] | approve <id> [--tier <tier>] | deny <id>
  *   mcp-requests    list [--status <s>] [--json] | approve <id> | deny <id>
+ *   mcp-grants      list [--email <e>] [--json] | revoke <id>
  *   email-outbox    list [--status <s>] [--json] | retry <id> | send-test <address>
  *   donations       list [--outcome <o>] [--since <ISO date>] [--json]
  */
@@ -38,6 +39,7 @@ import { getConfig } from '../config/env.js';
 import { emailOutboxRepository, type EmailOutboxStatus } from '../repositories/emailOutboxRepository.js';
 import { limitRequestRepository, type LimitRequestStatus } from '../repositories/limitRequestRepository.js';
 import { accessTokenRepository } from '../repositories/accessTokenRepository.js';
+import { oauthGrantRepository } from '../repositories/oauthGrantRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { kofiPaymentRepository, type KofiPaymentOutcome } from '../repositories/kofiPaymentRepository.js';
 import { toSqliteTimestamp } from '../repositories/usageRepository.js';
@@ -249,7 +251,8 @@ case 'users': {
       fail(`User not found: ${email}`);
     }
     const revoked = accessTokenRepository.revokeAllForUser(user.id, Date.now());
-    console.log(`Revoked ${revoked} token(s) for ${user.email}`);
+    const disconnected = oauthGrantRepository.revokeAllForUser(user.id, Date.now());
+    console.log(`Revoked ${revoked} token(s) and ${disconnected} connected assistant(s) for ${user.email}`);
     break;
   }
   default:
@@ -1418,6 +1421,61 @@ mcp-requests <sub-command>
   break;
 }
 
+// ── mcp-grants ────────────────────────────────────────────────────────────────
+
+case 'mcp-grants': {
+  switch (subcommand) {
+  case 'list': {
+    const emailArg = parseArgValue(allArgs.find(a => a === '--email' || a.startsWith('--email=')));
+    let rows = oauthGrantRepository.listAll();
+    if (emailArg) {
+      const user = StateService.getUserByEmail(emailArg);
+      if (!user) {
+        fail(`User not found: ${emailArg}`);
+      }
+      rows = oauthGrantRepository.listForUser(user.id);
+    }
+    const now = Date.now();
+    const state = (row: (typeof rows)[number]) => (row.revoked_at !== null ? 'revoked' : row.expires_at <= now ? 'expired' : 'active');
+    if (jsonMode) {
+      process.stdout.write(JSON.stringify(rows.map(row => ({ ...row, state: state(row) })), null, 2) + '\n');
+    } else if (rows.length === 0) {
+      console.log('No connected assistants.');
+    } else {
+      console.table(rows.map(row => ({
+        id: row.id,
+        email: row.email ?? row.user_id,
+        realm: row.namespace_name ?? row.namespace_id,
+        app: row.client_name ?? row.client_id,
+        verified: row.client_kind === 'cimd' ? new URL(row.client_id).hostname : 'no',
+        scopes: row.scopes,
+        state: state(row),
+        lastUsed: row.last_used_at ? new Date(row.last_used_at).toISOString() : '',
+      })));
+    }
+    break;
+  }
+  case 'revoke': {
+    const [id] = positional;
+    if (!id) {
+      fail('Usage: cli mcp-grants revoke <id>');
+    }
+    if (!oauthGrantRepository.revokeGrant(id, Date.now())) {
+      fail(`No active connected assistant with id ${id}.`);
+    }
+    console.log(`Disconnected ${id}. Its tokens stop working on the next request.`);
+    break;
+  }
+  default:
+    console.log(`
+mcp-grants <sub-command>
+  list [--email <e>] [--json]  Assistants connected through OAuth sign-in (newest first)
+  revoke <id>                  End one connection immediately
+`);
+  }
+  break;
+}
+
 // ── email-outbox ──────────────────────────────────────────────────────────────
 
 case 'email-outbox': {
@@ -1560,6 +1618,7 @@ Resources:
   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
   limit-requests  list [--status <s>] [--json] | approve <id> [--tier <tier>] | deny <id>
   mcp-requests    list [--status <s>] [--json] | approve <id> | deny <id>
+  mcp-grants      list [--email <e>] [--json] | revoke <id>
   email-outbox    list [--status <s>] [--json] | retry <id> | send-test <address>
   donations       list [--outcome <o>] [--since <ISO date>] [--json]
 
