@@ -9,7 +9,7 @@ import type { OperationAcceptedResponse } from '../types.js';
 import { admitPaidCall } from './admission.js';
 import { toMcpOperation } from './projection.js';
 import { createAdventureInput, createAdventureOutput, manageAdventureInput, manageAdventureOutput } from './schemas.js';
-import { audit, hasScope, loadOwnedSession, NOT_FOUND_MESSAGE, toolError } from './toolSupport.js';
+import { audit, hasScope, loadOwnedSession, NOT_FOUND_MESSAGE, scopeHint, toolError } from './toolSupport.js';
 
 const RETRY_AFTER_SECONDS = 3;
 
@@ -27,7 +27,7 @@ export const registerAdventureTools = (server: McpServer, principal: McpPrincipa
     const startedAt = Date.now();
     if (!hasScope(principal, 'adventures:create')) {
       audit(principal, 'create_adventure', startedAt, 'forbidden');
-      return toolError('This token cannot start new adventures. Create a token with "Start new adventures" on the Access tokens page.');
+      return toolError(`This connection cannot start new adventures. ${scopeHint(principal, 'Start new adventures')}`);
     }
     const result = await createAdventure({
       // Keyed by user, so a replacement token can still resolve an interrupted create.
@@ -52,7 +52,7 @@ export const registerAdventureTools = (server: McpServer, principal: McpPrincipa
     const tool = `manage_adventure:${action}`;
     if (!hasScope(principal, 'adventures:play')) {
       audit(principal, tool, startedAt, 'forbidden');
-      return toolError('This token cannot change adventures.');
+      return toolError(`This connection cannot change adventures. ${scopeHint(principal, 'Play turns')}`);
     }
     const session = await loadOwnedSession(principal, adventureId);
     if (!session) {

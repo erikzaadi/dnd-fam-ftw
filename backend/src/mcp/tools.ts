@@ -34,7 +34,7 @@ export const registerTools = (server: McpServer, principal: McpPrincipal, discon
     const startedAt = Date.now();
     if (!hasScope(principal, 'adventures:read')) {
       audit(principal, 'list_adventures', startedAt, 'forbidden');
-      return toolError('This token cannot read adventures.');
+      return toolError('This connection cannot read adventures.');
     }
     const offset = decodeCursor(cursor);
     if (offset === null) {
@@ -63,7 +63,7 @@ export const registerTools = (server: McpServer, principal: McpPrincipal, discon
     const startedAt = Date.now();
     if (!hasScope(principal, 'adventures:read')) {
       audit(principal, 'get_adventure', startedAt, 'forbidden');
-      return toolError('This token cannot read adventures.');
+      return toolError('This connection cannot read adventures.');
     }
     if (!ownsAdventure(principal, adventureId)) {
       audit(principal, 'get_adventure', startedAt, 'not_found');

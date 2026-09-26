@@ -6,7 +6,7 @@ import type { McpPrincipal } from '../services/accessTokenService.js';
 import { readSceneImage, requestSceneImage } from '../services/sceneImageService.js';
 import { admitPaidCall } from './admission.js';
 import { generateSceneImageInput, sceneImageInput } from './schemas.js';
-import { audit, hasScope, loadOwnedSession, NOT_FOUND_MESSAGE, ownsAdventure, toolError } from './toolSupport.js';
+import { audit, hasScope, loadOwnedSession, NOT_FOUND_MESSAGE, ownsAdventure, scopeHint, toolError } from './toolSupport.js';
 
 // Inline image payload cap. Hosts that cannot show images still get a text fallback.
 export const MAX_INLINE_IMAGE_BYTES = 1024 * 1024;
@@ -53,7 +53,7 @@ export const registerImageTools = (server: McpServer, principal: McpPrincipal): 
     const startedAt = Date.now();
     if (!hasScope(principal, 'adventures:read')) {
       audit(principal, 'get_scene_image', startedAt, 'forbidden');
-      return toolError('This token cannot read adventures.');
+      return toolError('This connection cannot read adventures.');
     }
     if (!ownsAdventure(principal, adventureId)) {
       audit(principal, 'get_scene_image', startedAt, 'not_found');
@@ -73,7 +73,7 @@ export const registerImageTools = (server: McpServer, principal: McpPrincipal): 
     const tool = 'generate_scene_image';
     if (!hasScope(principal, 'images:generate')) {
       audit(principal, tool, startedAt, 'forbidden');
-      return toolError('This token cannot paint pictures. Create a token with "Paint scene pictures when asked" on the Access tokens page.');
+      return toolError(`This connection cannot paint pictures. ${scopeHint(principal, 'Paint scene pictures when asked')}`);
     }
     const session = await loadOwnedSession(principal, adventureId);
     if (!session) {

@@ -5,11 +5,11 @@ import { oauthAuthorizationRepository } from '../repositories/oauthAuthorization
 import { oauthClientRepository } from '../repositories/oauthClientRepository.js';
 import { oauthGrantRepository, type OAuthGrantRow } from '../repositories/oauthGrantRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
-import { isMcpEligible } from '../services/accessTokenService.js';
+import { isMcpEligible, type McpPrincipal } from '../services/accessTokenService.js';
 import type { AccessTokenScope } from '../types.js';
 import { parseScopeParam } from './authorizationService.js';
 import { digestSecret, newSecret, verifyPkce } from './secrets.js';
-import { resolveResource } from './urls.js';
+import { mcpResource, resolveResource } from './urls.js';
 
 // Token endpoint logic for MCP OAuth: authorization code exchange, refresh rotation,
 // and revocation (RFC 6749, 7636, 7009, 8707).
@@ -184,6 +184,37 @@ export const oauthTokenService = {
       throw invalidGrant('Refresh token already used');
     }
     return result.tokens;
+  },
+
+  // Resolves an OAuth access token on /mcp to a principal, rechecking the kill switch,
+  // audience, grant state, user, membership, and eligibility on every request.
+  authenticate(secret: string, now: number = Date.now()): McpPrincipal | null {
+    if (!isMcpOAuthEnabled() || !secret.startsWith(ACCESS_TOKEN_PREFIX) || secret.length > 128) {
+      return null;
+    }
+    const digest = digestSecret(secret);
+    const token = oauthGrantRepository.getToken(digest);
+    if (!token || token.kind !== 'access' || token.expires_at <= now) {
+      return null;
+    }
+    const grant = oauthGrantRepository.getGrant(token.grant_id);
+    if (!grant || grant.revoked_at !== null || grant.expires_at <= now || grant.resource !== mcpResource()) {
+      return null;
+    }
+    const user = userRepository.getUserById(grant.user_id);
+    if (!user || !stillAllowed(grant, now)) {
+      return null;
+    }
+    oauthGrantRepository.touchGrant(grant.id, now);
+    return {
+      grantId: grant.id,
+      credential: { kind: 'oauth', id: digest.slice(0, 16) },
+      userId: user.id,
+      email: user.email,
+      namespaceId: grant.namespace_id,
+      scopes: token.scopes.split(' ') as AccessTokenScope[],
+      expiresAt: token.expires_at,
+    };
   },
 
   // RFC 7009: revoking either token kind ends the whole grant. Unknown tokens, and

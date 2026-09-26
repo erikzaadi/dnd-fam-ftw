@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { isMcpEnabled, isMcpOAuthEnabled } from '../config/env.js';
 import { protectedResourceMetadataUrl } from '../oauth/urls.js';
+import { ACCESS_TOKEN_PREFIX, oauthTokenService } from '../oauth/tokenService.js';
 import { runWithUsageContext } from '../lib/usageContext.js';
 import { createUsageContext } from '../services/usageAttribution.js';
 import { accessTokenService, type McpPrincipal } from '../services/accessTokenService.js';
@@ -47,8 +48,9 @@ export const getMcpPrincipal = (res: Response): McpPrincipal => {
   return principal;
 };
 
-// Bearer personal access tokens only. Website cookies are ignored here, and the
-// endpoint does not exist unless MCP is enabled with auth on.
+// Bearer tokens only: personal access tokens, or OAuth access tokens (dndoat_) while
+// MCP_OAUTH_ENABLED is on. Website cookies are ignored here, and the endpoint does not
+// exist unless MCP is enabled with auth on.
 export function mcpAuthMiddleware(req: Request, res: Response, next: NextFunction): void {
   if (!isMcpEnabled()) {
     res.status(404).json({ error: 'Not found' });
@@ -57,11 +59,14 @@ export function mcpAuthMiddleware(req: Request, res: Response, next: NextFunctio
   const header = req.get('authorization');
   const match = header ? /^Bearer\s+(\S+)\s*$/i.exec(header) : null;
   if (!match) {
-    unauthorized(res, 'invalid_request', 'Send a personal access token as Authorization: Bearer <token>');
+    unauthorized(res, 'invalid_request', 'Send an access token as Authorization: Bearer <token>');
     return;
   }
   const now = Date.now();
-  const principal = accessTokenService.authenticate(match[1], now);
+  const secret = match[1];
+  const principal = secret.startsWith(ACCESS_TOKEN_PREFIX)
+    ? oauthTokenService.authenticate(secret, now)
+    : accessTokenService.authenticate(secret, now);
   if (!principal) {
     unauthorized(res, 'invalid_token', 'The token is unknown, expired, or revoked');
     return;

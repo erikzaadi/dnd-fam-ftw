@@ -35,7 +35,7 @@ import {
   previewActionOutput,
   type GetOperationView,
 } from './schemas.js';
-import { audit, hasScope, loadOwnedSession, NOT_FOUND_MESSAGE, ownsAdventure, principalKey, toolError } from './toolSupport.js';
+import { audit, hasScope, loadOwnedSession, NOT_FOUND_MESSAGE, ownsAdventure, principalKey, scopeHint, toolError } from './toolSupport.js';
 
 const POLL_INTERVAL_MS = 500;
 const DEFAULT_WAIT_SECONDS = 20;
@@ -130,7 +130,7 @@ export const registerPlayTools = (server: McpServer, principal: McpPrincipal, di
     const startedAt = Date.now();
     if (!hasScope(principal, 'adventures:play')) {
       audit(principal, 'preview_action', startedAt, 'forbidden');
-      return toolError('This token cannot play turns. Create a token with "Play turns" on the Access tokens page.');
+      return toolError(`This connection cannot play turns. ${scopeHint(principal, 'Play turns')}`);
     }
     const session = await loadOwnedSession(principal, adventureId);
     if (!session) {
@@ -206,7 +206,7 @@ export const registerPlayTools = (server: McpServer, principal: McpPrincipal, di
     const startedAt = Date.now();
     if (!hasScope(principal, 'adventures:play')) {
       audit(principal, 'confirm_action', startedAt, 'forbidden');
-      return toolError('This token cannot play turns.');
+      return toolError(`This connection cannot play turns. ${scopeHint(principal, 'Play turns')}`);
     }
     const session = await loadOwnedSession(principal, adventureId);
     if (!session) {
@@ -279,7 +279,7 @@ export const registerPlayTools = (server: McpServer, principal: McpPrincipal, di
     const startedAt = Date.now();
     if (!hasScope(principal, 'adventures:read')) {
       audit(principal, 'get_operation', startedAt, 'forbidden');
-      return toolError('This token cannot read adventures.');
+      return toolError('This connection cannot read adventures.');
     }
     if (!ownsAdventure(principal, adventureId)) {
       audit(principal, 'get_operation', startedAt, 'not_found');
@@ -333,7 +333,7 @@ export const registerPlayTools = (server: McpServer, principal: McpPrincipal, di
     const startedAt = Date.now();
     if (!hasScope(principal, 'adventures:play')) {
       audit(principal, 'ask_dm', startedAt, 'forbidden');
-      return toolError('This token cannot play turns.');
+      return toolError(`This connection cannot play turns. ${scopeHint(principal, 'Play turns')}`);
     }
     const session = await loadOwnedSession(principal, adventureId);
     if (!session) {

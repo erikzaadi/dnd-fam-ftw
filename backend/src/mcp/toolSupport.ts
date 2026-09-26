@@ -16,6 +16,11 @@ export const audit = (principal: McpPrincipal, tool: string, startedAt: number, 
 
 export const hasScope = (principal: McpPrincipal, scope: AccessTokenScope): boolean => principal.scopes.includes(scope);
 
+// How the player gets a missing permission, depending on how the assistant connected.
+export const scopeHint = (principal: McpPrincipal, label: string): string => principal.credential.kind === 'oauth'
+  ? `Reconnect the assistant and tick "${label}" when the realm asks.`
+  : `Create a token with "${label}" on the Access tokens page.`;
+
 // Tools act only inside the token's namespace. A session in another namespace looks
 // exactly like a missing one. The model never supplies the namespace.
 export const ownsAdventure = (principal: McpPrincipal, sessionId: string): boolean =>
