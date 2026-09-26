@@ -765,16 +765,22 @@ export const migrate = (db: DB): void => {
   // primary realm (normally the account it was created for), else its oldest member.
   // Realms without members stay ownerless until someone is added (the first member
   // becomes owner). 'local' never has an owner. cli namespaces set-owner fixes a choice.
+  // Per realm in code: libsql rejects the outer column in a correlated UPDATE subquery.
   runOnce('assign_namespace_owners_from_primary', () => {
-    db.prepare(`
-      UPDATE namespaces SET owner_user_id = (
-        SELECT u.id FROM user_namespaces un JOIN users u ON u.id = un.user_id
-        WHERE un.namespace_id = namespaces.id
-        ORDER BY CASE WHEN u.namespace_id = namespaces.id THEN 0 ELSE 1 END, u.created_at, u.id
-        LIMIT 1
-      )
-      WHERE owner_user_id IS NULL AND id != 'local'
-    `).run();
+    const ownerless = db.prepare("SELECT id FROM namespaces WHERE owner_user_id IS NULL AND id != 'local'").all() as { id: string }[];
+    const pickOwner = db.prepare(`
+      SELECT u.id FROM user_namespaces un JOIN users u ON u.id = un.user_id
+      WHERE un.namespace_id = ?
+      ORDER BY CASE WHEN u.namespace_id = ? THEN 0 ELSE 1 END, u.created_at, u.id
+      LIMIT 1
+    `);
+    const setOwner = db.prepare('UPDATE namespaces SET owner_user_id = ? WHERE id = ?');
+    for (const { id } of ownerless) {
+      const owner = pickOwner.get(id, id) as { id: string } | undefined;
+      if (owner) {
+        setOwner.run(owner.id, id);
+      }
+    }
   });
 
   // Owner attribution for provider usage. user_id stays the acting user; owner_user_id
