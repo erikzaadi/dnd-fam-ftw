@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
-import { isMcpEnabled } from '../config/env.js';
+import { isMcpEnabled, isMcpOAuthEnabled } from '../config/env.js';
+import { protectedResourceMetadataUrl } from '../oauth/urls.js';
 import { runWithUsageContext } from '../lib/usageContext.js';
 import { createUsageContext } from '../services/usageAttribution.js';
 import { accessTokenService, type McpPrincipal } from '../services/accessTokenService.js';
@@ -27,8 +28,14 @@ const takeRateSlot = (grantId: string, now: number): number | null => {
   return null;
 };
 
+// Scopes a client should ask for on first sign-in; more can be ticked on the consent page.
+const CHALLENGE_SCOPES = 'adventures:read adventures:play';
+
+// With OAuth on, the challenge points clients at Protected Resource Metadata (RFC 9728)
+// so they can start sign-in. Without it the challenge stays a plain bearer error.
 const unauthorized = (res: Response, error: 'invalid_request' | 'invalid_token', description: string) => {
-  res.setHeader('WWW-Authenticate', `Bearer realm="dnd-fam-ftw", error="${error}", error_description="${description}"`);
+  const discovery = isMcpOAuthEnabled() ? ` resource_metadata="${protectedResourceMetadataUrl()}", scope="${CHALLENGE_SCOPES}",` : '';
+  res.setHeader('WWW-Authenticate', `Bearer realm="dnd-fam-ftw",${discovery} error="${error}", error_description="${description}"`);
   res.status(401).json({ error, error_description: description });
 };
 

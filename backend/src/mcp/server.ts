@@ -7,6 +7,7 @@ import type { McpPrincipal } from '../services/accessTokenService.js';
 import { getMcpPrincipal, mcpAuthMiddleware } from './auth.js';
 import { registerTools } from './tools.js';
 import { registerPrompts } from './prompts.js';
+import { createOAuthDiscoveryRouter } from '../oauth/discoveryRoutes.js';
 
 // Sent at initialization, so play works in hosts without the play guide installed.
 // Canonical long form: docs/mcp/PLAY_GUIDE.md.
@@ -60,12 +61,8 @@ const handleMcpPost = async (req: Request, res: Response): Promise<void> => {
 // so /mcp never falls through to cookie-authenticated routes.
 export const createMcpRouter = () => {
   const router = Router();
-  // No OAuth yet (pilot uses personal tokens). Clients probe these discovery paths;
-  // a plain 404 tells them there is no authorization server, instead of the website's
-  // cookie 401 that some clients read as "start an OAuth login".
-  router.get(['/.well-known/*path', '/mcp/.well-known/*path'], (_req, res) => {
-    res.status(404).json({ error: 'not_found' });
-  });
+  // OAuth discovery (404 while MCP_OAUTH_ENABLED is off).
+  router.use(createOAuthDiscoveryRouter());
   router.all('/mcp', mcpAuthMiddleware);
   router.post('/mcp', (req, res) => {
     void handleMcpPost(req, res);

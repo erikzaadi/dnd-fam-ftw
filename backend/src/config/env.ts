@@ -41,6 +41,11 @@ export type AppConfig = {
   // Paid MCP tool calls (previews, turns, questions, new adventures) per token per UTC
   // day, on top of the namespace's usage budget. 0 turns paid tools off, reads still work.
   MCP_DAILY_PAID_CALLS_PER_TOKEN: number;
+  // OAuth sign-in for MCP clients (phase 2). Needs MCP_ENABLED, MCP_PUBLIC_URL ending in
+  // /mcp at the origin root, and FRONTEND_URL for the consent page. Off: discovery,
+  // registration, authorization, token issuance, refresh, and OAuth access tokens all
+  // stop; revocation and personal access tokens keep working.
+  MCP_OAUTH_ENABLED: boolean;
   // Realm tiers whose members get MCP access without a per-user grant. A per-user
   // override (cli users mcp-access on|off) wins either way.
   MCP_DEFAULT_TIERS: UsageTier[];
@@ -98,6 +103,11 @@ export function isMcpEnabled(): boolean {
   return c.MCP_ENABLED && c.AUTH_MODE === 'enabled';
 }
 
+// Checked on every OAuth request and never cached per grant (the kill switch).
+export function isMcpOAuthEnabled(): boolean {
+  return isMcpEnabled() && getConfig().MCP_OAUTH_ENABLED;
+}
+
 // Why member invitations are unavailable, or null when they are on. On by default:
 // they need auth, an email provider (the same one as sign-in codes), and FRONTEND_URL,
 // since links are built from configuration, never from the request Host.
@@ -132,6 +142,18 @@ export function assertAuthConfig(isProduction: boolean): void {
       throw new Error('[Config] MCP_ENABLED=true requires AUTH_MODE=enabled. The MCP endpoint never allows anonymous access.');
     }
     return;
+  }
+  if (c.MCP_OAUTH_ENABLED) {
+    if (!c.MCP_ENABLED) {
+      throw new Error('[Config] MCP_OAUTH_ENABLED=true requires MCP_ENABLED=true.');
+    }
+    // Issuer and resource come from configuration, never from the request Host.
+    if (!c.MCP_PUBLIC_URL || new URL(c.MCP_PUBLIC_URL).pathname !== '/mcp') {
+      throw new Error('[Config] MCP_OAUTH_ENABLED=true requires MCP_PUBLIC_URL at the origin root, e.g. https://<api domain>/mcp.');
+    }
+    if (!c.FRONTEND_URL) {
+      throw new Error('[Config] MCP_OAUTH_ENABLED=true requires FRONTEND_URL for the consent page.');
+    }
   }
   if (!c.JWT_SECRET) {
     throw new Error('[Config] AUTH_MODE=enabled requires JWT_SECRET. Set AUTH_MODE=disabled for local play without login.');
@@ -350,6 +372,7 @@ function parse(): AppConfig {
     MCP_PUBLIC_URL: parseMcpPublicUrl(),
     MCP_DAILY_PAID_CALLS_PER_TOKEN: parseNonNegativeInt('MCP_DAILY_PAID_CALLS_PER_TOKEN', 200),
     MCP_DEFAULT_TIERS: parseMcpDefaultTiers(),
+    MCP_OAUTH_ENABLED: parseBooleanFlag('MCP_OAUTH_ENABLED'),
     MEMBER_INVITES_DISABLED: parseBooleanFlag('MEMBER_INVITES_DISABLED'),
     INVITE_DAILY_SEND_CAP: parseNonNegativeInt('INVITE_DAILY_SEND_CAP', 200),
     INVITE_DAILY_ACCOUNT_CAP: parseNonNegativeInt('INVITE_DAILY_ACCOUNT_CAP', 25),

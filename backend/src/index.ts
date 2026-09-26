@@ -6,7 +6,7 @@ dotenv.config({ path: path.join(import.meta.dirname, '../../.env') });
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import { assertAuthConfig, getConfig, getTurnStrategy, isAllowedOrigin, isAuthEnabled, isGoogleAuthConfigured, isMcpEnabled, memberInvitesUnavailableReason } from './config/env.js';
+import { assertAuthConfig, getConfig, getTurnStrategy, isAllowedOrigin, isAuthEnabled, isGoogleAuthConfigured, isMcpEnabled, isMcpOAuthEnabled, memberInvitesUnavailableReason } from './config/env.js';
 import { authMiddleware } from './middleware/auth.js';
 import { getDb, runInTransaction } from './persistence/database.js';
 import { seedOnboarding } from './scripts/seedOnboarding.js';
@@ -129,7 +129,7 @@ if (isAuthEnabled()) {
 } else {
   console.log('[Auth] Disabled (AUTH_MODE=disabled) - all requests use the local namespace');
 }
-console.log(`[MCP] ${isMcpEnabled() ? 'Enabled at /mcp (personal access tokens, pilot users only)' : 'Disabled'}`);
+console.log(`[MCP] ${isMcpEnabled() ? `Enabled at /mcp (personal access tokens${isMcpOAuthEnabled() ? ' + OAuth sign-in' : ''})` : 'Disabled'}`);
 
 app.use(createSystemRouter({ config, hasCloudAI }));
 app.use(createAuthRouter({ isProduction }));
