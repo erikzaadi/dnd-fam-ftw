@@ -1,4 +1,5 @@
 export { RANDOM_NAMES, RANDOM_SPECIES, RANDOM_CLASSES, RANDOM_QUIRKS, pickRandom } from './data/characterRandomizers.js';
+export { describeEncounterEnd, describeEncounterStart, describeEncounterStatus, describeEnemy, describeEnemyHealth } from './encounterText.js';
 
 export type { SessionListEventType } from './types.js';
 export {

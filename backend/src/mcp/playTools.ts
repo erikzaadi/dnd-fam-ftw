@@ -5,13 +5,14 @@ import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js'
 import type { McpPrincipal } from '../services/accessTokenService.js';
 import { getActionPreview } from '../services/actionPreviewStore.js';
 import { previewAction, type ActionPreviewOutcome, type ActionPreviewRequest } from '../services/actionPreviewService.js';
+import { RealmOriginStoryService } from '../services/realmOriginStoryService.js';
 import { askDm } from '../services/askDmService.js';
 import { acceptSessionOperation, describeAcceptance, type AcceptanceOutcome } from '../services/sessionOperationService.js';
 import { toPublicTurn } from '../services/sessionProjection.js';
 import { StateService } from '../services/stateService.js';
 import { runAcceptedTurnAction } from '../services/turnSubmissionService.js';
 import { validateTurnActionRequest, type TurnActionRequest } from '../services/turnService.js';
-import type { OperationAcceptedResponse, SessionState } from '../types.js';
+import type { OperationAcceptedResponse, SessionState, TurnResult } from '../types.js';
 import { admitPaidCall } from './admission.js';
 import { isAutoConfirmEligible } from './autoConfirm.js';
 import { dedupPreview } from './previewDedup.js';
@@ -21,7 +22,9 @@ import {
   renderPreviewText,
   toClarificationView,
   toMcpOperation,
+  toCombatView,
   toMcpTurn,
+  toOpeningView,
   toPreviewView,
 } from './projection.js';
 import {
@@ -117,6 +120,38 @@ const waitUnlessStopped = (ms: number, signals: AbortSignal[]): Promise<boolean>
 });
 
 const isDone = (operation: StoredOperation): boolean => operation.status === 'completed' || operation.status === 'failed';
+
+// The fight the operation's latest turns belonged to, if any. It started in this
+// operation when its first tagged turn is one of these turns.
+const combatFor = (adventureId: string, session: SessionState, turns: TurnResult[]): GetOperationView['combat'] => {
+  const encounterId = [...turns].reverse().find(turn => turn.encounterId)?.encounterId;
+  if (!encounterId) {
+    return null;
+  }
+  const encounter = session.encounterState?.id === encounterId
+    ? session.encounterState
+    : session.pastEncounters?.find(past => past.id === encounterId);
+  if (!encounter) {
+    return null;
+  }
+  const firstTurnId = turnHistoryRepository.getFirstTurnIdForEncounter(adventureId, encounterId);
+  return toCombatView(encounter, turns.some(turn => turn.id === firstTurnId));
+};
+
+// Longest get_operation waits for an origin story still being written once the opening is done.
+const ORIGIN_WAIT_MS = 10_000;
+
+// The origin story starts with the opening and is usually stored first. When it is still
+// being written, wait a little for it rather than presenting the opening without it.
+const waitForOriginStory = async (adventureId: string, session: SessionState, signal: AbortSignal): Promise<SessionState> => {
+  const pending = session.originStory ? null : RealmOriginStoryService.pending(adventureId);
+  if (!pending) {
+    return session;
+  }
+  const settled = pending.then(() => true, () => true);
+  await Promise.race([settled, waitUnlessStopped(ORIGIN_WAIT_MS, [signal])]);
+  return (await StateService.getSession(adventureId)) ?? session;
+};
 
 export const registerPlayTools = (server: McpServer, principal: McpPrincipal, disconnected: AbortSignal): void => {
   server.registerTool('preview_action', {
@@ -301,11 +336,14 @@ export const registerPlayTools = (server: McpServer, principal: McpPrincipal, di
       operation = read() ?? operation;
     }
     const done = isDone(operation);
-    const session = done ? await StateService.getSession(adventureId) : undefined;
+    let session = done ? await StateService.getSession(adventureId) : undefined;
+    const isOpening = done && operation.kind === 'start' && operation.status === 'completed';
+    if (session && isOpening) {
+      session = await waitForOriginStory(adventureId, session, extra.signal);
+    }
     const party = session?.party ?? [];
-    const turns = done
-      ? turnHistoryRepository.getTurnsForOperation(adventureId, operation.id).map(turn => toMcpTurn(toPublicTurn(turn), party))
-      : [];
+    const committed = done ? turnHistoryRepository.getTurnsForOperation(adventureId, operation.id) : [];
+    const turns = committed.map(turn => toMcpTurn(toPublicTurn(turn), party));
     const mcpOperation = toMcpOperation(toPublicOperation(operation))!;
     const view: GetOperationView = {
       operation: mcpOperation,
@@ -314,6 +352,8 @@ export const registerPlayTools = (server: McpServer, principal: McpPrincipal, di
       turns,
       retryAfterSeconds: done ? null : RETRY_AFTER_SECONDS,
       message: operationMessage(mcpOperation),
+      combat: session ? combatFor(adventureId, session, committed) : null,
+      opening: session && isOpening ? toOpeningView(session) : null,
     };
     audit(principal, 'get_operation', startedAt, operation.status, adventureId);
     return {

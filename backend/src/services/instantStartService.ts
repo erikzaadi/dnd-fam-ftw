@@ -10,6 +10,7 @@ import type { StoredOperation } from '../repositories/operationRepository.js';
 import { runSessionOperation } from './sessionOperationService.js';
 import { generateAndCommitInitialTurn } from './initialTurnService.js';
 import { attachTurnImage } from './turnSideEffectService.js';
+import { RealmOriginStoryService } from './realmOriginStoryService.js';
 
 export function buildInstantStartParty(sessionId: string): Character[] {
   const archetypes = pickRandomPartyArchetypes();
@@ -56,6 +57,13 @@ export async function runInstantStartBackground(
   // The realm name and description were stored at creation; the campaign brief
   // stores its own DM Prep via narrow patches.
   broadcastSessionChanged(namespaceId, sessionId, 'updated');
+
+  // The origin story is shown before the opening scene (website origin view, MCP
+  // opening), so start it now instead of when the first viewer asks. One short text
+  // call; failures store a fallback.
+  void RealmOriginStoryService.generate(sessionId).catch(err => {
+    console.warn('[InstantStart] Origin story generation failed:', err);
+  });
 
   // Heavy media work (encounter avatars, area images, image briefs, preview)
   // competes with the first-turn narration call for API throughput and has

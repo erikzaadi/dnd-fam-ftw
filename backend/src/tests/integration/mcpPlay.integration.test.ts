@@ -97,6 +97,14 @@ describe('MCP play end to end', () => {
     expect(opening.operation.status).toBe('completed');
     expect(opening.turns).toHaveLength(1);
 
+    // The opening carries the origin story (the fallback here, since models fail in
+    // tests) and the party, as the website's origin view shows them first.
+    const openingRead = await callTool(player.secret, 'get_operation', { adventureId: created.adventureId, operationId: created.operation.id, waitSeconds: 0 });
+    const openingView = structured<{ opening: { originStory: string | null; party: { name: string; quirk: string }[] } | null }>(openingRead);
+    expect(openingView.opening?.party).toHaveLength(2);
+    expect(openingView.opening?.originStory).toMatch(/came together/);
+    expect(openingRead.body?.result?.content?.[0]?.text).toMatch(/Origin story/);
+
     // A lost create response resolves to the same adventure.
     const replay = structured<{ adventureId: string; replayed: boolean }>(await callTool(player.secret, 'create_adventure', {
       premise: 'A silly forest where a troll guards a bridge', heroes: 'auto', partySize: 2, requestId: 'create-e2e-0001',

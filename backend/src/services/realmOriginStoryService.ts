@@ -136,4 +136,9 @@ export const RealmOriginStoryService = {
     inFlight.set(sessionId, work);
     return work;
   },
+
+  // The generation running for this session, if any. Never starts one.
+  pending(sessionId: string): Promise<string> | null {
+    return inFlight.get(sessionId) ?? null;
+  },
 };

@@ -47,6 +47,8 @@ export const heroSchema = z.object({
   class: z.string(),
   species: z.string(),
   quirk: z.string(),
+  // One sentence about the hero's earlier adventures, for heroes brought from another adventure.
+  history: z.string().nullable(),
   hp: z.number(),
   maxHp: z.number(),
   status: z.enum(['active', 'downed']),
@@ -56,6 +58,8 @@ export const heroSchema = z.object({
     id: z.string(),
     name: z.string(),
     description: z.string(),
+    // For example "+1 might" or "heals 3". Empty when the item has no fixed bonus.
+    bonuses: z.array(z.string()),
     consumable: z.boolean(),
     charges: z.number().nullable(),
   })),
@@ -78,6 +82,7 @@ export const encounterSchema = z.object({
     status: z.string(),
     // Only weaknesses the heroes have already discovered.
     knownWeaknesses: z.array(z.string()),
+    traits: z.array(z.string()),
   })),
 });
 
@@ -121,6 +126,8 @@ export const getAdventureOutput = {
   objective: z.string().nullable(),
   resolution: z.string().nullable(),
   wrapUpRequested: z.boolean(),
+  // How the party came together, shown before the opening scene. Null until it is written.
+  originStory: z.string().nullable(),
   // This player's website setting (on unless "always ask me first"): clean previews go out after an Undo window.
   autoConfirmSafe: z.boolean(),
   // off: no pictures. on_demand: generate_scene_image when the player asks. automatic: every scene.
@@ -215,6 +222,27 @@ export const getOperationOutput = {
   turns: z.array(turnSchema),
   retryAfterSeconds: z.number().nullable(),
   message: z.string().nullable(),
+  // Set when the operation's turns were part of a fight: started (with the foes), still
+  // going (with their health), or ended. summary is ready-to-show text.
+  combat: z.object({
+    started: z.boolean(),
+    ended: z.boolean(),
+    outcome: z.enum(['active', 'defeated', 'fled', 'surrendered', 'resolved']),
+    encounter: encounterSchema,
+    summary: z.array(z.string()),
+  }).nullable(),
+  // Only for a completed start operation (a new adventure's opening): present this before the opening scene.
+  opening: z.object({
+    title: z.string(),
+    originStory: z.string().nullable(),
+    party: z.array(z.object({
+      name: z.string(),
+      class: z.string(),
+      species: z.string(),
+      quirk: z.string(),
+      history: z.string().nullable(),
+    })),
+  }).nullable(),
 };
 
 export const askDmInput = {

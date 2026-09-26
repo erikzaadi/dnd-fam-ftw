@@ -5,7 +5,7 @@ import { operationRepository } from '../repositories/operationRepository.js';
 import { riddleRepository } from '../repositories/riddleRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { devLog } from '../lib/devLog.js';
-import type { AskDmPayload, SessionState } from '../types.js';
+import type { AskDmPayload, InventoryItem, SessionState } from '../types.js';
 import { mentionsRiddleAnswer } from './riddleService.js';
 import { StateService } from './stateService.js';
 
@@ -50,6 +50,14 @@ const takeRateLimitSlot = (sessionId: string): boolean => {
   return true;
 };
 
+const describeItem = (item: InventoryItem): string => {
+  const bonuses = Object.entries(item.statBonuses ?? {}).flatMap(([stat, value]) => (value ? [`${value > 0 ? '+' : ''}${value} ${stat}`] : []));
+  if (item.healValue) {
+    bonuses.push(`heals ${item.healValue}`);
+  }
+  return `${item.name} (${item.description}${bonuses.length > 0 ? `; ${bonuses.join(', ')}` : ''})`;
+};
+
 // Public facts only: no DM Prep, chapter plan, story summary, or riddle answers.
 export const buildAskContext = (session: SessionState, latestNarration: string | null, riddlePrompt: string | null): string => {
   const hero = session.party.find(c => c.id === session.activeCharacterId) ?? session.party[0];
@@ -61,11 +69,12 @@ export const buildAskContext = (session: SessionState, latestNarration: string |
   if (hero) {
     lines.push(`Acting hero: ${hero.name}. Stats: might ${hero.stats.might}, magic ${hero.stats.magic}, mischief ${hero.stats.mischief}. Quirk: ${hero.quirk}.`);
     lines.push(hero.inventory.length > 0
-      ? `${hero.name} carries: ${hero.inventory.map(item => `${item.name} (${item.description})`).join('; ')}`
+      ? `${hero.name} carries: ${hero.inventory.map(describeItem).join('; ')}`
       : `${hero.name} carries nothing.`);
     const others = session.party.filter(c => c.id !== hero.id && c.inventory.length > 0);
     if (others.length > 0) {
-      lines.push('Other heroes carry: ' + others.map(c => `${c.name}: ${c.inventory.map(item => item.name).join(', ')}`).join('; '));
+      // Full descriptions too: players ask about a teammate's gear on someone else's turn.
+      lines.push('Other heroes carry: ' + others.map(c => `${c.name}: ${c.inventory.map(describeItem).join('; ')}`).join(' | '));
     }
   }
   const encounter = session.encounterState;

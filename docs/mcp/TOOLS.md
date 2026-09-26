@@ -29,7 +29,7 @@ Output: `adventures[]` (`id`, `title`, `status` `active|concluding|completed|par
 ## get_adventure
 
 Input: `adventureId`, `historyLimit?` (1-10, default 3), `beforeTurnId?`.
-Output: `id`, `title`, `revision`, `turn`, `status`, `format`, `chapter`, `phase`, `objective`, `resolution`, `wrapUpRequested`, `autoConfirmSafe`, `imagePolicy`, `activeHeroId`, `activeHeroName`, `party[]` (stats, HP, inventory with item `id`s, effects), `encounter` (enemies with discovered weaknesses only), `activeOperation`, `latestOperation`, `history[]`, `historyCursor`.
+Output: `id`, `title`, `revision`, `turn`, `status`, `format`, `chapter`, `phase`, `objective`, `resolution`, `wrapUpRequested`, `originStory`, `autoConfirmSafe`, `imagePolicy`, `activeHeroId`, `activeHeroName`, `party[]` (quirk, `history` for heroes from an earlier adventure, stats, HP, inventory with item `id`s, descriptions and `bonuses`, effects), `encounter` (enemies with traits and discovered weaknesses only), `activeOperation`, `latestOperation`, `history[]`, `historyCursor`.
 
 A turn: `turnId`, `turnType`, `heroName`, `action` (`text`, `success`, `roll`, `target`, `stat`), `rollNarration`, `narration`, `changes[]`, `hasImage`.
 
@@ -50,7 +50,11 @@ With `undoWindow: true` (only for `autoConfirmEligible` previews, else `needs_pl
 ## get_operation
 
 Input: `adventureId`, `operationId?` or `requestId?`, `waitSeconds?` (0-25, default 20).
-Output: `operation`, `done`, `revision`, `turns[]` (every turn the operation committed, oldest first), `retryAfterSeconds`, `message`.
+Output: `operation`, `done`, `revision`, `turns[]` (every turn the operation committed, oldest first), `retryAfterSeconds`, `message`, `combat`, `opening`.
+
+`combat` is set when the operation's turns were part of a fight: `started` (its first turn is in this operation), `ended`, `outcome` (`active|defeated|fled|surrendered|resolved`), `encounter`, and `summary[]`, ready-to-show text: the foes (role, HP, traits, discovered weaknesses) when it starts, each foe's remaining HP while it goes on, the outcome when it ends.
+
+`opening` is set only for a completed `start` operation (a new adventure's opening scene): `title`, `originStory` (how the party came together, as on the website's origin page; null if it could not be written in time) and `party[]` (`name`, `class`, `species`, `quirk`, `history`). The origin story is written when the adventure starts; `get_operation` waits up to 10 more seconds for it.
 
 `unknown_operation` for a `requestId` means the write never reached the server and can be sent again with the same `requestId`.
 

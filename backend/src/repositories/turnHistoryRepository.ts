@@ -289,6 +289,12 @@ export const turnHistoryRepository = {
     return rows.map(mapTurnHistoryRow);
   },
 
+  // The turn a fight started on: the first one tagged with its encounter id.
+  getFirstTurnIdForEncounter(sessionId: string, encounterId: string): number | null {
+    const row = getDb().prepare('SELECT id FROM turn_history WHERE sessionId = ? AND encounterId = ? ORDER BY id LIMIT 1').get(sessionId, encounterId) as { id: number } | undefined;
+    return row?.id ?? null;
+  },
+
   getLatestTurnId(sessionId: string): number | null {
     const row = getDb().prepare('SELECT id FROM turn_history WHERE sessionId = ? ORDER BY id DESC LIMIT 1').get(sessionId) as { id: number } | undefined;
     return row?.id ?? null;

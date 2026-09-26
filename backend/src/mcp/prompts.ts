@@ -17,7 +17,7 @@ export const registerPrompts = (server: McpServer): void => {
   }, ({ idea, heroes }) => text([
     `Start a new D&D adventure with the dnd-fam-ftw server${idea ? ` about: ${idea}` : ''}.`,
     heroes ? `Heroes: ${heroes}. Pass them to create_adventure as hero descriptions.` : 'Let the DM make the party (heroes "auto") unless I describe heroes.',
-    'Use create_adventure with a fresh requestId, wait with get_operation, then show me the opening scene and ask what we do.',
+    'Use create_adventure with a fresh requestId, wait with get_operation, then tell me the origin story, introduce each hero in one line, show me the opening scene, and ask what we do.',
     'The server is the DM: never invent rolls or outcomes, and preview each of my actions before confirming it with me.',
   ].join(' ')));
 

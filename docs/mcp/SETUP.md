@@ -17,6 +17,7 @@ Status: opt-in pilot. Founding Realms (or the tiers in `MCP_DEFAULT_TIERS`) have
 
 Add the server URL to your assistant without any token. When the assistant connects, your browser opens the realm's website: sign in if needed, choose the realm and what the assistant may do, and press **Allow**. The browser returns to the assistant and you can play.
 
+- Claude (web): add a custom connector with the URL `https://<api domain>/mcp`, then press **Connect** on it.
 - Claude Code: `claude mcp add --transport http dnd-fam-ftw https://<api domain>/mcp`, then run `/mcp` in Claude Code and choose to authenticate `dnd-fam-ftw`.
 - Codex: add the server to `~/.codex/config.toml` with just `url = "https://<api domain>/mcp"`, then run `codex mcp login dnd-fam-ftw`.
 - Cursor: add the server to `.cursor/mcp.json` with just `"url"`, then press **Connect** (or **Needs login**) next to it in Cursor's MCP settings.
@@ -122,6 +123,7 @@ curl -s http://localhost:3001/mcp \
 
 | Client | Version | Token setup | Sign-in (OAuth) | Read tools | Play (create, preview, confirm) |
 | --- | --- | --- | --- | --- | --- |
+| Claude (web) | claude.ai | | works (2026-09-26, after accepting extra grant types in its client metadata document) | works (2026-09-26) | `generate_scene_image` shows the painted scene inline (2026-09-26) |
 | Claude Code | not yet tested | | not yet tested | | |
 | Codex CLI | 0.157.0 | `http_headers` with a direct bearer works; `bearer_token_env_var` reported the variable unset once (likely an environment setup issue, not rechecked) | not yet tested | works (2026-09-26) | preview, confirm, and Esc to stop the Undo window work (2026-09-26) |
 | Codex desktop app | | | | | create and play work (2026-09-26) |
