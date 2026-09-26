@@ -55,7 +55,7 @@ const clientMetadataSchema = z.object({
   response_types: z.array(z.literal('code')).optional(),
 });
 
-const toClient = (row: OAuthClientRow): OAuthClient => ({
+export const toOAuthClient = (row: OAuthClientRow): OAuthClient => ({
   clientId: row.client_id,
   kind: row.kind,
   clientName: row.client_name,
@@ -116,7 +116,7 @@ export const oauthClientService = {
       redirectUris: parsed.data.redirect_uris,
       now,
     });
-    return { ok: true, client: toClient(oauthClientRepository.get(clientId)!), issuedAt: now };
+    return { ok: true, client: toOAuthClient(oauthClientRepository.get(clientId)!), issuedAt: now };
   },
 
   // Resolves a client id to a client, fetching (or refreshing) its metadata document
@@ -125,7 +125,7 @@ export const oauthClientService = {
     const now = options.now ?? Date.now();
     const row = oauthClientRepository.get(clientId);
     if (row && (row.kind === 'dcr' || (row.cache_until !== null && row.cache_until > now))) {
-      return toClient(row);
+      return toOAuthClient(row);
     }
     if (!isMetadataDocumentClientId(clientId)) {
       return null;
@@ -139,7 +139,7 @@ export const oauthClientService = {
       }
       const cacheSeconds = Math.min(Math.max(maxAgeSeconds ?? METADATA_DEFAULT_CACHE_S, METADATA_MIN_CACHE_S), METADATA_MAX_CACHE_S);
       oauthClientRepository.upsertMetadataDocument({ clientId, ...document, cacheUntil: now + cacheSeconds * 1000, now });
-      return toClient(oauthClientRepository.get(clientId)!);
+      return toOAuthClient(oauthClientRepository.get(clientId)!);
     } catch (err) {
       console.warn(`[OAuth] Could not fetch client metadata document ${clientId}: ${err instanceof Error ? err.message : String(err)}`);
       return null;

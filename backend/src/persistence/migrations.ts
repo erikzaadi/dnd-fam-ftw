@@ -853,4 +853,37 @@ export const migrate = (db: DB): void => {
       last_used_at INTEGER
     );
   `);
+
+  // MCP OAuth authorization. A pending request waits for the player's decision on the
+  // consent page (10 minutes); an approved request becomes a code (60 seconds). Both
+  // are single use and consumed with a conditional update; only digests are stored.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS oauth_authorization_requests (
+      digest TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      redirect_uri TEXT NOT NULL,
+      state TEXT,
+      code_challenge TEXT NOT NULL,
+      scopes TEXT NOT NULL,
+      resource TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      consumed_at INTEGER
+    );
+    CREATE TABLE IF NOT EXISTS oauth_codes (
+      digest TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      redirect_uri TEXT NOT NULL,
+      code_challenge TEXT NOT NULL,
+      resource TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      namespace_id TEXT NOT NULL,
+      scopes TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      used_at INTEGER,
+      grant_id TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_oauth_codes_user ON oauth_codes(user_id);
+  `);
 };

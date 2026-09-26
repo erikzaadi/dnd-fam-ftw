@@ -718,6 +718,27 @@ export interface McpAccessRequestErrorResponse {
   message: string;
 }
 
+// GET /oauth-consent/:requestId: what an MCP client asks for, shown on the consent page.
+export interface OAuthConsentDetailsResponse {
+  client: {
+    // Self-declared for unverified apps.
+    name: string | null;
+    // Host of the app's Client ID Metadata Document URL; null for unverified apps.
+    verifiedHost: string | null;
+    // Where the browser returns after the decision (host only).
+    redirectHost: string;
+  };
+  requestedScopes: AccessTokenScope[];
+  realms: { id: string; name: string; eligible: boolean }[];
+  currentNamespaceId: string;
+  expiresAt: string;
+}
+
+// POST /oauth-consent/:requestId
+export interface OAuthConsentDecisionResponse {
+  redirectUrl: string;
+}
+
 // POST /access-tokens and POST /access-tokens/:id/rotate (201)
 export interface AccessTokenCreatedResponse {
   token: AccessTokenSummary;

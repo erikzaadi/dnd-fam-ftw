@@ -58,6 +58,11 @@ export default defineConfig(({ command }) => {
       faviconPlugin(faviconDragon),
     ],
     server: {
+      // Same as the CloudFront response headers policy: the app is never framed.
+      headers: {
+        'X-Frame-Options': 'DENY',
+        'Content-Security-Policy': "frame-ancestors 'none'",
+      },
       proxy: {
         [`${base}api`]: {
           target: apiProxyTarget,

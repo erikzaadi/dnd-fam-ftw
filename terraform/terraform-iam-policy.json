@@ -72,6 +72,12 @@
         "cloudfront:GetCachePolicyConfig",
         "cloudfront:ListCachePolicies",
         "cloudfront:UpdateCachePolicy",
+        "cloudfront:CreateResponseHeadersPolicy",
+        "cloudfront:DeleteResponseHeadersPolicy",
+        "cloudfront:GetResponseHeadersPolicy",
+        "cloudfront:GetResponseHeadersPolicyConfig",
+        "cloudfront:ListResponseHeadersPolicies",
+        "cloudfront:UpdateResponseHeadersPolicy",
         "cloudfront:CreateInvalidation",
         "cloudfront:GetInvalidation",
         "cloudfront:ListInvalidations"

@@ -9,6 +9,8 @@ import { CharacterAssembly } from './pages/CharacterAssembly';
 import { SessionRecap } from './pages/SessionRecap';
 import { Settings } from './pages/Settings';
 import { AccessTokens } from './pages/AccessTokens';
+import { OAuthConsent } from './pages/OAuthConsent';
+import { peekPostLoginPath, rememberPostLoginPath } from './lib/postLoginRedirect';
 import { HowToPlay } from './pages/HowToPlay';
 import { GetMeRollin } from './pages/GetMeRollin';
 import { Login } from './pages/Login';
@@ -38,6 +40,8 @@ function AuthUnavailable({ onRetry }: { onRetry: () => void }) {
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { enabled, user, loading, unavailable, namespaceLost, refetch } = useAuth();
+  const location = useLocation();
+  const currentPath = `${location.pathname}${location.search}`;
 
   if (loading) {
     return (
@@ -56,7 +60,15 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (enabled && !user) {
+    // An assistant's sign-in (consent page) resumes after login.
+    rememberPostLoginPath(currentPath);
     return <Navigate to="/login" replace />;
+  }
+
+  // The consent page clears this once it loads.
+  const resume = peekPostLoginPath();
+  if (resume && resume !== currentPath) {
+    return <Navigate to={resume} replace />;
   }
 
   return <>{children}</>;
@@ -69,6 +81,7 @@ function AppRoutes() {
         <Route path="/" element={<Home />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/access-tokens" element={<AccessTokens />} />
+        <Route path="/oauth/consent" element={<OAuthConsent />} />
         <Route path="/how-to-play" element={<HowToPlay />} />
         <Route path="/get-me-rollin" element={<GetMeRollin />} />
         <Route path="/create-session" element={<CreateSession />} />

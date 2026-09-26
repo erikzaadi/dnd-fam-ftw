@@ -28,6 +28,7 @@ import { createSystemRouter } from './routes/systemRoutes.js';
 import { createTtsRouter } from './routes/ttsRoutes.js';
 import { createWebhookRouter } from './routes/webhookRoutes.js';
 import { createAccessTokenRouter } from './routes/accessTokenRoutes.js';
+import { createOAuthConsentRouter } from './routes/oauthConsentRoutes.js';
 import { createMcpRouter } from './mcp/server.js';
 
 const app = express();
@@ -152,6 +153,7 @@ app.use(usageAdmissionMiddleware);
 app.use(createNamespaceRouter());
 app.use(createNamespaceInviteRouter());
 app.use(createAccessTokenRouter({ isProduction }));
+app.use(createOAuthConsentRouter({ isProduction }));
 app.use(createEventsRouter());
 app.use(createSettingsRouter());
 app.use(createGameRouter());
