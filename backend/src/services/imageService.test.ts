@@ -40,6 +40,7 @@ function makeMockStorage(existingKeys: Set<string> = new Set()): ImageStoragePro
     getPublicUrl: (key: string): string => `http://mock-storage/${key}`,
     exists: async (key: string): Promise<boolean> => existingKeys.has(key) || stored.has(key),
     deleteImage: async (): Promise<void> => { /* no-op */ },
+    getImage: async (key: string) => (stored.has(key) ? { body: stored.get(key)!, contentType: contentTypes.get(key) ?? 'image/png' } : null),
   };
 }
 

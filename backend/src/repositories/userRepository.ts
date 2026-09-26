@@ -101,6 +101,8 @@ export const userRepository = {
     // with the same email (sign-in codes, pending signup notices).
     runInTransaction(() => {
       db.prepare('DELETE FROM user_namespaces WHERE user_id = ?').run(user.id);
+      db.prepare('DELETE FROM access_tokens WHERE user_id = ?').run(user.id);
+      db.prepare('DELETE FROM mcp_auto_confirm WHERE user_id = ?').run(user.id);
       db.prepare('DELETE FROM users WHERE id = ?').run(user.id);
       db.prepare('DELETE FROM auth_email_challenges WHERE email_canonical = ?').run(canonicalEmail(email));
       db.prepare("UPDATE email_outbox SET status = 'cancelled' WHERE event_key = ? AND status = 'pending'").run(`signup:${user.id}`);
@@ -135,8 +137,26 @@ export const userRepository = {
     `).all(canonicalEmail(email)) as { id: string; name: string }[];
   },
 
+  isNamespaceMember(userId: string, namespaceId: string): boolean {
+    return !!getDb().prepare('SELECT 1 FROM user_namespaces WHERE user_id = ? AND namespace_id = ?').get(userId, namespaceId);
+  },
+
   addUserToNamespace(userId: string, namespaceId: string): void {
     getDb().prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(userId, namespaceId);
+  },
+
+  // MCP pilot allowlist. Turning it off keeps tokens but blocks them on every request.
+  hasMcpAccess(userId: string): boolean {
+    const row = getDb().prepare('SELECT mcp_access FROM users WHERE id = ?').get(userId) as { mcp_access: number } | undefined;
+    return row?.mcp_access === 1;
+  },
+
+  setMcpAccess(userId: string, enabled: boolean): void {
+    getDb().prepare('UPDATE users SET mcp_access = ? WHERE id = ?').run(enabled ? 1 : 0, userId);
+  },
+
+  listMcpUsers(): { id: string; email: string }[] {
+    return getDb().prepare('SELECT id, email FROM users WHERE mcp_access = 1 ORDER BY email').all() as { id: string; email: string }[];
   },
 
   removeUserFromNamespace(userId: string, namespaceId: string): boolean {

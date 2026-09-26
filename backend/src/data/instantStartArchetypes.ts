@@ -46,6 +46,30 @@ export const WORLD_SEEDS: WorldSeed[] = [
   { displayName: 'The Living Dungeon',        worldDescription: 'A world where the dungeons are alive, opinionated, and have strong feelings about adventurers tracking mud through their carefully laid corridors.' },
 ];
 
+// Archetype for a free-text class name ("wizard", "Brave Knight"), matched by the
+// class word itself or a close synonym. Null when nothing fits.
+const CLASS_SYNONYMS: Record<string, string> = {
+  knight: 'Paladin', warrior: 'Fighter', soldier: 'Fighter', guard: 'Fighter', berserker: 'Barbarian',
+  priest: 'Cleric', healer: 'Cleric', monk: 'Cleric', shaman: 'Druid', witch: 'Warlock', mage: 'Wizard',
+  magician: 'Wizard', thief: 'Rogue', trickster: 'Rogue', ninja: 'Rogue', archer: 'Ranger', hunter: 'Ranger',
+  minstrel: 'Bard', musician: 'Bard',
+};
+
+export function findArchetypeByClass(className: string): Omit<PartyArchetype, 'name' | 'species' | 'quirk'> | null {
+  const words = className.toLowerCase().split(/[^a-z]+/).filter(Boolean);
+  for (const word of words) {
+    const direct = ARCHETYPES.find(a => a.class.toLowerCase() === word);
+    if (direct) {
+      return direct;
+    }
+    const synonym = CLASS_SYNONYMS[word];
+    if (synonym) {
+      return ARCHETYPES.find(a => a.class === synonym) ?? null;
+    }
+  }
+  return null;
+}
+
 export function pickWorldSeed(): WorldSeed {
   return pickRandom(WORLD_SEEDS);
 }

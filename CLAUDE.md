@@ -63,6 +63,7 @@ backend/src/
   middleware/
     auth.ts                        # Attaches req.namespaceId + req.userEmail
     sessionParam.ts                # Loads namespace-scoped req.session for session id routes
+  mcp/                             # /mcp endpoint for AI assistants (bearer personal access tokens, docs/mcp/SETUP.md)
   providers/
     ai/                            # OpenAI-compatible narration + image helpers
     storage/                       # LocalImageStorageProvider + S3ImageStorageProvider
@@ -160,7 +161,7 @@ When adding CLI subcommands or flags, also update `scripts/cli-completion.bash`.
 
 ## Image storage
 
-Controlled by `IMAGE_STORAGE_PROVIDER` env var (`local` or `s3`). Never call `fs` directly for images - always use `imageService.ts`. `savingsMode = true` skips image generation.
+Controlled by `IMAGE_STORAGE_PROVIDER` env var (`local` or `s3`). Never call `fs` directly for images - always use `imageService.ts`. Per-session `image_policy` (`off` | `on_demand` | `automatic`) is the one image setting; `savingsMode` is derived from it (true unless `automatic`) and skips automatic image generation. Change it only through `sessionRepository.setImagePolicy` (or `setSavingsMode`, which maps to it).
 
 ## Image prompt architecture
 

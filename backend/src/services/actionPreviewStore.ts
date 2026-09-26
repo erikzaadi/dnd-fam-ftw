@@ -1,5 +1,5 @@
 import { createId } from '../lib/ids.js';
-import type { ActionClarification, Difficulty, Stat } from '../types.js';
+import type { ActionClarification, Difficulty, FreeActionPreview, Stat } from '../types.js';
 
 // Server-side record of an action preview. A confirmation that carries its id is exactly
 // this action: kind, identity and mechanics come from here, never from client echoes.
@@ -25,6 +25,10 @@ export type StoredActionPreview = {
   stat: Stat;
   difficulty: Difficulty;
   difficultyValue?: number;
+  // Set for MCP previews: only the same token may confirm, and a replayed preview
+  // request returns this exact public preview.
+  principal?: string;
+  publicPreview?: FreeActionPreview;
   createdAt: number;
 };
 
@@ -42,12 +46,21 @@ const prune = (now: number): void => {
   }
 };
 
-export const storeActionPreview = (preview: Omit<StoredActionPreview, 'id' | 'createdAt'>): string => {
+export const storeActionPreviewRecord = (preview: Omit<StoredActionPreview, 'id' | 'createdAt'>): StoredActionPreview => {
   const now = Date.now();
   prune(now);
-  const id = createId();
-  previews.set(id, { ...preview, id, createdAt: now });
-  return id;
+  const record: StoredActionPreview = { ...preview, id: createId(), createdAt: now };
+  previews.set(record.id, record);
+  return record;
+};
+
+export const storeActionPreview = (preview: Omit<StoredActionPreview, 'id' | 'createdAt'>): string =>
+  storeActionPreviewRecord(preview).id;
+
+// Raw lookup for callers that check binding themselves (MCP confirm_action).
+export const getActionPreview = (previewId: string): StoredActionPreview | null => {
+  const preview = previews.get(previewId);
+  return preview && Date.now() - preview.createdAt <= PREVIEW_TTL_MS ? preview : null;
 };
 
 export type PreviewLookup =

@@ -70,21 +70,29 @@ export const acceptSessionOperation = (params: {
   precondition: params.precondition,
 });
 
-// Sends the HTTP response for an acceptance attempt. Returns the operation to run
-// when (and only when) new work was accepted.
-export const respondToAcceptance = (res: Response, result: AcceptOperationResult): StoredOperation | null => {
+export type AcceptanceOutcome = {
+  status: number;
+  body: Record<string, unknown>;
+  // Set only when new work was accepted and must now be run.
+  operation: StoredOperation | null;
+};
+
+// Transport-neutral result of an acceptance attempt (REST and MCP).
+export const describeAcceptance = (result: AcceptOperationResult): AcceptanceOutcome => {
   if (result.type === 'missing') {
-    res.status(404).json({ error: 'Session not found' });
-    return null;
+    return { status: 404, body: { error: 'Session not found' }, operation: null };
   }
   if (result.type === 'conflict') {
-    res.status(409).json({
-      error: result.code,
-      message: result.message,
-      currentRevision: result.currentRevision,
-      ...(result.activeOperation && { activeOperation: toPublicOperation(result.activeOperation) }),
-    });
-    return null;
+    return {
+      status: 409,
+      body: {
+        error: result.code,
+        message: result.message,
+        currentRevision: result.currentRevision,
+        ...(result.activeOperation && { activeOperation: toPublicOperation(result.activeOperation) }),
+      },
+      operation: null,
+    };
   }
   const operation = toPublicOperation(result.operation)!;
   if (result.type === 'replay') {
@@ -93,12 +101,18 @@ export const respondToAcceptance = (res: Response, result: AcceptOperationResult
       replayed: true,
       operation,
     };
-    res.status(200).json(body);
-    return null;
+    return { status: 200, body: body as unknown as Record<string, unknown>, operation: null };
   }
   const body: OperationAcceptedResponse = { queued: true, operation };
-  res.status(202).json(body);
-  return result.operation;
+  return { status: 202, body: body as unknown as Record<string, unknown>, operation: result.operation };
+};
+
+// Sends the HTTP response for an acceptance attempt. Returns the operation to run
+// when (and only when) new work was accepted.
+export const respondToAcceptance = (res: Response, result: AcceptOperationResult): StoredOperation | null => {
+  const outcome = describeAcceptance(result);
+  res.status(outcome.status).json(outcome.body);
+  return outcome.operation;
 };
 
 export type OperationFailure = {

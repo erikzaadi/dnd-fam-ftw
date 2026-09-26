@@ -1,4 +1,4 @@
-import { SessionState, TurnResult, type AdventureFormat, type Character, type GameMode } from '../types.js';
+import { SessionState, TurnResult, type AdventureFormat, type Character, type GameMode, type ImagePolicy } from '../types.js';
 import { initializeDatabase } from '../persistence/database.js';
 import { characterRepository } from '../repositories/characterRepository.js';
 import { inviteRequestRepository, type InviteRequest } from '../repositories/inviteRequestRepository.js';
@@ -17,8 +17,8 @@ export class StateService {
     initializeDatabase();
   }
 
-  public static async createSession(worldDescription?: string, difficulty: string = 'normal', savingsMode: boolean = false, namespaceId: string = 'local', gameMode: GameMode = 'balanced', dmPrep?: string, initialDisplayName?: string, initialId?: string, adventureFormat: AdventureFormat = 'one_evening'): Promise<SessionState> {
-    return sessionRepository.createSession(worldDescription, difficulty, savingsMode, namespaceId, gameMode, dmPrep, initialDisplayName, initialId, adventureFormat);
+  public static async createSession(worldDescription?: string, difficulty: string = 'normal', savingsMode: boolean = false, namespaceId: string = 'local', gameMode: GameMode = 'balanced', dmPrep?: string, initialDisplayName?: string, initialId?: string, adventureFormat: AdventureFormat = 'one_evening', imagePolicy?: ImagePolicy): Promise<SessionState> {
+    return sessionRepository.createSession(worldDescription, difficulty, savingsMode, namespaceId, gameMode, dmPrep, initialDisplayName, initialId, adventureFormat, imagePolicy);
   }
 
   public static async getSession(id: string): Promise<SessionState | undefined> {

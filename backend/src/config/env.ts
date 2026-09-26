@@ -32,6 +32,13 @@ export type AppConfig = {
   SUPPORT_URL: string | null;
   // Ko-fi webhook verification token (Ko-fi > Settings > API). Unset disables /webhooks/kofi.
   KOFI_VERIFICATION_TOKEN?: string;
+  // MCP endpoint (/mcp) for AI assistants, invite-only pilot. Off by default and only
+  // allowed with auth enabled. MCP_PUBLIC_URL is shown on the Access tokens page.
+  MCP_ENABLED: boolean;
+  MCP_PUBLIC_URL: string | null;
+  // Paid MCP tool calls (previews, turns, questions, new adventures) per token per UTC
+  // day, on top of the namespace's usage budget. 0 turns paid tools off, reads still work.
+  MCP_DAILY_PAID_CALLS_PER_TOKEN: number;
 };
 
 export type EmailProviderName = 'none' | 'ses' | 'capture';
@@ -65,6 +72,13 @@ export function isEmailAuthEnabled(): boolean {
   return isAuthEnabled() && isEmailConfigured();
 }
 
+// MCP never inherits the anonymous 'local' namespace: assertAuthConfig refuses
+// MCP_ENABLED without auth, and this check keeps the endpoint closed regardless.
+export function isMcpEnabled(): boolean {
+  const c = getConfig();
+  return c.MCP_ENABLED && c.AUTH_MODE === 'enabled';
+}
+
 export function isGoogleAuthConfigured(): boolean {
   const c = getConfig();
   return !!(c.GOOGLE_CLIENT_ID && c.GOOGLE_CLIENT_SECRET && c.GOOGLE_CALLBACK_URL);
@@ -75,6 +89,9 @@ export function isGoogleAuthConfigured(): boolean {
 export function assertAuthConfig(isProduction: boolean): void {
   const c = getConfig();
   if (c.AUTH_MODE === 'disabled') {
+    if (c.MCP_ENABLED) {
+      throw new Error('[Config] MCP_ENABLED=true requires AUTH_MODE=enabled. The MCP endpoint never allows anonymous access.');
+    }
     return;
   }
   if (!c.JWT_SECRET) {
@@ -149,6 +166,50 @@ function parseSupportUrl(): string | null {
     return url.href;
   } catch {
     throw new Error(`[Config] Invalid SUPPORT_URL: "${raw}". Must be an https URL.`);
+  }
+}
+
+function parseNonNegativeInt(name: string, fallback: number): number {
+  const raw = process.env[name]?.trim();
+  if (!raw) {
+    return fallback;
+  }
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`[Config] Invalid ${name}: "${raw}". Must be a whole number, 0 or more.`);
+  }
+  return value;
+}
+
+function parseBooleanFlag(name: string): boolean {
+  const raw = process.env[name]?.trim().toLowerCase();
+  if (!raw) {
+    return false;
+  }
+  if (raw === 'true' || raw === '1') {
+    return true;
+  }
+  if (raw === 'false' || raw === '0') {
+    return false;
+  }
+  throw new Error(`[Config] Invalid ${name}: "${process.env[name]}". Must be "true" or "false".`);
+}
+
+// https only, except plain http on loopback for local development.
+function parseMcpPublicUrl(): string | null {
+  const raw = process.env.MCP_PUBLIC_URL?.trim();
+  if (!raw) {
+    return null;
+  }
+  try {
+    const url = new URL(raw);
+    const loopback = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
+      throw new Error('not https');
+    }
+    return url.href;
+  } catch {
+    throw new Error(`[Config] Invalid MCP_PUBLIC_URL: "${raw}". Must be an https URL (http only on localhost).`);
   }
 }
 
@@ -230,6 +291,9 @@ function parse(): AppConfig {
     SIGNUP_NOTIFY_EMAIL: process.env.SIGNUP_NOTIFY_EMAIL?.trim() || process.env.ADMIN_EMAIL?.trim() || undefined,
     SUPPORT_URL: parseSupportUrl(),
     KOFI_VERIFICATION_TOKEN: process.env.KOFI_VERIFICATION_TOKEN?.trim() || undefined,
+    MCP_ENABLED: parseBooleanFlag('MCP_ENABLED'),
+    MCP_PUBLIC_URL: parseMcpPublicUrl(),
+    MCP_DAILY_PAID_CALLS_PER_TOKEN: parseNonNegativeInt('MCP_DAILY_PAID_CALLS_PER_TOKEN', 200),
   };
 }
 

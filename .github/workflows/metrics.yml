@@ -276,7 +276,8 @@ jobs:
             # First 5 only: Pushover messages are capped at 1024 characters.
             ENTRIES=$(echo "$DONATIONS" | jq -r '
               .[0:5][] | "\(.from_name // "anonymous") \(.amount // "?") \(.currency // "") (\(
-                if .outcome == "upgraded" then "supporter until \(.supporter_until / 1000 | todate | .[0:10]) for \(.namespace_name // .namespace_id)"
+                if .outcome == "upgraded" then
+                  "supporter until \(.supporter_until / 1000 | todate | .[0:10]) for \(.namespace_name // .namespace_id)"
                 elif .outcome == "already_upgraded" then "already upgraded: \(.namespace_name // .namespace_id)"
                 else "no matching account: \(.email_canonical // "no email")" end))"' | paste -sd ';' - | sed 's/;/; /g')
             UNMATCHED=$(echo "$DONATIONS" | jq '[.[] | select(.outcome == "no_account")] | length')

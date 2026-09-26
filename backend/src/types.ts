@@ -23,6 +23,8 @@ export const TENSION_LEVEL_VALUES = ['low', 'medium', 'high'] as const;
 export const IMPACT_VALUES = ['normal', 'strong', 'extreme'] as const;
 export const CHOICE_FLAVOR_VALUES = ['standard', 'spotlight', 'combo', 'social', 'item', 'environment'] as const;
 export const ADVENTURE_FORMAT_VALUES = ['one_evening', 'long_lived'] as const;
+export const IMAGE_POLICY_VALUES = ['off', 'on_demand', 'automatic'] as const;
+export const ACCESS_TOKEN_SCOPE_VALUES = ['adventures:read', 'adventures:play', 'adventures:create', 'images:generate'] as const;
 export const OBJECTIVE_OUTCOME_VALUES = ['none', 'advanced', 'resolved_success', 'resolved_setback'] as const;
 
 // Private per-turn guidance from adventureLifecycleService. Reaches prompts only,

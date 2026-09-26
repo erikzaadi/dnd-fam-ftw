@@ -17,5 +17,9 @@ export interface ImageStorageProvider {
 
   deleteImage(key: string): Promise<void>;
 
+  // Bytes of a stored image, or null when it does not exist. For authorized server-side
+  // delivery (MCP get_scene_image); never exposes storage paths or credentials.
+  getImage(key: string): Promise<{ body: Buffer; contentType: string } | null>;
+
   validateSetup?(): Promise<void>;
 }

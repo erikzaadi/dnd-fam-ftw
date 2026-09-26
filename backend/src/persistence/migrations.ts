@@ -629,4 +629,84 @@ export const migrate = (db: DB): void => {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  // MCP pilot. users.mcp_access is the operator-managed allowlist (cli users mcp-access).
+  // access_tokens are personal bearer tokens for the /mcp endpoint, one namespace each.
+  // Only a SHA-256 digest of the secret is stored; user deletion removes the rows.
+  const userColsMcp = (db.prepare("PRAGMA table_info(users)").all() as { name: string }[]).map(r => r.name);
+  if (!userColsMcp.includes('mcp_access')) {
+    db.prepare("ALTER TABLE users ADD COLUMN mcp_access INTEGER NOT NULL DEFAULT 0").run();
+  }
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS access_tokens (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      namespace_id TEXT NOT NULL,
+      label TEXT NOT NULL,
+      token_prefix TEXT NOT NULL,
+      token_digest TEXT NOT NULL UNIQUE,
+      scopes TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      last_used_at INTEGER,
+      revoked_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_access_tokens_user ON access_tokens(user_id);
+  `);
+
+  // Durable "create an adventure" commands (MCP create_adventure). Recorded before any
+  // generation, keyed by owner + client request id, so a retried or interrupted create
+  // resumes the same session instead of making a second one. phase: reserved ->
+  // session_created -> party_ready -> started.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS adventure_create_commands (
+      owner_key TEXT NOT NULL,
+      request_id TEXT NOT NULL,
+      payload_hash TEXT NOT NULL,
+      namespace_id TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      operation_id TEXT,
+      phase TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (owner_key, request_id)
+    );
+  `);
+
+  // Per player and adventure: whether an AI assistant may send clean previews (no
+  // warnings, gear, or clarification) after an Undo window, like typed actions on the
+  // website. No row means yes; enabled = 0 is "always ask me first". Never affects the
+  // website, car, or terminal, or other players.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS mcp_auto_confirm (
+      user_id TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      enabled INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (user_id, session_id)
+    );
+  `);
+
+  // One authoritative image setting per adventure: 'off' | 'on_demand' | 'automatic'.
+  // savingsMode stays as a derived compatibility column (true unless automatic) and is
+  // only ever written together with image_policy (sessionRepository.setImagePolicy).
+  const sessionColsImagePolicy = (db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[]).map(r => r.name);
+  if (!sessionColsImagePolicy.includes('image_policy')) {
+    db.prepare("ALTER TABLE sessions ADD COLUMN image_policy TEXT").run();
+  }
+  db.prepare("UPDATE sessions SET image_policy = CASE WHEN savingsMode = 1 THEN 'off' ELSE 'automatic' END WHERE image_policy IS NULL").run();
+
+  // Explicit "paint this scene" requests (MCP generate_scene_image). One row per turn:
+  // a retried request id finds its first attempt instead of paying twice.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS scene_image_requests (
+      session_id TEXT NOT NULL,
+      turn_id INTEGER NOT NULL,
+      request_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (session_id, turn_id)
+    );
+  `);
 };

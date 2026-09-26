@@ -6,6 +6,7 @@
  *
  * Resources:
  *   users           list | add <email> [name] | remove <email> | set-primary <e> <ns>
+ *                   mcp-access <email> [on|off] | mcp-list [--json] | mcp-revoke <email>
  *   namespaces      list | create <name> | rename <id> <name> | delete <id>
  *                   sessions <id> | assign-session <sessionId> <nsId>
  *                   add-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
@@ -33,6 +34,8 @@ import { StorySummaryService } from '../services/storySummaryService.js';
 import { getConfig } from '../config/env.js';
 import { emailOutboxRepository, type EmailOutboxStatus } from '../repositories/emailOutboxRepository.js';
 import { limitRequestRepository, type LimitRequestStatus } from '../repositories/limitRequestRepository.js';
+import { accessTokenRepository } from '../repositories/accessTokenRepository.js';
+import { userRepository } from '../repositories/userRepository.js';
 import { kofiPaymentRepository, type KofiPaymentOutcome } from '../repositories/kofiPaymentRepository.js';
 import { toSqliteTimestamp } from '../repositories/usageRepository.js';
 import { getEmailProvider } from '../providers/email/emailProviderFactory.js';
@@ -159,6 +162,56 @@ case 'users': {
     }
     break;
   }
+  // MCP pilot allowlist. Off blocks the user's tokens immediately; they stay listed
+  // on the Access tokens page so the user can still revoke them.
+  case 'mcp-access': {
+    const [email, value] = positional;
+    if (!email || (value !== undefined && value !== 'on' && value !== 'off')) {
+      fail('Usage: cli users mcp-access <email> [on|off]');
+    }
+    const user = StateService.getUserByEmail(email);
+    if (!user) {
+      fail(`User not found: ${email}`);
+    }
+    if (value !== undefined) {
+      userRepository.setMcpAccess(user.id, value === 'on');
+    }
+    console.log(`MCP access for ${user.email}: ${userRepository.hasMcpAccess(user.id) ? 'on' : 'off'}`);
+    if (value === 'on' && !getConfig().MCP_ENABLED) {
+      console.log('Note: MCP_ENABLED is not true in this environment, so the endpoint stays closed.');
+    }
+    break;
+  }
+  case 'mcp-list': {
+    const now = Date.now();
+    const users = userRepository.listMcpUsers().map(u => ({
+      ...u,
+      activeTokens: accessTokenRepository.countActiveForUser(u.id, now),
+    }));
+    if (jsonMode) {
+      process.stdout.write(JSON.stringify(users, null, 2) + '\n');
+    } else if (users.length === 0) {
+      console.log('No users have MCP access.');
+    } else {
+      for (const u of users) {
+        console.log(`${u.email.padEnd(35)} active tokens: ${u.activeTokens}`);
+      }
+    }
+    break;
+  }
+  case 'mcp-revoke': {
+    const [email] = positional;
+    if (!email) {
+      fail('Usage: cli users mcp-revoke <email>');
+    }
+    const user = StateService.getUserByEmail(email);
+    if (!user) {
+      fail(`User not found: ${email}`);
+    }
+    const revoked = accessTokenRepository.revokeAllForUser(user.id, Date.now());
+    console.log(`Revoked ${revoked} token(s) for ${user.email}`);
+    break;
+  }
   default:
     console.log(`
 users <sub-command>
@@ -166,6 +219,9 @@ users <sub-command>
   add <email> [name]      Create a new user (and their namespace)
   remove <email>          Delete a user (and their namespace if empty)
   set-primary <e> <ns>    Change a user's primary namespace
+  mcp-access <e> [on|off] Show or change MCP pilot access (assistant access tokens)
+  mcp-list                List users with MCP access and their active token counts
+  mcp-revoke <email>      Revoke all of a user's MCP access tokens
 
 Options:
   --json   Output as JSON (list only)
@@ -1281,6 +1337,7 @@ Usage: npm run cli -- <resource> [sub-command] [args...] [--json]
 
 Resources:
   users           list | add <email> [name] | remove <email> | set-primary <e> <ns>
+                  mcp-access <email> [on|off] | mcp-list | mcp-revoke <email>
   namespaces      list | create <name> | rename <id> <name> | delete <id>
                   sessions <id> | assign-session <sessionId> <nsId>
                   add-user <nsId> <email> | remove-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]

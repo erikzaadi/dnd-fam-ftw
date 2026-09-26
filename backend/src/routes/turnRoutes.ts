@@ -3,17 +3,16 @@ import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
 import { StateService } from '../services/stateService.js';
-import { executeTurnAction, validateTurnActionRequest } from '../services/turnService.js';
+import { validateTurnActionRequest } from '../services/turnService.js';
+import { runAcceptedTurnAction } from '../services/turnSubmissionService.js';
 import { parseBody } from './routeValidation.js';
 import { sendRateLimitResponse } from './routeErrors.js';
 import { registerSessionIdParam } from '../middleware/sessionParam.js';
-import { runBackground } from '../middleware/runBackground.js';
-import { acceptSessionOperation, respondIfKnownRequest, respondToAcceptance, runSessionOperation } from '../services/sessionOperationService.js';
-import { resolvePartyRecovery } from '../services/partyRecoveryService.js';
-import { concludeAdventure } from '../services/adventureConclusionService.js';
+import { acceptSessionOperation, respondIfKnownRequest, respondToAcceptance } from '../services/sessionOperationService.js';
 import { operationRepository, toPublicOperation } from '../repositories/operationRepository.js';
-import { toPublicSession, toPublicTurn } from '../services/sessionProjection.js';
-import { DIFFICULTY_VALUES, STAT_VALUES, type SessionSnapshot } from '../types.js';
+import { toPublicTurn } from '../services/sessionProjection.js';
+import { DIFFICULTY_VALUES, STAT_VALUES } from '../types.js';
+import { readCoherentSnapshot } from '../services/sessionSnapshotService.js';
 
 const MAX_ACTION_LENGTH = 600;
 
@@ -37,30 +36,6 @@ const actionBodySchema = z.object({
   // Revision the client acted on. Omitted by legacy clients.
   expectedRevision: z.number().int().min(0).optional(),
 });
-
-// Reads session, history and operation state until the revision is stable, so a
-// reconnecting client never mixes a newer session with older history (or vice versa).
-const readCoherentSnapshot = async (sessionId: string): Promise<SessionSnapshot | null> => {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const before = StateService.getRevision(sessionId);
-    if (before === undefined) {
-      return null;
-    }
-    const [session, history] = await Promise.all([
-      StateService.getSession(sessionId),
-      StateService.getTurnHistory(sessionId),
-    ]);
-    const activeOperation = toPublicOperation(operationRepository.getActive(sessionId));
-    const latestOperation = toPublicOperation(operationRepository.getLatest(sessionId));
-    if (!session) {
-      return null;
-    }
-    if (StateService.getRevision(sessionId) === before) {
-      return { revision: before, session: toPublicSession(session), history: history.map(toPublicTurn), activeOperation, latestOperation };
-    }
-  }
-  return null;
-};
 
 export const createTurnRouter = () => {
   const router = Router();
@@ -154,34 +129,7 @@ export const createTurnRouter = () => {
 
     // The client receives turn data via turn_complete SSE and errors via turn_error SSE,
     // and can always recover the outcome from /snapshot or the operation endpoint.
-    runBackground(`action session=${sessionId} operation=${operation.id}`, () => runSessionOperation(operation, async () => {
-      const result = await executeTurnAction(sessionId, req.namespaceId, request, { operationId: operation.id });
-      if (!result.ok) {
-        return {
-          error: String(result.body.error ?? 'turn_failed'),
-          message: String(result.body.message ?? result.body.error ?? 'Something went wrong. Please try again.'),
-        };
-      }
-      if (result.pendingConclusion) {
-        await concludeAdventure({
-          sessionId,
-          namespaceId: req.namespaceId,
-          operationId: operation.id,
-          resolution: result.pendingConclusion,
-        });
-      }
-      if (result.pendingRecovery) {
-        await resolvePartyRecovery({
-          sessionId,
-          namespaceId: req.namespaceId,
-          operationId: operation.id,
-          outcome: result.pendingRecovery,
-          wipedState: result.body.session,
-          revision: result.revision,
-        });
-      }
-      result.queueSideEffects?.();
-    }));
+    runAcceptedTurnAction(operation, sessionId, req.namespaceId, request);
   }));
 
   router.get('/session/:id/snapshot', asyncHandler(async (req, res) => {

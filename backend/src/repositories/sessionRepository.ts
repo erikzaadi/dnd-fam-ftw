@@ -2,12 +2,27 @@ import { createId } from '../lib/ids.js';
 import { getDb } from '../persistence/database.js';
 import { areIdeasCurrent } from './turnHistoryRepository.js';
 import { generateSessionDisplayName } from '../services/sessionNameService.js';
-import { SessionState, InventoryItem, type AdventureFormat, type AdventureProgress, type AdventureStatus, type Character, type Choice, type GameMode, type EncounterState, type EncounterSeed } from '../types.js';
+import { SessionState, InventoryItem, type ImagePolicy, type AdventureFormat, type AdventureProgress, type AdventureStatus, type Character, type Choice, type GameMode, type EncounterState, type EncounterSeed } from '../types.js';
 import { buildAdventureProgress, createInitialArc, parseArc, serializeArc } from '../services/adventureLifecycleService.js';
 
 // The quick-start template (seeded at startup): copied into a group's namespace, never
 // listed or played itself.
 const ONBOARDING_TEMPLATE_ID = 'seed-onboarding-template';
+
+// Rows written before image_policy existed (or by fixtures) derive it from savingsMode.
+const resolveImagePolicy = (policy: string | null | undefined, savingsMode: number): ImagePolicy =>
+  policy === 'off' || policy === 'on_demand' || policy === 'automatic' ? policy : (savingsMode ? 'off' : 'automatic');
+
+export type AdventureSummaryRow = {
+  id: string;
+  displayName: string;
+  turn: number;
+  game_over: number;
+  adventure_format: string | null;
+  adventure_status: string | null;
+  last_played_at: string | null;
+  party: { name: string; class: string; species: string }[];
+};
 
 export type SessionListItem = {
   id: string;
@@ -106,14 +121,18 @@ export const sessionRepository = {
     // New sessions default to one evening; the column default (long_lived) only applies
     // to sessions that existed before the lifecycle was introduced.
     adventureFormat: AdventureFormat = 'one_evening',
+    // Overrides the policy implied by savingsMode (e.g. on_demand for MCP adventures).
+    imagePolicy?: ImagePolicy,
   ): Promise<SessionState> {
     const db = getDb();
     const id = initialId ?? createId();
+    const policy: ImagePolicy = imagePolicy ?? (savingsMode ? 'off' : 'automatic');
+    const derivedSavingsMode = policy !== 'automatic';
     const displayName = initialDisplayName ?? await generateSessionDisplayName(worldDescription);
     const arc = createInitialArc();
 
-    db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, turn, tone, displayName, difficulty, gameMode, useLocalAI, savingsMode, namespace_id, adventure_format, adventure_status, adventure_arc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, "A New Realm", "start-1", worldDescription || null, dmPrep || null, null, 1, "thrilling adventure", displayName, difficulty, gameMode, 0, savingsMode ? 1 : 0, namespaceId, adventureFormat, 'active', serializeArc(arc));
+    db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, turn, tone, displayName, difficulty, gameMode, useLocalAI, savingsMode, image_policy, namespace_id, adventure_format, adventure_status, adventure_arc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, "A New Realm", "start-1", worldDescription || null, dmPrep || null, null, 1, "thrilling adventure", displayName, difficulty, gameMode, 0, derivedSavingsMode ? 1 : 0, policy, namespaceId, adventureFormat, 'active', serializeArc(arc));
 
     return {
       id,
@@ -133,7 +152,8 @@ export const sessionRepository = {
       recentHistory: ["Adventure begins!"],
       displayName,
       difficulty,
-      savingsMode,
+      savingsMode: derivedSavingsMode,
+      imagePolicy: policy,
       interventionState: { rescuesUsed: 0 },
       storySummary: '',
       gameOver: false,
@@ -162,6 +182,7 @@ export const sessionRepository = {
       difficulty: string;
       gameMode: string;
       savingsMode: number;
+      image_policy: string | null;
       interventionUsed: number;
       rescues_used: number;
       game_over: number;
@@ -313,7 +334,8 @@ export const sessionRepository = {
       displayName: row.displayName,
       difficulty: row.difficulty,
       gameMode: (row.gameMode as GameMode) || 'balanced',
-      savingsMode: !!row.savingsMode,
+      savingsMode: resolveImagePolicy(row.image_policy, row.savingsMode) !== 'automatic',
+      imagePolicy: resolveImagePolicy(row.image_policy, row.savingsMode),
       interventionState: { rescuesUsed: row.rescues_used ?? (row.interventionUsed ? 1 : 0) },
       storySummary: row.storySummary ?? '',
       gameOver: !!row.game_over,
@@ -419,9 +441,14 @@ export const sessionRepository = {
     return row?.namespace_id;
   },
 
+  // The only writer of image settings: keeps the derived savingsMode column in step.
+  setImagePolicy(id: string, policy: ImagePolicy): void {
+    getDb().prepare('UPDATE sessions SET image_policy = ?, savingsMode = ? WHERE id = ?').run(policy, policy === 'automatic' ? 0 : 1, id);
+  },
+
+  // Legacy switch: true -> off, false -> automatic.
   async setSavingsMode(id: string, enabled: boolean): Promise<void> {
-    const db = getDb();
-    db.prepare('UPDATE sessions SET savingsMode = ? WHERE id = ?').run(enabled ? 1 : 0, id);
+    sessionRepository.setImagePolicy(id, enabled ? 'off' : 'automatic');
   },
 
   async updateSession(id: string, state: SessionState): Promise<void> {
@@ -587,6 +614,22 @@ export const sessionRepository = {
     });
   },
 
+  // Compact, player-safe page for MCP list_adventures. Same order as listSessions
+  // (last played first); last_played_at is SQLite UTC 'YYYY-MM-DD HH:MM:SS'.
+  listAdventureSummaries(namespaceId: string, limit: number, offset: number): AdventureSummaryRow[] {
+    const db = getDb();
+    const rows = db.prepare(`
+      SELECT s.id, s.displayName, s.turn, s.game_over, s.adventure_format, s.adventure_status,
+        COALESCE((SELECT MAX(t.createdAt) FROM turn_history t WHERE t.sessionId = s.id), s.createdAt) AS last_played_at
+      FROM sessions s
+      WHERE s.namespace_id = ? AND s.id != ?
+      ORDER BY last_played_at DESC, s.createdAt DESC, s.id ASC
+      LIMIT ? OFFSET ?
+    `).all(namespaceId, ONBOARDING_TEMPLATE_ID, limit, offset) as Omit<AdventureSummaryRow, 'party'>[];
+    const partyQuery = db.prepare('SELECT name, class, species FROM characters WHERE sessionId = ? ORDER BY rowid');
+    return rows.map(row => ({ ...row, party: partyQuery.all(row.id) as AdventureSummaryRow['party'] }));
+  },
+
   assignSessionToNamespace(sessionId: string, namespaceId: string): boolean {
     const db = getDb();
     const result = db.prepare('UPDATE sessions SET namespace_id = ? WHERE id = ?').run(namespaceId, sessionId);
@@ -625,7 +668,7 @@ export const sessionRepository = {
       scene: string; sceneId: string; worldDescription: string | null; dm_prep: string | null;
       dm_prep_image_brief: string | null; dm_prep_encounters: string | null;
       turn: number; activeCharacterId: string; tone: string; displayName: string;
-      difficulty: string; gameMode: string; savingsMode: number;
+      difficulty: string; gameMode: string; savingsMode: number; image_policy: string | null;
       storySummary: string; preview_image_url: string | null;
     } | undefined;
     if (!session) {
@@ -637,9 +680,9 @@ export const sessionRepository = {
     // The onboarding tutorial follows its own scripted flow: explicitly long-lived so
     // it never gains one-evening finale pressure.
     // onboarding_ideas: the first viewer asks for ideas once, by itself.
-    db.prepare(`INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, dm_prep_encounters, turn, activeCharacterId, tone, displayName, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, rescues_used, game_over, storySummary, preview_image_url, namespace_id, adventure_format, adventure_status, adventure_arc, onboarding_ideas)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, 'long_lived', 'active', ?, 'pending')`)
-      .run(newSessionId, session.scene, session.sceneId, session.worldDescription, session.dm_prep, session.dm_prep_image_brief, session.dm_prep_encounters, session.turn, '', session.tone, session.displayName, session.difficulty, session.gameMode, session.savingsMode, 0, session.storySummary, session.preview_image_url, namespaceId, serializeArc(createInitialArc()));
+    db.prepare(`INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, dm_prep_encounters, turn, activeCharacterId, tone, displayName, difficulty, gameMode, savingsMode, image_policy, useLocalAI, interventionUsed, rescues_used, game_over, storySummary, preview_image_url, namespace_id, adventure_format, adventure_status, adventure_arc, onboarding_ideas)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, 'long_lived', 'active', ?, 'pending')`)
+      .run(newSessionId, session.scene, session.sceneId, session.worldDescription, session.dm_prep, session.dm_prep_image_brief, session.dm_prep_encounters, session.turn, '', session.tone, session.displayName, session.difficulty, session.gameMode, session.savingsMode, resolveImagePolicy(session.image_policy, session.savingsMode), 0, session.storySummary, session.preview_image_url, namespaceId, serializeArc(createInitialArc()));
 
     const chars = db.prepare('SELECT * FROM characters WHERE sessionId = ? ORDER BY rowid ASC').all(templateId) as {
       id: string; name: string; class: string; species: string; quirk: string;

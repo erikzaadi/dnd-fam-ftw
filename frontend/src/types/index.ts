@@ -62,6 +62,12 @@ export type {
   AdventureArcState,
   AdventureProgress,
   ObjectiveOutcome,
+  AccessTokenScope,
+  AccessTokenSummary,
+  AccessTokenListResponse,
+  AccessTokenCreatedResponse,
+  AutoConfirmListResponse,
+  ImagePolicy,
 } from '@dnd-fam-ftw/shared';
 
 export {

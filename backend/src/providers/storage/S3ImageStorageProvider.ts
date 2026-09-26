@@ -3,11 +3,13 @@ import {
   PutObjectCommand,
   HeadObjectCommand,
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadBucketCommand,
   S3ServiceException,
 } from '@aws-sdk/client-s3';
 import type { AppConfig } from '../../config/env.js';
 import type { ImageStorageProvider, StoredImage } from './ImageStorageProvider.js';
+import { contentTypeFor } from './LocalImageStorageProvider.js';
 
 export class S3ImageStorageProvider implements ImageStorageProvider {
   private client: S3Client;
@@ -64,6 +66,21 @@ export class S3ImageStorageProvider implements ImageStorageProvider {
     } catch (err) {
       if (err instanceof S3ServiceException && err.$metadata.httpStatusCode === 404) {
         return false;
+      }
+      throw err;
+    }
+  }
+
+  async getImage(key: string): Promise<{ body: Buffer; contentType: string } | null> {
+    try {
+      const result = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: `${this.prefix}${key}` }));
+      if (!result.Body) {
+        return null;
+      }
+      return { body: Buffer.from(await result.Body.transformToByteArray()), contentType: result.ContentType ?? contentTypeFor(key) };
+    } catch (err) {
+      if (err instanceof S3ServiceException && (err.$metadata.httpStatusCode === 404 || err.name === 'NoSuchKey')) {
+        return null;
       }
       throw err;
     }

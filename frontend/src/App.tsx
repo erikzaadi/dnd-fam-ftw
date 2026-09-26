@@ -8,6 +8,7 @@ import { CreateSession } from './pages/CreateSession';
 import { CharacterAssembly } from './pages/CharacterAssembly';
 import { SessionRecap } from './pages/SessionRecap';
 import { Settings } from './pages/Settings';
+import { AccessTokens } from './pages/AccessTokens';
 import { HowToPlay } from './pages/HowToPlay';
 import { GetMeRollin } from './pages/GetMeRollin';
 import { Login } from './pages/Login';
@@ -62,6 +63,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/access-tokens" element={<AccessTokens />} />
         <Route path="/how-to-play" element={<HowToPlay />} />
         <Route path="/get-me-rollin" element={<GetMeRollin />} />
         <Route path="/create-session" element={<CreateSession />} />

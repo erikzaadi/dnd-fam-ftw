@@ -276,6 +276,19 @@ export const turnHistoryRepository = {
     return row?.narration ?? null;
   },
 
+  // Server-owned image reference of one turn (never sent to clients as a path).
+  getTurnImageRef(sessionId: string, turnId: number): { imageUrl: string | null; storageKey: string | null; narration: string; imagePrompt: string | null; tension: string | null } | null {
+    const row = getDb().prepare('SELECT imageUrl, image_storage_key, narration, imagePrompt, currentTensionLevel FROM turn_history WHERE sessionId = ? AND id = ?').get(sessionId, turnId) as
+      { imageUrl: string | null; image_storage_key: string | null; narration: string; imagePrompt: string | null; currentTensionLevel: string | null } | undefined;
+    return row ? { imageUrl: row.imageUrl, storageKey: row.image_storage_key, narration: row.narration, imagePrompt: row.imagePrompt, tension: row.currentTensionLevel } : null;
+  },
+
+  // Turns committed by one operation (an action can add rescue or ending turns too).
+  getTurnsForOperation(sessionId: string, operationId: string): TurnResult[] {
+    const rows = getDb().prepare('SELECT * FROM turn_history WHERE sessionId = ? AND operation_id = ? ORDER BY id').all(sessionId, operationId) as TurnHistoryRow[];
+    return rows.map(mapTurnHistoryRow);
+  },
+
   getLatestTurnId(sessionId: string): number | null {
     const row = getDb().prepare('SELECT id FROM turn_history WHERE sessionId = ? ORDER BY id DESC LIMIT 1').get(sessionId) as { id: number } | undefined;
     return row?.id ?? null;

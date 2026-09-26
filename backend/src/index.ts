@@ -6,7 +6,7 @@ dotenv.config({ path: path.join(import.meta.dirname, '../../.env') });
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import { assertAuthConfig, getConfig, getTurnStrategy, isAllowedOrigin, isAuthEnabled, isGoogleAuthConfigured } from './config/env.js';
+import { assertAuthConfig, getConfig, getTurnStrategy, isAllowedOrigin, isAuthEnabled, isGoogleAuthConfigured, isMcpEnabled } from './config/env.js';
 import { authMiddleware } from './middleware/auth.js';
 import { getDb, runInTransaction } from './persistence/database.js';
 import { seedOnboarding } from './scripts/seedOnboarding.js';
@@ -25,6 +25,8 @@ import { createSettingsRouter } from './routes/settingsRoutes.js';
 import { createSystemRouter } from './routes/systemRoutes.js';
 import { createTtsRouter } from './routes/ttsRoutes.js';
 import { createWebhookRouter } from './routes/webhookRoutes.js';
+import { createAccessTokenRouter } from './routes/accessTokenRoutes.js';
+import { createMcpRouter } from './mcp/server.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -116,11 +118,14 @@ if (isAuthEnabled()) {
 } else {
   console.log('[Auth] Disabled (AUTH_MODE=disabled) - all requests use the local namespace');
 }
+console.log(`[MCP] ${isMcpEnabled() ? 'Enabled at /mcp (personal access tokens, pilot users only)' : 'Disabled'}`);
 
 app.use(createSystemRouter({ config, hasCloudAI }));
 app.use(createAuthRouter({ isProduction }));
 app.use(createTtsRouter());
 app.use(createWebhookRouter());
+// Bearer personal access tokens only; never the website cookie middleware below.
+app.use(createMcpRouter());
 
 // Apply auth middleware to all routes except /auth/* and /health.
 app.use((req, res, next) => {
@@ -133,6 +138,7 @@ app.use((req, res, next) => {
 app.use(usageAdmissionMiddleware);
 
 app.use(createNamespaceRouter());
+app.use(createAccessTokenRouter({ isProduction }));
 app.use(createEventsRouter());
 app.use(createSettingsRouter());
 app.use(createGameRouter());

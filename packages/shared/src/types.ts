@@ -428,6 +428,10 @@ export interface OperationAcceptedResponse {
   operation: SessionOperation;
 }
 
+// Image generation for one adventure. off: never. on_demand: only when a player asks
+// for a scene picture. automatic: scenes, avatars, and previews as the story goes.
+export type ImagePolicy = 'off' | 'on_demand' | 'automatic';
+
 export interface Session {
   id: string;
   scene: string;
@@ -441,7 +445,9 @@ export interface Session {
   party: Character[];
   activeCharacterId: string;
   displayName: string;
+  // Derived from imagePolicy (true unless automatic). Kept for older clients.
   savingsMode: boolean;
+  imagePolicy?: ImagePolicy;
   gameMode?: GameMode;
   adventure?: AdventureProgress;
   interventionState: InterventionState;
@@ -565,6 +571,46 @@ export interface AuthMeResponse {
   enabled: boolean;
   email: string | null;
   namespaceId: string;
+}
+
+// Personal access tokens for the MCP endpoint (invite-only pilot). A token grants one
+// namespace and these scopes; the secret is shown once at creation.
+export type AccessTokenScope = 'adventures:read' | 'adventures:play' | 'adventures:create' | 'images:generate';
+
+export interface AccessTokenSummary {
+  id: string;
+  label: string;
+  // First characters of the secret, to tell tokens apart. Never the full secret.
+  prefix: string;
+  namespaceId: string;
+  namespaceName: string | null;
+  scopes: AccessTokenScope[];
+  createdAt: string;
+  expiresAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+}
+
+// GET /access-tokens
+export interface AccessTokenListResponse {
+  // MCP is enabled on this server and the signed-in user is in the pilot.
+  eligible: boolean;
+  mcpUrl: string | null;
+  namespaceName: string | null;
+  maxActiveTokens: number;
+  tokens: AccessTokenSummary[];
+}
+
+// POST /access-tokens and POST /access-tokens/:id/rotate (201)
+export interface AccessTokenCreatedResponse {
+  token: AccessTokenSummary;
+  secret: string;
+}
+
+// GET /access-tokens/auto-confirm: this player's MCP auto-confirm setting per adventure
+// in the signed-in realm.
+export interface AutoConfirmListResponse {
+  adventures: { id: string; title: string; enabled: boolean }[];
 }
 
 export interface Capabilities {

@@ -7,6 +7,7 @@ import { SiteHeader } from '../components/SiteHeader';
 import { apiFetch } from '../lib/api';
 import { RangeSlider } from '../components/RangeSlider';
 import { YourRealm } from '../components/YourRealm';
+import { AssistantAccessLink } from '../components/AssistantAccessLink';
 
 interface AppSettings {
   imagesEnabled: boolean;
@@ -191,6 +192,8 @@ export const Settings = () => {
                   {!settings.imagesEnabled && (
                     <p className="text-xs text-slate-500 px-2">Character avatars will use SVG initials instead.</p>
                   )}
+
+                  <AssistantAccessLink />
 
                   <h2 className="text-lg font-black uppercase tracking-tighter text-amber-500 pt-2">Tutorial</h2>
                   <button

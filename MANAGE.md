@@ -45,7 +45,12 @@ Manage registered users. Each user gets their own primary namespace on creation.
 ./dnd-fam-ftw-cli users add <email> [name]                  # create user + namespace
 ./dnd-fam-ftw-cli users remove <email>                      # delete user (and their namespace if empty)
 ./dnd-fam-ftw-cli users set-primary <email> <namespaceId>   # change a user's primary namespace
+./dnd-fam-ftw-cli users mcp-access <email> [on|off]         # show or change MCP pilot access
+./dnd-fam-ftw-cli users mcp-list [--json]                   # pilot users and their active token counts
+./dnd-fam-ftw-cli users mcp-revoke <email>                  # revoke all of a user's MCP access tokens
 ```
+
+MCP pilot access lets a user create personal access tokens under **Settings > AI assistants** for playing through an AI assistant (see [docs/mcp/SETUP.md](docs/mcp/SETUP.md)). It only matters when `MCP_ENABLED=true`. Turning it off blocks the user's tokens on the next request; the tokens stay listed so the user can still revoke them. Removing a user deletes their tokens.
 
 ### namespaces
 
@@ -187,6 +192,9 @@ Operator notification emails (new signups, invite requests, and "ask for more" r
 | `SIGNUP_NOTIFY_EMAIL` | Where new-signup and "ask for more" notices go (defaults to `ADMIN_EMAIL`). |
 | `SUPPORT_URL` | Donation page (https, e.g. `https://ko-fi.com/<you>`) behind the "Support the realm" button in Your Realm. Unset hides the button. |
 | `KOFI_VERIFICATION_TOKEN` | Ko-fi webhook verification token. Enables `POST /webhooks/kofi` (90-day supporter upgrade for a matching sign-in email). Unset: the endpoint returns 404. |
+| `MCP_ENABLED` | `true` opens the `/mcp` endpoint for AI assistants (default `false`, which returns 404 there). Requires `AUTH_MODE=enabled`: startup fails otherwise. Only users with `users mcp-access` on can create tokens. Setting it back to `false` is the kill switch; website login is unaffected. |
+| `MCP_PUBLIC_URL` | Endpoint address shown on the Access tokens page, e.g. `https://<api domain>/mcp` (https, or http on localhost). Unset: the page derives it from the API address. |
+| `MCP_DAILY_PAID_CALLS_PER_TOKEN` | Paid MCP tool calls (previews, turns, questions, new adventures) per token per UTC day, on top of the realm's usage budget. Default 200. `0` pauses paid tools while reading keeps working. |
 
 Email sign-in sends an 8-digit code valid for 10 minutes, usable only in the browser that asked for it, 5 attempts per code, 60 seconds between resends, 5 sends per address and 20 per IP per hour. Google sign-in never creates accounts: new players create their account with an email code first, after which "Continue with Google" works for the same address. Login cookies last 30 days and are renewed automatically when a signed-in player uses the app with less than a week left. New signups are also paused while `DAILY_SPEND_LIMIT_USD` is exceeded.
 
@@ -398,6 +406,9 @@ Email, signup, and usage settings are **SSM parameters** under the SSM prefix (d
 | `SIGNUP_MODE` | `invite_only` (default when absent) or `open` |
 | `SUPPORT_URL` | optional, e.g. `https://ko-fi.com/<you>` |
 | `KOFI_VERIFICATION_TOKEN` | optional, SecureString, from Ko-fi > Settings > API |
+| `MCP_ENABLED` | optional, `true` for the AI assistant pilot |
+| `MCP_PUBLIC_URL` | optional, `https://<api domain>/mcp` |
+| `MCP_DAILY_PAID_CALLS_PER_TOKEN` | optional, default 200 |
 | `DAILY_SPEND_LIMIT_USD` | optional, e.g. `3` |
 | `SIGNUP_DAILY_CAP` | optional, default 25 |
 | `SIGNUP_NOTIFY_EMAIL` | optional, default `ADMIN_EMAIL` |

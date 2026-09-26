@@ -367,6 +367,15 @@ export class ImageService {
 
   // Initials SVG avatars are always written locally and served by the backend,
   // regardless of the image storage provider. They are tiny and act as a fallback.
+  // Stored bytes of a generated image, for authorized delivery without a public URL.
+  // Only keys the server stored for a turn or avatar; null when missing.
+  public static async readStoredImage(storageKey: string): Promise<{ body: Buffer; contentType: string } | null> {
+    if (!storageKey) {
+      return null;
+    }
+    return getImageStorageProvider().getImage(storageKey);
+  }
+
   public static generateInitialsSvg(name: string, sessionId: string): string {
     const words = name.trim().split(/\s+/);
     const initials = words.length >= 2

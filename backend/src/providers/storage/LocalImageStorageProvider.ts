@@ -3,6 +3,10 @@ import path from 'path';
 import type { AppConfig } from '../../config/env.js';
 import type { ImageStorageProvider, StoredImage } from './ImageStorageProvider.js';
 
+const CONTENT_TYPES: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', svg: 'image/svg+xml' };
+
+export const contentTypeFor = (key: string): string => CONTENT_TYPES[key.split('.').pop()?.toLowerCase() ?? ''] ?? 'application/octet-stream';
+
 export class LocalImageStorageProvider implements ImageStorageProvider {
   private storageDir: string;
   private publicBaseUrl: string;
@@ -24,6 +28,15 @@ export class LocalImageStorageProvider implements ImageStorageProvider {
 
   async exists(key: string): Promise<boolean> {
     return fs.existsSync(path.join(this.storageDir, key));
+  }
+
+  async getImage(key: string): Promise<{ body: Buffer; contentType: string } | null> {
+    const filePath = path.resolve(this.storageDir, key);
+    // Keys come from the database, but never read outside the storage folder.
+    if (!filePath.startsWith(this.storageDir + path.sep) || !fs.existsSync(filePath)) {
+      return null;
+    }
+    return { body: fs.readFileSync(filePath), contentType: contentTypeFor(key) };
   }
 
   async deleteImage(key: string): Promise<void> {
