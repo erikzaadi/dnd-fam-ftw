@@ -137,15 +137,20 @@ describe('CLI namespaces', () => {
   });
 
   it('add-user grants access and remove-user revokes it', () => {
+    cli('users', 'add', 'ns-owner@example.com');
     cli('users', 'add', 'ns-member@example.com');
     const nsId = cli('namespaces', 'create', 'Shared Realm').stdout.match(/namespaceId:\s*(\S+)/)?.[1];
     expect(nsId).toBeTruthy();
+    // The first member of an empty realm becomes its owner.
+    expect(cli('namespaces', 'add-user', nsId!, 'ns-owner@example.com').status).toBe(0);
     const addOut = cli('namespaces', 'add-user', nsId!, 'ns-member@example.com');
     expect(addOut.status).toBe(0);
     expect(addOut.stdout).toContain('Granted');
     const removeOut = cli('namespaces', 'remove-user', nsId!, 'ns-member@example.com');
     expect(removeOut.status).toBe(0);
     expect(removeOut.stdout).toContain('Removed');
+    // The owner cannot be removed.
+    expect(cli('namespaces', 'remove-user', nsId!, 'ns-owner@example.com').status).toBe(1);
   });
 
   it('set-limits with --max-sessions=N --max-turns=N sets limits', () => {

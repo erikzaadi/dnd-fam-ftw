@@ -306,7 +306,7 @@ case 'namespaces': {
     }
     const { namespaceId } = StateService.createNamespace(name);
     console.log(`Created namespace: "${name}"\n  namespaceId: ${namespaceId}`);
-    console.log('  It has no owner yet: add a member (namespaces add-user), then run namespaces set-owner.');
+    console.log('  It has no owner yet: the first member you add (namespaces add-user) becomes its owner.');
     break;
   }
   // Read-only ownership report. --apply sets only the proposed owners (a sole member

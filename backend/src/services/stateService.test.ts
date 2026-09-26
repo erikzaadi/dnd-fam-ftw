@@ -367,6 +367,9 @@ describe('StateService - User / Namespace management', () => {
   it('addUserToNamespace + getUserNamespaces + removeUserFromNamespace', () => {
     const { namespaceId: primaryNs } = StateService.createUser('multi-ns@example.com');
     const { namespaceId: secondNs } = StateService.createNamespace('Second Realm');
+    // The first member of an empty realm becomes its owner; add one before our user.
+    StateService.createUser('second-realm-owner@example.com');
+    expect(StateService.addUserToNamespace('second-realm-owner@example.com', secondNs).ok).toBe(true);
     expect(StateService.addUserToNamespace('multi-ns@example.com', secondNs).ok).toBe(true);
     const nsIds = StateService.getUserNamespaces('multi-ns@example.com').map(n => n.id);
     expect(nsIds).toContain(primaryNs);

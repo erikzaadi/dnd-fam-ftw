@@ -46,7 +46,8 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 
 const renderPage = () => render(<MemoryRouter><AccessTokens /></MemoryRouter>);
 
-// Token endpoints answer from the queue in order; the auto-confirm list answers separately.
+// Token endpoints answer from the queue in order; the auto-confirm list and the header's
+// realm list answer separately.
 let queue: Response[] = [];
 let autoConfirm: unknown = { adventures: [] };
 const respondWith = (...responses: Response[]) => {
@@ -60,6 +61,10 @@ beforeEach(() => {
     if (path === '/access-tokens/auto-confirm') {
       return json(autoConfirm);
     }
+    // The header's account menu lists the user's realms.
+    if (path === '/auth/session/namespaces') {
+      return json({ currentNamespaceId: 'ns', namespaces: [{ id: 'ns', name: 'The Burrow', isOwner: true }], canInvite: false });
+    }
     if (path.startsWith('/access-tokens/auto-confirm/')) {
       return json({ id: 'adv1', enabled: JSON.parse(init?.body as string).enabled });
     }
@@ -67,7 +72,7 @@ beforeEach(() => {
   });
 });
 
-const tokenCalls = () => mocks.apiFetch.mock.calls.filter(([path]) => !String(path).startsWith('/access-tokens/auto-confirm'));
+const tokenCalls = () => mocks.apiFetch.mock.calls.filter(([path]) => String(path).startsWith('/access-tokens') && !String(path).startsWith('/access-tokens/auto-confirm'));
 
 describe('AccessTokens', () => {
   it('lets players without access request it, then shows the open request', async () => {
