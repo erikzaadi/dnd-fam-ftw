@@ -19,6 +19,11 @@ When debugging a pasted local session URL, fetch the JSON history first. Convert
 
 Do not run token-heavy verification commands yourself unless explicitly asked. This includes `npm test`, `npm run test:*`, `npm run build`, `npm run lint`, `npm run lint:*`, `npx tsc`, and package-specific variants. Ask the user to run the relevant command manually instead.
 
+Two working modes:
+
+- **Default:** do not run npm/npx scripts, do not commit, never push. Suggest a commit grouping and the commands to run.
+- **Partial YOLO (only when the user explicitly turns it on for a named batch of work):** commit each commitable slice yourself once `npm run lint` and `npm run tsc` pass from the repo root for that slice. Fix and rerun on failure; if they cannot pass, stop without committing. Stage explicit paths only, no amend/force/rebase, **never push**. `npm run lint:fix` is allowed first (ESLint autofix for shared/backend/frontend only; the full `npm run lint` is still the gate). Run these scripts through a subagent on a cheaper model (e.g. Haiku) that returns the exit code and only the error lines; do the fixes in the main session. Tests and other scripts still stay with the user unless asked. The mode ends with that batch.
+
 Manual verification checklist from repo root:
 
 ```bash
