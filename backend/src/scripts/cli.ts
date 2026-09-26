@@ -10,6 +10,7 @@
  *   namespaces      list | create <name> | rename <id> <name> | delete <id>
  *                   sessions <id> | assign-session <sessionId> <nsId>
  *                   add-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
+ *                   owners [--apply] [--json] | set-owner <nsId> <email>
  *                   tier <id> [free|supporter|unlimited]
  *   sessions        list [--json] | nuke | seed | export | import | regenerate-dm-prep <id>
  *   metrics         [--json] [--since <ISO date>] | usage [--json] [--since <ISO date>] [--namespace <id>]
@@ -44,6 +45,7 @@ import { USAGE_TIERS, getEffectiveLimits, getNamespaceTier, isUsageTier, tierLab
 import { isMcpEligible } from '../services/accessTokenService.js';
 import { mcpAccessRequestService } from '../services/mcpAccessRequestService.js';
 import { mcpAccessRequestRepository, type McpAccessRequestStatus } from '../repositories/mcpAccessRequestRepository.js';
+import { applyProposedOwners, buildOwnershipReport, setNamespaceOwner } from '../services/namespaceOwnershipService.js';
 
 const [, , resource, subcommand, ...rest] = process.argv;
 const allArgs = [subcommand, ...rest].filter(Boolean);
@@ -260,8 +262,8 @@ case 'namespaces': {
       console.log('No namespaces found.');
     } else {
       const col = (s: string | number, w: number) => String(s).padEnd(w);
-      console.log(`\n${col('ID', 12)} ${col('Name', 24)} ${col('Tier', 26)} ${col('Users', 7)} ${col('Sessions', 10)} ${col('Limits', 22)} Created`);
-      console.log('-'.repeat(122));
+      console.log(`\n${col('ID', 12)} ${col('Name', 24)} ${col('Owner', 30)} ${col('Tier', 26)} ${col('Users', 7)} ${col('Sessions', 10)} ${col('Limits', 22)} Created`);
+      console.log('-'.repeat(153));
       for (const n of ns) {
         const limits = [
           n.max_sessions != null ? `sess<=${n.max_sessions}` : null,
@@ -270,7 +272,8 @@ case 'namespaces': {
         const tier = n.tier_expires_at != null
           ? `${n.tier}${n.tier_expires_at <= Date.now() ? ' (expired)' : ` until ${new Date(n.tier_expires_at).toISOString().slice(0, 10)}`}`
           : n.tier;
-        console.log(`${col(n.id, 12)} ${col(n.name, 24)} ${col(tier, 26)} ${col(n.user_count, 7)} ${col(n.session_count, 10)} ${col(limits, 22)} ${n.created_at}`);
+        const owner = n.owner_email ?? (n.id === 'local' ? '(system)' : '(none)');
+        console.log(`${col(n.id, 12)} ${col(n.name, 24)} ${col(owner, 30)} ${col(tier, 26)} ${col(n.user_count, 7)} ${col(n.session_count, 10)} ${col(limits, 22)} ${n.created_at}`);
       }
       console.log();
     }
@@ -283,6 +286,52 @@ case 'namespaces': {
     }
     const { namespaceId } = StateService.createNamespace(name);
     console.log(`Created namespace: "${name}"\n  namespaceId: ${namespaceId}`);
+    console.log('  It has no owner yet: add a member (namespaces add-user), then run namespaces set-owner.');
+    break;
+  }
+  // Read-only ownership report. --apply sets only the proposed owners (a sole member
+  // who also has the namespace as primary); everything else needs set-owner.
+  case 'owners': {
+    const apply = process.argv.includes('--apply');
+    if (apply) {
+      const applied = applyProposedOwners();
+      console.log(`Applied ${applied} proposed owner(s).`);
+    }
+    const report = buildOwnershipReport();
+    if (jsonMode) {
+      process.stdout.write(JSON.stringify(report, null, 2) + '\n');
+      break;
+    }
+    const col = (s: string | number, w: number) => String(s).padEnd(w);
+    console.log(`\n${col('ID', 12)} ${col('Name', 22)} ${col('Status', 14)} ${col('Owner / proposed', 32)} ${col('Members', 8)} ${col('Primary refs', 13)} Reason`);
+    console.log('-'.repeat(130));
+    for (const row of report) {
+      const who = row.ownerEmail ?? row.proposedOwner?.email ?? '-';
+      console.log(`${col(row.namespaceId, 12)} ${col(row.name, 22)} ${col(row.status, 14)} ${col(who, 32)} ${col(row.members.length, 8)} ${col(row.primaryReferences, 13)} ${row.reason ?? ''}`);
+      if (row.status === 'unresolved' && row.members.length > 1) {
+        for (const member of row.members) {
+          console.log(`${' '.repeat(49)}- ${member.email}${member.isPrimary ? ' (primary)' : ''}`);
+        }
+      }
+    }
+    const open = report.filter(row => row.status !== 'ok').length;
+    console.log(`\n${open === 0 ? 'All namespaces have a valid owner.' : `${open} namespace(s) need attention. Use --apply for proposed owners, set-owner for the rest.`}\n`);
+    break;
+  }
+  // Operator mapping for unresolved namespaces, and ownership transfer. The new owner
+  // must already be a member.
+  case 'set-owner': {
+    const [nsId, email] = positional;
+    if (!nsId || !email) {
+      fail('Usage: cli namespaces set-owner <namespaceId> <email>');
+    }
+    const result = setNamespaceOwner(nsId, email);
+    if (!result.ok) {
+      fail(result.reason);
+    }
+    console.log(result.previousOwnerUserId && result.previousOwnerUserId !== result.userId
+      ? `Transferred ownership of ${nsId} to ${email}`
+      : `Owner of ${nsId} is ${email}`);
     break;
   }
   case 'rename': {

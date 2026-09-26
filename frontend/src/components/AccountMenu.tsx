@@ -136,6 +136,7 @@ export const AccountMenu = () => {
           <div className="px-3 py-2">
             <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Current realm</div>
             <div className="text-sm font-bold text-amber-400 truncate">{current ? label(current) : '...'}</div>
+            {current?.isOwner && <div className="text-[11px] text-slate-400">You own this realm</div>}
             <div className="text-[11px] text-slate-500 truncate">{user.email}</div>
           </div>
           {others.length > 0 && (

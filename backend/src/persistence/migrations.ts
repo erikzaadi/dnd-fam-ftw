@@ -726,4 +726,18 @@ export const migrate = (db: DB): void => {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS idx_mcp_access_requests_open ON mcp_access_requests(user_id) WHERE status = 'pending';
   `);
+
+  // Namespace ownership: the account responsible for a realm's usage, which is not
+  // necessarily whoever is playing or inviting. Nullable at the schema level: existing
+  // realms get an owner from the operator report (cli namespaces owners), and 'local'
+  // never has one. RESTRICT keeps an owner account from being deleted underneath.
+  // Member invitations are owner-only unless the owner turns this on.
+  const namespaceColsOwner = (db.prepare("PRAGMA table_info(namespaces)").all() as { name: string }[]).map(r => r.name);
+  if (!namespaceColsOwner.includes('owner_user_id')) {
+    db.prepare("ALTER TABLE namespaces ADD COLUMN owner_user_id TEXT REFERENCES users(id) ON DELETE RESTRICT").run();
+  }
+  if (!namespaceColsOwner.includes('member_invites_enabled')) {
+    db.prepare("ALTER TABLE namespaces ADD COLUMN member_invites_enabled INTEGER NOT NULL DEFAULT 0 CHECK (member_invites_enabled IN (0, 1))").run();
+  }
+  db.exec("CREATE INDEX IF NOT EXISTS idx_namespaces_owner ON namespaces(owner_user_id)");
 };

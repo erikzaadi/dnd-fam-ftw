@@ -32,7 +32,7 @@ beforeEach(() => {
 
 describe('AccountMenu', () => {
   it('shows the current realm and switches to another one', async () => {
-    realms({ currentNamespaceId: 'ns-a', namespaces: [{ id: 'ns-a', name: 'Home Realm' }, { id: 'ns-b', name: 'Cousins' }] });
+    realms({ currentNamespaceId: 'ns-a', namespaces: [{ id: 'ns-a', name: 'Home Realm', isOwner: true }, { id: 'ns-b', name: 'Cousins', isOwner: false }] });
     renderAt('/');
     fireEvent.click(await screen.findByRole('button', { name: 'Account menu' }));
     expect(await screen.findByText('Home Realm', { selector: 'div' })).toBeTruthy();
@@ -41,7 +41,7 @@ describe('AccountMenu', () => {
   });
 
   it('offers no switching with a single realm', async () => {
-    realms({ currentNamespaceId: 'ns-a', namespaces: [{ id: 'ns-a', name: 'Home Realm' }] });
+    realms({ currentNamespaceId: 'ns-a', namespaces: [{ id: 'ns-a', name: 'Home Realm', isOwner: true }] });
     renderAt('/');
     fireEvent.click(await screen.findByRole('button', { name: 'Account menu' }));
     expect(screen.queryByText('Switch realm')).toBeNull();
@@ -49,7 +49,7 @@ describe('AccountMenu', () => {
   });
 
   it('asks before switching away from unsaved setup work', async () => {
-    realms({ currentNamespaceId: 'ns-a', namespaces: [{ id: 'ns-a', name: 'Home Realm' }, { id: 'ns-b', name: 'Cousins' }] });
+    realms({ currentNamespaceId: 'ns-a', namespaces: [{ id: 'ns-a', name: 'Home Realm', isOwner: true }, { id: 'ns-b', name: 'Cousins', isOwner: false }] });
     renderAt('/create-session');
     fireEvent.click(await screen.findByRole('button', { name: 'Account menu' }));
     fireEvent.click(await screen.findByRole('menuitem', { name: /Cousins/ }));
@@ -60,7 +60,7 @@ describe('AccountMenu', () => {
 
   it('keeps the menu open with an error when the switch fails', async () => {
     mocks.switchNamespace.mockResolvedValue(false);
-    realms({ currentNamespaceId: 'ns-a', namespaces: [{ id: 'ns-a', name: 'Home Realm' }, { id: 'ns-b', name: 'Cousins' }] });
+    realms({ currentNamespaceId: 'ns-a', namespaces: [{ id: 'ns-a', name: 'Home Realm', isOwner: true }, { id: 'ns-b', name: 'Cousins', isOwner: false }] });
     renderAt('/');
     fireEvent.click(await screen.findByRole('button', { name: 'Account menu' }));
     fireEvent.click(await screen.findByRole('menuitem', { name: /Cousins/ }));

@@ -10,7 +10,18 @@ export type NamespaceListItem = {
   max_turns: number | null;
   tier: string;
   tier_expires_at: number | null;
+  owner_email: string | null;
   created_at: string;
+};
+
+export type NamespaceMembershipRow = {
+  namespace_id: string;
+  namespace_name: string;
+  owner_user_id: string | null;
+  user_id: string | null;
+  email: string | null;
+  // 1 when this member has the namespace as their primary one.
+  is_primary: number | null;
 };
 
 export const namespaceRepository = {
@@ -19,6 +30,7 @@ export const namespaceRepository = {
     return db.prepare(`
       SELECT
         n.id, n.name, n.created_at, n.max_sessions, n.max_turns, n.tier, n.tier_expires_at,
+        (SELECT email FROM users WHERE id = n.owner_user_id) as owner_email,
         COUNT(DISTINCT un.user_id) as user_count,
         COUNT(DISTINCT s.id) as session_count
       FROM namespaces n
@@ -90,5 +102,48 @@ export const namespaceRepository = {
     const db = getDb();
     const result = db.prepare('UPDATE namespaces SET max_sessions = ?, max_turns = ? WHERE id = ?').run(maxSessions, maxTurns, namespaceId);
     return result.changes > 0;
+  },
+
+  getOwnerUserId(namespaceId: string): string | null {
+    const row = getDb().prepare('SELECT owner_user_id FROM namespaces WHERE id = ?').get(namespaceId) as { owner_user_id: string | null } | undefined;
+    return row?.owner_user_id ?? null;
+  },
+
+  setOwnerUserId(namespaceId: string, userId: string): boolean {
+    return getDb().prepare('UPDATE namespaces SET owner_user_id = ? WHERE id = ?').run(userId, namespaceId).changes > 0;
+  },
+
+  // Namespace ids this user owns.
+  listOwnedNamespaceIds(userId: string): string[] {
+    const rows = getDb().prepare('SELECT id FROM namespaces WHERE owner_user_id = ? ORDER BY created_at').all(userId) as { id: string }[];
+    return rows.map(row => row.id);
+  },
+
+  getMemberInvitesEnabled(namespaceId: string): boolean {
+    const row = getDb().prepare('SELECT member_invites_enabled FROM namespaces WHERE id = ?').get(namespaceId) as { member_invites_enabled: number } | undefined;
+    return row?.member_invites_enabled === 1;
+  },
+
+  setMemberInvitesEnabled(namespaceId: string, enabled: boolean): boolean {
+    return getDb().prepare('UPDATE namespaces SET member_invites_enabled = ? WHERE id = ?').run(enabled ? 1 : 0, namespaceId).changes > 0;
+  },
+
+  // One row per (namespace, member); a namespace without members yields one row with
+  // null member fields. Feeds the ownership report.
+  listMembershipRows(): NamespaceMembershipRow[] {
+    return getDb().prepare(`
+      SELECT n.id AS namespace_id, n.name AS namespace_name, n.owner_user_id,
+        u.id AS user_id, u.email, CASE WHEN u.id IS NULL THEN NULL WHEN u.namespace_id = n.id THEN 1 ELSE 0 END AS is_primary
+      FROM namespaces n
+      LEFT JOIN user_namespaces un ON un.namespace_id = n.id
+      LEFT JOIN users u ON u.id = un.user_id
+      ORDER BY n.created_at, u.created_at
+    `).all() as NamespaceMembershipRow[];
+  },
+
+  // Users whose primary namespace is this one (whether or not they are still members).
+  countPrimaryReferences(namespaceId: string): number {
+    const row = getDb().prepare('SELECT COUNT(*) AS count FROM users WHERE namespace_id = ?').get(namespaceId) as { count: number };
+    return row.count;
   },
 };

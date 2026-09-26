@@ -9,6 +9,7 @@ import { resolveGoogleSignIn, type SignInOutcome } from '../services/signupServi
 import { authMiddleware, requireFullIdentity, requirePendingInviteToken, requirePendingNamespaceToken } from '../middleware/auth.js';
 import { buildGoogleAuthUrl, createOAuthState, createPkcePair, exchangeCodeForIdentity, getAuthPublicConfig, safeEqual } from '../services/authService.js';
 import { StateService } from '../services/stateService.js';
+import { isNamespaceOwner } from '../services/namespaceOwnershipService.js';
 import {
   EMAIL_CHALLENGE_COOKIE,
   clearAllAuthCookies,
@@ -281,7 +282,8 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
   // user removed from their active realm can still list and pick another membership.
   router.get('/auth/session/namespaces', requireFullIdentity, (req, res) => {
     const identity = req.fullIdentity!;
-    const namespaces = StateService.getUserNamespaces(identity.email);
+    const namespaces = StateService.getUserNamespaces(identity.email)
+      .map(namespace => ({ ...namespace, isOwner: isNamespaceOwner(identity.userId, namespace.id) }));
     const body: SessionNamespacesResponse = {
       currentNamespaceId: namespaces.some(n => n.id === identity.namespaceId) ? identity.namespaceId : null,
       namespaces,

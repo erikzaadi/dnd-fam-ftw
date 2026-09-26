@@ -10,9 +10,10 @@ import type { SessionNamespace, SessionNamespacesResponse } from '../types';
 // 'login': choosing a realm while signing in (pending cookie).
 // 'session': already signed in, but the active realm was removed; pick another one.
 type PickerMode = 'login' | 'session';
+type RealmChoice = Pick<SessionNamespace, 'id' | 'name'>;
 
 export const NamespacePicker = () => {
-  const [namespaces, setNamespaces] = useState<SessionNamespace[]>([]);
+  const [namespaces, setNamespaces] = useState<RealmChoice[]>([]);
   const [mode, setMode] = useState<PickerMode>('login');
   const [noRealms, setNoRealms] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +25,7 @@ export const NamespacePicker = () => {
     const load = async () => {
       const pending = await apiFetch('/auth/namespaces');
       if (pending.ok) {
-        const data = await pending.json() as { namespaces: SessionNamespace[] };
+        const data = await pending.json() as { namespaces: RealmChoice[] };
         setNamespaces(data.namespaces);
         return;
       }

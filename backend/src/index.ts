@@ -10,6 +10,7 @@ import { assertAuthConfig, getConfig, getTurnStrategy, isAllowedOrigin, isAuthEn
 import { authMiddleware } from './middleware/auth.js';
 import { getDb, runInTransaction } from './persistence/database.js';
 import { seedOnboarding } from './scripts/seedOnboarding.js';
+import { countUnresolvedOwners } from './services/namespaceOwnershipService.js';
 import { usageAdmissionMiddleware } from './middleware/usageAdmission.js';
 import { startEmailAuthMaintenance } from './services/emailAuthService.js';
 import { startOutboxDispatcher } from './services/emailService.js';
@@ -115,6 +116,10 @@ if (isAuthEnabled()) {
   console.log(`[Auth] Enabled (signup: ${config.SIGNUP_MODE}, google: ${isGoogleAuthConfigured() ? 'on' : 'off'}, email: ${config.EMAIL_PROVIDER})`);
   if (config.ADMIN_EMAIL) {
     StateService.ensureAdminUser(config.ADMIN_EMAIL);
+  }
+  const unresolvedOwners = countUnresolvedOwners();
+  if (unresolvedOwners > 0) {
+    console.warn(`[Auth] ${unresolvedOwners} namespace(s) without a valid owner; see npm run cli -- namespaces owners`);
   }
   startEmailAuthMaintenance();
   startOutboxDispatcher();

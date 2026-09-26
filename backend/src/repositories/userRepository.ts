@@ -37,7 +37,7 @@ export const userRepository = {
     return row?.created_at ?? null;
   },
 
-  // User + private namespace + membership in one transaction. Inside a caller's
+  // User + private namespace (owned by the new user) + membership in one transaction. Inside a caller's
   // transaction (self-service signup) it joins that one instead.
   createUser(email: string, namespaceName?: string, role: string = 'member', tier: string = 'unlimited'): { userId: string; namespaceId: string } {
     const db = getDb();
@@ -49,10 +49,14 @@ export const userRepository = {
       db.prepare('INSERT INTO users (id, email, email_canonical, namespace_id, role) VALUES (?, ?, ?, ?, ?)')
         .run(userId, email.trim(), canonicalEmail(email), namespaceId, role);
       db.prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(userId, namespaceId);
+      // The namespace row comes first (users.namespace_id references it), so the
+      // owner is set once the user exists, before commit.
+      db.prepare('UPDATE namespaces SET owner_user_id = ? WHERE id = ?').run(userId, namespaceId);
     });
     return { userId, namespaceId };
   },
 
+  // Joins an existing namespace as an ordinary member; never its owner.
   createUserInExistingNamespace(email: string, namespaceId: string, role: string = 'member'): { userId: string; namespaceId: string } {
     const db = getDb();
     const userId = createId();

@@ -590,6 +590,8 @@ export interface NamespaceAccessLostResponse {
 export interface SessionNamespace {
   id: string;
   name: string;
+  // The signed-in user owns this realm (responsible for its usage).
+  isOwner: boolean;
 }
 
 // GET /auth/session/namespaces - memberships of the signed-in user.

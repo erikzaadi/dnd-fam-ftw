@@ -16,6 +16,9 @@ export const getDb = (): DB => {
     const dbPath = path.resolve(config.SQLITE_DB_PATH);
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     db = new Database(dbPath);
+    // libsql enables this by default today; state it so enforcement (namespace owner,
+    // membership references) never depends on a library default.
+    db.exec('PRAGMA foreign_keys = ON');
     migrate(db);
   }
   return db;

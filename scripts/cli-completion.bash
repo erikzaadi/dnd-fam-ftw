@@ -10,7 +10,7 @@
 _dnd_subcommands() {
   case "$1" in
     users)           echo "list add remove set-primary mcp-access mcp-list mcp-revoke" ;;
-    namespaces)      echo "list create rename delete sessions assign-session add-user remove-user set-limits tier" ;;
+    namespaces)      echo "list create rename delete sessions assign-session add-user remove-user set-limits tier owners set-owner" ;;
     sessions)        echo "list nuke seed export import" ;;
     metrics)         echo "usage narration" ;;
     invite-requests) echo "list approve clear" ;;
@@ -25,7 +25,7 @@ _dnd_subcommands() {
 # Subcommands that support --json / -j output
 _dnd_supports_json() {
   case "$1/$2" in
-    users/list|users/mcp-list|namespaces/list|namespaces/sessions|sessions/list|metrics/|metrics/usage|metrics/narration|invite-requests/list|email-outbox/list|limit-requests/list|mcp-requests/list|donations/list) return 0 ;;
+    users/list|users/mcp-list|namespaces/list|namespaces/sessions|namespaces/owners|sessions/list|metrics/|metrics/usage|metrics/narration|invite-requests/list|email-outbox/list|limit-requests/list|mcp-requests/list|donations/list) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -39,6 +39,7 @@ _dnd_flags() {
     metrics/usage)     echo "--since= --namespace=" ;;
     metrics/narration) echo "--format= --csv --failed-only --namespace= --session= --since=" ;;
     namespaces/set-limits) echo "--max-sessions= --max-turns=" ;;
+    namespaces/owners) echo "--apply" ;;
     invite-requests/approve) echo "--namespace=" ;;
     email-outbox/list) echo "--status=" ;;
     limit-requests/list) echo "--status=" ;;
