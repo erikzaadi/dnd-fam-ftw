@@ -29,14 +29,18 @@ beforeAll(() => {
   process.env.SQLITE_DB_PATH = DB_PATH;
   process.env.OPENAI_BASE_URL = 'http://127.0.0.1:1';
   process.env.OPENAI_API_KEY = 'test-invalid-key';
-  process.env.MEMBER_INVITES_ENABLED = 'true';
+  // Invitations are on by default once auth, email and FRONTEND_URL are set.
+  process.env.AUTH_MODE = 'enabled';
+  process.env.EMAIL_PROVIDER = 'capture';
   process.env.FRONTEND_URL = 'https://play.example.com';
   resetConfigForTests();
   initializeDatabase();
 });
 
 afterAll(() => {
-  delete process.env.MEMBER_INVITES_ENABLED;
+  delete process.env.AUTH_MODE;
+  delete process.env.EMAIL_PROVIDER;
+  delete process.env.FRONTEND_URL;
   resetConfigForTests();
   setEmailProviderForTests(null);
   fs.rmSync(DB_PATH, { force: true });
@@ -210,13 +214,13 @@ describe('member invitations', () => {
     const owner = realm();
     await createInvitation(owner.userId, owner.namespaceId, 'paused@example.com', clock);
     const token = lastToken();
-    process.env.MEMBER_INVITES_ENABLED = 'false';
+    process.env.MEMBER_INVITES_DISABLED = 'true';
     resetConfigForTests();
     try {
       expect(await createInvitation(owner.userId, owner.namespaceId, 'another@example.com', clock)).toMatchObject({ ok: false, error: 'invites_disabled' });
       expect(acceptInvitation(token, null, false, clock)).toEqual({ ok: false, error: 'disabled' });
     } finally {
-      process.env.MEMBER_INVITES_ENABLED = 'true';
+      delete process.env.MEMBER_INVITES_DISABLED;
       resetConfigForTests();
     }
     expect(acceptInvitation(token, null, false, clock)).toMatchObject({ ok: true });

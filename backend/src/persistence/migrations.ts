@@ -749,9 +749,8 @@ export const migrate = (db: DB): void => {
   `);
 
   // Namespace ownership: the account responsible for a realm's usage, which is not
-  // necessarily whoever is playing or inviting. Nullable at the schema level: existing
-  // realms get an owner from the operator report (cli namespaces owners), and 'local'
-  // never has one. RESTRICT keeps an owner account from being deleted underneath.
+  // necessarily whoever is playing or inviting. Nullable at the schema level: realms
+  // without members have none yet, and 'local' never has one. RESTRICT keeps an owner account from being deleted underneath.
   // Member invitations are owner-only unless the owner turns this on.
   const namespaceColsOwner = (db.prepare("PRAGMA table_info(namespaces)").all() as { name: string }[]).map(r => r.name);
   if (!namespaceColsOwner.includes('owner_user_id')) {
@@ -761,6 +760,22 @@ export const migrate = (db: DB): void => {
     db.prepare("ALTER TABLE namespaces ADD COLUMN member_invites_enabled INTEGER NOT NULL DEFAULT 0 CHECK (member_invites_enabled IN (0, 1))").run();
   }
   db.exec("CREATE INDEX IF NOT EXISTS idx_namespaces_owner ON namespaces(owner_user_id)");
+
+  // Give every existing realm an owner, once: the oldest member who has it as their
+  // primary realm (normally the account it was created for), else its oldest member.
+  // Realms without members stay ownerless until someone is added (the first member
+  // becomes owner). 'local' never has an owner. cli namespaces set-owner fixes a choice.
+  runOnce('assign_namespace_owners_from_primary', () => {
+    db.prepare(`
+      UPDATE namespaces SET owner_user_id = (
+        SELECT u.id FROM user_namespaces un JOIN users u ON u.id = un.user_id
+        WHERE un.namespace_id = namespaces.id
+        ORDER BY CASE WHEN u.namespace_id = namespaces.id THEN 0 ELSE 1 END, u.created_at, u.id
+        LIMIT 1
+      )
+      WHERE owner_user_id IS NULL AND id != 'local'
+    `).run();
+  });
 
   // Owner attribution for provider usage. user_id stays the acting user; owner_user_id
   // is the namespace owner when the attempt was dispatched (no FK: history outlives

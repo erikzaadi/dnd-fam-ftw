@@ -44,9 +44,10 @@ export type AppConfig = {
   // Realm tiers whose members get MCP access without a per-user grant. A per-user
   // override (cli users mcp-access on|off) wins either way.
   MCP_DEFAULT_TIERS: UsageTier[];
-  // Member invitations by email (deployment kill switch, off by default). Off blocks
-  // sending, resending and accepting, including links already sent.
-  MEMBER_INVITES_ENABLED: boolean;
+  // Kill switch for member invitations (on by default when auth, email and
+  // FRONTEND_URL are set). Disabled blocks sending, resending and accepting,
+  // including links already sent.
+  MEMBER_INVITES_DISABLED: boolean;
   // Invitation emails per UTC day across the deployment.
   INVITE_DAILY_SEND_CAP: number;
   // New accounts created by accepting invitations per UTC day. Joining with an
@@ -97,6 +98,26 @@ export function isMcpEnabled(): boolean {
   return c.MCP_ENABLED && c.AUTH_MODE === 'enabled';
 }
 
+// Why member invitations are unavailable, or null when they are on. On by default:
+// they need auth, an email provider (the same one as sign-in codes), and FRONTEND_URL,
+// since links are built from configuration, never from the request Host.
+export function memberInvitesUnavailableReason(): string | null {
+  const c = getConfig();
+  if (c.MEMBER_INVITES_DISABLED) {
+    return 'MEMBER_INVITES_DISABLED=true';
+  }
+  if (c.AUTH_MODE !== 'enabled') {
+    return 'auth is disabled';
+  }
+  if (!isEmailConfigured()) {
+    return 'email is not configured (EMAIL_PROVIDER)';
+  }
+  if (!c.FRONTEND_URL) {
+    return 'FRONTEND_URL is not set';
+  }
+  return null;
+}
+
 export function isGoogleAuthConfigured(): boolean {
   const c = getConfig();
   return !!(c.GOOGLE_CLIENT_ID && c.GOOGLE_CLIENT_SECRET && c.GOOGLE_CALLBACK_URL);
@@ -109,9 +130,6 @@ export function assertAuthConfig(isProduction: boolean): void {
   if (c.AUTH_MODE === 'disabled') {
     if (c.MCP_ENABLED) {
       throw new Error('[Config] MCP_ENABLED=true requires AUTH_MODE=enabled. The MCP endpoint never allows anonymous access.');
-    }
-    if (c.MEMBER_INVITES_ENABLED) {
-      throw new Error('[Config] MEMBER_INVITES_ENABLED=true requires AUTH_MODE=enabled.');
     }
     return;
   }
@@ -136,15 +154,6 @@ export function assertAuthConfig(isProduction: boolean): void {
   }
   if (!isGoogleAuthConfigured() && !isEmailConfigured()) {
     throw new Error('[Config] AUTH_MODE=enabled requires at least one sign-in provider (Google or email). Set AUTH_MODE=disabled for local play without login.');
-  }
-  if (c.MEMBER_INVITES_ENABLED) {
-    if (!isEmailConfigured()) {
-      throw new Error('[Config] MEMBER_INVITES_ENABLED=true requires email (EMAIL_PROVIDER) to send invitations.');
-    }
-    // Invitation links are built from configuration, never from the request Host.
-    if (!c.FRONTEND_URL) {
-      throw new Error('[Config] MEMBER_INVITES_ENABLED=true requires FRONTEND_URL for invitation links.');
-    }
   }
   if (c.SIGNUP_MODE === 'open') {
     if (!isEmailConfigured()) {
@@ -341,7 +350,7 @@ function parse(): AppConfig {
     MCP_PUBLIC_URL: parseMcpPublicUrl(),
     MCP_DAILY_PAID_CALLS_PER_TOKEN: parseNonNegativeInt('MCP_DAILY_PAID_CALLS_PER_TOKEN', 200),
     MCP_DEFAULT_TIERS: parseMcpDefaultTiers(),
-    MEMBER_INVITES_ENABLED: parseBooleanFlag('MEMBER_INVITES_ENABLED'),
+    MEMBER_INVITES_DISABLED: parseBooleanFlag('MEMBER_INVITES_DISABLED'),
     INVITE_DAILY_SEND_CAP: parseNonNegativeInt('INVITE_DAILY_SEND_CAP', 200),
     INVITE_DAILY_ACCOUNT_CAP: parseNonNegativeInt('INVITE_DAILY_ACCOUNT_CAP', 25),
   };

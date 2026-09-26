@@ -91,8 +91,10 @@ export function applyProposedOwners(): number {
   return proposals.length;
 }
 
+// Realms that members can use but that lack a valid owner. Empty realms are ignored:
+// nobody can play there, and the first member added becomes the owner.
 export function countUnresolvedOwners(): number {
-  return buildOwnershipReport().filter(row => row.status !== 'ok').length;
+  return buildOwnershipReport().filter(row => row.status !== 'ok' && row.members.length > 0).length;
 }
 
 export type SetOwnerResult =

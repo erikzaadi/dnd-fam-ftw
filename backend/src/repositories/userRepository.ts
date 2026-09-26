@@ -86,6 +86,12 @@ export function deleteNamespaceRows(namespaceId: string): void {
   db.prepare('DELETE FROM namespaces WHERE id = ?').run(namespaceId);
 }
 
+// The first member of a realm that has no owner yet becomes its owner. Never replaces
+// an existing owner, and 'local' stays ownerless.
+function claimOwnerIfNone(userId: string, namespaceId: string): void {
+  getDb().prepare("UPDATE namespaces SET owner_user_id = ? WHERE id = ? AND owner_user_id IS NULL AND id != 'local'").run(userId, namespaceId);
+}
+
 export const userRepository = {
   getUserByEmail(email: string): UserRecord | null {
     const db = getDb();
@@ -121,7 +127,8 @@ export const userRepository = {
     return { userId, namespaceId };
   },
 
-  // Joins an existing namespace as an ordinary member; never its owner.
+  // Joins an existing namespace as an ordinary member. Owner only when the namespace
+  // had none yet (an empty realm from cli namespaces create).
   createUserInExistingNamespace(email: string, namespaceId: string, role: string = 'member'): { userId: string; namespaceId: string } {
     const db = getDb();
     const userId = createId();
@@ -129,6 +136,7 @@ export const userRepository = {
       db.prepare('INSERT INTO users (id, email, email_canonical, namespace_id, role) VALUES (?, ?, ?, ?, ?)')
         .run(userId, email.trim(), canonicalEmail(email), namespaceId, role);
       db.prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(userId, namespaceId);
+      claimOwnerIfNone(userId, namespaceId);
     });
     return { userId, namespaceId };
   },
@@ -226,6 +234,7 @@ export const userRepository = {
     const db = getDb();
     db.prepare('UPDATE users SET namespace_id = ? WHERE id = ?').run(namespaceId, userId);
     db.prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(userId, namespaceId);
+    claimOwnerIfNone(userId, namespaceId);
   },
 
   getUserNamespaces(email: string): { id: string; name: string }[] {
@@ -246,6 +255,7 @@ export const userRepository = {
 
   addUserToNamespace(userId: string, namespaceId: string): void {
     getDb().prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(userId, namespaceId);
+    claimOwnerIfNone(userId, namespaceId);
   },
 
   // MCP access override. 'default' leaves it to the realm tier (MCP_DEFAULT_TIERS);

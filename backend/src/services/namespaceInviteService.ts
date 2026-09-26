@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { getConfig } from '../config/env.js';
+import { getConfig, memberInvitesUnavailableReason } from '../config/env.js';
 import { canonicalEmail, maskEmail, parseEmailAddress } from '../lib/email.js';
 import { createId } from '../lib/ids.js';
 import { runInTransaction } from '../persistence/database.js';
@@ -30,7 +30,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const SENDS_PER_INVITER_PER_DAY = 10;
 export const SENDS_PER_RECIPIENT_PER_DAY = 3;
 
-export const isInvitesEnabled = (): boolean => getConfig().MEMBER_INVITES_ENABLED;
+export const isInvitesEnabled = (): boolean => memberInvitesUnavailableReason() === null;
 
 const digestToken = (token: string): string => crypto.createHash('sha256').update(token).digest('hex');
 

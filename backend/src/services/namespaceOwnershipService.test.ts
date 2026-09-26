@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getDb, initializeDatabase } from '../persistence/database.js';
+import { migrate } from '../persistence/migrations.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { applyProposedOwners, buildOwnershipReport, isNamespaceOwner, setNamespaceOwner } from './namespaceOwnershipService.js';
@@ -59,12 +60,52 @@ describe('namespace ownership', () => {
     const guest = userRepository.createUser('guest@example.com');
     const { namespaceId: visited } = namespaceRepository.createNamespace('Visited realm');
     userRepository.addUserToNamespace(guest.userId, visited);
+    clearOwner(visited);
     expect(reportFor(visited)).toMatchObject({ status: 'unresolved', reason: 'sole member has a different primary namespace' });
 
     applyProposedOwners();
     expect(namespaceRepository.getOwnerUserId(solo.namespaceId)).toBe(solo.userId);
     expect(namespaceRepository.getOwnerUserId(shared.namespaceId)).toBeNull();
     expect(namespaceRepository.getOwnerUserId(visited)).toBeNull();
+  });
+
+  it('makes the first member of an empty realm its owner, and never replaces an owner', () => {
+    const { namespaceId } = namespaceRepository.createNamespace('Fresh realm');
+    const first = userRepository.createUser('first-member@example.com');
+    const second = userRepository.createUser('second-member@example.com');
+    userRepository.addUserToNamespace(first.userId, namespaceId);
+    userRepository.addUserToNamespace(second.userId, namespaceId);
+    expect(namespaceRepository.getOwnerUserId(namespaceId)).toBe(first.userId);
+  });
+
+  it('backfills owners for existing realms once: the primary member first, then the oldest member', () => {
+    const db = getDb();
+    const host = userRepository.createUser('legacy-host@example.com');
+    userRepository.createUserInExistingNamespace('legacy-guest@example.com', host.namespaceId);
+    // Timestamps have one-second resolution; make the guest clearly newer.
+    db.prepare("UPDATE users SET created_at = '2030-01-01 00:00:00' WHERE email = 'legacy-guest@example.com'").run();
+    const visitor = userRepository.createUser('legacy-visitor@example.com');
+    const { namespaceId: shared } = namespaceRepository.createNamespace('Legacy shared');
+    userRepository.addUserToNamespace(visitor.userId, shared);
+    const { namespaceId: empty } = namespaceRepository.createNamespace('Legacy empty');
+    for (const id of [host.namespaceId, shared]) {
+      clearOwner(id);
+    }
+
+    db.prepare("DELETE FROM applied_migrations WHERE name = 'assign_namespace_owners_from_primary'").run();
+    migrate(db);
+
+    // Two members share the primary realm: the one it was created for is older.
+    expect(namespaceRepository.getOwnerUserId(host.namespaceId)).toBe(host.userId);
+    // Nobody has it as primary: its (only, so oldest) member.
+    expect(namespaceRepository.getOwnerUserId(shared)).toBe(visitor.userId);
+    expect(namespaceRepository.getOwnerUserId(empty)).toBeNull();
+    expect(namespaceRepository.getOwnerUserId('local')).toBeNull();
+
+    // Once only: a later ownerless realm is not touched by re-running migrations.
+    clearOwner(shared);
+    migrate(db);
+    expect(namespaceRepository.getOwnerUserId(shared)).toBeNull();
   });
 
   it('never lists the local namespace', () => {

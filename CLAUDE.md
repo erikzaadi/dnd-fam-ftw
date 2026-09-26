@@ -115,7 +115,7 @@ When enabled:
 - Google OAuth uses a browser-bound `state` + PKCE cookie (`oauth_google`) and requires `email_verified`
 - CORS allows only the `FRONTEND_URL` / `GOOGLE_CALLBACK_URL` origins (plus localhost outside production); state-changing `/auth/*` POSTs also check `Origin`. Endpoints that change which realm a cookie grants (`POST /auth/session/namespace`, `/auth/invitations/*`) use `requireBrowserJsonPost` (`routes/browserPost.ts`): Origin must be present and allowed, body must be JSON. `trust proxy` is `loopback` (nginx)
 - Realm switching: `GET /auth/session/namespaces` and `POST /auth/session/namespace` use `requireFullIdentity` (valid full sign-in, membership not required) so a user removed from their active realm can pick another. `apiFetch` sends `X-Namespace-Id`; a mismatch with the cookie gets 409 `namespace_changed` and the page reloads
-- Member invitations (`MEMBER_INVITES_ENABLED`, `services/namespaceInviteService.ts`): single-use emailed link (`/accept-invite#token=`), only the SHA-256 is stored, sent directly (never via `email_outbox`). Accepting adds an ordinary membership; invite-created users get the invited realm as primary and own nothing
+- Member invitations (`services/namespaceInviteService.ts`, on whenever auth, email and `FRONTEND_URL` are set; `MEMBER_INVITES_DISABLED=true` turns them off): single-use emailed link (`/accept-invite#token=`), only the SHA-256 is stored, sent directly (never via `email_outbox`). Accepting adds an ordinary membership; invite-created users get the invited realm as primary and own nothing
 
 ## Namespace isolation
 

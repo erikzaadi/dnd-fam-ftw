@@ -73,7 +73,7 @@ Every real namespace has exactly one **owner**: the account responsible for its 
 ./dnd-fam-ftw-cli namespaces add-user <namespaceId> <email>              # grant user access to a namespace
 ./dnd-fam-ftw-cli namespaces remove-user <namespaceId> <email>           # revoke access (not the owner); moves their primary realm
 ./dnd-fam-ftw-cli namespaces owners                                       # ownership report: status, members, proposed owner
-./dnd-fam-ftw-cli namespaces owners --apply                               # set only the proposed owners
+./dnd-fam-ftw-cli namespaces owners --apply                               # set the proposed owners (sole member with it as primary)
 ./dnd-fam-ftw-cli namespaces owners --json
 ./dnd-fam-ftw-cli namespaces set-owner <namespaceId> <email>             # set or transfer the owner (must be a member)
 ./dnd-fam-ftw-cli namespaces set-limits <id>                              # show current limits
@@ -86,7 +86,7 @@ Every real namespace has exactly one **owner**: the account responsible for its 
 
 `remove-user` takes effect on the member's next request, revokes their assistant tokens and pending invitations for that realm, and moves their primary realm to another membership (one they own first). With no memberships left they see a "no realms" screen after sign-in.
 
-**Owner migration (once, after upgrading).** Namespaces that existed before ownership have no owner, and the backend warns at startup until each has one. Run `namespaces owners`: it proposes an owner only for a namespace with a single member who also has it as primary (status `proposed`). `--apply` sets exactly those. Everything else (`unresolved`: several members, no members, or a sole member whose primary is elsewhere; `invalid_owner`: the owner left) needs `namespaces set-owner <id> <email>`, which never guesses. `set-owner` on a realm that already has an owner is a transfer: it cancels the realm's pending invitations so the new owner decides on further members.
+**Owners of existing realms.** A one-time migration on the first start after upgrading gives every realm with members an owner: the oldest member who has it as primary realm (normally the account it was created for), otherwise its oldest member. A realm with no members stays ownerless until someone is added: the first member becomes the owner (so `namespaces create` then `namespaces add-user` just works). Check the result with `namespaces owners` and change any choice with `namespaces set-owner <id> <email>`. The backend warns at startup if a realm with members still has no valid owner. `set-owner` on a realm that already has an owner is a transfer: it cancels the realm's pending invitations so the new owner decides on further members.
 
 Every namespace has a usage tier: `free` ("Adventurer", self-service signups), `supporter` ("Patron of the Realm"), or `unlimited` ("Founding Realm", all existing and CLI-created namespaces, and `local`). The tier sets daily text credits (AI text calls, plus one per started 1000 TTS characters), daily pictures, max sessions, and max turns per session. `set-limits` values override the tier's session/turn limits; `NULL` means "use the tier default".
 
@@ -228,7 +228,7 @@ Operator notification emails (new signups, invite requests, and "ask for more" r
 | `SIGNUP_NOTIFY_EMAIL` | Where new-signup and "ask for more" notices go (defaults to `ADMIN_EMAIL`). |
 | `SUPPORT_URL` | Donation page (https, e.g. `https://ko-fi.com/<you>`) behind the "Support the realm" button in Your Realm. Unset hides the button. |
 | `KOFI_VERIFICATION_TOKEN` | Ko-fi webhook verification token. Enables `POST /webhooks/kofi` (90-day supporter upgrade for a matching sign-in email). Unset: the endpoint returns 404. |
-| `MEMBER_INVITES_ENABLED` | `true` turns on "Invite your party" (default `false`). Requires `AUTH_MODE=enabled`, email (`EMAIL_PROVIDER`), and `FRONTEND_URL` (links are built from it, never from the request). Setting it back to `false` is the kill switch: sending, resending, and accepting stop, including links already sent; existing members keep signing in. |
+| `MEMBER_INVITES_DISABLED` | `true` is the kill switch for "Invite your party": sending, resending, and accepting stop, including links already sent; existing members keep signing in. Default `false`: invitations are on whenever auth is enabled, email is configured (the same `EMAIL_PROVIDER` as sign-in codes), and `FRONTEND_URL` is set (links are built from it, never from the request). The startup log says whether they are on and why not. |
 | `INVITE_DAILY_SEND_CAP` | Invitation emails per UTC day across the deployment (default 200). |
 | `INVITE_DAILY_ACCOUNT_CAP` | New accounts created by accepting invitations per UTC day (default 25). Joining with an existing account does not count. New invited accounts also pause while `DAILY_SPEND_LIMIT_USD` is exceeded. |
 | `MCP_ENABLED` | `true` opens the `/mcp` endpoint for AI assistants (default `false`, which returns 404 there). Requires `AUTH_MODE=enabled`: startup fails otherwise. Who can create tokens: see `MCP_DEFAULT_TIERS` and `users mcp-access`. Setting it back to `false` is the kill switch; website login is unaffected. |

@@ -359,7 +359,7 @@ The AI **cannot mutate game state directly** : it only returns structured JSON. 
 
 Auth is optional. With `AUTH_MODE=disabled` (the default when no Google OAuth credentials or `JWT_SECRET` are set) everything runs under a single `local` namespace. With `AUTH_MODE=enabled`, missing or partial auth settings stop the backend at startup instead of silently disabling login. `SIGNUP_MODE` (`invite_only` by default) controls whether unknown users can create accounts.
 
-When auth is enabled, each user gets their own namespace (isolated sessions) and owns it: the owner is the account its AI usage is attributed to. Users can be granted access to additional namespaces by an admin, or, with `MEMBER_INVITES_ENABLED=true`, invited by email ("Invite your party": owner-only unless the owner lets members invite).
+When auth is enabled, each user gets their own namespace (isolated sessions) and owns it: the owner is the account its AI usage is attributed to. Users can be granted access to additional namespaces by an admin, or invited by email ("Invite your party": owner-only unless the owner lets members invite).
 
 ```bash
 ./dnd-fam-ftw-prod-cli users list

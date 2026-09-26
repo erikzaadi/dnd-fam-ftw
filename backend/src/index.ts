@@ -6,7 +6,7 @@ dotenv.config({ path: path.join(import.meta.dirname, '../../.env') });
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import { assertAuthConfig, getConfig, getTurnStrategy, isAllowedOrigin, isAuthEnabled, isGoogleAuthConfigured, isMcpEnabled } from './config/env.js';
+import { assertAuthConfig, getConfig, getTurnStrategy, isAllowedOrigin, isAuthEnabled, isGoogleAuthConfigured, isMcpEnabled, memberInvitesUnavailableReason } from './config/env.js';
 import { authMiddleware } from './middleware/auth.js';
 import { getDb, runInTransaction } from './persistence/database.js';
 import { seedOnboarding } from './scripts/seedOnboarding.js';
@@ -118,6 +118,8 @@ if (isAuthEnabled()) {
   if (config.ADMIN_EMAIL) {
     StateService.ensureAdminUser(config.ADMIN_EMAIL);
   }
+  const invitesOff = memberInvitesUnavailableReason();
+  console.log(`[Invites] Member invitations ${invitesOff ? `off (${invitesOff})` : 'on'}`);
   const unresolvedOwners = countUnresolvedOwners();
   if (unresolvedOwners > 0) {
     console.warn(`[Auth] ${unresolvedOwners} namespace(s) without a valid owner; see npm run cli -- namespaces owners`);
