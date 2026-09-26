@@ -63,6 +63,22 @@ describe('client ID metadata documents', () => {
     expect(parseMetadataDocument(url, { client_id: 'https://other.example.com/meta', redirect_uris: ['https://a.example.com/cb'] })).toBeNull();
     expect(parseMetadataDocument(url, { client_id: url, redirect_uris: ['http://example.com/cb'] })).toBeNull();
     expect(parseMetadataDocument(url, { client_id: url, redirect_uris: ['https://a.example.com/cb'], token_endpoint_auth_method: 'private_key_jwt' })).toBeNull();
+    expect(parseMetadataDocument(url, { client_id: url, redirect_uris: ['https://a.example.com/cb'], grant_types: ['client_credentials'] })).toBeNull();
+  });
+
+  it('accepts a document that lists grant types beyond ours (Claude, 2026-09-26)', () => {
+    const claudeUrl = 'https://claude.ai/oauth/mcp-oauth-client-metadata';
+    const document = {
+      client_id: claudeUrl,
+      client_name: 'Claude',
+      client_uri: 'https://claude.ai',
+      redirect_uris: ['https://claude.ai/api/mcp/auth_callback'],
+      grant_types: ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:jwt-bearer'],
+      response_types: ['code'],
+      token_endpoint_auth_method: 'none',
+    };
+    expect(parseMetadataDocument(claudeUrl, document))
+      .toEqual({ clientName: 'Claude', clientUri: 'https://claude.ai', redirectUris: ['https://claude.ai/api/mcp/auth_callback'] });
   });
 
   it('returns no client when the document host resolves to a private address', async () => {

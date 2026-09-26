@@ -4,6 +4,8 @@ The backend has a Streamable HTTP MCP endpoint at `/mcp`. An AI assistant such a
 
 Status: opt-in pilot. Founding Realms (or the tiers in `MCP_DEFAULT_TIERS`) have access; anyone else can request it from Settings. Tools: list, read, preview and confirm turns, wait for results, ask the DM, start adventures (text-only or pictures on request), wrap up, end, or continue them, and show or paint scene pictures on request. Reference: [TOOLS.md](TOOLS.md). How an assistant should play: [PLAY_GUIDE.md](PLAY_GUIDE.md).
 
+![Starting an adventure from the Codex desktop app](../CodexMCP.png)
+
 ## Server setup (operator)
 
 1. Auth must be on (`AUTH_MODE=enabled`). Set `MCP_ENABLED=true`, and optionally `MCP_PUBLIC_URL=https://<api domain>/mcp`. See [MANAGE.md](../../MANAGE.md#sign-in-and-signup-settings).
@@ -122,4 +124,5 @@ curl -s http://localhost:3001/mcp \
 | --- | --- | --- | --- | --- | --- |
 | Claude Code | not yet tested | | not yet tested | | |
 | Codex CLI | 0.157.0 | `http_headers` with a direct bearer works; `bearer_token_env_var` reported the variable unset once (likely an environment setup issue, not rechecked) | not yet tested | works (2026-09-26) | preview, confirm, and Esc to stop the Undo window work (2026-09-26) |
+| Codex desktop app | | | | | create and play work (2026-09-26) |
 | Cursor | not yet tested | | not yet tested | | |

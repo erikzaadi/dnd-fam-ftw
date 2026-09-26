@@ -45,13 +45,15 @@ const optionalHttpsUrl = z.string().max(512).refine(value => {
 }).optional();
 
 // RFC 7591 client metadata, restricted to what a public PKCE client can use. Unknown
-// fields are ignored, as the RFC allows.
+// fields are ignored, as the RFC allows. Extra grant types are ignored too (Claude's
+// metadata document also lists jwt-bearer); the token endpoint only honors ours, but
+// authorization_code must be among them.
 const clientMetadataSchema = z.object({
   redirect_uris: z.array(z.string()).min(1).max(MAX_REDIRECT_URIS),
   client_name: optionalText(100),
   client_uri: optionalHttpsUrl,
   token_endpoint_auth_method: z.literal('none').optional(),
-  grant_types: z.array(z.enum(['authorization_code', 'refresh_token'])).optional(),
+  grant_types: z.array(z.string().max(200)).max(10).refine(types => types.includes('authorization_code')).optional(),
   response_types: z.array(z.literal('code')).optional(),
 });
 
