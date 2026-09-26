@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --conditions=source src/index.ts",
     "build": "tsc",
     "tsc": "tsc --noEmit",
     "start": "node --env-file=../.env dist/index.js",
@@ -12,9 +12,9 @@
     "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "cli": "tsx src/scripts/cli.ts",
-    "generate-static-assets": "tsx --env-file=../.env src/scripts/generateStaticAssets.ts",
-    "generate-image-samples": "tsx --env-file=../.env src/scripts/generateImageServiceSamples.ts"
+    "cli": "tsx --conditions=source src/scripts/cli.ts",
+    "generate-static-assets": "tsx --conditions=source --env-file=../.env src/scripts/generateStaticAssets.ts",
+    "generate-image-samples": "tsx --conditions=source --env-file=../.env src/scripts/generateImageServiceSamples.ts"
   },
   "keywords": [],
   "author": "",

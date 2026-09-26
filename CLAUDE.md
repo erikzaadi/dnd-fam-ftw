@@ -9,7 +9,7 @@ npm run install:all   # install shared, backend, and frontend
 npm run dev           # backend :3001 + frontend :5173
 ```
 
-The repo does not use npm workspaces. The shared package is linked from backend/frontend with `file:../packages/shared`, and `install:all` installs each package explicitly.
+The repo does not use npm workspaces. The shared package is linked from backend/frontend with `file:../packages/shared`, and `install:all` installs each package explicitly. Dev, CLI, tests and Playwright servers read shared from `src` (tsx `--conditions=source`, Vite/Vitest alias); only `node dist/...` in production uses `packages/shared/dist`, so run `build:shared` before any backend build.
 
 All env vars live in the root `.env`.
 

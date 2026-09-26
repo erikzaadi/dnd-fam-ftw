@@ -57,6 +57,10 @@ export default defineConfig(({ command }) => {
       audioCatalogPlugin(join(__dirname, 'public'), base),
       faviconPlugin(faviconDragon),
     ],
+    resolve: {
+      // Bundle shared from source so a stale packages/shared/dist is never used.
+      alias: { '@dnd-fam-ftw/shared': join(__dirname, '../packages/shared/src/index.ts') },
+    },
     server: {
       // Same as the CloudFront response headers policy: the app is never framed.
       headers: {

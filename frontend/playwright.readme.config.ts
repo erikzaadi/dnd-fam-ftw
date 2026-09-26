@@ -33,7 +33,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `rm -f ${DB_PATH} && ${backendEnv} npm exec -- tsx src/scripts/cli.ts sessions seed && ${backendEnv} npm exec -- tsx src/index.ts`,
+      command: `rm -f ${DB_PATH} && ${backendEnv} npm exec -- tsx --conditions=source src/scripts/cli.ts sessions seed && ${backendEnv} npm exec -- tsx --conditions=source src/index.ts`,
       cwd: '../backend',
       url: `http://localhost:${BACKEND_PORT}/health`,
       timeout: 120_000,
