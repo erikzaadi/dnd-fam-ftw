@@ -53,6 +53,10 @@ export const accessTokenRepository = {
     getDb().prepare('UPDATE access_tokens SET last_used_at = ? WHERE id = ? AND (last_used_at IS NULL OR last_used_at < ?)').run(now, id, now - 60_000);
   },
 
+  revokeForUserInNamespace(userId: string, namespaceId: string, now: number): number {
+    return getDb().prepare('UPDATE access_tokens SET revoked_at = ? WHERE user_id = ? AND namespace_id = ? AND revoked_at IS NULL').run(now, userId, namespaceId).changes;
+  },
+
   revokeAllForUser(userId: string, now: number): number {
     return getDb().prepare('UPDATE access_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL').run(now, userId).changes;
   },

@@ -41,10 +41,12 @@ export function resolveVerifiedSignIn(email: string, method: SignInMethod, now: 
   const existing = userRepository.getUserByEmail(email);
   if (existing) {
     const namespaces = userRepository.getUserNamespaces(existing.email);
-    if (namespaces.length > 1) {
+    // Membership is the only source of access: with none left, the realm picker shows
+    // the no-access screen instead of falling back to the primary pointer.
+    if (namespaces.length !== 1) {
       return { kind: 'pick-namespace', email: existing.email };
     }
-    return { kind: 'full', userId: existing.id, email: existing.email, namespaceId: namespaces[0]?.id ?? existing.namespace_id, created: false };
+    return { kind: 'full', userId: existing.id, email: existing.email, namespaceId: namespaces[0].id, created: false };
   }
 
   const canonical = canonicalEmail(email);

@@ -1,5 +1,6 @@
 import { createId } from '../lib/ids.js';
-import { getDb } from '../persistence/database.js';
+import { getDb, runInTransaction } from '../persistence/database.js';
+import { deleteNamespaceRows, userRepository } from './userRepository.js';
 
 export type NamespaceListItem = {
   id: string;
@@ -64,21 +65,30 @@ export const namespaceRepository = {
     return result.changes > 0;
   },
 
+  // Explicit deletion only: refuses while the realm has members or adventures. Users
+  // who still point at it as primary (without membership) move to their next realm.
   deleteNamespace(id: string): { ok: boolean; reason?: string } {
     const db = getDb();
     if (id === 'local') {
       return { ok: false, reason: 'Cannot delete the local namespace' };
     }
-    const users = db.prepare('SELECT COUNT(*) as count FROM users WHERE namespace_id = ?').get(id) as { count: number };
-    if (users.count > 0) {
-      return { ok: false, reason: `Namespace has ${users.count} user(s) - remove them first` };
+    if (!namespaceRepository.getNamespaceById(id)) {
+      return { ok: false, reason: `Namespace not found: ${id}` };
+    }
+    const members = db.prepare('SELECT COUNT(*) as count FROM user_namespaces WHERE namespace_id = ?').get(id) as { count: number };
+    if (members.count > 0) {
+      return { ok: false, reason: `Namespace has ${members.count} member(s) - remove them first` };
     }
     const sessions = db.prepare('SELECT COUNT(*) as count FROM sessions WHERE namespace_id = ?').get(id) as { count: number };
     if (sessions.count > 0) {
       return { ok: false, reason: `Namespace has ${sessions.count} session(s) - delete them first` };
     }
-    db.prepare('DELETE FROM namespace_settings WHERE namespace_id = ?').run(id);
-    db.prepare('DELETE FROM namespaces WHERE id = ?').run(id);
+    const stranded = db.prepare('SELECT id, email FROM users WHERE namespace_id = ?').all(id) as { id: string; email: string }[];
+    const nowhere = stranded.find(user => userRepository.getPrimaryCandidates(user.id, id).length === 0);
+    if (nowhere) {
+      return { ok: false, reason: `${nowhere.email} has this namespace as primary and no other realm - remove that user first` };
+    }
+    runInTransaction(() => deleteNamespaceRows(id));
     return { ok: true };
   },
 

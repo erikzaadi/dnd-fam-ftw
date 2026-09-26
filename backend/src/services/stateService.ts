@@ -6,8 +6,9 @@ import { namespaceRepository, type NamespaceListItem } from '../repositories/nam
 import { sessionRepository, type SessionListItem, type SessionPatch } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { usageRepository, type TtsUsage } from '../repositories/usageRepository.js';
-import { userRepository, type UserListItem, type UserRecord } from '../repositories/userRepository.js';
+import { userRepository, type DeleteUserResult, type UserListItem, type UserRecord } from '../repositories/userRepository.js';
 import { deleteSessionWithAssets } from './sessionDeletionService.js';
+import { removeMember } from './namespaceMembershipService.js';
 
 // Compatibility facade retained for stable callers. Persistence should live in
 // repositories; keep only cross-repository or side-effect orchestration here.
@@ -123,7 +124,7 @@ export class StateService {
     return userRepository.listUsers();
   }
 
-  public static deleteUser(email: string): boolean {
+  public static deleteUser(email: string): DeleteUserResult {
     return userRepository.deleteUser(email);
   }
 
@@ -192,18 +193,7 @@ export class StateService {
   }
 
   public static removeUserFromNamespace(email: string, namespaceId: string): { ok: boolean; reason?: string } {
-    const user = this.getUserByEmail(email);
-    if (!user) {
-      return { ok: false, reason: `User not found: ${email}` };
-    }
-    if (user.namespace_id === namespaceId) {
-      return { ok: false, reason: `Cannot remove user from their primary namespace: ${namespaceId}` };
-    }
-    if (userRepository.removeUserFromNamespace(user.id, namespaceId)) {
-      return { ok: true };
-    } else {
-      return { ok: false, reason: `User ${email} did not have access to namespace ${namespaceId}` };
-    }
+    return removeMember(email, namespaceId);
   }
 
   // --- Namespace limits ---

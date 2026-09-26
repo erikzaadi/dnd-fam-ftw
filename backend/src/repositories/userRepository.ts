@@ -21,6 +21,71 @@ export type McpAccessOverride = 'on' | 'default' | 'off';
 const MCP_ACCESS_VALUES: Record<McpAccessOverride, number> = { on: 1, default: 0, off: -1 };
 const fromMcpAccessValue = (value: number): McpAccessOverride => (value > 0 ? 'on' : value < 0 ? 'off' : 'default');
 
+export type DeleteUserResult =
+  | { ok: true; deletedNamespaceIds: string[] }
+  | { ok: false; reason: string; notFound?: boolean };
+
+const countRows = (sql: string, ...params: string[]): number =>
+  (getDb().prepare(sql).get(...params) as { count: number }).count;
+
+// Decides which namespaces go with an account. Refuses when the user owns a realm
+// with other members, when a doomed realm still has adventures (unless the caller is
+// only planning), or when another account still points at a doomed realm as primary
+// with nowhere else to go.
+function planAccountNamespaces(user: UserRecord, { ignoreSessions = false } = {}): { ok: true; deleteNamespaceIds: string[] } | { ok: false; reason: string } {
+  const db = getDb();
+  const owned = db.prepare('SELECT id, name FROM namespaces WHERE owner_user_id = ?').all(user.id) as { id: string; name: string }[];
+  const doomed: { id: string; name: string }[] = [];
+  for (const namespace of owned) {
+    const others = countRows('SELECT COUNT(*) AS count FROM user_namespaces WHERE namespace_id = ? AND user_id != ?', namespace.id, user.id);
+    if (others > 0) {
+      return { ok: false, reason: `${user.email} owns realm "${namespace.name}" (${namespace.id}) shared with ${others} other member(s): transfer ownership first (namespaces set-owner)` };
+    }
+    doomed.push(namespace);
+  }
+  // Pre-ownership realms: the old rule deleted the primary realm with its last user.
+  const primary = db.prepare('SELECT id, name, owner_user_id FROM namespaces WHERE id = ?').get(user.namespace_id) as { id: string; name: string; owner_user_id: string | null } | undefined;
+  if (primary && primary.id !== 'local' && primary.owner_user_id === null
+    && countRows('SELECT COUNT(*) AS count FROM user_namespaces WHERE namespace_id = ? AND user_id != ?', primary.id, user.id) === 0) {
+    doomed.push(primary);
+  }
+  for (const namespace of doomed) {
+    const sessions = countRows('SELECT COUNT(*) AS count FROM sessions WHERE namespace_id = ?', namespace.id);
+    if (sessions > 0 && !ignoreSessions) {
+      return { ok: false, reason: `Realm "${namespace.name}" (${namespace.id}) still has ${sessions} adventure(s): delete them first` };
+    }
+    const stranded = db.prepare('SELECT id, email FROM users WHERE namespace_id = ? AND id != ?').all(namespace.id, user.id) as { id: string; email: string }[];
+    for (const other of stranded) {
+      const next = userRepository.getPrimaryCandidates(other.id, namespace.id).find(id => !doomed.some(d => d.id === id));
+      if (!next) {
+        return { ok: false, reason: `${other.email} has realm "${namespace.name}" as primary and no other realm: remove that user first` };
+      }
+    }
+  }
+  return { ok: true, deleteNamespaceIds: doomed.map(namespace => namespace.id) };
+}
+
+// Deletes a namespace row and what hangs off it. Callers check members, sessions and
+// primary references first. Other users still pointing at it as primary are moved
+// to their next membership. provider_usage keeps its rows (no FK); the legacy
+// tts_usage table references namespaces, so its rows go with the realm.
+export function deleteNamespaceRows(namespaceId: string): void {
+  const db = getDb();
+  const stranded = db.prepare('SELECT id FROM users WHERE namespace_id = ?').all(namespaceId) as { id: string }[];
+  for (const other of stranded) {
+    const next = userRepository.getPrimaryCandidates(other.id, namespaceId)[0];
+    if (!next) {
+      throw new Error(`User ${other.id} has namespace ${namespaceId} as primary and no other membership`);
+    }
+    db.prepare('UPDATE users SET namespace_id = ? WHERE id = ?').run(next, other.id);
+  }
+  db.prepare('DELETE FROM user_namespaces WHERE namespace_id = ?').run(namespaceId);
+  db.prepare('DELETE FROM namespace_settings WHERE namespace_id = ?').run(namespaceId);
+  db.prepare('DELETE FROM tts_usage WHERE namespace_id = ?').run(namespaceId);
+  db.prepare('DELETE FROM access_tokens WHERE namespace_id = ?').run(namespaceId);
+  db.prepare('DELETE FROM namespaces WHERE id = ?').run(namespaceId);
+}
+
 export const userRepository = {
   getUserByEmail(email: string): UserRecord | null {
     const db = getDb();
@@ -100,15 +165,28 @@ export const userRepository = {
     db.prepare('UPDATE users SET lastLogin = CURRENT_TIMESTAMP WHERE email_canonical = ?').run(canonicalEmail(email));
   },
 
-  deleteUser(email: string): boolean {
+  // All-or-nothing. A user who owns a realm shared with others is refused (transfer
+  // ownership first). Realms that go with the account: ones they own alone, and a
+  // legacy ownerless primary realm where they are the only member. Those must have no
+  // adventures left (the CLI deletes them first, with their images). Shared realms
+  // are never deleted just because this user's primary reference goes away.
+  deleteUser(email: string): DeleteUserResult {
     const db = getDb();
     const user = userRepository.getUserByEmail(email);
     if (!user) {
-      return false;
+      return { ok: false, notFound: true, reason: `User not found: ${email}` };
     }
-    // All-or-nothing, and nothing left behind that could bind to a later account
-    // with the same email (sign-in codes, pending signup notices).
+    const plan = planAccountNamespaces(user);
+    if (!plan.ok) {
+      return plan;
+    }
+    // Nothing left behind that could bind to a later account with the same email
+    // (sign-in codes, pending signup notices).
     runInTransaction(() => {
+      for (const namespaceId of plan.deleteNamespaceIds) {
+        // Break the users <-> namespaces reference cycle before deleting either row.
+        db.prepare('UPDATE namespaces SET owner_user_id = NULL WHERE id = ?').run(namespaceId);
+      }
       db.prepare('DELETE FROM user_namespaces WHERE user_id = ?').run(user.id);
       db.prepare('DELETE FROM access_tokens WHERE user_id = ?').run(user.id);
       db.prepare('DELETE FROM mcp_auto_confirm WHERE user_id = ?').run(user.id);
@@ -116,17 +194,31 @@ export const userRepository = {
       db.prepare('DELETE FROM users WHERE id = ?').run(user.id);
       db.prepare('DELETE FROM auth_email_challenges WHERE email_canonical = ?').run(canonicalEmail(email));
       db.prepare("UPDATE email_outbox SET status = 'cancelled' WHERE event_key = ? AND status = 'pending'").run(`signup:${user.id}`);
-      // Remove namespace if no other users reference it (and it's not 'local').
-      if (user.namespace_id !== 'local') {
-        const otherUsers = db.prepare('SELECT COUNT(*) as count FROM users WHERE namespace_id = ?').get(user.namespace_id) as { count: number };
-        if (otherUsers.count === 0) {
-          db.prepare('DELETE FROM user_namespaces WHERE namespace_id = ?').run(user.namespace_id);
-          db.prepare('DELETE FROM namespace_settings WHERE namespace_id = ?').run(user.namespace_id);
-          db.prepare('DELETE FROM namespaces WHERE id = ?').run(user.namespace_id);
-        }
+      for (const namespaceId of plan.deleteNamespaceIds) {
+        deleteNamespaceRows(namespaceId);
       }
     });
-    return true;
+    return { ok: true, deletedNamespaceIds: plan.deleteNamespaceIds };
+  },
+
+  // Namespaces that would be deleted with this account, or why deletion is refused.
+  planAccountDeletion(email: string): { ok: true; deleteNamespaceIds: string[] } | { ok: false; reason: string } {
+    const user = userRepository.getUserByEmail(email);
+    if (!user) {
+      return { ok: false, reason: `User not found: ${email}` };
+    }
+    const plan = planAccountNamespaces(user, { ignoreSessions: true });
+    return plan.ok ? { ok: true, deleteNamespaceIds: plan.deleteNamespaceIds } : plan;
+  },
+
+  // Remaining memberships, owned ones first, then oldest realm first.
+  getPrimaryCandidates(userId: string, excludingNamespaceId: string): string[] {
+    const rows = getDb().prepare(`
+      SELECT n.id FROM user_namespaces un JOIN namespaces n ON n.id = un.namespace_id
+      WHERE un.user_id = ? AND n.id != ?
+      ORDER BY CASE WHEN n.owner_user_id = un.user_id THEN 0 ELSE 1 END, n.created_at
+    `).all(userId, excludingNamespaceId) as { id: string }[];
+    return rows.map(row => row.id);
   },
 
   setPrimaryNamespace(userId: string, namespaceId: string): void {

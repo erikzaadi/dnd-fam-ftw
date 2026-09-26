@@ -40,6 +40,7 @@ _dnd_flags() {
     metrics/narration) echo "--format= --csv --failed-only --namespace= --session= --since=" ;;
     namespaces/set-limits) echo "--max-sessions= --max-turns=" ;;
     namespaces/owners) echo "--apply" ;;
+    users/remove) echo "--with-adventures" ;;
     invite-requests/approve) echo "--namespace=" ;;
     email-outbox/list) echo "--status=" ;;
     limit-requests/list) echo "--status=" ;;

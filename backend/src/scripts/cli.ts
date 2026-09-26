@@ -5,7 +5,7 @@
  *   npm run cli -- <resource> [sub-command] [args...] [--json]
  *
  * Resources:
- *   users           list | add <email> [name] | remove <email> | set-primary <e> <ns>
+ *   users           list | add <email> [name] | remove <email> [--with-adventures] | set-primary <e> <ns>
  *                   mcp-access <email> [on|off|default] | mcp-list [--json] | mcp-revoke <email>
  *   namespaces      list | create <name> | rename <id> <name> | delete <id>
  *                   sessions <id> | assign-session <sessionId> <nsId>
@@ -46,6 +46,7 @@ import { isMcpEligible } from '../services/accessTokenService.js';
 import { mcpAccessRequestService } from '../services/mcpAccessRequestService.js';
 import { mcpAccessRequestRepository, type McpAccessRequestStatus } from '../repositories/mcpAccessRequestRepository.js';
 import { applyProposedOwners, buildOwnershipReport, setNamespaceOwner } from '../services/namespaceOwnershipService.js';
+import { removeMember } from '../services/namespaceMembershipService.js';
 
 const [, , resource, subcommand, ...rest] = process.argv;
 const allArgs = [subcommand, ...rest].filter(Boolean);
@@ -145,12 +146,29 @@ case 'users': {
     if (!email) {
       fail('Usage: cli users remove <email>');
     }
+    // Realms the user owns alone go with the account. Their adventures (and images)
+    // are only deleted with --with-adventures; shared realms need a new owner first.
+    const plan = userRepository.planAccountDeletion(email);
+    if (!plan.ok) {
+      fail(plan.reason);
+    }
+    const doomedSessions = plan.deleteNamespaceIds.flatMap(id => StateService.listSessionsInNamespace(id));
+    if (doomedSessions.length > 0) {
+      if (!process.argv.includes('--with-adventures')) {
+        fail(`Deleting ${email} also deletes their realm(s) ${plan.deleteNamespaceIds.join(', ')} with ${doomedSessions.length} adventure(s). Re-run with --with-adventures to confirm.`);
+      }
+      for (const session of doomedSessions) {
+        await StateService.deleteSession(session.id);
+      }
+      console.log(`Deleted ${doomedSessions.length} adventure(s)`);
+    }
     const deleted = StateService.deleteUser(email);
-    if (deleted) {
-      console.log(`Deleted user: ${email}`);
-    } else {
-      console.error(`User not found: ${email}`);
-      process.exit(1);
+    if (!deleted.ok) {
+      fail(deleted.reason);
+    }
+    console.log(`Deleted user: ${email}`);
+    if (deleted.deletedNamespaceIds.length > 0) {
+      console.log(`  Deleted realm(s): ${deleted.deletedNamespaceIds.join(', ')}`);
     }
     break;
   }
@@ -237,7 +255,7 @@ case 'users': {
 users <sub-command>
   list                    List all users with primary and all accessible namespaces
   add <email> [name]      Create a new user (and their namespace)
-  remove <email>          Delete a user (and their namespace if empty)
+  remove <email> [--with-adventures]  Delete a user and the realms they own alone (refused while they own a shared realm)
   set-primary <e> <ns>    Change a user's primary namespace
   mcp-access <e> [on|off] Show or change MCP pilot access (assistant access tokens)
   mcp-list                List users with MCP access and their active token counts
@@ -427,9 +445,14 @@ case 'namespaces': {
     if (!nsId || !email) {
       fail('Usage: cli namespaces remove-user <namespaceId> <email>');
     }
-    const result = StateService.removeUserFromNamespace(email, nsId);
+    const result = removeMember(email, nsId);
     if (result.ok) {
       console.log(`Removed ${email} access to namespace ${nsId}`);
+      if (!result.hasMemberships) {
+        console.log(`  ${email} is no longer a member of any realm.`);
+      } else if (result.primaryNamespaceId !== nsId) {
+        console.log(`  Primary realm: ${result.primaryNamespaceId}`);
+      }
     } else {
       console.error(`Error: ${result.reason}`);
       process.exit(1);
@@ -512,16 +535,18 @@ namespaces <sub-command> [args]
   list                                List all namespaces with user and session counts
   create <name>                       Create a standalone namespace
   rename <id> <new-name>              Rename a namespace
-  delete <id>                         Delete an empty namespace
+  delete <id>                         Delete a namespace with no members or sessions
   sessions <id>                       List sessions in a namespace
   assign-session <sessionId> <nsId>   Move a session to a namespace
   add-user <nsId> <email>             Grant user access to a namespace
-  remove-user <nsId> <email>          Remove user access from a namespace
+  remove-user <nsId> <email>          Remove user access from a namespace (not the owner; moves their primary realm)
+  owners [--apply]                    Ownership report; --apply sets only the proposed owners
+  set-owner <nsId> <email>            Set or transfer the owner (must be a member)
   set-limits <id> [--max-sessions N] [--max-turns N]  Set or view per-namespace overrides (null = tier default)
   tier <id> [free|supporter|unlimited]  View effective limits or change the usage tier (clears any donation expiry)
 
 Options:
-  --json   Output as JSON (list and sessions only)
+  --json   Output as JSON (list, sessions and owners only)
 
 Examples:
   cli namespaces list
@@ -1464,11 +1489,12 @@ dnd-fam-ftw management CLI
 Usage: npm run cli -- <resource> [sub-command] [args...] [--json]
 
 Resources:
-  users           list | add <email> [name] | remove <email> | set-primary <e> <ns>
+  users           list | add <email> [name] | remove <email> [--with-adventures] | set-primary <e> <ns>
                   mcp-access <email> [on|off|default] | mcp-list | mcp-revoke <email>
   namespaces      list | create <name> | rename <id> <name> | delete <id>
                   sessions <id> | assign-session <sessionId> <nsId>
                   add-user <nsId> <email> | remove-user <nsId> <email> | set-limits <id> [--max-sessions N] [--max-turns N]
+                  owners [--apply] [--json] | set-owner <nsId> <email>
   sessions        list [--json] | nuke | seed | export | import
   metrics         [--json] [--since <ISO date>] | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]
   invite-requests list [--json] | approve <email> [--namespace <name>] | clear

@@ -27,6 +27,7 @@ export const NamespacePicker = () => {
       if (pending.ok) {
         const data = await pending.json() as { namespaces: RealmChoice[] };
         setNamespaces(data.namespaces);
+        setNoRealms(data.namespaces.length === 0);
         return;
       }
       const session = await apiFetch('/auth/session/namespaces');

@@ -301,12 +301,12 @@ describe('StateService - User / Namespace management', () => {
 
   it('deleteUser removes user', () => {
     StateService.createUser('todelete@example.com');
-    expect(StateService.deleteUser('todelete@example.com')).toBe(true);
+    expect(StateService.deleteUser('todelete@example.com').ok).toBe(true);
     expect(StateService.getUserByEmail('todelete@example.com')).toBeNull();
   });
 
   it('deleteUser returns false for unknown email', () => {
-    expect(StateService.deleteUser('ghost@example.com')).toBe(false);
+    expect(StateService.deleteUser('ghost@example.com')).toMatchObject({ ok: false, notFound: true });
   });
 
   it('ensureAdminUser creates admin with role=admin and is idempotent', () => {
@@ -357,11 +357,11 @@ describe('StateService - User / Namespace management', () => {
     expect(StateService.deleteNamespace('local').ok).toBe(false);
   });
 
-  it('deleteNamespace rejects namespace with users', () => {
+  it('deleteNamespace rejects namespace with members', () => {
     const { namespaceId } = StateService.createUser('has-users@example.com');
     const result = StateService.deleteNamespace(namespaceId);
     expect(result.ok).toBe(false);
-    expect(result.reason).toMatch(/user/);
+    expect(result.reason).toMatch(/member/);
   });
 
   it('addUserToNamespace + getUserNamespaces + removeUserFromNamespace', () => {
@@ -375,11 +375,11 @@ describe('StateService - User / Namespace management', () => {
     expect(StateService.getUserNamespaces('multi-ns@example.com').some(n => n.id === secondNs)).toBe(false);
   });
 
-  it('removeUserFromNamespace rejects primary namespace', () => {
+  it('removeUserFromNamespace rejects the owner', () => {
     const { namespaceId } = StateService.createUser('primary-ns@example.com');
     const result = StateService.removeUserFromNamespace('primary-ns@example.com', namespaceId);
     expect(result.ok).toBe(false);
-    expect(result.reason).toMatch(/primary/);
+    expect(result.reason).toMatch(/owns/);
   });
 
   it('setPrimaryNamespace changes primary namespace', () => {

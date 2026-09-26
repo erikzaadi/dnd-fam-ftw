@@ -317,8 +317,29 @@ export const migrate = (db: DB): void => {
   // Always ensure the local (no-auth) namespace exists.
   db.prepare("INSERT OR IGNORE INTO namespaces (id, name) VALUES ('local', 'Local')").run();
 
-  // Backfill user_namespaces from existing users.namespace_id.
-  db.prepare("INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) SELECT id, namespace_id FROM users").run();
+  // One-time migrations that must not re-run: a repeated run would undo later changes
+  // (e.g. re-granting a membership an operator removed).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS applied_migrations (
+      name TEXT PRIMARY KEY,
+      applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  const runOnce = (name: string, fn: () => void) => {
+    if (db.prepare('SELECT 1 FROM applied_migrations WHERE name = ?').get(name)) {
+      return;
+    }
+    db.transaction(() => {
+      fn();
+      db.prepare('INSERT INTO applied_migrations (name) VALUES (?)').run(name);
+    })();
+  };
+
+  // Backfill user_namespaces from existing users.namespace_id, once. Membership is the
+  // only source of access; the primary pointer must not bring a removed one back.
+  runOnce('backfill_user_namespaces_from_primary', () => {
+    db.prepare("INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) SELECT id, namespace_id FROM users").run();
+  });
 
   const namespaceCols = (db.prepare("PRAGMA table_info(namespaces)").all() as { name: string }[]).map(r => r.name);
   if (!namespaceCols.includes('max_sessions')) {
