@@ -46,6 +46,7 @@ No prep required. No DM experience required. Just vibes and a d20.
 - **Downed state** : reach 0 HP and your hero collapses; teammates must revive you
 - **Party wipe rescue** : if everyone goes down, a magical intervention saves the party at 1 HP each; further wipes trigger a sanctuary recovery; rescue attempts are limited by difficulty - run out and the campaign ends
 - **Rolling story summary** : the AI compresses the adventure every 5 turns so context stays sharp across long sessions
+- **Invite your party** : email family or friends a one-time link to join your realm (no password needed), and switch between realms from the account menu without signing out
 
 ![Create new hero form](docs/create-hero-form.png)
 
@@ -358,20 +359,21 @@ The AI **cannot mutate game state directly** : it only returns structured JSON. 
 
 Auth is optional. With `AUTH_MODE=disabled` (the default when no Google OAuth credentials or `JWT_SECRET` are set) everything runs under a single `local` namespace. With `AUTH_MODE=enabled`, missing or partial auth settings stop the backend at startup instead of silently disabling login. `SIGNUP_MODE` (`invite_only` by default) controls whether unknown users can create accounts.
 
-When auth is enabled, each user gets their own namespace (isolated sessions). Users can be granted access to additional namespaces by an admin.
+When auth is enabled, each user gets their own namespace (isolated sessions) and owns it: the owner is the account its AI usage is attributed to. Users can be granted access to additional namespaces by an admin, or, with `MEMBER_INVITES_ENABLED=true`, invited by email ("Invite your party": owner-only unless the owner lets members invite).
 
 ```bash
 ./dnd-fam-ftw-prod-cli users list
 ./dnd-fam-ftw-prod-cli users add someone@gmail.com "Their Name"
 ./dnd-fam-ftw-prod-cli namespaces list
 ./dnd-fam-ftw-prod-cli namespaces add-user <namespaceId> someone@gmail.com
+./dnd-fam-ftw-prod-cli namespaces owners
 ./dnd-fam-ftw-prod-cli namespaces set-limits <namespaceId> --max-sessions 5 --max-turns 100
 ./dnd-fam-ftw-prod-cli invite-requests list
 ```
 
-Sign-in is Google and/or passwordless email codes (Amazon SES). With `SIGNUP_MODE=open`, anyone with a verified email gets a private realm on the `free` tier (daily adventure energy and pictures, a few realms); existing and CLI-created groups are `unlimited`. Players see their allowance under **Your Realm** in Settings and can ask for more or support the hosting via `SUPPORT_URL` (e.g. Ko-fi). With `KOFI_VERIFICATION_TOKEN`, a Ko-fi payment from a player's sign-in email raises their group to `supporter` for 90 days (see `MANAGE.md`).
+Sign-in is Google and/or passwordless email codes (Amazon SES). With `SIGNUP_MODE=open`, anyone with a verified email gets a private realm on the `free` tier (daily adventure energy and pictures, a few realms); existing and CLI-created groups are `unlimited`. Players see their allowance under **Your Realm** in Settings and can ask for more or support the hosting via `SUPPORT_URL` (e.g. Ko-fi). With `KOFI_VERIFICATION_TOKEN`, a Ko-fi payment from a realm owner's sign-in email raises that realm to `supporter` for 90 days (see `MANAGE.md`).
 
-Users with multiple namespace access will see a picker screen after login. For the full command reference see **[MANAGE.md](MANAGE.md)**.
+Users with multiple namespace access will see a picker screen after login, and can switch realms any time from the account menu at the top right. For the full command reference see **[MANAGE.md](MANAGE.md)**.
 
 For the complete ruleset : dice math, downed state, party wipes, item mechanics, story compression, SSE events : see **[GAME_ENGINE_RULES.md](GAME_ENGINE_RULES.md)**.
 

@@ -113,17 +113,21 @@ When enabled:
 - JWT `type` field: `full` | `pending-namespace` | `pending-invite` | `invite-requested`. New full tokens carry `userId`; email-only full tokens are accepted only for accounts created before the token was issued. `authMiddleware` re-issues the 30-day full cookie when less than 7 days are left (sliding session)
 - Google sign-in never creates accounts (`resolveGoogleSignIn`): new accounts come from an email code first
 - Google OAuth uses a browser-bound `state` + PKCE cookie (`oauth_google`) and requires `email_verified`
-- CORS allows only the `FRONTEND_URL` / `GOOGLE_CALLBACK_URL` origins (plus localhost outside production); state-changing `/auth/*` POSTs also check `Origin`. `trust proxy` is `loopback` (nginx)
+- CORS allows only the `FRONTEND_URL` / `GOOGLE_CALLBACK_URL` origins (plus localhost outside production); state-changing `/auth/*` POSTs also check `Origin`. Endpoints that change which realm a cookie grants (`POST /auth/session/namespace`, `/auth/invitations/*`) use `requireBrowserJsonPost` (`routes/browserPost.ts`): Origin must be present and allowed, body must be JSON. `trust proxy` is `loopback` (nginx)
+- Realm switching: `GET /auth/session/namespaces` and `POST /auth/session/namespace` use `requireFullIdentity` (valid full sign-in, membership not required) so a user removed from their active realm can pick another. `apiFetch` sends `X-Namespace-Id`; a mismatch with the cookie gets 409 `namespace_changed` and the page reloads
+- Member invitations (`MEMBER_INVITES_ENABLED`, `services/namespaceInviteService.ts`): single-use emailed link (`/accept-invite#token=`), only the SHA-256 is stored, sent directly (never via `email_outbox`). Accepting adds an ordinary membership; invite-created users get the invited realm as primary and own nothing
 
 ## Namespace isolation
 
-Every session belongs to a namespace. Users have a primary namespace (1:1) but can be granted access to additional namespaces via `namespaces add-user`. All session queries scoped to `req.namespaceId`. Default: `local` when auth disabled.
+Every session belongs to a namespace. Users have a primary namespace (1:1) but can be granted access to additional namespaces via `namespaces add-user` or an invitation. Membership (`user_namespaces`) is the only source of access; the primary pointer is just the default at sign-in. All session queries scoped to `req.namespaceId`. Default: `local` when auth disabled.
+
+Each real namespace has one owner (`namespaces.owner_user_id`, FK with `ON DELETE RESTRICT`), who must be a member; enforced by `services/namespaceOwnershipService.ts` / `namespaceMembershipService.ts` and reported by `cli namespaces owners`. Foreign keys are on (`PRAGMA foreign_keys = ON` in `database.ts`). User deletion (`userRepository.deleteUser`) refuses owners of shared realms and deletes realms the user owns alone. One-time migrations go through `runOnce` (`applied_migrations` table) in `migrations.ts`.
 
 Routes with a session id should use `registerSessionIdParam()` so missing sessions and sessions outside `req.namespaceId` return 404 before route handlers run, with the loaded session available as `req.session`.
 
 `StateService.deleteSession()` deletes all S3/local turn images and character avatars before deleting DB rows.
 
-Usage tiers (`free` | `supporter` | `unlimited`) and daily text/picture budgets live in `services/usageLimitService.ts`; per-namespace session/turn overrides (NULL = tier default): see `MANAGE.md`. Every AI provider request is recorded in `provider_usage` by the SDK fetch in `providers/ai/usageRecordingFetch.ts`, attributed via `lib/usageContext.ts`.
+Usage tiers (`free` | `supporter` | `unlimited`) and daily text/picture budgets live in `services/usageLimitService.ts`; per-namespace session/turn overrides (NULL = tier default): see `MANAGE.md`. Every AI provider request is recorded in `provider_usage` by the SDK fetch in `providers/ai/usageRecordingFetch.ts`, attributed via `lib/usageContext.ts`: `user_id` is the actor, `owner_user_id` the realm owner when the request began. Build usage contexts only with `createUsageContext` (`services/usageAttribution.ts`); a real realm without a valid owner is refused paid work.
 
 ## Management CLI
 

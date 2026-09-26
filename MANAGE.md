@@ -37,36 +37,45 @@ source /path/to/dnd-fam-ftw/scripts/cli-completion.bash
 
 ### users
 
-Manage registered users. Each user gets their own primary namespace on creation.
+Manage registered users. Each user gets their own primary namespace on creation and owns it. Users who joined through an invitation have the invited realm as primary and own no realm.
 
 ```bash
 ./dnd-fam-ftw-cli users list                                # list all users and their accessible namespaces
 ./dnd-fam-ftw-cli users list --json
 ./dnd-fam-ftw-cli users add <email> [name]                  # create user + namespace
-./dnd-fam-ftw-cli users remove <email>                      # delete user (and their namespace if empty)
+./dnd-fam-ftw-cli users remove <email>                      # delete user and the realms they own alone
+./dnd-fam-ftw-cli users remove <email> --with-adventures   # ...also deleting those realms' adventures and images
 ./dnd-fam-ftw-cli users set-primary <email> <namespaceId>   # change a user's primary namespace
 ./dnd-fam-ftw-cli users mcp-access <email> [on|off|default] # show or change a user's MCP access override
 ./dnd-fam-ftw-cli users mcp-list [--json]                   # users with an on/off override and their active token counts
 ./dnd-fam-ftw-cli users mcp-revoke <email>                  # revoke all of a user's MCP access tokens
 ```
 
+`users remove` refuses while the user owns a realm that has other members (transfer it first with `namespaces set-owner`). Realms the user owns alone are deleted with the account; if they still have adventures, the command asks for `--with-adventures`. Shared realms, and other members' access, are never deleted because one user goes away. Pending invitations the user sent are cancelled.
+
 MCP access lets a user create personal access tokens under **Settings > AI assistants** for playing through an AI assistant (see [docs/mcp/SETUP.md](docs/mcp/SETUP.md)). It only matters when `MCP_ENABLED=true`. Access is decided per realm: members of a realm whose tier is in `MCP_DEFAULT_TIERS` (default: `unlimited`, the Founding Realms) have it unless their override is `off`; anyone else needs `on`. `default` removes the override. When access ends (override `off`, or the realm drops to another tier), the user's tokens for that realm stop working on the next request; they stay listed so the user can still revoke them. Removing a user deletes their tokens.
 
 ### namespaces
 
-Manage namespaces (isolated session spaces). Users can be granted access to additional namespaces beyond their primary one.
+Manage namespaces (isolated session spaces, "realms" in the UI). Users can be granted access to additional namespaces beyond their primary one. Membership is the only source of access: the primary namespace is just the default realm at sign-in.
+
+Every real namespace has exactly one **owner**: the account responsible for its usage (provider usage is attributed to the owner, and Ko-fi donations upgrade only a realm the donor owns). The owner is always a member and cannot be removed or deleted while owning the realm. New accounts own their private realm; `local` (auth disabled) has no owner. A realm without a valid owner gets no paid AI work (players see "This realm is being set up").
 
 ```bash
 ./dnd-fam-ftw-cli namespaces list                                         # list all with user/session counts and limits
 ./dnd-fam-ftw-cli namespaces list --json
 ./dnd-fam-ftw-cli namespaces create <name>                                # create a standalone namespace
 ./dnd-fam-ftw-cli namespaces rename <id> <new-name>
-./dnd-fam-ftw-cli namespaces delete <id>                                  # only works if namespace has no sessions
+./dnd-fam-ftw-cli namespaces delete <id>                                  # only works with no members and no sessions
 ./dnd-fam-ftw-cli namespaces sessions <id>                                # list sessions in a namespace
 ./dnd-fam-ftw-cli namespaces sessions <id> --json
 ./dnd-fam-ftw-cli namespaces assign-session <sessionId> <namespaceId>    # move a session to another namespace
 ./dnd-fam-ftw-cli namespaces add-user <namespaceId> <email>              # grant user access to a namespace
-./dnd-fam-ftw-cli namespaces remove-user <namespaceId> <email>           # revoke user access to a namespace
+./dnd-fam-ftw-cli namespaces remove-user <namespaceId> <email>           # revoke access (not the owner); moves their primary realm
+./dnd-fam-ftw-cli namespaces owners                                       # ownership report: status, members, proposed owner
+./dnd-fam-ftw-cli namespaces owners --apply                               # set only the proposed owners
+./dnd-fam-ftw-cli namespaces owners --json
+./dnd-fam-ftw-cli namespaces set-owner <namespaceId> <email>             # set or transfer the owner (must be a member)
 ./dnd-fam-ftw-cli namespaces set-limits <id>                              # show current limits
 ./dnd-fam-ftw-cli namespaces set-limits <id> --max-sessions 5            # cap number of sessions
 ./dnd-fam-ftw-cli namespaces set-limits <id> --max-turns 100             # cap turns per session
@@ -74,6 +83,10 @@ Manage namespaces (isolated session spaces). Users can be granted access to addi
 ./dnd-fam-ftw-cli namespaces tier <id>                                   # show tier and effective limits
 ./dnd-fam-ftw-cli namespaces tier <id> supporter                         # change tier: free | supporter | unlimited
 ```
+
+`remove-user` takes effect on the member's next request, revokes their assistant tokens and pending invitations for that realm, and moves their primary realm to another membership (one they own first). With no memberships left they see a "no realms" screen after sign-in.
+
+**Owner migration (once, after upgrading).** Namespaces that existed before ownership have no owner, and the backend warns at startup until each has one. Run `namespaces owners`: it proposes an owner only for a namespace with a single member who also has it as primary (status `proposed`). `--apply` sets exactly those. Everything else (`unresolved`: several members, no members, or a sole member whose primary is elsewhere; `invalid_owner`: the owner left) needs `namespaces set-owner <id> <email>`, which never guesses. `set-owner` on a realm that already has an owner is a transfer: it cancels the realm's pending invitations so the new owner decides on further members.
 
 Every namespace has a usage tier: `free` ("Adventurer", self-service signups), `supporter` ("Patron of the Realm"), or `unlimited` ("Founding Realm", all existing and CLI-created namespaces, and `local`). The tier sets daily text credits (AI text calls, plus one per started 1000 TTS characters), daily pictures, max sessions, and max turns per session. `set-limits` values override the tier's session/turn limits; `NULL` means "use the tier default".
 
@@ -128,6 +141,17 @@ Provider usage and estimated AI cost per day and namespace (every request that r
 ```bash
 ./dnd-fam-ftw-cli metrics usage
 ./dnd-fam-ftw-cli metrics usage --since 2026-09-01 --namespace <id> --json
+./dnd-fam-ftw-cli metrics usage --by-owner                      # group by realm owner instead of namespace
+./dnd-fam-ftw-cli metrics usage --owner-user-id <userId> --namespace <id>
+```
+
+Each provider call records the acting user and, separately, the realm owner at the moment the request began (background work keeps that owner; an ownership transfer affects later requests only). Calls from before owner tracking existed are shown as `(before owner tracking)`; the report prints how many fall in the range and the cutover time. Namespace and total figures still include them.
+
+Member invitation counts per day (sent, failed, accepted, new accounts), without email addresses:
+
+```bash
+./dnd-fam-ftw-cli metrics invites
+./dnd-fam-ftw-cli metrics invites --since 2026-09-01 --json
 ```
 
 The weekly metrics workflow tracks the timestamp of its last run in SSM and passes it as `--since` to `metrics` and `metrics narration`, so all weekly figures (new sessions, new narration failures, most active namespace, active users) are computed directly from real row timestamps rather than diffing snapshots.
@@ -168,11 +192,12 @@ View and manage invite requests from people without an account (Google or email 
 
 ### donations
 
-Ko-fi payments received by `POST /webhooks/kofi` (enabled by `KOFI_VERIFICATION_TOKEN`). Every payment type (donation, subscription, shop order, commission) counts. When the Ko-fi email matches a user's sign-in email (canonical match), that user's primary group becomes `supporter` for 90 days, extended from the current expiry when it is still a supporter, and any open "ask for more" request is approved. After the expiry the group falls back to `free` on its own. `unlimited` groups and supporters set by hand (no expiry) are left alone. Payments with no matching account are recorded as `no_account` for a manual `namespaces tier <id> supporter`. Each payment emails `SIGNUP_NOTIFY_EMAIL`; webhook retries are ignored by Ko-fi transaction id. `namespaces tier` always clears a donation expiry.
+Ko-fi payments received by `POST /webhooks/kofi` (enabled by `KOFI_VERIFICATION_TOKEN`). Every payment type (donation, subscription, shop order, commission) counts. When the Ko-fi email matches a user's sign-in email (canonical match) and that user owns exactly one realm, that realm becomes `supporter` for 90 days, extended from the current expiry when it is still a supporter, and any open "ask for more" request is approved. After the expiry the group falls back to `free` on its own. `unlimited` groups and supporters set by hand (no expiry) are left alone. Payments with no matching account are recorded as `no_account`, and payments from a user who owns no realm (for example an invited player) or several as `needs_review`; both need a manual `namespaces tier <id> supporter`. Each payment emails `SIGNUP_NOTIFY_EMAIL`; webhook retries are ignored by Ko-fi transaction id. `namespaces tier` always clears a donation expiry.
 
 ```bash
 ./dnd-fam-ftw-cli donations list                          # newest 200 payments
 ./dnd-fam-ftw-cli donations list --outcome no_account     # need a manual tier change
+./dnd-fam-ftw-cli donations list --outcome needs_review   # donor owns no realm (or several): pick one by hand
 ./dnd-fam-ftw-cli donations list --since 2026-09-01 --json
 ```
 
@@ -203,10 +228,15 @@ Operator notification emails (new signups, invite requests, and "ask for more" r
 | `SIGNUP_NOTIFY_EMAIL` | Where new-signup and "ask for more" notices go (defaults to `ADMIN_EMAIL`). |
 | `SUPPORT_URL` | Donation page (https, e.g. `https://ko-fi.com/<you>`) behind the "Support the realm" button in Your Realm. Unset hides the button. |
 | `KOFI_VERIFICATION_TOKEN` | Ko-fi webhook verification token. Enables `POST /webhooks/kofi` (90-day supporter upgrade for a matching sign-in email). Unset: the endpoint returns 404. |
+| `MEMBER_INVITES_ENABLED` | `true` turns on "Invite your party" (default `false`). Requires `AUTH_MODE=enabled`, email (`EMAIL_PROVIDER`), and `FRONTEND_URL` (links are built from it, never from the request). Setting it back to `false` is the kill switch: sending, resending, and accepting stop, including links already sent; existing members keep signing in. |
+| `INVITE_DAILY_SEND_CAP` | Invitation emails per UTC day across the deployment (default 200). |
+| `INVITE_DAILY_ACCOUNT_CAP` | New accounts created by accepting invitations per UTC day (default 25). Joining with an existing account does not count. New invited accounts also pause while `DAILY_SPEND_LIMIT_USD` is exceeded. |
 | `MCP_ENABLED` | `true` opens the `/mcp` endpoint for AI assistants (default `false`, which returns 404 there). Requires `AUTH_MODE=enabled`: startup fails otherwise. Who can create tokens: see `MCP_DEFAULT_TIERS` and `users mcp-access`. Setting it back to `false` is the kill switch; website login is unaffected. |
 | `MCP_PUBLIC_URL` | Endpoint address shown on the Access tokens page, e.g. `https://<api domain>/mcp` (https, or http on localhost). Unset: the page derives it from the API address. |
 | `MCP_DAILY_PAID_CALLS_PER_TOKEN` | Paid MCP tool calls (previews, turns, questions, new adventures) per token per UTC day, on top of the realm's usage budget. Default 200. `0` pauses paid tools while reading keeps working. |
 | `MCP_DEFAULT_TIERS` | Comma-separated realm tiers whose members get MCP access without a per-user grant (default `unlimited`; `none` for nobody). Example: `unlimited,supporter`. A `users mcp-access` override of `on` or `off` wins. Invalid values stop startup. |
+
+Member invitations: the realm owner (or any member, when the owner ticks "Let members invite others" in Settings) enters an email address. The recipient gets a link that works once for 7 days; opening it only shows the invitation, and pressing **Join realm** adds them as an ordinary member (never owner or admin) and signs them in to that realm without a code. It works in `invite_only` mode. Resending sends a new link and invalidates the old one. Limits: 10 sends per inviter and 3 per recipient per day, 60 seconds between sends to one address, and 30 link checks per IP per 10 minutes. Removing the inviter, a transfer of ownership, or the owner turning member invitations off cancels pending links. The invitation email is sent directly and never stored.
 
 Email sign-in sends an 8-digit code valid for 10 minutes, usable only in the browser that asked for it, 5 attempts per code, 60 seconds between resends, 5 sends per address and 20 per IP per hour. Google sign-in never creates accounts: new players create their account with an email code first, after which "Continue with Google" works for the same address. Login cookies last 30 days and are renewed automatically when a signed-in player uses the app with less than a week left. New signups are also paused while `DAILY_SPEND_LIMIT_USD` is exceeded.
 
