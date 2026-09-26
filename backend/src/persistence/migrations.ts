@@ -837,4 +837,20 @@ export const migrate = (db: DB): void => {
     CREATE INDEX IF NOT EXISTS idx_invite_sends_recipient ON namespace_invite_sends(recipient_email_canonical, created_at);
     CREATE INDEX IF NOT EXISTS idx_invite_sends_time ON namespace_invite_sends(created_at);
   `);
+
+  // MCP OAuth clients (MCP_OAUTH_ENABLED). kind 'dcr': registered through
+  // /oauth/register, self-declared name. kind 'cimd': client_id is an https URL whose
+  // metadata document we fetched; cache_until bounds how long it is trusted.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS oauth_clients (
+      client_id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      client_name TEXT,
+      client_uri TEXT,
+      redirect_uris TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      cache_until INTEGER,
+      last_used_at INTEGER
+    );
+  `);
 };

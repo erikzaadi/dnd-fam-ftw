@@ -8,6 +8,7 @@ import { getMcpPrincipal, mcpAuthMiddleware } from './auth.js';
 import { registerTools } from './tools.js';
 import { registerPrompts } from './prompts.js';
 import { createOAuthDiscoveryRouter } from '../oauth/discoveryRoutes.js';
+import { createOAuthRouter } from '../oauth/oauthRoutes.js';
 
 // Sent at initialization, so play works in hosts without the play guide installed.
 // Canonical long form: docs/mcp/PLAY_GUIDE.md.
@@ -63,6 +64,8 @@ export const createMcpRouter = () => {
   const router = Router();
   // OAuth discovery (404 while MCP_OAUTH_ENABLED is off).
   router.use(createOAuthDiscoveryRouter());
+  // OAuth authorization server endpoints (404 while MCP_OAUTH_ENABLED is off).
+  router.use(createOAuthRouter());
   router.all('/mcp', mcpAuthMiddleware);
   router.post('/mcp', (req, res) => {
     void handleMcpPost(req, res);
