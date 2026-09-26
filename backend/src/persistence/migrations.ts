@@ -886,4 +886,33 @@ export const migrate = (db: DB): void => {
     );
     CREATE INDEX IF NOT EXISTS idx_oauth_codes_user ON oauth_codes(user_id);
   `);
+
+  // MCP OAuth grants: one per approved sign-in (user, realm, client, scopes), 30 days
+  // absolute. Access tokens (15 minutes) and rotating refresh tokens hang off a grant;
+  // revoking the grant stops all of them. Only token digests are stored.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS oauth_grants (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      namespace_id TEXT NOT NULL,
+      client_id TEXT NOT NULL,
+      scopes TEXT NOT NULL,
+      resource TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      last_used_at INTEGER,
+      revoked_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_oauth_grants_user ON oauth_grants(user_id);
+    CREATE TABLE IF NOT EXISTS oauth_tokens (
+      digest TEXT PRIMARY KEY,
+      grant_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      scopes TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      used_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_oauth_tokens_grant ON oauth_tokens(grant_id);
+  `);
 };

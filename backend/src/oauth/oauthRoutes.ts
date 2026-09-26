@@ -1,8 +1,21 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { isMcpOAuthEnabled } from '../config/env.js';
 import { oauthClientService } from './clientService.js';
 import { oauthAuthorizationService } from './authorizationService.js';
+import { OAuthTokenError, oauthTokenService } from './tokenService.js';
+
+// Token and revocation requests are form-encoded (RFC 6749); JSON is accepted too.
+const formBody = express.urlencoded({ extended: false, limit: '8kb' });
+
+const field = (body: unknown, name: string): string | undefined => {
+  const value = (body as Record<string, unknown> | undefined)?.[name];
+  return typeof value === 'string' ? value : undefined;
+};
+
+const tokenError = (res: Response, status: number, error: string, description: string) => {
+  res.status(status).json({ error, error_description: description });
+};
 
 const escapeHtml = (value: string): string => value
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -71,6 +84,63 @@ export const createOAuthRouter = () => {
       console.error('[OAuth] Authorize failed:', err instanceof Error ? err.message : String(err));
       errorPage(res, 500, 'Something went wrong on our side.');
     });
+  });
+
+  // Token endpoint: authorization_code (PKCE) and refresh_token grants, public
+  // clients identified by client_id.
+  router.post('/oauth/token', requireOAuth, formBody, (req, res) => {
+    noStore(res);
+    const clientId = field(req.body, 'client_id');
+    const grantType = field(req.body, 'grant_type');
+    if (!clientId) {
+      tokenError(res, 401, 'invalid_client', 'client_id is required');
+      return;
+    }
+    void oauthClientService.getClient(clientId).then(client => {
+      if (!client) {
+        tokenError(res, 401, 'invalid_client', 'Unknown client');
+        return;
+      }
+      if (grantType === 'authorization_code') {
+        res.json(oauthTokenService.exchangeCode({
+          clientId,
+          code: field(req.body, 'code'),
+          redirectUri: field(req.body, 'redirect_uri'),
+          codeVerifier: field(req.body, 'code_verifier'),
+          resource: field(req.body, 'resource'),
+        }));
+        return;
+      }
+      if (grantType === 'refresh_token') {
+        res.json(oauthTokenService.refresh({
+          clientId,
+          refreshToken: field(req.body, 'refresh_token'),
+          scope: field(req.body, 'scope'),
+          resource: field(req.body, 'resource'),
+        }));
+        return;
+      }
+      tokenError(res, 400, 'unsupported_grant_type', 'Use authorization_code or refresh_token');
+    }).catch((err: unknown) => {
+      if (err instanceof OAuthTokenError) {
+        tokenError(res, err.status, err.error, err.description);
+        return;
+      }
+      console.error('[OAuth] Token request failed:', err instanceof Error ? err.message : String(err));
+      tokenError(res, 500, 'server_error', 'Something went wrong');
+    });
+  });
+
+  // Revocation (RFC 7009). Keeps working while MCP_OAUTH_ENABLED is off, so clients
+  // and players can always end a connection. Always 200 for well-formed requests.
+  router.post('/oauth/revoke', formBody, (req, res) => {
+    noStore(res);
+    try {
+      oauthTokenService.revoke({ token: field(req.body, 'token'), clientId: field(req.body, 'client_id') });
+    } catch (err) {
+      console.error('[OAuth] Revocation failed:', err instanceof Error ? err.message : String(err));
+    }
+    res.status(200).end();
   });
 
   return router;
