@@ -11,7 +11,7 @@ export const toolError = (message: string, code?: string): CallToolResult => ({
 
 // Audit line per tool call: who, what, outcome, time. Never action text or secrets.
 export const audit = (principal: McpPrincipal, tool: string, startedAt: number, outcome: string, sessionId?: string): void => {
-  console.log(`[MCP] token=${principal.tokenId} user=${principal.userId} tool=${tool}${sessionId ? ` session=${sessionId}` : ''} outcome=${outcome} ${Date.now() - startedAt}ms`);
+  console.log(`[MCP] grant=${principal.grantId} via=${principal.credential.kind} user=${principal.userId} tool=${tool}${sessionId ? ` session=${sessionId}` : ''} outcome=${outcome} ${Date.now() - startedAt}ms`);
 };
 
 export const hasScope = (principal: McpPrincipal, scope: AccessTokenScope): boolean => principal.scopes.includes(scope);
@@ -31,5 +31,6 @@ export const loadOwnedSession = async (principal: McpPrincipal, sessionId: strin
 
 export const NOT_FOUND_MESSAGE = 'Adventure not found. Call list_adventures to see the adventures in this realm.';
 
-// Binds MCP previews and preview dedup to one token.
-export const principalKey = (principal: McpPrincipal): string => `mcp:${principal.tokenId}`;
+// Binds MCP previews and preview dedup to one grant, so they survive access token
+// rotation. For personal tokens the grant is the token.
+export const principalKey = (principal: McpPrincipal): string => `mcp:${principal.grantId}`;

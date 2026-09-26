@@ -10,8 +10,8 @@ import { admitPaidCall } from './admission.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-mcp-admission-test-${Date.now()}.sqlite`);
 
-const principal = (tokenId: string, namespaceId: string): McpPrincipal => ({
-  tokenId, userId: 'u', email: 'e@example.com', namespaceId, scopes: ['adventures:read', 'adventures:play'], expiresAt: Date.now() + 1000,
+const principal = (grantId: string, namespaceId: string, credentialId: string = grantId): McpPrincipal => ({
+  grantId, credential: { kind: grantId === credentialId ? 'pat' : 'oauth', id: credentialId }, userId: 'u', email: 'e@example.com', namespaceId, scopes: ['adventures:read', 'adventures:play'], expiresAt: Date.now() + 1000,
 });
 
 beforeAll(() => {
@@ -35,6 +35,13 @@ describe('admitPaidCall', () => {
     // Another token, and the next UTC day, start fresh.
     expect(admitPaidCall(principal('t2', 'ns-open'), now)).toEqual({ ok: true });
     expect(admitPaidCall(principal('t1', 'ns-open'), now + 24 * 60 * 60 * 1000)).toEqual({ ok: true });
+  });
+
+  it('counts per grant, so rotated OAuth access tokens share one cap', () => {
+    const now = Date.UTC(2026, 8, 27, 12);
+    expect(admitPaidCall(principal('g1', 'ns-open', 'access-1'), now)).toEqual({ ok: true });
+    expect(admitPaidCall(principal('g1', 'ns-open', 'access-2'), now)).toEqual({ ok: true });
+    expect(admitPaidCall(principal('g1', 'ns-open', 'access-3'), now)).toMatchObject({ ok: false, code: 'token_daily_limit' });
   });
 
   it('uses the realm\'s daily usage budget, like the website', () => {

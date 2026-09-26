@@ -19,8 +19,12 @@ export const MAX_ACTIVE_TOKENS_PER_USER = 5;
 export const TOKEN_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 const PREFIX_DISPLAY_LENGTH = TOKEN_PREFIX.length + 6;
 
+// grantId is the stable authorization behind a request: the personal token id, or the
+// OAuth grant id (whose access tokens rotate). Previews, rate limits, and the daily
+// paid-call cap key on it. credential identifies the exact secret that was presented.
 export type McpPrincipal = {
-  tokenId: string;
+  grantId: string;
+  credential: { kind: 'pat' | 'oauth'; id: string };
   userId: string;
   email: string;
   namespaceId: string;
@@ -149,7 +153,8 @@ export const accessTokenService = {
     }
     accessTokenRepository.touch(row.id, now);
     return {
-      tokenId: row.id,
+      grantId: row.id,
+      credential: { kind: 'pat', id: row.id },
       userId: user.id,
       email: user.email,
       namespaceId: row.namespace_id,

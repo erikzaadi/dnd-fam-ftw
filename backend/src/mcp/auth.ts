@@ -4,7 +4,7 @@ import { runWithUsageContext } from '../lib/usageContext.js';
 import { createUsageContext } from '../services/usageAttribution.js';
 import { accessTokenService, type McpPrincipal } from '../services/accessTokenService.js';
 
-// Per-token request ceiling, independent of model cooperation. In memory: the backend
+// Per-grant request ceiling, independent of model cooperation. In memory: the backend
 // is a single process, and a restart only resets the window.
 const RATE_WINDOW_MS = 60_000;
 const MAX_REQUESTS_PER_WINDOW = 120;
@@ -14,10 +14,10 @@ export const resetMcpRateLimits = (): void => {
   requestCounts.clear();
 };
 
-const takeRateSlot = (tokenId: string, now: number): number | null => {
-  const entry = requestCounts.get(tokenId);
+const takeRateSlot = (grantId: string, now: number): number | null => {
+  const entry = requestCounts.get(grantId);
   if (!entry || now - entry.windowStart >= RATE_WINDOW_MS) {
-    requestCounts.set(tokenId, { windowStart: now, count: 1 });
+    requestCounts.set(grantId, { windowStart: now, count: 1 });
     return null;
   }
   if (entry.count >= MAX_REQUESTS_PER_WINDOW) {
@@ -59,7 +59,7 @@ export function mcpAuthMiddleware(req: Request, res: Response, next: NextFunctio
     unauthorized(res, 'invalid_token', 'The token is unknown, expired, or revoked');
     return;
   }
-  const retryAfter = takeRateSlot(principal.tokenId, now);
+  const retryAfter = takeRateSlot(principal.grantId, now);
   if (retryAfter !== null) {
     res.setHeader('Retry-After', String(retryAfter));
     res.status(429).json({ error: 'rate_limited', retryAfterSeconds: retryAfter });
