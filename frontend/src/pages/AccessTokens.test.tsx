@@ -33,6 +33,7 @@ const token = (overrides: Partial<AccessTokenSummary> = {}): AccessTokenSummary 
 const list = (overrides: Partial<AccessTokenListResponse> = {}): AccessTokenListResponse => ({
   eligible: true,
   mcpAvailable: true,
+  oauthAvailable: false,
   canRequestAccess: false,
   accessRequest: null,
   mcpUrl: 'https://api.example.com/mcp',
@@ -143,6 +144,12 @@ describe('AccessTokens', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Revoke' }));
     expect(await screen.findByText('revoked')).toBeTruthy();
     expect(tokenCalls()[1][0]).toBe('/access-tokens/tok1/revoke');
+  });
+
+  it('leads with sign-in when the server offers it', async () => {
+    respondWith(json(list({ oauthAvailable: true })));
+    renderPage();
+    expect(await screen.findByText('Easiest: connect with sign-in')).toBeTruthy();
   });
 
   it('lists connected assistants and disconnects one after confirmation', async () => {

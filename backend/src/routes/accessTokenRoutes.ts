@@ -3,7 +3,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { z } from 'zod';
 import { getUsageContext } from '../lib/usageContext.js';
 import { StateService } from '../services/stateService.js';
-import { getConfig, isAllowedOrigin, isAuthEnabled, isMcpEnabled } from '../config/env.js';
+import { getConfig, isAllowedOrigin, isAuthEnabled, isMcpEnabled, isMcpOAuthEnabled } from '../config/env.js';
 import { accessTokenService, isMcpEligible, MAX_ACTIVE_TOKENS_PER_USER, type CreateTokenResult } from '../services/accessTokenService.js';
 import { dispatchOutbox } from '../services/emailService.js';
 import { mcpAccessRequestService, MAX_REQUESTS_PER_WINDOW } from '../services/mcpAccessRequestService.js';
@@ -83,6 +83,7 @@ export const createAccessTokenRouter = ({ isProduction }: { isProduction: boolea
     const body: AccessTokenListResponse = {
       eligible,
       mcpAvailable: isMcpEnabled(),
+      oauthAvailable: isMcpOAuthEnabled(),
       ...mcpAccessRequestService.getState(userId, req.namespaceId),
       mcpUrl: eligible ? getConfig().MCP_PUBLIC_URL : null,
       namespaceName: StateService.getNamespaceById(req.namespaceId)?.name ?? null,

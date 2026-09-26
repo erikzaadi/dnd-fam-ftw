@@ -198,6 +198,20 @@ export const AccessTokens = () => {
 
           {data && !data.eligible && <AssistantAccessRequest data={data} onRequested={load} />}
 
+          {data?.eligible && data.oauthAvailable && !created && (
+            <section className="space-y-2 p-5 bg-emerald-950/20 rounded-[20px] border-2 border-emerald-900" aria-labelledby="sign-in-heading">
+              <h2 id="sign-in-heading" className="text-lg font-black uppercase tracking-tighter text-emerald-300">Easiest: connect with sign-in</h2>
+              <p className="text-sm text-slate-300">
+                Add this address to your assistant and sign in when it asks. You choose the realm and what it may do, no token to copy.
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 min-w-0 break-all bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-emerald-200 text-sm font-mono">{mcpUrl}</code>
+                <CopyButton text={mcpUrl} label="Copy" />
+              </div>
+              <p className="text-xs text-slate-400">Tokens below are for assistants that cannot sign in.</p>
+            </section>
+          )}
+
           {error && <p role="alert" className="text-sm text-rose-300">{error}</p>}
 
           {created && <NewSecret created={created} mcpUrl={mcpUrl} onDone={() => setCreated(null)} />}

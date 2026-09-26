@@ -697,6 +697,8 @@ export interface AccessTokenListResponse {
   eligible: boolean;
   // MCP is enabled on this server at all (Settings shows the section to everyone).
   mcpAvailable: boolean;
+  // Assistants can connect by signing in (MCP_OAUTH_ENABLED), without a token.
+  oauthAvailable: boolean;
   // The user may ask for access now (not eligible, not blocked, nothing open, under the cap).
   canRequestAccess: boolean;
   // The user's latest access request while it is still relevant (open or declined).

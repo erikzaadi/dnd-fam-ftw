@@ -4,7 +4,7 @@ Endpoint: `POST /mcp` (stateless Streamable HTTP, JSON responses), bearer person
 
 Scopes: `adventures:read` (always granted), `adventures:play`, `adventures:create`, `images:generate`. All tools act only inside the token's realm; adventures elsewhere look missing.
 
-"Paid" tools spend AI budget: they count against the realm's daily usage budget and the per-token `MCP_DAILY_PAID_CALLS_PER_TOKEN` ceiling (default 200 per UTC day; `0` pauses paid tools while reads keep working).
+"Paid" tools spend AI budget: they count against the realm's daily usage budget and the per-token (or per connected assistant) `MCP_DAILY_PAID_CALLS_PER_TOKEN` ceiling (default 200 per UTC day; `0` pauses paid tools while reads keep working).
 
 | Tool | Scope | Paid | Purpose |
 | --- | --- | --- | --- |

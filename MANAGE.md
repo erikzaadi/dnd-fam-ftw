@@ -48,7 +48,7 @@ Manage registered users. Each user gets their own primary namespace on creation 
 ./dnd-fam-ftw-cli users set-primary <email> <namespaceId>   # change a user's primary namespace
 ./dnd-fam-ftw-cli users mcp-access <email> [on|off|default] # show or change a user's MCP access override
 ./dnd-fam-ftw-cli users mcp-list [--json]                   # users with an on/off override and their active token counts
-./dnd-fam-ftw-cli users mcp-revoke <email>                  # revoke all of a user's MCP access tokens
+./dnd-fam-ftw-cli users mcp-revoke <email>                  # revoke all of a user's MCP access tokens and connected assistants
 ```
 
 `users remove` refuses while the user owns a realm that has other members (transfer it first with `namespaces set-owner`). Realms the user owns alone are deleted with the account; if they still have adventures, the command asks for `--with-adventures`. Shared realms, and other members' access, are never deleted because one user goes away. Pending invitations the user sent are cancelled.
@@ -190,6 +190,16 @@ View and manage invite requests from people without an account (Google or email 
 ./dnd-fam-ftw-cli mcp-requests deny <id>
 ```
 
+### mcp-grants
+
+Assistants connected through OAuth sign-in (`MCP_OAUTH_ENABLED`). Each grant is one approved sign-in: a user, one realm, one app, and the permissions ticked on the consent page, for 30 days. Revoking ends it on the next request; players can also disconnect from **Settings > AI assistants**. Access still follows `users mcp-access` and the realm tier, like personal tokens.
+
+```bash
+./dnd-fam-ftw-cli mcp-grants list                          # newest first, with app, realm, state, last use
+./dnd-fam-ftw-cli mcp-grants list --email someone@example.com --json
+./dnd-fam-ftw-cli mcp-grants revoke <id>
+```
+
 ### donations
 
 Ko-fi payments received by `POST /webhooks/kofi` (enabled by `KOFI_VERIFICATION_TOKEN`). Every payment type (donation, subscription, shop order, commission) counts. When the Ko-fi email matches a user's sign-in email (canonical match) and that user owns exactly one realm, that realm becomes `supporter` for 90 days, extended from the current expiry when it is still a supporter, and any open "ask for more" request is approved. After the expiry the group falls back to `free` on its own. `unlimited` groups and supporters set by hand (no expiry) are left alone. Payments with no matching account are recorded as `no_account`, and payments from a user who owns no realm (for example an invited player) or several as `needs_review`; both need a manual `namespaces tier <id> supporter`. Each payment emails `SIGNUP_NOTIFY_EMAIL`; webhook retries are ignored by Ko-fi transaction id. `namespaces tier` always clears a donation expiry.
@@ -233,7 +243,8 @@ Operator notification emails (new signups, invite requests, and "ask for more" r
 | `INVITE_DAILY_ACCOUNT_CAP` | New accounts created by accepting invitations per UTC day (default 25). Joining with an existing account does not count. New invited accounts also pause while `DAILY_SPEND_LIMIT_USD` is exceeded. |
 | `MCP_ENABLED` | `true` opens the `/mcp` endpoint for AI assistants (default `false`, which returns 404 there). Requires `AUTH_MODE=enabled`: startup fails otherwise. Who can create tokens: see `MCP_DEFAULT_TIERS` and `users mcp-access`. Setting it back to `false` is the kill switch; website login is unaffected. |
 | `MCP_PUBLIC_URL` | Endpoint address shown on the Access tokens page, e.g. `https://<api domain>/mcp` (https, or http on localhost). Unset: the page derives it from the API address. |
-| `MCP_DAILY_PAID_CALLS_PER_TOKEN` | Paid MCP tool calls (previews, turns, questions, new adventures) per token per UTC day, on top of the realm's usage budget. Default 200. `0` pauses paid tools while reading keeps working. |
+| `MCP_DAILY_PAID_CALLS_PER_TOKEN` | Paid MCP tool calls (previews, turns, questions, new adventures) per token or connected assistant per UTC day, on top of the realm's usage budget. Default 200. `0` pauses paid tools while reading keeps working. |
+| `MCP_OAUTH_ENABLED` | `true` lets assistants connect by signing in (OAuth 2.1 with PKCE, consent page on the website) instead of pasting a token. Requires `MCP_ENABLED=true`, `MCP_PUBLIC_URL` at the origin root (`https://<api domain>/mcp`), and `FRONTEND_URL`; startup fails otherwise. `false` (default) is the OAuth kill switch: discovery, sign-in, token refresh, and existing OAuth access tokens stop at once, while personal tokens and disconnecting keep working. Not supported under a path prefix (legacy laptop deploy). |
 | `MCP_DEFAULT_TIERS` | Comma-separated realm tiers whose members get MCP access without a per-user grant (default `unlimited`; `none` for nobody). Example: `unlimited,supporter`. A `users mcp-access` override of `on` or `off` wins. Invalid values stop startup. |
 
 Member invitations: the realm owner (or any member, when the owner ticks "Let members invite others" in Settings) enters an email address. The recipient gets a link that works once for 7 days; opening it only shows the invitation, and pressing **Join realm** adds them as an ordinary member (never owner or admin) and signs them in to that realm without a code. It works in `invite_only` mode. Resending sends a new link and invalidates the old one. Limits: 10 sends per inviter and 3 per recipient per day, 60 seconds between sends to one address, and 30 link checks per IP per 10 minutes. Removing the inviter, a transfer of ownership, or the owner turning member invitations off cancels pending links. The invitation email is sent directly and never stored.
@@ -452,6 +463,7 @@ Email, signup, and usage settings are **SSM parameters** under the SSM prefix (d
 | `MCP_PUBLIC_URL` | optional, `https://<api domain>/mcp` |
 | `MCP_DAILY_PAID_CALLS_PER_TOKEN` | optional, default 200 |
 | `MCP_DEFAULT_TIERS` | optional, default `unlimited`, e.g. `unlimited,supporter` |
+| `MCP_OAUTH_ENABLED` | optional, `true` for assistant sign-in (needs `MCP_PUBLIC_URL`) |
 | `DAILY_SPEND_LIMIT_USD` | optional, e.g. `3` |
 | `SIGNUP_DAILY_CAP` | optional, default 25 |
 | `SIGNUP_NOTIFY_EMAIL` | optional, default `ADMIN_EMAIL` |

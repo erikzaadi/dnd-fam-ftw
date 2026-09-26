@@ -68,7 +68,8 @@ backend/src/
   middleware/
     auth.ts                        # Attaches req.namespaceId + req.userEmail
     sessionParam.ts                # Loads namespace-scoped req.session for session id routes
-  mcp/                             # /mcp endpoint for AI assistants (bearer personal access tokens, docs/mcp/SETUP.md)
+  mcp/                             # /mcp endpoint for AI assistants (bearer personal access tokens or OAuth access tokens, docs/mcp/SETUP.md)
+  oauth/                           # MCP OAuth authorization server (MCP_OAUTH_ENABLED): discovery, registration, authorize, token; consent page is frontend/src/pages/OAuthConsent.tsx
   providers/
     ai/                            # OpenAI-compatible narration + image helpers
     storage/                       # LocalImageStorageProvider + S3ImageStorageProvider
