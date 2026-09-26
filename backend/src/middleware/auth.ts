@@ -89,6 +89,21 @@ export function requireFullIdentity(req: Request, res: Response, next: NextFunct
   next();
 }
 
+// The signed-in identity if the request carries a valid full sign-in, else null.
+// Never responds; for public routes that behave differently for a signed-in browser.
+export function peekFullIdentity(req: Request): FullIdentity | null {
+  if (!isAuthEnabled()) {
+    return null;
+  }
+  const token = (req.cookies as Record<string, string> | undefined)?.jwt;
+  const payload = token ? verifyJwt(token) : null;
+  if (!payload || payload.type !== 'full' || typeof payload.email !== 'string' || typeof payload.namespaceId !== 'string') {
+    return null;
+  }
+  const user = resolveSessionUser(payload);
+  return user ? { userId: user.id, email: user.email, namespaceId: payload.namespaceId, payload } : null;
+}
+
 function resolveFullIdentity(req: Request, res: Response): FullIdentity | null {
   const token = (req.cookies as Record<string, string>)?.jwt;
   if (!token) {

@@ -80,13 +80,29 @@ export const SetupTutorialOverlay = ({
           </button>
         </div>
         <p className="text-sm leading-relaxed text-slate-300">{step.body}</p>
-        <button
-          type="button"
-          onClick={onAdvance}
-          className="mt-4 rounded-xl bg-amber-600 px-4 py-2 text-xs font-black uppercase tracking-widest text-white transition-colors hover:bg-amber-500"
-        >
-          {isLast ? 'Done' : 'Next'}
-        </button>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {step.action && (
+            <button
+              type="button"
+              onClick={() => {
+                step.action!.onClick();
+                onAdvance();
+              }}
+              className="rounded-xl bg-amber-600 px-4 py-2 text-xs font-black uppercase tracking-widest text-white transition-colors hover:bg-amber-500"
+            >
+              {step.action.label}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onAdvance}
+            className={step.action
+              ? 'rounded-xl bg-slate-800 px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-300 transition-colors hover:bg-slate-700'
+              : 'rounded-xl bg-amber-600 px-4 py-2 text-xs font-black uppercase tracking-widest text-white transition-colors hover:bg-amber-500'}
+          >
+            {step.action ? 'Maybe later' : isLast ? 'Done' : 'Next'}
+          </button>
+        </div>
       </div>
     </div>
   );

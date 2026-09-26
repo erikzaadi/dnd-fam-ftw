@@ -7,6 +7,7 @@ import { SiteHeader } from '../components/SiteHeader';
 import { apiFetch } from '../lib/api';
 import { RangeSlider } from '../components/RangeSlider';
 import { YourRealm } from '../components/YourRealm';
+import { InvitePartyPanel } from '../components/InvitePartyPanel';
 import { AssistantAccessLink } from '../components/AssistantAccessLink';
 
 interface AppSettings {
@@ -181,6 +182,7 @@ export const Settings = () => {
               {tab === 'game' && (
                 <>
                   <YourRealm />
+                  <InvitePartyPanel />
 
                   <h2 className="text-lg font-black uppercase tracking-tighter text-amber-500">Images</h2>
                   <Toggle

@@ -11,7 +11,13 @@ export type SetupTutorialStep = {
   title: string;
   body: string;
   placement?: 'top' | 'bottom' | 'left' | 'right';
+  // Optional call to action shown beside Next; the tour continues after it.
+  action?: { label: string; onClick: () => void };
 };
+
+// Existing players who finished the Home tour before invitations existed get a small
+// one-time tip instead of a replayed tour.
+export const INVITE_TIP_KEY = 'invite_party_tip_done';
 
 export function resetSetupTutorials() {
   localStorage.removeItem(HOME_TUTORIAL_KEY);

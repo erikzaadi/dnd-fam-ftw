@@ -10,6 +10,7 @@ import { authMiddleware, requireFullIdentity, requirePendingInviteToken, require
 import { buildGoogleAuthUrl, createOAuthState, createPkcePair, exchangeCodeForIdentity, getAuthPublicConfig, safeEqual } from '../services/authService.js';
 import { StateService } from '../services/stateService.js';
 import { isNamespaceOwner } from '../services/namespaceOwnershipService.js';
+import { canInvite } from '../services/namespaceInviteService.js';
 import {
   EMAIL_CHALLENGE_COOKIE,
   clearAllAuthCookies,
@@ -284,9 +285,11 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
     const identity = req.fullIdentity!;
     const namespaces = StateService.getUserNamespaces(identity.email)
       .map(namespace => ({ ...namespace, isOwner: isNamespaceOwner(identity.userId, namespace.id) }));
+    const currentNamespaceId = namespaces.some(n => n.id === identity.namespaceId) ? identity.namespaceId : null;
     const body: SessionNamespacesResponse = {
-      currentNamespaceId: namespaces.some(n => n.id === identity.namespaceId) ? identity.namespaceId : null,
+      currentNamespaceId,
       namespaces,
+      canInvite: currentNamespaceId !== null && canInvite(identity.userId, currentNamespaceId),
     };
     res.json(body);
   });

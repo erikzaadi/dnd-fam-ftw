@@ -191,6 +191,7 @@ export const userRepository = {
       db.prepare('DELETE FROM access_tokens WHERE user_id = ?').run(user.id);
       db.prepare('DELETE FROM mcp_auto_confirm WHERE user_id = ?').run(user.id);
       db.prepare('DELETE FROM mcp_access_requests WHERE user_id = ?').run(user.id);
+      db.prepare("UPDATE namespace_invites SET status = 'revoked', resolved_at = ? WHERE inviter_user_id = ? AND status = 'pending'").run(Date.now(), user.id);
       db.prepare('DELETE FROM users WHERE id = ?').run(user.id);
       db.prepare('DELETE FROM auth_email_challenges WHERE email_canonical = ?').run(canonicalEmail(email));
       db.prepare("UPDATE email_outbox SET status = 'cancelled' WHERE event_key = ? AND status = 'pending'").run(`signup:${user.id}`);

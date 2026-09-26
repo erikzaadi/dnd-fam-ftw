@@ -1,4 +1,5 @@
 import { runInTransaction } from '../persistence/database.js';
+import { namespaceInviteRepository } from '../repositories/namespaceInviteRepository.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
 
@@ -99,9 +100,9 @@ export type SetOwnerResult =
   | { ok: false; reason: string };
 
 // Operator mapping and ownership transfer (cli namespaces set-owner). The new owner
-// must already be a member. Transfer side effects (revoking pending invitations so the
-// new owner controls further admissions) run in the same transaction.
-export function setNamespaceOwner(namespaceId: string, email: string, onTransfer?: (namespaceId: string) => void): SetOwnerResult {
+// must already be a member. A transfer revokes every pending invitation in the same
+// transaction, so the new owner controls further admissions.
+export function setNamespaceOwner(namespaceId: string, email: string, now: number = Date.now()): SetOwnerResult {
   if (namespaceId === LOCAL_NAMESPACE_ID) {
     return { ok: false, reason: 'The local namespace has no owner' };
   }
@@ -122,7 +123,7 @@ export function setNamespaceOwner(namespaceId: string, email: string, onTransfer
   runInTransaction(() => {
     namespaceRepository.setOwnerUserId(namespaceId, user.id);
     if (previousOwnerUserId) {
-      onTransfer?.(namespaceId);
+      namespaceInviteRepository.revokeAllPending(namespaceId, now);
     }
   });
   return { ok: true, previousOwnerUserId, userId: user.id };

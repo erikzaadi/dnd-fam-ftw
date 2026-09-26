@@ -11,7 +11,10 @@ import { Tooltip } from '../components/Tooltip';
 import { CharacterPopup } from '../components/CharacterPopup';
 import { apiFetch, apiUrl, imgSrc } from '../lib/api';
 import { useFirstRunWizard } from '../firstRun/useFirstRunWizard';
-import { HOME_TUTORIAL_KEY, HOME_TUTORIAL_PENDING_KEY, type SetupTutorialStep, useSetupTutorial } from '../hooks/useSetupTutorial';
+import { HOME_TUTORIAL_KEY, HOME_TUTORIAL_PENDING_KEY, INVITE_TIP_KEY, type SetupTutorialStep, useSetupTutorial } from '../hooks/useSetupTutorial';
+import { useSessionNamespaces } from '../hooks/useSessionNamespaces';
+import { useAuth } from '../contexts/AuthContext';
+import { openInviteDialog } from '../lib/inviteDialog';
 import { getSessionEntryPath, getCarModePath } from '../lib/sessionRoute';
 import type { SessionPreview } from '../types';
 
@@ -32,7 +35,9 @@ const SSE_STALE_TIMEOUT_MS = 60000;
 const SSE_STALE_CHECK_MS = 10000;
 const SSE_RECONNECT_DELAY_MS = 3000;
 
-const buildHomeTutorialSteps = (showGettingStarted: boolean, hasSessions: boolean): SetupTutorialStep[] => [
+const INVITE_STEP_BODY = 'Adventures are better together. Invite family or friends by email so they can join this realm. Everyone here shares its adventure energy.';
+
+const buildHomeTutorialSteps = (showGettingStarted: boolean, hasSessions: boolean, canInvite: boolean): SetupTutorialStep[] => [
   ...(showGettingStarted ? [{
     id: 'onboarding',
     selector: '[data-tutorial="home-onboarding"]',
@@ -68,6 +73,15 @@ const buildHomeTutorialSteps = (showGettingStarted: boolean, hasSessions: boolea
     body: 'New to the game? This explains stats, rolls, buffs, and how turns work.',
     placement: 'top' as const,
   },
+  // Only when this player may invite; hidden with auth or invitations off.
+  ...(canInvite ? [{
+    id: 'invite',
+    selector: '[data-tutorial="home-account"]',
+    title: 'Invite your party',
+    body: INVITE_STEP_BODY,
+    placement: 'bottom' as const,
+    action: { label: 'Invite now', onClick: openInviteDialog },
+  }] : []),
   {
     id: 'settings',
     selector: '[data-tutorial="home-settings"]',
@@ -80,15 +94,17 @@ const buildHomeTutorialSteps = (showGettingStarted: boolean, hasSessions: boolea
 const HomeTutorial = ({
   showGettingStarted,
   hasSessions,
+  canInvite,
   onFinish,
 }: {
   showGettingStarted: boolean;
   hasSessions: boolean;
+  canInvite: boolean;
   onFinish: () => void;
 }) => {
   const tutorial = useSetupTutorial(
     HOME_TUTORIAL_KEY,
-    buildHomeTutorialSteps(showGettingStarted, hasSessions),
+    buildHomeTutorialSteps(showGettingStarted, hasSessions, canInvite),
     onFinish,
   );
 
@@ -533,9 +549,20 @@ export const Home = () => {
     setHomeTutorialQueued(true);
   }, []);
 
+  const { enabled: authEnabled, user } = useAuth();
+  const canInvite = useSessionNamespaces(authEnabled && !!user)?.canInvite ?? false;
+  const [inviteTipDone, setInviteTipDone] = useState(() => !!localStorage.getItem(INVITE_TIP_KEY));
+  const dismissInviteTip = useCallback(() => {
+    localStorage.setItem(INVITE_TIP_KEY, '1');
+    setInviteTipDone(true);
+  }, []);
+
   const finishHomeTutorial = useCallback(() => {
     localStorage.removeItem(HOME_TUTORIAL_PENDING_KEY);
     setHomeTutorialQueued(false);
+    // The tour already offered invitations; no separate tip afterwards.
+    localStorage.setItem(INVITE_TIP_KEY, '1');
+    setInviteTipDone(true);
   }, []);
 
   const loadSessions = useCallback(() => {
@@ -738,6 +765,7 @@ export const Home = () => {
         <HomeTutorial
           showGettingStarted={showGettingStarted}
           hasSessions={activeSessions.length > 0}
+          canInvite={canInvite}
           onFinish={finishHomeTutorial}
         />
       )}
@@ -795,6 +823,27 @@ export const Home = () => {
       {/* Single scrollable content area - no nested scroll boxes */}
       <div className="flex-1 overflow-y-auto min-h-0">
         <div className="flex flex-col gap-4 px-4 md:px-8 pt-4 pb-6 relative z-[10] w-full max-w-6xl mx-auto min-h-full">
+          {canInvite && !inviteTipDone && !homeTutorialQueued && localStorage.getItem(HOME_TUTORIAL_KEY) && (
+            <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-slate-900/80 border border-amber-700/40 rounded-2xl">
+              <span aria-hidden className="text-xl">✉️</span>
+              <p className="flex-1 min-w-[12rem] text-sm text-slate-300">
+                <span className="font-black text-amber-400">New: invite your party.</span> Adventures are better together. Invite family or friends by email to join this realm.
+              </p>
+              <button
+                onClick={() => {
+                  dismissInviteTip();
+                  openInviteDialog();
+                }}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 rounded-xl text-xs font-black uppercase tracking-widest text-slate-950"
+              >
+                Invite
+              </button>
+              <button onClick={dismissInviteTip} className="px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest text-slate-500 hover:text-slate-300">
+                Not now
+              </button>
+            </div>
+          )}
+
           {/* New world / limit button */}
           {(() => {
             if (sessionLimit && sessionLimit.current >= sessionLimit.max) {

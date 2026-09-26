@@ -79,12 +79,12 @@ describe('namespace ownership', () => {
     expect(setNamespaceOwner(first.namespaceId, 'outsider@example.com')).toMatchObject({ ok: false });
     expect(namespaceRepository.getOwnerUserId(first.namespaceId)).toBe(first.userId);
 
-    let transferred: string | null = null;
-    const result = setNamespaceOwner(first.namespaceId, 'transfer-2@example.com', namespaceId => {
-      transferred = namespaceId;
-    });
+    getDb().prepare(`INSERT INTO namespace_invites (id, namespace_id, inviter_user_id, recipient_email_canonical, token_digest, created_at, expires_at)
+      VALUES ('inv-transfer', ?, ?, 'friend@example.com', 'digest-transfer', 0, 9999999999999)`).run(first.namespaceId, first.userId);
+    const result = setNamespaceOwner(first.namespaceId, 'transfer-2@example.com');
     expect(result).toEqual({ ok: true, previousOwnerUserId: first.userId, userId: second.userId });
-    expect(transferred).toBe(first.namespaceId);
+    // The new owner controls further admissions: pending invitations are revoked.
+    expect((getDb().prepare("SELECT status FROM namespace_invites WHERE id = 'inv-transfer'").get() as { status: string }).status).toBe('revoked');
     expect(isNamespaceOwner(second.userId, first.namespaceId)).toBe(true);
     expect(isNamespaceOwner(outsider.userId, first.namespaceId)).toBe(false);
 

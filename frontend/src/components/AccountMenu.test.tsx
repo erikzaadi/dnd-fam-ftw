@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SessionNamespacesResponse } from '../types';
+import { resetSessionNamespacesCache } from '../hooks/useSessionNamespaces';
 import { AccountMenu } from './AccountMenu';
 
 const mocks = vi.hoisted(() => ({
@@ -15,8 +16,8 @@ vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({ user: { email: 'hero@example.com', namespaceId: 'ns-a' }, logout: mocks.logout }),
 }));
 
-const realms = (body: SessionNamespacesResponse) => {
-  mocks.apiFetch.mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }));
+const realms = (body: Omit<SessionNamespacesResponse, 'canInvite'> & { canInvite?: boolean }) => {
+  mocks.apiFetch.mockImplementation(async () => new Response(JSON.stringify({ canInvite: false, ...body }), { status: 200 }));
 };
 
 const renderAt = (path: string) => render(
@@ -27,6 +28,7 @@ const renderAt = (path: string) => render(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetSessionNamespacesCache();
   mocks.switchNamespace.mockResolvedValue(true);
 });
 
@@ -65,5 +67,21 @@ describe('AccountMenu', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Account menu' }));
     fireEvent.click(await screen.findByRole('menuitem', { name: /Cousins/ }));
     expect(await screen.findByRole('alert')).toBeTruthy();
+  });
+
+  it('offers Invite your party only when the user may invite', async () => {
+    realms({ currentNamespaceId: 'ns-a', namespaces: [{ id: 'ns-a', name: 'Home Realm', isOwner: true }], canInvite: true });
+    renderAt('/');
+    fireEvent.click(await screen.findByRole('button', { name: 'Account menu' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Invite your party/ }));
+    expect(await screen.findByRole('dialog', { name: 'Invite your party' })).toBeTruthy();
+  });
+
+  it('hides Invite your party without permission', async () => {
+    realms({ currentNamespaceId: 'ns-a', namespaces: [{ id: 'ns-a', name: 'Home Realm', isOwner: false }] });
+    renderAt('/');
+    fireEvent.click(await screen.findByRole('button', { name: 'Account menu' }));
+    await screen.findByText('Home Realm', { selector: 'div' });
+    expect(screen.queryByRole('menuitem', { name: /Invite your party/ })).toBeNull();
   });
 });

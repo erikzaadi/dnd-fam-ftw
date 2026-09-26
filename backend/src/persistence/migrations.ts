@@ -777,4 +777,43 @@ export const migrate = (db: DB): void => {
     }
   });
   db.exec("CREATE INDEX IF NOT EXISTS idx_provider_usage_owner_time ON provider_usage(owner_user_id, created_at)");
+
+  // Member invitations: an emailed single-use link that adds the recipient to one realm.
+  // Only a SHA-256 digest of the random token is stored. At most one pending invitation
+  // per realm and recipient; a resend supersedes the old row with a new token.
+  // recipient_user_id binds an invitation to an account that existed when it was sent,
+  // so deleting and recreating that account invalidates it.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS namespace_invites (
+      id TEXT PRIMARY KEY,
+      namespace_id TEXT NOT NULL REFERENCES namespaces(id) ON DELETE CASCADE,
+      inviter_user_id TEXT NOT NULL,
+      recipient_email_canonical TEXT NOT NULL,
+      recipient_user_id TEXT,
+      token_digest TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'revoked', 'superseded')),
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      resolved_at INTEGER,
+      accepted_user_id TEXT,
+      created_account INTEGER NOT NULL DEFAULT 0,
+      delivery_status TEXT NOT NULL DEFAULT 'sending' CHECK (delivery_status IN ('sending', 'sent', 'failed')),
+      last_sent_at INTEGER
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_namespace_invites_pending ON namespace_invites(namespace_id, recipient_email_canonical) WHERE status = 'pending';
+    CREATE INDEX IF NOT EXISTS idx_namespace_invites_inviter ON namespace_invites(inviter_user_id, status);
+    CREATE INDEX IF NOT EXISTS idx_namespace_invites_accepted ON namespace_invites(resolved_at) WHERE created_account = 1;
+
+    -- One row per invitation email attempt, for the daily send limits.
+    CREATE TABLE IF NOT EXISTS namespace_invite_sends (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      inviter_user_id TEXT NOT NULL,
+      namespace_id TEXT NOT NULL,
+      recipient_email_canonical TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_invite_sends_inviter ON namespace_invite_sends(inviter_user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_invite_sends_recipient ON namespace_invite_sends(recipient_email_canonical, created_at);
+    CREATE INDEX IF NOT EXISTS idx_invite_sends_time ON namespace_invite_sends(created_at);
+  `);
 };

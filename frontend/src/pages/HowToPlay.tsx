@@ -204,6 +204,15 @@ export const HowToPlay = () => {
               </p>
             </Section>
 
+            <Section title="✉️ Your Party and Realms">
+              <p className="text-slate-300 text-lg leading-relaxed">
+                A <strong>realm</strong> is your group's shared space: its adventures, heroes, and adventure energy. Use <strong>Invite your party</strong> (in the account menu at the top right, or in Settings) to email family or friends a link. They press <strong>Join realm</strong> and are in, without a password. The link works once, for 7 days, so do not forward it. Everyone in a realm shares its energy, so inviting people does not add more.
+              </p>
+              <p className="text-slate-300 text-lg leading-relaxed">
+                Belong to more than one realm? Open the account menu and pick another realm under <strong>Switch realm</strong>. You stay signed in, and the page reloads in the new realm.
+              </p>
+            </Section>
+
             <Section title="Turns">
               <p className="text-slate-300 text-lg leading-relaxed">
                 Heroes take turns in order. The active hero is highlighted in the party bar at the top. Only the active hero can perform actions, but choices may spotlight their traits, involve another active hero's help, use carried gear, turn an NPC conversation into the challenge, or use a specific terrain hazard. Spotlight, social, team-up, and gear choices can add small bonuses to the roll, and clever typed actions can earn those bonuses too when they clearly name the ally, item, or character trait they use.

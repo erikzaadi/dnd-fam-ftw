@@ -15,6 +15,7 @@
  *   sessions        list [--json] | nuke | seed | export | import | regenerate-dm-prep <id>
  *   metrics         [--json] [--since <ISO date>] | usage [--json] [--since <ISO date>] [--namespace <id>] [--by-owner] [--owner-user-id <id>]
  *                   | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]
+ *                   | invites [--json] [--since <ISO date>]
  *   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
  *   limit-requests  list [--status <s>] [--json] | approve <id> [--tier <tier>] | deny <id>
  *   mcp-requests    list [--status <s>] [--json] | approve <id> | deny <id>
@@ -47,6 +48,7 @@ import { mcpAccessRequestService } from '../services/mcpAccessRequestService.js'
 import { mcpAccessRequestRepository, type McpAccessRequestStatus } from '../repositories/mcpAccessRequestRepository.js';
 import { applyProposedOwners, buildOwnershipReport, setNamespaceOwner } from '../services/namespaceOwnershipService.js';
 import { removeMember } from '../services/namespaceMembershipService.js';
+import { namespaceInviteRepository } from '../repositories/namespaceInviteRepository.js';
 
 const [, , resource, subcommand, ...rest] = process.argv;
 const allArgs = [subcommand, ...rest].filter(Boolean);
@@ -952,6 +954,24 @@ case 'metrics': {
     break;
   }
 
+  // Member invitation counts per UTC day: no emails or tokens.
+  if (subcommand === 'invites') {
+    const sinceArg = parseArgValue(allArgs.find(a => a === '--since' || a.startsWith('--since=')));
+    const since = sinceArg ? Date.parse(sinceArg) : Date.now() - 30 * 24 * 60 * 60 * 1000;
+    if (Number.isNaN(since)) {
+      fail('Usage: cli metrics invites [--since <ISO date>] [--json]');
+    }
+    const rows = namespaceInviteRepository.dailyStats(since);
+    if (jsonMode) {
+      process.stdout.write(JSON.stringify(rows, null, 2) + '\n');
+    } else if (rows.length === 0) {
+      console.log('No invitations in this period.');
+    } else {
+      console.table(rows);
+    }
+    break;
+  }
+
   if (subcommand === 'narration') {
     interface NarrationMetricsRow {
       turn_id: number;
@@ -1536,6 +1556,7 @@ Resources:
   sessions        list [--json] | nuke | seed | export | import
   metrics         [--json] [--since <ISO date>] | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]
                   usage [--json] [--since <ISO date>] [--namespace <id>] [--by-owner] [--owner-user-id <id>]
+                  invites [--json] [--since <ISO date>]
   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
   limit-requests  list [--status <s>] [--json] | approve <id> [--tier <tier>] | deny <id>
   mcp-requests    list [--status <s>] [--json] | approve <id> | deny <id>

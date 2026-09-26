@@ -15,6 +15,7 @@ import { Login } from './pages/Login';
 import { NamespacePicker } from './pages/NamespacePicker';
 import { RequestInvite } from './pages/RequestInvite';
 import { VerifyEmail } from './pages/VerifyEmail';
+import { AcceptInvite } from './pages/AcceptInvite';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AudioUnlockOverlay } from './components/AudioUnlockOverlay';
 
@@ -115,6 +116,7 @@ function App() {
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/namespace-picker" element={<NamespacePicker />} />
         <Route path="/request-invite" element={<RequestInvite />} />
+        <Route path="/accept-invite" element={<AcceptInvite />} />
         <Route path="/*" element={<AppRoutes />} />
       </Routes>
     </AuthProvider>

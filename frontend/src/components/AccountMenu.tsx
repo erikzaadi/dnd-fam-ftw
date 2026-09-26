@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { apiFetch, switchNamespace } from '../lib/api';
+import { switchNamespace } from '../lib/api';
+import { onOpenInviteDialog } from '../lib/inviteDialog';
 import { useAuth } from '../contexts/AuthContext';
+import { useSessionNamespaces } from '../hooks/useSessionNamespaces';
 import { ConfirmDialog } from './ConfirmDialog';
-import type { SessionNamespace, SessionNamespacesResponse } from '../types';
+import { InvitePartyDialog } from './InvitePartyDialog';
+import type { SessionNamespace } from '../types';
 
 // Pages holding unsaved setup work that a realm switch (a full reload) would discard.
 const hasUnsavedWork = (pathname: string) =>
@@ -17,26 +20,20 @@ export const AccountMenu = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false);
-  const [realms, setRealms] = useState<SessionNamespace[]>([]);
+  const [inviting, setInviting] = useState(false);
+  const sessionNamespaces = useSessionNamespaces(!!user);
+  const realms = sessionNamespaces?.namespaces ?? [];
+  const canInvite = sessionNamespaces?.canInvite ?? false;
   const [confirmTarget, setConfirmTarget] = useState<SessionNamespace | null>(null);
   const [switching, setSwitching] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch('/auth/session/namespaces')
-      .then(async res => {
-        if (res.ok && !cancelled) {
-          setRealms((await res.json() as SessionNamespacesResponse).namespaces);
-        }
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.namespaceId]);
+  useEffect(() => onOpenInviteDialog(() => {
+    setOpen(false);
+    setInviting(true);
+  }), []);
 
   const close = useCallback((restoreFocus: boolean) => {
     setOpen(false);
@@ -120,6 +117,7 @@ export const AccountMenu = () => {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Account menu"
+        data-tutorial="home-account"
         className="text-slate-300 hover:text-white bg-slate-950/60 backdrop-blur-sm rounded-full px-3 h-9 flex items-center gap-1.5 text-xs font-bold transition-colors"
       >
         <span className="hidden sm:inline truncate max-w-[160px]">{current ? label(current) : user.email.split('@')[0]}</span>
@@ -158,6 +156,18 @@ export const AccountMenu = () => {
           )}
           {error && <div className="px-3 py-1 text-xs text-rose-300" role="alert">{error}</div>}
           <div className="border-t border-slate-800 pt-1">
+            {canInvite && (
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  setInviting(true);
+                }}
+                className={ITEM}
+              >
+                <span aria-hidden>✉️</span>Invite your party
+              </button>
+            )}
             <Link to="/settings" role="menuitem" onClick={() => setOpen(false)} className={ITEM}>
               <span aria-hidden>⚙️</span>Settings
             </Link>
@@ -167,6 +177,7 @@ export const AccountMenu = () => {
           </div>
         </div>
       )}
+      {inviting && <InvitePartyDialog onClose={() => setInviting(false)} />}
       {confirmTarget && (
         <ConfirmDialog
           message={`Switch to ${label(confirmTarget)}? You will leave this page, and anything not yet saved or sent is lost.`}

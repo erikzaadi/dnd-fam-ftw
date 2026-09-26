@@ -41,11 +41,49 @@ ${appUrl.startsWith('http') ? `<p><a href="${escapeHtml(appUrl)}">${escapeHtml(a
   return { to, subject: 'Your sign-in code', text, html };
 }
 
+// Realm names are player-chosen and end up in mail: one line, no control characters,
+// bounded length. HTML escaping happens where they are rendered.
+export function safeRealmName(name: string): string {
+  // eslint-disable-next-line no-control-regex
+  const clean = name.replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ' ').replace(/\s+/g, ' ').trim();
+  return clean.length > 60 ? `${clean.slice(0, 59)}…` : clean || 'a realm';
+}
+
+export interface InvitationEmail {
+  to: string;
+  inviterEmail: string;
+  realmName: string;
+  link: string;
+  expiresAt: Date;
+}
+
+// Sent directly (never through the plaintext outbox): the link is a bearer credential.
+export function buildInvitationEmail(invite: InvitationEmail): OutgoingEmail {
+  const realm = safeRealmName(invite.realmName);
+  const expires = invite.expiresAt.toUTCString().replace(/ \d\d:\d\d:\d\d GMT$/, '');
+  const text = [
+    `${invite.inviterEmail} invited you to join the realm "${realm}" on AI DM, a family storytelling adventure game.`,
+    '',
+    `Join realm: ${invite.link}`,
+    '',
+    `The link works once and expires on ${expires}.`,
+    'Please do not forward this email: anyone with the link can join as you.',
+    "If you weren't expecting this, you can ignore it.",
+  ].join('\n');
+  const html = `<!doctype html><html><body style="font-family:sans-serif;color:#0f172a">
+<p><strong>${escapeHtml(invite.inviterEmail)}</strong> invited you to join the realm <strong>${escapeHtml(realm)}</strong> on AI DM, a family storytelling adventure game.</p>
+<p><a href="${escapeHtml(invite.link)}" style="display:inline-block;padding:12px 20px;background:#f59e0b;color:#0f172a;border-radius:12px;font-weight:bold;text-decoration:none">Join realm</a></p>
+<p>The link works once and expires on ${escapeHtml(expires)}.</p>
+<p style="color:#64748b">Please do not forward this email: anyone with the link can join as you. If you weren't expecting this, you can ignore it.</p>
+</body></html>`;
+  return { to: invite.to, subject: `You're invited to join ${realm}`, text, html };
+}
+
 export interface SignupNotice {
   userId: string;
   namespaceId: string;
   email: string;
-  method: 'email' | 'google';
+  method: 'email' | 'google' | 'invite';
   signedUpAt: Date;
 }
 

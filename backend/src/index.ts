@@ -19,6 +19,7 @@ import { getOpenAIMaxRetries, getPreviewReasoningEffort } from './providers/ai/o
 import { StateService } from './services/stateService.js';
 import { reconcileInterruptedOperations } from './services/sessionOperationService.js';
 import { createAuthRouter } from './routes/authRoutes.js';
+import { createInvitationAuthRouter, createNamespaceInviteRouter } from './routes/namespaceInviteRoutes.js';
 import { createEventsRouter } from './routes/eventsRoutes.js';
 import { createGameRouter } from './routes/gameRoutes.js';
 import { createNamespaceRouter } from './routes/namespaceRoutes.js';
@@ -130,6 +131,7 @@ console.log(`[MCP] ${isMcpEnabled() ? 'Enabled at /mcp (personal access tokens, 
 
 app.use(createSystemRouter({ config, hasCloudAI }));
 app.use(createAuthRouter({ isProduction }));
+app.use(createInvitationAuthRouter({ isProduction }));
 app.use(createTtsRouter());
 app.use(createWebhookRouter());
 // Bearer personal access tokens only; never the website cookie middleware below.
@@ -146,6 +148,7 @@ app.use((req, res, next) => {
 app.use(usageAdmissionMiddleware);
 
 app.use(createNamespaceRouter());
+app.use(createNamespaceInviteRouter());
 app.use(createAccessTokenRouter({ isProduction }));
 app.use(createEventsRouter());
 app.use(createSettingsRouter());

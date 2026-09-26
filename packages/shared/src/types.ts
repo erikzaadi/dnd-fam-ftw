@@ -599,6 +599,77 @@ export interface SessionNamespacesResponse {
   // Null when the cookie's namespace is no longer a membership.
   currentNamespaceId: string | null;
   namespaces: SessionNamespace[];
+  // Member invitations are on and this user may invite to the current realm.
+  canInvite: boolean;
+}
+
+// Member invitations ("Invite your party").
+export type InvitationDelivery = 'sending' | 'sent' | 'failed';
+
+export interface InvitationSummary {
+  id: string;
+  email: string;
+  // True when the signed-in user sent it (members only see their own).
+  mine: boolean;
+  createdAt: string;
+  expiresAt: string;
+  expired: boolean;
+  delivery: InvitationDelivery;
+  // When the resend cooldown ends (ISO).
+  resendAvailableAt: string;
+}
+
+// GET /namespace/invitations
+export interface NamespaceInvitationsResponse {
+  enabled: boolean;
+  canInvite: boolean;
+  isOwner: boolean;
+  memberInvitesEnabled: boolean;
+  invitations: InvitationSummary[];
+}
+
+export type InvitationErrorCode =
+  | 'invites_disabled'
+  | 'forbidden'
+  | 'invalid_email'
+  | 'already_member'
+  | 'rate_limited'
+  | 'cooldown'
+  | 'delivery_failed'
+  | 'realm_not_ready'
+  | 'not_found';
+
+export interface InvitationErrorResponse {
+  error: InvitationErrorCode;
+  message: string;
+  retryAfterSeconds?: number;
+}
+
+// POST /namespace/invitations and /namespace/invitations/:id/resend
+export interface InvitationSentResponse {
+  invitation: InvitationSummary;
+}
+
+// What a matching token reveals. Random tokens only ever get 'invalid'.
+export type InvitationState = 'valid' | 'expired' | 'revoked' | 'superseded' | 'accepted' | 'disabled' | 'invalid';
+
+// POST /auth/invitations/inspect
+export interface InspectInvitationResponse {
+  state: InvitationState;
+  realmName?: string;
+  // Masked, e.g. "j***@example.com".
+  inviter?: string;
+  recipient?: string;
+  expiresAt?: string;
+  // Who this browser is signed in as, relative to the invitation.
+  currentAccount?: 'none' | 'recipient' | 'other';
+  // For 'accepted': the signed-in recipient can still enter the realm.
+  canOpenRealm?: boolean;
+}
+
+// POST /auth/invitations/accept error body.
+export interface AcceptInvitationErrorResponse {
+  error: InvitationState | 'signed_in_as_other' | 'signup_closed' | 'rate_limited';
 }
 
 // Personal access tokens for the MCP endpoint. A token grants one
