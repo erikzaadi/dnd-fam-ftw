@@ -35,7 +35,7 @@ export const OAuthConsent = () => {
     apiFetch(`/oauth-consent/${encodeURIComponent(requestId)}`)
       .then(async res => {
         const body = await res.json().catch(() => null) as (OAuthConsentDetailsResponse & { message?: string }) | null;
-        if (!res.ok || !body) {
+        if (!res.ok || !body || !Array.isArray(body.realms)) {
           setLoadError(body?.message ?? 'This sign-in request has expired or was already answered. Start connecting again from your assistant.');
           return;
         }

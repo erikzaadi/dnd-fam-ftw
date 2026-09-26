@@ -79,7 +79,7 @@ describe('accessTokenService', () => {
     expect(Object.values(row)).not.toContain(secret);
 
     const principal = accessTokenService.authenticate(secret);
-    expect(principal).toMatchObject({ tokenId: token.id, userId, email, namespaceId });
+    expect(principal).toMatchObject({ grantId: token.id, credential: { kind: 'pat', id: token.id }, userId, email, namespaceId });
     // Read is always granted; create was not requested.
     expect(principal?.scopes).toEqual(['adventures:read', 'adventures:play']);
   });
@@ -154,7 +154,7 @@ describe('accessTokenService', () => {
     expect(rotated.token.label).toBe(old.token.label);
     expect(rotated.token.scopes).toEqual(old.token.scopes);
     expect(accessTokenService.authenticate(old.secret)).toBeNull();
-    expect(accessTokenService.authenticate(rotated.secret)).toMatchObject({ tokenId: rotated.token.id, namespaceId });
+    expect(accessTokenService.authenticate(rotated.secret)).toMatchObject({ grantId: rotated.token.id, credential: { kind: 'pat', id: rotated.token.id }, namespaceId });
     expect(accessTokenService.rotate(userId, old.token.id)).toEqual({ ok: false, error: 'not_found' });
   });
 
