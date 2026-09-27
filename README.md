@@ -66,7 +66,7 @@ Every hero gets a generated portrait and carries their quirk into the story:
 ![Car mode - hands-free voice play](docs/car-mode.png)
 
 - **Car mode** (`/session/<id>/car`) : hands-free play for road trips - the DM reads narration aloud (TTS) and players answer by voice (speech-to-text); requires voice setup before it unlocks
-- **Terminal mode** (`/session/<id>/terminal`) : a retro CRT adventure shell; type choice numbers or free-text actions like it's 1982. There is no in-app link - this is a very well hidden feature reserved for the most hoodie-driven hackers: view-source folk, and those who still remember the old code (in any realm: Up Up Down Down Left Right Left Right B A)
+- **Terminal mode** (`/session/<id>/terminal`) : a retro CRT adventure shell; type free-text actions like it's 1982 (ask for ideas and you can pick one by number). There is no in-app link - this is a very well hidden feature reserved for the most hoodie-driven hackers: view-source folk, and those who still remember the old code (in any realm: Up Up Down Down Left Right Left Right B A)
 
 ![Terminal mode - retro adventure shell](docs/terminal-mode.png)
 
@@ -110,7 +110,7 @@ Every hero gets a generated portrait and carries their quirk into the story:
 ## Getting Started
 
 ### Prerequisites
-- Node.js 20+
+- Node.js 24 (see `.nvmrc`; `nvm use` picks it up)
 - An OpenAI-compatible API key
 
 ### AI options
@@ -291,7 +291,8 @@ There are 15+ distinct AI calls in the app, each with a different purpose and co
 
 | Call | Where | Model env var | Default | When |
 |---|---|---|---|---|
-| **Turn narration** (2-5 parallel agents) | `dmTurnOrchestrator.ts` | `OPENAI_MODEL_NARRATION` / `OPENAI_MODEL_PREVIEW` | `gpt-4.1-mini` / `gpt-5.6-luna` | Every action : narration + choices always; combat/inventory/recovery agents conditional - see `MULTI_AGENT_WORKFLOW.md` |
+| **Turn narration** (1-4 agents) | `dmTurnOrchestrator.ts` | `OPENAI_MODEL_NARRATION` | `gpt-4.1-mini` | Every action : narration always; combat/inventory/recovery agents conditional - see `MULTI_AGENT_WORKFLOW.md` |
+| **Ideas** | `ideasService.ts` | `OPENAI_MODEL_PREVIEW` (retry on `OPENAI_MODEL_NARRATION`) | `gpt-5.6-luna` | Only when a player asks (**Give me ideas**, or **Ideas every turn**) |
 | **Action preview** | `statSuggestionService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-5.6-luna` | While player types an action |
 | **Stat suggestion** | `statSuggestionService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-5.6-luna` | Character creation and action routing |
 | **Session naming** | `sessionNameService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-5.6-luna` | Once at realm creation |
@@ -309,7 +310,7 @@ There are 15+ distinct AI calls in the app, each with a different purpose and co
 
 Use `npm run cli -- metrics` (or `./dnd-fam-ftw-prod-cli metrics` on production) to see per-namespace counts for sessions, turns, images, and avatars generated.
 
-The turn narration agents (2-5 parallel calls) are the only AI calls that block the player response. Scene images are generated asynchronously after the turn : the story text appears immediately, and the image arrives via SSE a few seconds later. Realm preview images are also generated asynchronously and are skipped when the session is in savings mode.
+The turn agents (narration plus up to three mechanics agents) are the only AI calls that block the player response. Scene images are generated asynchronously after the turn : the story text appears immediately, and the image arrives via SSE a few seconds later. Realm preview images are also generated asynchronously and are skipped when the session is in savings mode.
 
 ---
 
@@ -319,7 +320,7 @@ All connected clients receive the same events via Server-Sent Events:
 
 | Event | When | What happens on the client |
 |-------|------|----------------------------|
-| `turn_complete` | After every turn | Narration + new choices appear; session state refreshes |
+| `turn_complete` | After every turn | Narration appears; session state refreshes |
 | `image_ready` | After async image generation | Scene image fades in |
 | `party_update` | After a `use_item` / `give_item` action | Party HP and inventory update without a full turn refresh |
 | `intervention` | All party members downed, first rescue | Amber 🐉 rescue banner shown for 8 s |
@@ -331,20 +332,17 @@ All connected clients receive the same events via Server-Sent Events:
 ## How a Turn Works
 
 ```
-Player picks action (each choice carries a suggested difficulty target from the AI)
+Player types an action (or picks one of the ideas they asked for); the game previews it, then sends it after a short Undo window or a confirm
        ↓
-Backend resolves target: per-action difficultyValue if set, else base threshold (8/12/16)
+Backend resolves target: previewed or per-idea difficultyValue if set, else base threshold (8/12/16)
        ↓
-Backend rolls d20 + effective stat vs. resolved target
+Backend rolls d20 + effective stat vs. resolved target (item actions and riddle answers skip the roll)
        ↓
-Result sent to AI with full session context (outcome already resolved)
+Mechanics agents propose damage, items, healing, fights (only when relevant); backend applies them
        ↓
-AI narrates outcome (paced by gameMode: fast/balanced/cinematic)
+AI narrates the already-resolved outcome (paced by gameMode: fast/balanced/cinematic)
      + returns a short rollNarration flavor comment shown in the D20 popup
      + returns currentTensionLevel (low/medium/high) - drives ambient vs danger music
-     + suggests 3 new choices (each with a tuned difficultyValue)
-     + optionally grants an item (suggestedInventoryAdd)
-     + optionally removes an item for a trade (suggestedInventoryRemove)
        ↓
 SSE broadcasts turn_complete → all connected clients update immediately
        ↓

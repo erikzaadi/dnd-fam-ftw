@@ -1,6 +1,8 @@
 # Multi-Agent Turn Workflow
 
-Every player action triggers a multi-agent pipeline (resolved-first by default, see below; the parallel layout described first is the opt-out and still serves opening, rescue, and chapter-start turns). Two agents always run (narration, choices); three more run conditionally based on the turn context. Each agent owns a strict set of output fields and must not instruct or set fields owned by another agent.
+Every player action triggers a multi-agent pipeline (resolved-first by default, see below; the parallel layout described first is the opt-out and still serves opening, rescue, and chapter-start turns). The narration agent always runs; three mechanics agents (combat, inventory, recovery) run conditionally based on the turn context. Each agent owns a strict set of output fields and must not instruct or set fields owned by another agent.
+
+Turns do not generate suggested actions. The choices agent runs only when a player asks for ideas (**Give me ideas**, or the per-adventure setting **Ideas every turn**, which asks once after each turn settles): see [Ideas on request](#ideas-on-request). Turns stored before this change may still carry their own choices; those are legacy data and are shown as they were.
 
 ---
 
@@ -9,7 +11,7 @@ Every player action triggers a multi-agent pipeline (resolved-first by default, 
 | Agent | Owns | Never sets |
 |---|---|---|
 | **Narration** | `narration`, `rollNarration`, `currentTensionLevel` | choices, inventory, HP/buffs, encounter mutation |
-| **Choices** | `choices` (exactly 3) | narration, inventory, HP/buffs, encounter mutation |
+| **Choices** (ideas on request only) | `choices` (exactly 3) | narration, inventory, HP/buffs, encounter mutation |
 | **Combat** | `suggestedDamage`, `suggestedEncounterStart`, `suggestedEncounterUpdate` | narration, choices, inventory, HP healing, buffs |
 | **Inventory** | `suggestedInventoryAdd`, `suggestedInventoryRemove`, `suggestedInventoryUpdate` | narration, choices, HP, buffs, encounter mutation |
 | **Recovery** | `suggestedRevive`, `suggestedHeal`, `suggestedBuffAdd`, `suggestedBuffRemove` | narration, choices, inventory, encounter mutation |
@@ -44,26 +46,11 @@ All agents run inside `withDeadline`, which aborts the request and returns a saf
 | Agent | Deadline (standard) | Deadline (relaxed*) | Retry on parse error | Notes |
 |---|---|---|---|---|
 | Narration | 6000 ms | 8000 ms | No | Falls back to `buildNarrationFallback(input)` |
-| Choices | 3500 ms first attempt | 5000 ms | Full retry (narration tier) | Complex retry: stat-coverage check, corrective retry, then plain retry |
 | Combat | 2500 ms | - | Yes (once) | Fallback: all-null combat fields |
 | Inventory | 2500 ms | - | Yes (once) | Fallback: all-null inventory fields |
 | Recovery | 3000 ms | - | Yes (once) | Fallback: all-null recovery fields |
 
 *Relaxed deadlines apply on `isFirstTurn`, `interventionRescue`, or `sanctuaryRecovery` turns.
-
-**Choices retry logic** is more elaborate because a bad choice set is a worse player experience than a short delay:
-1. First attempt uses `preview` model tier (faster, less contention).
-2. If choices are returned but are **stale** (all labels match `previousChoiceLabels` verbatim - the model echoed back options seen within the last 5 turns): one corrective `choices-stale-retry` on the `narration` tier with an explicit instruction to generate fresh choices.
-3. If choices are returned but none use the next character's top stat: one corrective `choices-coverage-retry` on the `narration` tier. Both failures can be combined into a single retry instruction.
-4. If the corrective retry fails: `ensureTopStatCoverage` injects a deterministic fallback choice replacing the weakest-stat option; stale content is used as the base.
-5. If the first attempt failed entirely: one plain `choices-retry` on the `narration` tier.
-6. If all attempts fail: generic 3-choice fallback (one per stat); `choicesFailed: true`.
-
-**Choices agent context** - the choices agent receives the full `storySummary` (including CURRENT ARC, NEXT PROMISED BEAT, LOCATION STALL), `sceneMomentum`, `previousChoiceFlavors`, `selectedChoiceFlavor`, and the last 3 `recentHistory` entries. It also conditionally includes `SECTION_LOCATION_STALL` and `SECTION_FROZEN_CONFRONTATION` in its system prompt (same gates as the narration agent) so it responds to story-arc signals, not just mechanical context.
-
-Story-arc signals (`storySummary`, `sceneMomentum`, `SECTION_LOCATION_STALL`, `SECTION_FROZEN_CONFRONTATION`) are suppressed in two situations where the fight/victory is its own story beat:
-- **Active combat** (`encounterState.status === 'active'`): replaced by `SECTION_ACTIVE_COMBAT_CHOICES` requiring direct enemy engagement
-- **Encounter resolution** (`encounterJustResolved: true`): replaced by `SECTION_POST_ENCOUNTER_CHOICES` with `encounterObjective` and `encounterLootHint` to advance into what the encounter unlocked
 
 **Error classification** - `classifyAgentError` maps thrown errors to `AgentErrorKind`:
 - `refusal` - model refused the request
@@ -76,7 +63,36 @@ Story-arc signals (`storySummary`, `sceneMomentum`, `SECTION_LOCATION_STALL`, `S
 
 ---
 
-## Workflow Diagram
+## Ideas on request
+
+`POST /session/:id/ideas` (`services/ideasService.ts`) generates suggested actions for the latest turn, its revision, and the hero who acts next. The result is stored on that turn and shared by every viewer; asking never advances the story or bumps the revision, and an action accepted meanwhile always wins (the ideas are dropped as stale). Generation is limited to 6 per session per minute. The per-adventure setting **Ideas every turn** makes each open view ask once after a turn settles; the server still generates one set per turn and revision.
+
+Ideas go through `generateIdeas` -> `runChoicesWithRetry` in `dmTurnOrchestrator.ts`, then `toPlayerChoices` (`sanitizeItemChoices` drops item choices for gear the hero does not carry, `auditChoiceStatCoverage` warns when the hero's top stat is uncovered). Riddle answer choices are then synced to the recorded riddle (`syncRiddleChoices`), never the agent's own guess.
+
+| Attempt | Deadline (standard) | Deadline (relaxed*) |
+|---|---|---|
+| First (`preview` tier) | 3500 ms | 5000 ms |
+| Corrective or plain retry (`narration` tier) | 3000 ms | 3000 ms |
+
+**Choices retry logic** is more elaborate because a bad choice set is a worse player experience than a short delay:
+1. First attempt uses `preview` model tier (faster, less contention).
+2. If choices are returned but are **stale** (all labels match `previousChoiceLabels` verbatim - the model echoed back options seen within the last 5 turns): one corrective `choices-stale-retry` on the `narration` tier with an explicit instruction to generate fresh choices.
+3. If choices are returned but none use the next character's top stat: one corrective `choices-coverage-retry` on the `narration` tier. Both failures can be combined into a single retry instruction.
+4. If the corrective retry fails: `ensureTopStatCoverage` injects a deterministic fallback choice replacing the weakest-stat option; stale content is used as the base.
+5. If the first attempt failed entirely: one plain `choices-retry` on the `narration` tier.
+6. If all attempts fail: generic 3-choice fallback (one per stat), returned as `degraded` so the player can ask again.
+
+**Choices agent context** - the choices agent receives the full `storySummary` (including CURRENT ARC, NEXT PROMISED BEAT, LOCATION STALL), `sceneMomentum`, `previousChoiceFlavors`, `selectedChoiceFlavor`, and the last 3 `recentHistory` entries. It also conditionally includes `SECTION_LOCATION_STALL` and `SECTION_FROZEN_CONFRONTATION` in its system prompt (same gates as the narration agent) so it responds to story-arc signals, not just mechanical context.
+
+Story-arc signals (`storySummary`, `sceneMomentum`, `SECTION_LOCATION_STALL`, `SECTION_FROZEN_CONFRONTATION`) are suppressed in two situations where the fight/victory is its own story beat:
+- **Active combat** (`encounterState.status === 'active'`): replaced by `SECTION_ACTIVE_COMBAT_CHOICES` requiring direct enemy engagement
+- **Encounter resolution** (`encounterJustResolved: true`): replaced by `SECTION_POST_ENCOUNTER_CHOICES` with `encounterObjective` and `encounterLootHint` to advance into what the encounter unlocked
+
+---
+
+## Workflow Diagram (parallel strategy)
+
+The default resolved-first strategy is described [below](#resolved-first-the-default-ai_turn_strategyparallel-opts-out); this diagram shows the parallel layout that opening, rescue, and chapter-start turns still use.
 
 ```mermaid
 flowchart TD
@@ -90,13 +106,12 @@ flowchart TD
 
     subgraph PARALLEL["Parallel agent calls - Promise.all"]
         NA["Narration agent\nrollNarration · narration · currentTensionLevel\nDeadline: 6-8s · no retry"]
-        CA["Choices agent\nchoices x3\nDeadline: 3.5-5s · complex retry"]
         CBA["Combat agent\nsuggestedDamage · suggestedEncounterStart · suggestedEncounterUpdate\nDeadline: 2.5s · retry once"]
         IA["Inventory agent\nsuggestedInventoryAdd · suggestedInventoryRemove · suggestedInventoryUpdate\nDeadline: 2.5s · retry once"]
-        RA["Recovery agent\nsuggestedRevive · suggestedHeal · suggestedBuffAdd · suggestedBuffRemove\nDeadline: 2s · retry once"]
+        RA["Recovery agent\nsuggestedRevive · suggestedHeal · suggestedBuffAdd · suggestedBuffRemove\nDeadline: 3s · retry once"]
     end
 
-    MERGE["Merge all agent outputs\ncleanText: strip em-dashes + control chars\nsanitizeItemChoices: drop hallucinated item refs\nauditChoiceStatCoverage: warn if top-stat uncovered"]
+    MERGE["Merge all agent outputs\ncleanText: strip em-dashes + control chars\nchoices: always empty"]
 
     DIAG["Emit AgentDiagnostic per agent\nagent · durationMs · status · errorKind · errorMessage"]
 
@@ -112,7 +127,6 @@ flowchart TD
     GATES --> G3
 
     INPUT --> NA
-    INPUT --> CA
     G1 -- yes --> CBA
     G1 -- no --> CBA_SKIP(["combat fallback\nnull fields"])
     G2 -- yes --> IA
@@ -121,7 +135,6 @@ flowchart TD
     G3 -- no --> RA_SKIP(["recovery fallback\nnull fields"])
 
     NA --> MERGE
-    CA --> MERGE
     CBA --> MERGE
     CBA_SKIP --> MERGE
     IA --> MERGE
@@ -139,9 +152,9 @@ flowchart TD
 
 ## Fallback Behavior
 
-Every agent has a typed fallback returned on timeout or unrecoverable error. The narration fallback (`buildNarrationFallback`) generates deterministic prose from the action result so the player always gets a response. Choices fallback generates one option per stat. Combat, inventory, and recovery fallbacks are all-null - the game engine handles the missing signals through its own deterministic rules.
+Every agent has a typed fallback returned on timeout or unrecoverable error. The narration fallback (`buildNarrationFallback`) generates deterministic prose from the action result so the player always gets a response. Combat, inventory, and recovery fallbacks are all-null - the game engine handles the missing signals through its own deterministic rules. The choices fallback (one option per stat) only applies to ideas.
 
-`narrationFailed: true` is set in the result when the narration agent fell back. `choicesFailed: true` is set when the choices retry chain exhausted all attempts.
+`narrationFailed: true` is set in the result when the narration agent fell back. Turns always report `choicesFailed: false`; the field stays for older stored turns.
 
 ---
 
@@ -164,7 +177,7 @@ Every running agent pushes an `AgentDiagnostic` entry into the result:
 
 ```typescript
 interface AgentDiagnostic {
-  agent: string;         // 'narration' | 'choices' | 'choices-retry' | 'choices-coverage-retry' | 'combat' | 'inventory' | 'recovery'
+  agent: string;         // 'narration' | 'combat' | 'inventory' | 'recovery'; older stored turns may also list 'choices*' entries
   durationMs: number;
   status: 'ok' | 'retry' | 'timeout' | 'fallback';
   errorKind?: AgentErrorKind;   // set when status is timeout or fallback
@@ -183,13 +196,13 @@ Each agent receives a focused subset of `NarrationInput` in its user message. Th
 | Agent | Notable input fields |
 |---|---|
 | **Narration** | Full `NarrationInput` as JSON (all fields) |
-| **Choices** | `storySummary` (full), `sceneMomentum`, `recentHistory[-3]`, `previousChoiceLabels` (last 5 turns deduplicated), `previousChoiceFlavors`, `selectedChoiceFlavor`, next character's `inventory`, party with buffs; in active combat: enemy `traits`, `revealedWeaknesses`, `maxHp`, area effects |
+| **Choices** (ideas) | `storySummary` (full), `sceneMomentum`, `recentHistory[-3]`, `previousChoiceLabels` (last 5 turns deduplicated), `previousChoiceFlavors`, `selectedChoiceFlavor`, next character's `inventory`, party with buffs; in active combat: enemy `traits`, `revealedWeaknesses`, `maxHp`, area effects |
 | **Combat (active)** | `encounterState` (full), `actionResult` (success/impact/statUsed), `party` HP, `encounterJustResolved`, `encounterLootHint` |
 | **Combat (encounter-start)** | `dmPrepEncounters`, `sceneMomentum`, `storySummary` (full), `recentHistory[-3]`, `resolvedEncounterEnemyNames` |
 | **Inventory** | Full `inventory`, `actionResult` (success/impact/difficulty), `actingCharacterName`, `encounterLootHint`, `party` class+stats, `recentHistory[-2]` |
 | **Recovery** | `party` HP+buffs, `actingCharacterName`, `actionResult` (success/impact), `actionIntent`, `sanctuaryRecovery`, `interventionRescue` |
 
-The parallel constraint means no agent can see the current turn's narration (generated concurrently). Agents decide from prior context only.
+In the parallel strategy no agent can see the current turn's narration (generated concurrently); agents decide from prior context only. Ideas run after the turn is committed, so the choices agent sees the post-turn scene.
 
 ---
 
@@ -200,15 +213,34 @@ The default since 2026-09-25, for player actions and item turns. Instead of gene
 1. `proposeMechanics`: combat, inventory and recovery agents (same gates and deadlines).
 2. Policies (`applyTurnPolicies`) and the engine apply the proposal once; that frozen state is what gets committed. Only the combat agent can start a fight (no prose-derived encounter inference).
 3. `buildResolvedTurnFacts` (`services/resolvedTurn.ts`) turns the frozen state into plain facts (roll outcome, HP, items, effects, enemy changes, fight start/end).
-4. `narrateResolved`: narration and choices run in parallel on the post-turn party/encounter plus `resolvedTurn`, and must not invent other mechanical changes. Narration streams only after mechanics are final.
+4. `narrateResolved`: narration runs on the post-turn party/encounter plus `resolvedTurn`, and must not invent other mechanical changes. Narration streams only after mechanics are final.
 
-The shared finalizer, operation/revision guard and lifecycle are identical for both strategies. Providers without the staged methods fall back to `parallel`. Repairs and their status per strategy: `next-up-instructions/family-first-04-repair-inventory.md` (local). Comparison runner: see `MANAGE.md`.
+```mermaid
+flowchart TD
+    INPUT([Player action + game state]) --> ROLL["Engine resolves the roll\n(d20 + stat vs target, when the action rolls)"]
+    ROLL --> PROPOSE["proposeMechanics\ncombat · inventory · recovery (gated)"]
+    PROPOSE --> POLICY["applyTurnPolicies + GameEngine.updateState\nfrozen post-turn state"]
+    POLICY --> FACTS["buildResolvedTurnFacts\nplain facts: outcome, HP, items, effects, fight start/end"]
+    FACTS --> NARRATE["narrateResolved\nnarration streams from frozen facts"]
+    NARRATE --> OUT([Committed TurnResult, no choices])
+```
+
+The shared finalizer, operation/revision guard and lifecycle are identical for both strategies. Providers without the staged methods fall back to `parallel`. Comparison runner: see `MANAGE.md`.
+
+**Repairs per strategy.** The parallel strategy needs repairs because agents generate independently. In resolved-first:
+
+- Input validation, field ownership, deadlines/fallbacks, engine caps, `cleanText`, objective-outcome validation and the party-wipe decision run unchanged.
+- Policy fixes run on the mechanical proposal before narration: a matching proposal for successful healing/enchant/support actions when an agent omitted it (`ensureSuccessful*`), no damage on failed support actions (`suppressFailedSupportDamage`), and encounter name repair.
+- Repairs that patched narration written before the outcome was known are skipped: encounters inferred from prose (`inferSeededEncounterStart`, `inferOrganicEncounterStart`), the appended loot claim (`appendLootNarration`), and narration replaced after a defeat (`alignTurnWithResolvedEncounter`). Only the combat agent starts a fight.
+- `turnResultConsistencyService` stays as a log-only contradiction metric.
 
 ## Key Files
 
 | File | Role |
 |---|---|
-| `backend/src/services/dmTurnOrchestrator.ts` | Orchestrator: gate functions, `withDeadline`, `callStructuredAgent`, parallel fan-out, merge |
+| `backend/src/services/dmTurnOrchestrator.ts` | Orchestrator: gate functions, `withDeadline`, `callStructuredAgent`, parallel fan-out, merge, resolved-first stages, `runChoicesWithRetry` |
+| `backend/src/services/resolvedFirstTurnService.ts` | Resolved-first turn flow: propose, apply policies, build facts, narrate |
+| `backend/src/services/ideasService.ts` | Ideas on request: staleness guard, rate limit, riddle sync |
 | `backend/src/providers/ai/narration/agentPrompts.ts` | System prompt builders for each agent |
 | `backend/src/providers/ai/narration/narrationPromptSections.ts` | Reusable prompt section constants (imported by prompt builders) |
 | `backend/src/providers/ai/narration/agentSchemas.ts` | Zod output schemas per agent |

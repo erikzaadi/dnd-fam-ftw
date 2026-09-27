@@ -1,73 +1,32 @@
-# React + TypeScript + Vite
+# Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + Vite + Tailwind CSS 4 + TypeScript. The player-facing web app: home, adventure creation, hero assembly, the play screen, recap, settings, and the car and terminal modes.
 
-Currently, two official plugins are available:
+Setup, environment variables and the full dev loop are in the [root README](../README.md). Run commands from the repo root: `npm run dev` starts the backend on `:3001` and this app on `http://localhost:5173/`, with `/api/*` proxied to the backend.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Layout
 
-## React Compiler
+| Path | What lives there |
+| --- | --- |
+| `src/App.tsx` | Routes, `AuthProvider`, `AuthGuard` |
+| `src/pages/` | One component per route (`Home`, `CreateSession`, `CharacterAssembly`, `Session`, `SessionRecap`, `HowToPlay`, `CarMode`, `TerminalMode`, ...) |
+| `src/components/` | Shared UI; `components/game/` holds the play screen (action dock, narration, chronicle, inventory) |
+| `src/session/` | Play-screen state and hooks (turn submission, ideas, car mode conductor) |
+| `src/lib/api.ts` | `apiFetch()` and `imgSrc()`: use these for every API call and image URL |
+| `src/stt/`, `src/tts/`, `src/audio/` | Speech-to-text, narration voice, music and sound effects |
+| `src/contexts/` | Auth context |
+| `public/images/` | Bundled static images (see `CREDITS.md` and `backend/src/scripts/generateStaticAssets.ts`) |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Conventions (tooltips, logging, no em dashes, braces on every `if`) are listed in [CLAUDE.md](../CLAUDE.md#coding-conventions).
 
-## Expanding the ESLint configuration
+## Tests
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+| Command (from repo root) | What it runs |
+| --- | --- |
+| `npm run test:frontend` | Vitest + Testing Library unit tests (`src/**/*.test.ts(x)`, setup in `src/test/setup.ts`) |
+| `npm run lint:frontend` / `npm run tsc:frontend` | ESLint and TypeScript |
+| `npm run test:e2e` | Playwright E2E (`tests/e2e/`), isolated dev servers with mocked narration |
+| `npm run test:visual` / `npm run test:visual:update` | Visual snapshots (`tests/visual.spec.ts`); the dev server must be running |
+| `npm run generate-readme-screenshots` | Regenerates `docs/*.png` with a seeded backend and mocked AI |
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+Playwright needs Chromium once: `npm run setup:playwright`.

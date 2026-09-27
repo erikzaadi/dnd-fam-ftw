@@ -39,7 +39,7 @@ export const HowToPlay = () => {
           <div className="bg-slate-900/80 border-2 border-slate-800 rounded-[32px] p-6 md:p-10 space-y-10">
             <Section title="The Goal">
               <p className="text-slate-300 text-lg leading-relaxed">
-                You and your party are heroes in a realm of the AI's imagination. Each turn the AI Dungeon Master narrates what's happening. Say what your hero tries in your own words (type it, or use the mic): swing from the chandelier, offer the guard a sandwich, anything. Stuck? Tap <strong className="text-sky-300">Give me ideas</strong> for a few suggestions (or turn on <strong className="text-sky-300">Ideas every turn</strong> in the ⚙ menu). Not sure what's possible? Type a question and tap <strong className="text-sky-300">Ask the DM</strong> next to Unleash (or press [D], or say "ask the DM ..."): the DM answers without using up your turn. Then roll the dice and see what happens. A typed action goes out on its own after a moment, with an <strong className="text-amber-300">Undo</strong> button in case you change your mind. Anything that needs a second look (a warning, gear, or something you said out loud) gets a confirm step first, and <strong className="text-amber-300">Ask before sending</strong> turns that on for every action. By default an adventure fits one evening: it opens with a clear goal, builds toward a finale, and ends with an epilogue about what every hero did.
+                You and your party are heroes in a realm of the AI's imagination. Each turn the AI Dungeon Master narrates what's happening. Say what your hero tries in your own words (type it, or use the mic): swing from the chandelier, offer the guard a sandwich, anything. Stuck? Tap <strong className="text-sky-300">Give me ideas</strong> for a few suggestions (or turn on <strong className="text-sky-300">Ideas every turn</strong> in the ⚙ menu). Not sure what's possible? Type a question and tap <strong className="text-sky-300">Ask the DM</strong> next to Unleash (or press [D], or say "ask the DM ..."): the DM answers without using up your turn. Then the game rolls the dice for you and you see what happens. A typed action goes out on its own after a moment, with an <strong className="text-amber-300">Undo</strong> button in case you change your mind. Anything that needs a second look (a warning, gear, or something you said out loud) gets a confirm step first, and <strong className="text-amber-300">Ask before sending</strong> turns that on for every action. By default an adventure fits one evening: it opens with a clear goal, builds toward a finale, and ends with an epilogue about what every hero did.
               </p>
               <p className="text-slate-400 text-base mt-3 leading-relaxed">
                 Victories should move the adventure forward. When a fight or hard challenge is resolved, the story should carry you into the next clue, route, reward, threat, or decision instead of lingering on the finished scene.
@@ -51,7 +51,7 @@ export const HowToPlay = () => {
 
             <Section title="🎲 Die Hard: Rolling the Dice">
               <p className="text-slate-300 text-lg leading-relaxed mb-3">
-                Every action is resolved by rolling a d20 and adding your relevant stat. Beat the target to succeed. Fail and take damage.
+                When your hero tries something, the game rolls a d20 for you and adds your relevant stat: no physical dice needed. Meet or beat the target to succeed. A failed attempt can cost HP, but a failed attempt to heal or help someone does not hurt you. Using or giving an item and answering a riddle never roll.
               </p>
               <Row label="Easy" value="Around 8" color="text-emerald-400" />
               <Row label="Normal" value="Around 12" color="text-amber-400" />
@@ -215,7 +215,7 @@ export const HowToPlay = () => {
 
             <Section title="Turns">
               <p className="text-slate-300 text-lg leading-relaxed">
-                Heroes take turns in order. The active hero is highlighted in the party bar at the top. Only the active hero can perform actions, but choices may spotlight their traits, involve another active hero's help, use carried gear, turn an NPC conversation into the challenge, or use a specific terrain hazard. Spotlight, social, team-up, and gear choices can add small bonuses to the roll, and clever typed actions can earn those bonuses too when they clearly name the ally, item, or character trait they use.
+                Heroes take turns in order. The active hero is highlighted in the party bar at the top. Only the active hero can perform actions, but ideas may spotlight their traits, involve another active hero's help, use carried gear, turn an NPC conversation into the challenge, or use a specific terrain hazard. Spotlight, social, team-up, and gear ideas can add small bonuses to the roll, and clever typed actions can earn those bonuses too when they clearly name the ally, item, or character trait they use.
               </p>
             </Section>
           </div>

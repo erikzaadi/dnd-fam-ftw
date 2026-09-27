@@ -1,5 +1,7 @@
 # 🧠 AI Dungeon Master Web App - Engineering Memory
 
+> **Historical document.** This is the original design brief from when the project started (April 2026). It is kept for history and is not a current spec: models, mechanics and architecture have changed since. For how things work today, see [PRODUCT.md](PRODUCT.md), [GAME_ENGINE_RULES.md](GAME_ENGINE_RULES.md) and [MULTI_AGENT_WORKFLOW.md](MULTI_AGENT_WORKFLOW.md).
+
 ## 📌 Project Overview
 
 We are building a **self-hosted, family-friendly D&D-style web app**.

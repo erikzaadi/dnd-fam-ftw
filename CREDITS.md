@@ -6,7 +6,7 @@
 
 ## Image Assets
 
-Scene images and character portraits are generated at runtime using DALL·E 3 (OpenAI).
+Scene images, adventure previews and hero portraits are generated at runtime by the configured OpenAI-compatible image model (`OPENAI_IMAGE_MODEL`, default `gpt-image-2`; see `.env.example`). They are not bundled with the project.
 
 Static UI images in `frontend/public/images/` were also generated using DALL·E 3.
 

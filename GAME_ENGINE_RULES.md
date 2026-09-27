@@ -177,22 +177,22 @@ Turns rotate **round-robin** through the party in order of party index.
 
 ### `perform`
 
-A narrative action chosen from the AI's three suggestions, or typed in by the player. Always involves a stat roll.
+A narrative action typed (or spoken) by the player, or picked from ideas the player asked for. Always involves a stat roll. Item use/give and riddle answers are the actions that do not roll (see below).
 
 Flow:
 1. Player submits action text + chosen stat + difficulty label.
 2. Backend resolves the effective target: `difficultyValue` (per-choice AI override) if present, otherwise the base difficulty threshold.
 3. Backend rolls `d20 + effective stat` vs. the resolved target.
 4. Outcome (success/fail, roll, damage, resolved target) is sent to AI as structured input.
-5. AI narrates what happened and provides three new choices, each with a suggested `difficultyValue`.
-6. If failed, acting character takes damage; if 0 HP, marked as downed.
+5. AI narrates what happened. No suggestions are generated with the turn: ideas (three choices, each with a suggested `difficultyValue`) come only when a player asks, see `MULTI_AGENT_WORKFLOW.md` (Ideas on request).
+6. If failed, acting character may take damage (failed support/healing actions do not hurt the actor); if 0 HP, marked as downed.
 7. AI may suggest a new inventory item to grant via `suggestedInventoryAdd`; backend assigns it a random ID and adds it to the acting character's inventory unless any party member already carries the same item.
 8. AI may suggest evolving an existing item via `suggestedInventoryUpdate`; backend only applies bounded changes to a real carried item.
 9. AI may suggest removing an item via `suggestedInventoryRemove` (used for trades - see Trading below).
 
 ### Choice flavors
 
-AI-suggested choices may include a `flavor` field so the UI and future mechanics can recognize the shape of the opportunity.
+Ideas (AI-suggested choices, generated on request) may include a `flavor` field so the UI and future mechanics can recognize the shape of the opportunity.
 
 | Flavor | Meaning |
 |--------|---------|
@@ -205,7 +205,7 @@ AI-suggested choices may include a `flavor` field so the UI and future mechanics
 
 `environment` choices should name the concrete feature they use, such as a collapsing bridge, flooded tunnel, unstable rune circle, living vines, sliding walls, falling stones, magical fog, or brittle ice.
 
-No more than two choices in one AI response may use bonus-bearing flavors: `combo`, `item`, `social`, or `spotlight`. Each turn should leave room for at least one non-bonus, environmental, or standard option.
+No more than two choices in one set of ideas may use bonus-bearing flavors: `combo`, `item`, `social`, or `spotlight`. Each turn should leave room for at least one non-bonus, environmental, or standard option.
 
 ### `use_item`
 
@@ -233,7 +233,7 @@ Rules:
 
 ### Trading
 
-When a merchant, vendor, or trader appears in the story, the AI may include a trade action among the choices.
+When a merchant, vendor, or trader appears in the story, players can offer a trade in their own words, and ideas may include a trade action.
 
 On a successful trade action:
 - The AI returns both `suggestedInventoryAdd` (the new item received) and `suggestedInventoryRemove` (the item name traded away).
@@ -244,8 +244,8 @@ On a successful trade action:
 
 Riddle answers resolve against authoritative server state (`session_riddles`, `riddleService.ts`), not against the choices on screen.
 
-- **Recording.** The narration that poses a riddle also returns its answer (`posesRiddle`, `riddle.canonicalAnswer`, `riddle.aliases`). The riddle is recorded in the same commit as that turn. If narration poses a riddle without a usable answer, one bounded extraction call runs before the commit; if that fails too, the riddle is recorded as "answer unknown". Turns from before this (no recorded riddle) fall back to the answer choice flagged correct by the choices agent; unflagged choices never establish an answer.
-- **Answer choices follow the riddle.** The choices agent runs in parallel with narration and never sees it, so its answer choices are rebuilt after both finish: the recorded answer becomes the correct choice (in random position), another guess stays as the wrong one, and answer choices for a riddle nobody posed become ordinary actions.
+- **Recording.** The narration that poses a riddle also returns its answer (`posesRiddle`, `riddle.canonicalAnswer`, `riddle.aliases`). The riddle is recorded in the same commit as that turn. If narration poses a riddle without a usable answer, one bounded extraction call runs before the commit; if that fails too, the riddle is recorded as "answer unknown". Legacy turns from before this (no recorded riddle) fall back to the stored answer choice flagged correct by the choices agent; unflagged choices never establish an answer.
+- **Answer choices follow the riddle.** Turns carry no choices; when a player asks for ideas while a riddle is open, the choices agent's answer choices are rebuilt against the recorded riddle (`syncRiddleChoices`): the recorded answer becomes the correct choice (in random position), another guess stays as the wrong one, and answer choices for a riddle nobody posed become ordinary actions.
 - **Privacy.** Answers and correctness never leave the server. Clients see `kind: 'riddle_answer'` on answer choices, meaning "no dice roll", nothing more.
 - **Judging.** Only the answer the player asserts counts, in their own words (for a confirmed preview, the original text, not the model's rewrite). "not a jailer" rules an answer out; it does not answer. Matching is whole-word after normalization ("The piano!", "a grand piano" match "a piano").
 - **Outcomes.** A correct or definite wrong answer resolves without a roll. A correct answer marks the riddle solved in the same commit as the turn; a wrong one leaves it open.
@@ -365,15 +365,15 @@ After `resolveBy + 2` actions without resolution, `continueOffered` is set and v
 
 Every gameplay write goes through `commitTurn` (atomic state + history + revision + operation result). Player turns also share one finalizer (`backend/src/services/turnFinalizer.ts`); the paths differ only in how the turn is resolved:
 
-| Path | Entry | Roll | Advances turn / rotates actor | Counts toward one-evening pacing | Suggestions after | Enrichment (image, summary) |
+| Path | Entry | Roll | Advances turn / rotates actor | Counts toward one-evening pacing | Ideas after | Enrichment (image, summary) |
 |---|---|---|---|---|---|---|
-| Suggested choice | `POST /action` with `choiceId` (text equal to a label is free text, never a choice) | Yes, from the stored choice descriptor (stat, difficulty, bonuses) | Yes / yes | Yes | Yes | Yes |
-| Free text | `POST /action` (optionally with a `previewId`) | Yes, from the stored preview when confirmed (kind, actor, target, intent, stat, difficulty), else the submitted stat/difficulty | Yes / yes | Yes | Yes | Yes |
-| Item use / give | `POST /action` with `actionType` + `itemId`, or a `previewId` whose stored kind is an item action | No (deterministic effect) | Yes / yes | Yes | Yes | Yes (previously skipped: fixed) |
-| Opening turn | `POST /start`, instant start | No | Turn set to 2 / no | No | Yes | Scene image |
-| Rescue / sanctuary | Follow-up inside the operation that wiped the party | No | Yes / resets to first hero | No | Yes | Summary refresh |
+| Idea (suggested choice) | `POST /action` with `choiceId` (text equal to a label is free text, never a choice) | Yes, from the stored choice descriptor (stat, difficulty, bonuses) | Yes / yes | Yes | On request | Yes |
+| Free text | `POST /action` (optionally with a `previewId`) | Yes, from the stored preview when confirmed (kind, actor, target, intent, stat, difficulty), else the submitted stat/difficulty | Yes / yes | Yes | On request | Yes |
+| Item use / give | `POST /action` with `actionType` + `itemId`, or a `previewId` whose stored kind is an item action | No (deterministic effect) | Yes / yes | Yes | On request | Yes |
+| Opening turn | `POST /start`, instant start | No | Turn set to 2 / no | No | On request (onboarding asks once automatically) | Scene image |
+| Rescue / sanctuary | Follow-up inside the operation that wiped the party | No | Yes / resets to first hero | No | On request | Summary refresh |
 | Conclusion | Follow-up after a resolved finale, or `POST /adventure/end` | No | No / no | No | None | None |
-| Chapter start | `POST /adventure/continue` | No | Yes / no | No (new chapter counters) | Yes | None |
+| Chapter start | `POST /adventure/continue` | No | Yes / no | No (new chapter counters) | On request | None |
 
 Rules shared by all player turns (`turnActionInput.ts`): the session must not be game over or ending; item turns obey the namespace turn limit like any other turn; downed heroes cannot take rolled actions but items can be used on or by them; a stale `choiceId` or `previewId` is rejected with 409 instead of being guessed.
 
@@ -403,7 +403,7 @@ To keep AI context lean across long sessions, the backend maintains a compressed
 
 The AI is a narrator, not an authority. It:
 
-- **Can**: narrate outcomes, suggest choices, propose inventory adds/removes/updates, describe scenes, generate image prompts, return a roll flavour comment (`rollNarration`), and declare the current tension level (`currentTensionLevel`).
+- **Can**: narrate outcomes, suggest ideas when asked, propose inventory adds/removes/updates, describe scenes, generate image prompts, return a roll flavour comment (`rollNarration`), and declare the current tension level (`currentTensionLevel`).
 - **Cannot**: directly change HP, directly move or mutate items, change who is downed, set difficulty, alter turn order.
 
 All of the above are backend-owned. The AI receives a snapshot of the current state (including outcomes already resolved by the backend) and returns structured JSON. The backend validates and applies only the fields it trusts.
@@ -436,7 +436,7 @@ The AI receives two distinct character references per turn:
 - `actingCharacterName` : the character who performed the action that produced this turn (the one whose roll just resolved).
 - `nextCharacterName` : the character who will act next (the current `activeCharacterId` after turn rotation).
 
-This separation ensures the AI can accurately narrate what *just happened* to the acting character while addressing the next player's upcoming choices correctly.
+This separation ensures the AI can accurately narrate what *just happened* to the acting character while addressing the next hero correctly.
 
 ---
 

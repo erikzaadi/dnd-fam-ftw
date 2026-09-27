@@ -145,8 +145,9 @@ export const OnboardingOverlay = ({
         <div className="w-72 bg-slate-900/90 backdrop-blur-md border border-amber-600/40 rounded-2xl shadow-xl shadow-black/60 px-4 py-3 animate-in fade-in duration-300">
           <CalloutTitle>Your turn</CalloutTitle>
           <CalloutBody>
-            Pick an action from the dock below - or type your own and hit{' '}
-            <span className="text-amber-300 font-bold">Unleash</span>. Your hero attempts it and the DM narrates what happens.
+            Type what your hero tries in the box below and hit{' '}
+            <span className="text-amber-300 font-bold">Unleash</span>. Your hero attempts it and the DM narrates what happens. Stuck? Tap{' '}
+            <span className="text-sky-300 font-bold">Give me ideas</span>.
           </CalloutBody>
           <CalloutButton onClick={onAdvance}>Got it</CalloutButton>
           <p className="text-amber-500 text-center text-sm mt-2 animate-bounce">↓</p>
@@ -160,7 +161,7 @@ export const OnboardingOverlay = ({
     return (
       <BottomPanel title="That was the roll" cta="Got it" onAdvance={onAdvance}>
         <p>
-          When a hero attempts something, a <span className="text-amber-300 font-bold">d20 is rolled</span> and their relevant stat bonus is added. Beat the difficulty target and it succeeds - fall short and there are consequences.
+          When a hero attempts something, a <span className="text-amber-300 font-bold">d20 is rolled</span> and their relevant stat bonus is added. Meet or beat the difficulty target and it succeeds - fall short and there are consequences.
         </p>
         <p>
           The popup shows the exact breakdown: roll + bonuses vs target. HP changes and item effects appear there too.
@@ -210,10 +211,10 @@ export const OnboardingOverlay = ({
     return (
       <BottomPanel title="Support Actions" cta="Let's go!" onAdvance={onAdvance}>
         <p>
-          The active hero can support the party instead of acting alone. Tap the <span className="text-emerald-300 font-bold">✦ button</span> in the party bar for a <span className="text-amber-300 font-bold">party boost</span> - a roll to inspire everyone at once.
+          The active hero can support the party instead of acting alone. Open <span className="text-emerald-300 font-bold">Help someone</span> under the action box and pick <span className="text-amber-300 font-bold">Rally everyone</span> - a roll to inspire everyone at once.
         </p>
         <p>
-          Tap any hero's portrait to open their sheet. From there you can <span className="text-blue-300 font-bold">Bless</span> them (a magical edge) or <span className="text-emerald-300 font-bold">Aid</span> them (a setup bonus for their next action). All three show a confirmation preview before you commit.
+          Help someone also lists each ally, or tap any hero's portrait to open their sheet. From there you can <span className="text-blue-300 font-bold">Bless</span> them (a magical edge) or <span className="text-emerald-300 font-bold">Aid</span> them (a setup bonus for their next action). All three show a confirmation preview before you commit.
         </p>
         <p>
           You can also open the <span className="text-indigo-300 font-bold">inventory</span> and tap <span className="text-indigo-300 font-bold">Enchant</span> on any item to try upgrading it in the scene.

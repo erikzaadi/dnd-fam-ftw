@@ -81,7 +81,7 @@ export const GetMeRollin = () => {
               </div>
             </div>
             <p className="text-slate-300 text-base md:text-lg leading-relaxed max-w-lg mx-auto">
-              Each turn you pick an action - or type your own - and one hero attempts it. A d20 roll plus their stat bonus decides success or failure. When all heroes fall, the campaign ends.
+              Each turn one hero tries something: type it in your own words, or ask for ideas if you are stuck. When a hero tries something, the game rolls a d20 for you and adds their stat bonus. If every hero falls, the party may be rescued; the adventure ends when no rescues are left.
             </p>
           </div>
 

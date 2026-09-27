@@ -54,9 +54,9 @@ Everything in the prose sections is narrative guidance - it shapes what the AI s
 ### What the AI does with each section
 
 - **PREMISE / VILLAIN / SECRETS** - Surface gradually via clues, dreams, NPC dialogue, and environmental hints. Secrets are not revealed all at once.
-- **RECURRING NPCS** - Named NPCs must appear in narration itself (speaking, reacting, looming) - not just as choice options.
-- **SETUP/PAYOFF** - When the party reaches the location described, the AI grants the quest object as a real inventory item. When the matching challenge appears later, one of the three choices explicitly uses that carried item and is easier or safer than brute force.
-- **RIDDLES** - Mention riddles, puzzles, or answer-based obstacles and the AI will occasionally introduce riddle scenes with structured answer choices.
+- **RECURRING NPCS** - Named NPCs must appear in narration itself (speaking, reacting, looming) - not just in suggested ideas.
+- **SETUP/PAYOFF** - When the party reaches the location described, the AI grants the quest object as a real inventory item. When the matching challenge appears later, the narration hints that the carried item could help, and ideas (when a player asks for them) tend to include using it. Nothing forces the players to use it.
+- **RIDDLES** - Mention riddles, puzzles, or answer-based obstacles and the AI will occasionally pose a riddle. Players answer in their own words; the server checks the answer against the one recorded when the riddle was posed (see `GAME_ENGINE_RULES.md`, Riddles).
 - **TONE / DM NOTE** - Inform pacing and narrative register throughout the session.
 
 ---
@@ -166,7 +166,7 @@ Optional. A thematic item description tied to this encounter. The AI uses it to 
 
 ## How seeds trigger
 
-The AI is instructed to start a seed encounter when the current scene, action result, or story momentum matches the seed's `triggerHint`. The backend also runs a separate inferred check against narration text - if the narration contains words from the trigger hint, it will auto-start the encounter even if the AI did not explicitly propose it.
+The combat agent is instructed to start a seed encounter when the current scene, action result, or story momentum matches the seed's `triggerHint`. In the default resolved-first turn strategy, only that proposal can start a fight. The opt-out `AI_TURN_STRATEGY=parallel` strategy (which also serves opening, rescue, and chapter-start turns) additionally runs an inferred check against narration text: if the narration contains words from the trigger hint, it auto-starts the encounter even if the combat agent did not propose it.
 
 When an encounter starts from a seed:
 1. The backend matches the encounter name against stored seeds.

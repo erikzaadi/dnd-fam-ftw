@@ -255,7 +255,7 @@ Email sign-in sends an 8-digit code valid for 10 minutes, usable only in the bro
 
 ## Live preview-choices evaluation (paid)
 
-`backend/src/scripts/evaluatePreviewChoices.ts` replays the 20 frozen synthetic fixtures in `backend/src/tests/fixtures/model-refresh-choices.ts` through the production choices flow (`runChoicesWithRetry`): one preview request plus at most one narration-tier retry per attempt. It supports the model refresh plan in `next-up-instructions/model-refresh-02-live-validation.md`. It makes **paid** provider requests and never runs from unit tests.
+`backend/src/scripts/evaluatePreviewChoices.ts` replays the 20 frozen synthetic fixtures in `backend/src/tests/fixtures/model-refresh-choices.ts` through the production choices flow (`runChoicesWithRetry`): one preview request plus at most one narration-tier retry per attempt. It was used to choose the preview model (see [Preview-tier request settings](#preview-tier-request-settings)); ideas use the same flow. It makes **paid** provider requests and never runs from unit tests.
 
 Run from `backend/`. `OPENAI_MAX_RETRIES=0` must be in the environment before the process starts. The script refuses to run otherwise, so every physical request counts against `--max-requests`:
 
@@ -303,7 +303,7 @@ Outputs, in `backend/data/model-refresh/`: `probes.jsonl`, `helpers.jsonl`, and 
 
 ### Preview-tier request settings
 
-Every preview-tier caller (initial choices, action previews, stat suggestions, session naming, encounter-name repair, image briefs, DM-prep compilation) sends `max_completion_tokens` and no `temperature`. `OPENAI_REASONING_EFFORT_PREVIEW` controls the optional `reasoning_effort` field for those requests only:
+Every preview-tier caller (ideas, action previews, stat suggestions, session naming, encounter-name repair, image briefs, DM-prep compilation) sends `max_completion_tokens` and no `temperature`. `OPENAI_REASONING_EFFORT_PREVIEW` controls the optional `reasoning_effort` field for those requests only:
 
 | Value | Request |
 |---|---|
@@ -312,9 +312,9 @@ Every preview-tier caller (initial choices, action previews, stat suggestions, s
 | `omit` | Never sent. Set this for OpenAI-compatible endpoints or custom models that reject the field |
 | anything else | Backend refuses to start |
 
-Narration-tier choices retries and all narration/async requests never receive preview settings. Reasoning-capable preview models default to medium reasoning on the provider side, which can spend a small helper's whole token budget, so the app sends `none` unless told otherwise.
+Narration-tier ideas retries and all narration/async requests never receive preview settings. Reasoning-capable preview models default to medium reasoning on the provider side, which can spend a small helper's whole token budget, so the app sends `none` unless told otherwise.
 
-The built-in preview model (`gpt-5.6-luna`) and its reasoning default (`none`) are defined together in `PREVIEW_DEFAULTS` (`backend/src/providers/ai/openAiClient.ts`) and roll back together. `gpt-4.1-nano` retires on 2026-10-23 and must not be restored as a default. Production does not pin either value: `deploy-backend.sh` leaves both unset, so the code defaults apply. Selection evidence is in `next-up-instructions/model-refresh-02-live-validation.md`. A preview reply that is empty with `finish_reason=length` logs a `console.warn` (`[AI] <caller> truncated: ...`) even though the caller falls back.
+The built-in preview model (`gpt-5.6-luna`) and its reasoning default (`none`) are defined together in `PREVIEW_DEFAULTS` (`backend/src/providers/ai/openAiClient.ts`) and roll back together. `gpt-4.1-nano` retires on 2026-10-23 and must not be restored as a default. Production does not pin either value: `deploy-backend.sh` leaves both unset, so the code defaults apply. It was selected on 2026-09-24 with this evaluation: in an interleaved same-session comparison against `gpt-4.1-nano` (60 samples each), it had fewer deadline misses (5 vs 8), escalations (6 vs 12) and final fallbacks (3 vs 6), with no schema failures or empty replies. A preview reply that is empty with `finish_reason=length` logs a `console.warn` (`[AI] <caller> truncated: ...`) even though the caller falls back.
 
 `[Metrics] turn_complete` log lines still include `choicesFailed=` and `choicesEscalated=`; both are always false now that turns carry no suggestions.
 
@@ -322,7 +322,7 @@ The built-in preview model (`gpt-5.6-luna`) and its reasoning default (`none`) a
 
 Turns never pre-generate suggested choices, in either turn pipeline (or the opening, rescue, and chapter-start turns): no choices agent, retry, rerun, or deterministic fallback runs per turn, and narration ends with an open question to the next hero. Players type what they try, or press **Give me ideas**, which calls `POST /session/:id/ideas` (same choices path, run on request, shared by every viewer, never advancing the story; 6 generations per session per minute).
 
-Per realm, the ⚙ menu setting **Ideas every turn** (`sessions.auto_ideas`) makes open views ask for ideas once after each turn; turns themselves stay fast. Turns saved before ideas moved on demand still show their stored choices.
+Per adventure, the ⚙ menu setting **Ideas every turn** (`sessions.auto_ideas`) makes open views ask for ideas once after each turn; turns themselves stay fast. Turns saved before ideas moved on demand still show their stored choices.
 
 **Ask the DM** (`POST /session/:id/ask`, Session button, terminal `ask dm ...`, car "ask the DM ...") answers a question about the current scene in a sentence or two, from public facts only (never DM Prep, the chapter plan, or a riddle's answer). It is transient: nothing is stored, the story and revision do not move. 6 questions per session per minute; rejected while an action resolves or when the question targets an older turn or revision. (The `CHOICES_ON_DEMAND` opt-out was removed on 2026-09-25.)
 
