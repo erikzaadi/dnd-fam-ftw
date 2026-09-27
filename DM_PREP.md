@@ -172,7 +172,7 @@ Optional. A short string shown in the encounter panel and passed to the AI. Use 
 
 ### lootHint
 
-Optional. A thematic item description tied to this encounter. The AI uses it to flavor loot grants after the encounter resolves. It does not guarantee a drop - the actual drop frequency still follows difficulty rules.
+Optional. A thematic item tied to this encounter. When the encounter resolves, the hero who ended it receives this item (with +1 to their strongest stat) unless someone in the party already carries it, and the turn's narration mentions it. Seeds without a `lootHint` follow the normal difficulty-based loot rules (see `GAME_ENGINE_RULES.md`).
 
 ---
 
