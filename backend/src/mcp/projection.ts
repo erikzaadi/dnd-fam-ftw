@@ -89,7 +89,7 @@ export const toEncounterView = (encounter: EncounterState): McpEncounter => {
       hp: enemy.hp,
       maxHp: enemy.maxHp,
       status: enemy.status,
-      knownWeaknesses: (enemy.weaknesses ?? []).filter(weakness => weakness.revealed).map(weakness => weakness.label),
+      knownWeaknesses: (enemy.weaknesses ?? []).filter(weakness => weakness.revealed && !weakness.broken).map(weakness => weakness.label),
       traits: enemy.traits ?? [],
     })),
   };

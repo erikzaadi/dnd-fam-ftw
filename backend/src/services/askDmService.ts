@@ -80,7 +80,8 @@ export const buildAskContext = (session: SessionState, latestNarration: string |
   const encounter = session.encounterState;
   if (encounter?.status === 'active') {
     lines.push(`Fight: ${encounter.name}. Foes: ` + encounter.enemies.map(enemy => {
-      const weak = (enemy.weaknesses ?? []).map(w => w.label).filter(Boolean);
+      // Same as the encounter panel: only discovered, unbroken weaknesses.
+      const weak = (enemy.weaknesses ?? []).filter(w => w.revealed && !w.broken).map(w => w.label).filter(Boolean);
       return `${enemy.name} (${enemy.hp}/${enemy.maxHp} HP, ${enemy.status}${weak.length > 0 ? `, weak point: ${weak.join(', ')}` : ''})`;
     }).join('; '));
   }

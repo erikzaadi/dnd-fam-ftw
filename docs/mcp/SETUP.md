@@ -126,5 +126,5 @@ curl -s http://localhost:3001/mcp \
 | Claude (web) | claude.ai | | works (2026-09-26, after accepting extra grant types in its client metadata document) | works (2026-09-26) | `generate_scene_image` shows the painted scene inline (2026-09-26) |
 | Claude Code | not yet tested | | not yet tested | | |
 | Codex CLI | 0.157.0 | `http_headers` with a direct bearer works; `bearer_token_env_var` reported the variable unset once (likely an environment setup issue, not rechecked) | not yet tested | works (2026-09-26) | preview, confirm, and Esc to stop the Undo window work (2026-09-26) |
-| Codex desktop app | | | | | create and play work (2026-09-26) |
+| Codex desktop app | | | works (2026-09-26) | | create and play work (2026-09-26) |
 | Cursor | not yet tested | | not yet tested | | |

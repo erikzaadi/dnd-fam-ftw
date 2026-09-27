@@ -53,7 +53,7 @@ jobs:
 
       - uses: ./.github/actions/setup-playwright
         with:
-          install-command: npm install && npm run install:all && npm run build:shared
+          install-command: npm install && npm run install:all
 
       - name: Download snapshot baselines from S3
         if: github.event.inputs.update_snapshots != 'true'

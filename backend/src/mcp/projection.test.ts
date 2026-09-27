@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EncounterState } from '../types.js';
-import { toCombatView } from './projection.js';
+import { toCombatView, toEncounterView } from './projection.js';
 
 const encounter = (overrides: Partial<EncounterState> = {}): EncounterState => ({
   id: 'enc-1',
@@ -20,9 +20,16 @@ const encounter = (overrides: Partial<EncounterState> = {}): EncounterState => (
     weaknesses: [
       { id: 'w1', label: 'cracked moonstone', revealed: true },
       { id: 'w2', label: 'secret rune', revealed: false },
+      { id: 'w3', label: 'shattered eye', revealed: true, broken: true },
     ],
   }],
   ...overrides,
+});
+
+describe('toEncounterView', () => {
+  it('lists only discovered, unbroken weaknesses, like the encounter panel', () => {
+    expect(toEncounterView(encounter()).enemies[0].knownWeaknesses).toEqual(['cracked moonstone']);
+  });
 });
 
 describe('toCombatView', () => {

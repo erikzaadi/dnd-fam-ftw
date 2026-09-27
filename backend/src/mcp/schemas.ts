@@ -80,7 +80,7 @@ export const encounterSchema = z.object({
     hp: z.number(),
     maxHp: z.number(),
     status: z.string(),
-    // Only weaknesses the heroes have already discovered.
+    // Only weaknesses the heroes have discovered and not yet broken (matches the encounter panel).
     knownWeaknesses: z.array(z.string()),
     traits: z.array(z.string()),
   })),
