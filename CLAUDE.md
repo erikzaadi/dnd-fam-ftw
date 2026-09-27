@@ -61,7 +61,7 @@ backend/src/
   services/
     stateService.ts                # SQLite via libsql - all DB access
     authService.ts                 # Google OAuth + JWT
-    aiDmService.ts                 # GPT-4o narration
+    aiDmService.ts                 # Narration entry point (calls dmTurnOrchestrator.ts)
     imageService.ts                # OpenAI-compatible image generation
     gameEngine.ts                  # Dice, damage, turn mechanics
     storySummaryService.ts         # Rolling story compression
@@ -91,8 +91,14 @@ terraform/                         # AWS infrastructure
 
 ## Keeping docs up to date
 
-- **`README.md`** - update if adding a major feature or changing dev/deploy steps
-- **`MANAGE.md`** - update if adding/changing CLI commands, deploy scripts, or env vars
+- **`README.md`** - short entry point: update only for a major feature or a change to the local quickstart
+- **`MANAGE.md`** - update if adding/changing CLI commands
+- **`docs/configuration.md`** (and `.env.example`) - update if adding/changing env vars
+- **`docs/operations.md`** - update if changing deploy scripts, CI/CD, releases, backups
+- **`docs/architecture.md`** - update if changing the turn flow, AI calls, or SSE events; pipeline internals go in `MULTI_AGENT_WORKFLOW.md`
+- **`docs/ai-evaluation.md`** - update if adding/changing evaluation scripts
+- **`CONTRIBUTING.md`** - update if the contributor workflow or checks change
+- **`CREDITS.md`** - update when adding bundled images, music or sound effects
 - **`GAME_ENGINE_RULES.md`** - update if changing `gameEngine.ts` logic, difficulty, or turn types
 - **`DM_PREP.md`** - update if changing DM Prep processing, encounter seed schema, or how seeds trigger
 - **`frontend/src/pages/HowToPlay.tsx`** - update when gameplay rules or player-visible flow changes
@@ -100,6 +106,7 @@ terraform/                         # AWS infrastructure
 ## Coding conventions
 
 - **No em dashes** - use a hyphen or colon instead
+- **Vocabulary** in player-visible text and docs: realm = shared group space (`namespace` in code), adventure = one playable story (`session` in code), chapter = continuation, hero = character. Keep code/API names as they are.
 - **All `if` statements must have braces** on a new line (ESLint `curly` rule)
 - **Tooltips**: always use `frontend/src/components/Tooltip.tsx`. Reference pattern: `frontend/src/components/game/ActionDock.tsx`. Use `portal` tooltips inside overflow/scroll containers. Never use the native `title` attribute.
 - TypeScript strict mode on in all three packages (backend, frontend, packages/shared).

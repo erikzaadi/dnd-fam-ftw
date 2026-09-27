@@ -15,7 +15,7 @@ This is a **lightweight, story-driven, AI-powered adventure engine**.
 - AI owns **storytelling and flavor**
 - UI is **simple, fun, and fast**
 - Keep everything **family-friendly, humorous, and accessible**
-- Optimize for **short sessions (60–90 minutes)**
+- Optimize for **short sessions (60-90 minutes)**
 
 ---
 
@@ -181,7 +181,7 @@ Use ONLY 3 stats:
 The AI must be instructed:
 
 - You are a **funny, family-friendly fantasy DM**
-- Keep narration **short (2–4 sentences)**
+- Keep narration **short (2-4 sentences)**
 - Always return **exactly 3 suggested actions**
 - Keep tone **whimsical, safe, playful**
 - Do NOT invent or modify game state

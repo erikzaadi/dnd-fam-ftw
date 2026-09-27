@@ -7,7 +7,7 @@
 #
 # Recovery point: at most ~24h of adventures can be lost (daily schedule).
 # Recovery time: a restore stops the service for the copy only (seconds) plus workflow
-# runtime; see restore-db.yml and MANAGE.md.
+# runtime; see restore-db.yml and docs/operations.md.
 #
 # Required secrets in the 'production' environment (shared with deploy workflow):
 #   AWS_ACCESS_KEY_ID     - from terraform output app_access_key_id

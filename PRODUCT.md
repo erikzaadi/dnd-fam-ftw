@@ -6,11 +6,11 @@ product
 
 ## Users
 
-Mixed ages at the table - parents and older kids both interact directly with the app. The primary context is a family sitting together for a short, low-prep game night. Nobody at the table needs D&D experience. Kids pick actions; parents may handle session setup and hero management. Attention spans are short and the energy is collaborative chaos.
+Mixed ages at the table - parents and older kids both interact directly with the app. The primary context is a family sitting together for a short, low-prep game night. Nobody at the table needs D&D experience. Kids type or say what their hero tries; parents may handle adventure setup and hero management. Attention spans are short and the energy is collaborative chaos.
 
 ## Product Purpose
 
-An AI Dungeon Master that runs family-friendly D&D sessions end-to-end. No prep required - pick heroes, describe a realm, and the AI narrates, illustrates, and adjudicates every turn. Success looks like a family laughing through a 30-minute adventure with a story worth retelling.
+An AI Dungeon Master that runs family-friendly D&D sessions end-to-end. No prep required - pick heroes, describe a setting, and the AI narrates, illustrates, and adjudicates every turn. Success looks like a family laughing through a 30-minute adventure with a story worth retelling.
 
 ## Brand Personality
 
@@ -37,4 +37,4 @@ A coherent adventure for one evening: start quickly, discover a clear problem, l
 
 ## Accessibility & Inclusion
 
-WCAG AA minimum. Mixed-age users means readable font sizes at tablet distance. High contrast for game-critical information (HP, roll results). No accessibility-hostile hover-only interactions; the app is used on tablets and phones at the table.
+Requirement: WCAG AA minimum (a design target, not a claim of audited compliance). Mixed-age users means readable font sizes at tablet distance. High contrast for game-critical information (HP, roll results). No accessibility-hostile hover-only interactions; the app is used on tablets and phones at the table.

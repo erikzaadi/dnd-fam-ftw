@@ -4,6 +4,16 @@ This document describes the complete mechanical rules for the AI DM game engine.
 
 ---
 
+## Contents
+
+- **Player mechanics:** [Stats](#stats) · [Rolling](#rolling) · [Damage](#damage) · [HP & Downed State](#hp--downed-state) · [Turn Rotation](#turn-rotation) · [Action Types](#action-types) · [Item Properties](#item-properties) · [Party Wipe & Recovery](#party-wipe--recovery) · [Game Mode](#game-mode) · [Difficulty Settings](#difficulty-settings)
+- **Story and AI:** [Adventure Lifecycle (one evening vs long-lived)](#adventure-lifecycle-one-evening-vs-long-lived) · [AI Role & Constraints](#ai-role--constraints) · [Rolling Story Summary](#rolling-story-summary) · [DM Prep](#dm-prep) · [Image Generation](#image-generation) · [Character History](#character-history)
+- **Persistence and turn plumbing:** [Turn Paths](#turn-paths) · [Operations and Revisions](#operations-and-revisions) · [Downed Character UI Rules](#downed-character-ui-rules)
+
+Player-facing wording of these rules lives in `frontend/src/pages/HowToPlay.tsx`; how the AI agents produce a turn is in [MULTI_AGENT_WORKFLOW.md](MULTI_AGENT_WORKFLOW.md).
+
+---
+
 ## Stats
 
 Every hero has three stats. Stats range from 1 (bad) to 5 (exceptional), set at character creation.

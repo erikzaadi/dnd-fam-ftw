@@ -20,7 +20,7 @@ General hardening ideas are fine as a normal issue labeled `security`. Anything 
 
 ## First local run
 
-Follow [Getting Started in the README](README.md#getting-started). In short: Node 24, a root `.env` with at least `OPENAI_API_KEY`, `npm run install:all`, `npm run dev`, then open `http://localhost:5173/`.
+Follow [Run it locally in the README](README.md#run-it-locally). In short: Node 24, a root `.env` with at least `OPENAI_API_KEY`, `npm run install:all`, `npm run dev`, then open `http://localhost:5173/`.
 
 Normal gameplay calls your configured AI provider and can cost money. Tests and Playwright runs use mocked narration and make no paid calls.
 
@@ -34,14 +34,14 @@ Normal gameplay calls your configured AI provider and can cost money. Tests and 
 | `terraform/`, `scripts/` | AWS infrastructure and deploy scripts |
 | `docs/` | Screenshots and the MCP (AI assistant) guides |
 
-Reference docs: [GAME_ENGINE_RULES.md](GAME_ENGINE_RULES.md) (mechanics), [MULTI_AGENT_WORKFLOW.md](MULTI_AGENT_WORKFLOW.md) (how a turn is generated), [DM_PREP.md](DM_PREP.md), [MANAGE.md](MANAGE.md) (CLI, configuration, operations), [PRODUCT.md](PRODUCT.md) (design intent). [CLAUDE.md](CLAUDE.md) holds the coding conventions and instructions for AI coding assistants; its conventions apply to everyone.
+Reference docs: [GAME_ENGINE_RULES.md](GAME_ENGINE_RULES.md) (mechanics), [MULTI_AGENT_WORKFLOW.md](MULTI_AGENT_WORKFLOW.md) (how a turn is generated), [DM_PREP.md](DM_PREP.md), [docs/architecture.md](docs/architecture.md), [docs/configuration.md](docs/configuration.md), [docs/operations.md](docs/operations.md), [MANAGE.md](MANAGE.md) (CLI), [PRODUCT.md](PRODUCT.md) (design intent). [CLAUDE.md](CLAUDE.md) holds the coding conventions and instructions for AI coding assistants; its conventions apply to everyone.
 
 ## Making a change
 
 1. Branch from `main` and keep each pull request to one topic.
 2. Follow the conventions: no em dashes (use a hyphen or colon), braces on every `if`, `Tooltip.tsx` instead of `title`, `devLog` for debug logging, shared API types in `packages/shared/src/types.ts`.
 3. Add or update tests for behavior changes. Copy-only changes do not need snapshot tests that freeze the wording.
-4. Update the docs the change affects: player-visible rules in `frontend/src/pages/HowToPlay.tsx`, mechanics in `GAME_ENGINE_RULES.md`, CLI/env in `MANAGE.md` and `.env.example`. If controls moved, regenerate screenshots (below).
+4. Update the docs the change affects: player-visible rules in `frontend/src/pages/HowToPlay.tsx`, mechanics in `GAME_ENGINE_RULES.md`, CLI in `MANAGE.md`, env vars in `docs/configuration.md` and `.env.example`. If controls moved, regenerate screenshots (below).
 5. In the pull request, say what you checked and how. "Ran lint and unit tests" and "clicked through one turn locally" are both useful; please do not claim checks you did not run.
 
 ## Checks

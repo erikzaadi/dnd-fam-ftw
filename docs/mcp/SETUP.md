@@ -8,7 +8,7 @@ Status: opt-in pilot. Founding Realms (or the tiers in `MCP_DEFAULT_TIERS`) have
 
 ## Server setup (operator)
 
-1. Auth must be on (`AUTH_MODE=enabled`). Set `MCP_ENABLED=true`, and optionally `MCP_PUBLIC_URL=https://<api domain>/mcp`. See [MANAGE.md](../../MANAGE.md#sign-in-and-signup-settings).
+1. Auth must be on (`AUTH_MODE=enabled`). Set `MCP_ENABLED=true`, and optionally `MCP_PUBLIC_URL=https://<api domain>/mcp`. See [configuration.md](../configuration.md#sign-in-and-signup-settings).
 2. Choose who gets access. Members of realms whose tier is in `MCP_DEFAULT_TIERS` (default `unlimited`, the Founding Realms) have it automatically. Anyone else can press **Request access** under **Settings > AI assistants**; approve with `npm run cli -- mcp-requests approve <id>` (you get an email per request), or grant directly with `npm run cli -- users mcp-access <email> on`.
 3. `MCP_ENABLED=false` closes the endpoint again without affecting website login. `users mcp-access <email> off` or `users mcp-revoke <email>` cut off one player (tokens and connected assistants). A realm that drops to a tier outside `MCP_DEFAULT_TIERS` loses access for members without an `on` override.
 4. Optional, sign-in for assistants: set `MCP_OAUTH_ENABLED=true`. It needs `MCP_PUBLIC_URL` at the origin root (`https://<api domain>/mcp`) and `FRONTEND_URL` (the consent page lives on the website); startup fails otherwise. `MCP_OAUTH_ENABLED=false` stops sign-in, token refresh, and every OAuth access token right away, while personal access tokens and disconnecting keep working. `npm run cli -- mcp-grants list` shows connected assistants; `mcp-grants revoke <id>` ends one.
