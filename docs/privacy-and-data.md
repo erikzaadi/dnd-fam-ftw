@@ -46,7 +46,7 @@ Database backups (on the author's AWS setup: daily, kept 90 days, see [operation
 
 ## Hosted instance
 
-Open items, pending the operator's policy for the hosted instance:
+The author runs a public instance at [dnd-fam-ftw.erikzaadi.com](https://dnd-fam-ftw.erikzaadi.com) on the AWS setup in [operations.md](operations.md). Open items, pending its policy:
 
 - Retention of adventures and accounts that are no longer used.
 - Which AI provider account and data-retention settings the hosted instance uses.

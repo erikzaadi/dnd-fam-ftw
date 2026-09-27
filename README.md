@@ -6,6 +6,8 @@ A family-friendly story game for short, hilarious evenings. You pick heroes, the
 
 ![A scene with narration and the action box](docs/story-scene.png)
 
+**Play now:** [dnd-fam-ftw.erikzaadi.com](https://dnd-fam-ftw.erikzaadi.com), sign up with just your email
+
 **Jump to:** [Run it locally](#run-it-locally) · [How to play](#how-to-play) · [Play from your AI assistant](#play-from-your-ai-assistant) · [Contribute](CONTRIBUTING.md) · [Operate](docs/operations.md) · [All docs](#documentation)
 
 ---

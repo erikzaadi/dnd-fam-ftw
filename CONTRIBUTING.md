@@ -9,7 +9,7 @@ Bug reports, small fixes, documentation corrections and ideas are all welcome. F
 Open a [GitHub issue](https://github.com/erikzaadi/dnd-fam-ftw/issues) with:
 
 - What you did, what you expected, and what happened instead.
-- Where: the hosted site or your own setup, browser and device, and the commit you are running if self-hosted.
+- Where: the hosted site ([dnd-fam-ftw.erikzaadi.com](https://dnd-fam-ftw.erikzaadi.com)) or your own setup, browser and device, and the commit you are running if self-hosted.
 - Steps to reproduce, if you have them. A session history JSON (`/api/session/<id>/history`) helps a lot for story or turn bugs.
 
 Please redact before posting: API keys, access tokens, email addresses, and any story text you would not want public (family names, private jokes).
