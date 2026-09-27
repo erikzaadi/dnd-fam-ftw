@@ -2,7 +2,7 @@
 
 React 19 + Vite + Tailwind CSS 4 + TypeScript. The player-facing web app: home, adventure creation, hero assembly, the play screen, recap, settings, and the car and terminal modes.
 
-Setup, environment variables and the full dev loop are in the [root README](../README.md). Run commands from the repo root: `npm run dev` starts the backend on `:3001` and this app on `http://localhost:5173/`, with `/api/*` proxied to the backend.
+Setup, environment variables and the full dev loop are in the [root README](../README.md); contribution workflow and checks are in [CONTRIBUTING.md](../CONTRIBUTING.md). Run commands from the repo root: `npm run dev` starts the backend on `:3001` and this app on `http://localhost:5173/`, with `/api/*` proxied to the backend.
 
 ## Layout
 

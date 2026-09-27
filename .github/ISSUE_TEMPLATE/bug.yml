@@ -1,0 +1,26 @@
+name: Bug report
+description: Something in the game or the docs is broken or wrong
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks! Please redact API keys, tokens, email addresses and any private story text.
+        Security holes: use "Report a vulnerability" on the Security tab instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Optional. A session history JSON (/api/session/<id>/history) helps for story or turn bugs.
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: Hosted site or self-hosted (commit), browser and device.
