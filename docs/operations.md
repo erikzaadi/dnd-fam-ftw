@@ -12,7 +12,7 @@ Self-hosting does not require AWS. The app is:
 - **Images:** a local directory (`IMAGE_STORAGE_PROVIDER=local`) or an S3 bucket behind a public URL.
 - **TLS and a domain** if anyone other than you will sign in (Google OAuth and secure cookies need https).
 
-The AWS setup below is one way to provide those pieces.
+The AWS setup below is one way to provide those pieces. What an instance stores and sends to AI providers is described in [privacy-and-data.md](privacy-and-data.md).
 
 ## AWS (the author's production setup)
 

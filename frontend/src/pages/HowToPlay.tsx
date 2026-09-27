@@ -218,6 +218,15 @@ export const HowToPlay = () => {
                 Heroes take turns in order. The active hero is highlighted in the party bar at the top. Only the active hero can perform actions, but ideas may spotlight their traits, involve another active hero's help, use carried gear, turn an NPC conversation into the challenge, or use a specific terrain hazard. Spotlight, social, team-up, and gear ideas can add small bonuses to the roll, and clever typed actions can earn those bonuses too when they clearly name the ally, item, or character trait they use.
               </p>
             </Section>
+
+            <Section title="🔒 Privacy and Source">
+              <p className="text-slate-300 text-lg leading-relaxed">
+                The story you play (scenes, heroes, your actions and any DM Prep) is sent to an AI service to write the narration and pictures. Pictures are stored at links anyone with the link can open. You can delete an adventure from the home screen at any time. Details: <a href="https://github.com/erikzaadi/dnd-fam-ftw/blob/main/docs/privacy-and-data.md" target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:text-amber-300 underline">privacy and data</a>.
+              </p>
+              <p className="text-slate-400 text-base mt-3 leading-relaxed">
+                This game is free software under the AGPL-3.0-or-later license. <a href="https://github.com/erikzaadi/dnd-fam-ftw" target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:text-amber-300 underline">Source code on GitHub</a>.
+              </p>
+            </Section>
           </div>
         </div>
       </div>

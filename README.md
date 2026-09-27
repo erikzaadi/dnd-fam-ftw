@@ -74,6 +74,7 @@ Other providers (OpenRouter, a LocalAI-compatible server), model choices, auth a
 | Contributors | [CONTRIBUTING.md](CONTRIBUTING.md), [frontend/README.md](frontend/README.md), [CLAUDE.md](CLAUDE.md) (conventions, AI assistant instructions) |
 | How it works | [docs/architecture.md](docs/architecture.md), [MULTI_AGENT_WORKFLOW.md](MULTI_AGENT_WORKFLOW.md), [GAME_ENGINE_RULES.md](GAME_ENGINE_RULES.md) |
 | Running an instance | [docs/configuration.md](docs/configuration.md), [docs/operations.md](docs/operations.md), [MANAGE.md](MANAGE.md) (CLI), [docs/ai-evaluation.md](docs/ai-evaluation.md) |
+| Privacy | [docs/privacy-and-data.md](docs/privacy-and-data.md): what is stored, what goes to AI providers, what you can delete |
 | Game masters | [DM_PREP.md](DM_PREP.md): notes that steer the story |
 | AI assistants | [docs/mcp/SETUP.md](docs/mcp/SETUP.md), [docs/mcp/PLAY_GUIDE.md](docs/mcp/PLAY_GUIDE.md) |
 | Design and history | [PRODUCT.md](PRODUCT.md), [how-it-all-started.md](how-it-all-started.md) (historical), [CREDITS.md](CREDITS.md) |
