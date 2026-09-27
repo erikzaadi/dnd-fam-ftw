@@ -411,6 +411,10 @@ Pick a difficulty, choose a **game pacing** mode (Cinematic for rich description
 
 ## License
 
-This project is licensed under the AGPL-3.0 [License](./LICENSE).
+Copyright (C) 2026 Erik Zaadi
 
-If you run a modified version of this software as a service, you must make the source code of your modifications available to users.
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version (`AGPL-3.0-or-later`). It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See [LICENSE](./LICENSE) for the full text.
+
+If you run a modified version of this software as a network service, you must make the source code of your modifications available to its users.
+
+Bundled music, sound effects and images have their own terms: see [CREDITS.md](CREDITS.md).
