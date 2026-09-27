@@ -57,7 +57,7 @@ export const CreateSession = () => {
     {
       id: 'realm-description',
       selector: '[data-tutorial="realm-description"]',
-      title: 'Realm description',
+      title: 'World description',
       body: 'This optional note steers the visible world: forests, castles, candy caves, spooky ruins, or anything else.',
       placement: 'top',
     },
@@ -72,7 +72,7 @@ export const CreateSession = () => {
       id: 'next-button',
       selector: '[data-tutorial="create-session-next"]',
       title: 'Next step',
-      body: 'This creates the realm, then sends you to assemble the heroes who will adventure there.',
+      body: 'This creates the adventure, then sends you to assemble the heroes who will adventure there.',
       placement: 'top',
     },
   ]);
@@ -161,8 +161,8 @@ export const CreateSession = () => {
               />
             ) : (
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-slate-400">Optional: steer the visible realm. Example: a moonlit candy forest with lost toy guards.</p>
-                <button onClick={() => setShowWorldDescription(true)} className="px-5 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-xs font-black uppercase tracking-widest">+ Realm Description</button>
+                <p className="text-sm text-slate-400">Optional: steer the world. Example: a moonlit candy forest with lost toy guards.</p>
+                <button onClick={() => setShowWorldDescription(true)} className="px-5 py-3 bg-slate-800 hover:bg-slate-700 rounded-2xl text-xs font-black uppercase tracking-widest">+ World Description</button>
               </div>
             )}
           </div>

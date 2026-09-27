@@ -423,7 +423,7 @@ export const SessionPage = () => {
         }
       } else if (e.key === 'q') {
         setConfirmDialog({
-          message: 'Exit this realm and return home?',
+          message: 'Exit this adventure and return home?',
           confirmLabel: 'Exit',
           onConfirm: () => {
             audioManager.stopMusic();
@@ -837,7 +837,7 @@ export const SessionPage = () => {
 
   const handleExitClick = () => {
     setConfirmDialog({
-      message: 'Exit this realm and return home?',
+      message: 'Exit this adventure and return home?',
       onConfirm: () => {
         audioManager.stopMusic();
         narrationTtsService.stopNarration();
@@ -919,7 +919,7 @@ export const SessionPage = () => {
               🚗
             </button>
           </Tooltip>
-          <Tooltip content="Exit realm [q]" position="bottom" align="right" portal>
+          <Tooltip content="Exit adventure [q]" position="bottom" align="right" portal>
             <button
               onClick={handleExitClick}
               className="w-11 h-11 flex items-center justify-center rounded-xl border border-rose-900/60 text-rose-500 hover:bg-rose-900/20 hover:border-rose-700 hover:text-rose-300 font-black text-sm transition-all"
@@ -1325,7 +1325,7 @@ export const SessionPage = () => {
             { key: '← ↓ / h j = older · → ↑ / l k = newer', action: 'Navigate turns (Chronicle open)' },
             { key: 'Enter', action: 'Expand turn detail (Chronicle open)' },
             { key: 's', action: 'Open / close settings' },
-            { key: 'q', action: 'Exit realm (with confirm)' },
+            { key: 'q', action: 'Exit adventure (with confirm)' },
             { key: 'p', action: 'Focus party box (shows banner)' },
             { key: 'e / a', action: 'Bless / Aid hovered or focused party member' },
             { key: 'r', action: 'Party rally (boon)' },

@@ -60,7 +60,7 @@ const TldrView = ({ sessionId, onEnter, hasTts }: { sessionId: string; onEnter: 
           <p className="font-narrative text-2xl text-slate-200 leading-relaxed italic text-center">{summary}</p>
           <NarrationTtsButton text={summary} ttsSettings={ttsSettings} hasTts={hasTts} turnId={`summary:${sessionId}`} className="justify-center" />
           <button onClick={onEnter} className="px-12 py-5 bg-amber-600 hover:bg-amber-500 rounded-[28px] font-black uppercase italic tracking-tighter text-2xl shadow-[0_8px_0_rgb(146,64,14)] transition-all animate-in fade-in duration-500">
-            Enter Realm
+            Enter Adventure
           </button>
         </>
       ) : (
@@ -428,7 +428,7 @@ const MovieView = ({ history, encounters, party, previewImageUrl, onEnter, hasTt
           </div>
           {isLast && (
             <button onClick={onEnter} className="w-full py-3 bg-amber-600 hover:bg-amber-500 rounded-xl font-black uppercase italic tracking-tighter text-base shadow-[0_4px_0_rgb(146,64,14)] transition-all">
-              Enter Realm →
+              Enter Adventure →
             </button>
           )}
         </div>
@@ -536,7 +536,7 @@ export const SessionRecap = () => {
               onClick={enter}
               className="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 font-black uppercase text-xs tracking-widest transition-all shadow-[0_3px_0_rgb(146,64,14)]"
             >
-              Enter Realm →
+              Enter Adventure →
             </button>
           )}
           <Link
@@ -620,7 +620,7 @@ export const SessionRecap = () => {
           ] : mode === 'choose' ? [
             { key: '1', action: 'TLDR summary' },
             { key: '2', action: 'Movie mode' },
-            { key: '3', action: 'Skip - Enter realm directly' },
+            { key: '3', action: 'Skip - Enter adventure directly' },
             { key: '?', action: 'Toggle this help' },
           ] : [
             { key: '?', action: 'Toggle this help' },

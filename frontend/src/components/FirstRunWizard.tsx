@@ -259,7 +259,7 @@ export const FirstRunWizard = ({ onComplete, onSkip, onStartGetMeRollin }: First
           />
           <div className="absolute bottom-5 left-5 right-5 rounded-2xl bg-slate-950/50 p-3 shadow-2xl backdrop-blur-md md:bottom-7 md:left-7 md:right-7">
             <p className="text-4xl font-display font-black uppercase italic tracking-tighter text-amber-300 drop-shadow-[0_3px_8px_rgba(0,0,0,0.95)] md:text-5xl">First Setup</p>
-            <p className="mt-2 max-w-sm text-base font-bold leading-snug text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.95)]">Pick the adventure feel before the first realm.</p>
+            <p className="mt-2 max-w-sm text-base font-bold leading-snug text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.95)]">Pick the adventure feel before the first adventure.</p>
           </div>
         </div>
 
@@ -293,7 +293,7 @@ export const FirstRunWizard = ({ onComplete, onSkip, onStartGetMeRollin }: First
                   <StepButton
                     active={imagesEnabled}
                     title="Images On"
-                    description="Scene art and hero portraits for new realms."
+                    description="Scene art and hero portraits for new adventures."
                     onClick={() => persistImagesEnabled(true)}
                   />
                   <StepButton
@@ -396,7 +396,7 @@ export const FirstRunWizard = ({ onComplete, onSkip, onStartGetMeRollin }: First
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-2xl border-2 border-slate-800 bg-slate-900/70 px-4 py-3">
                     <p className="text-xs font-black uppercase tracking-widest text-amber-300">Images</p>
-                    <p className="mt-1 text-sm font-semibold text-white">{imagesEnabled ? 'On for new realms' : 'Saving mode for new realms'}</p>
+                    <p className="mt-1 text-sm font-semibold text-white">{imagesEnabled ? 'On for new adventures' : 'Saving mode for new adventures'}</p>
                   </div>
                   <div className="rounded-2xl border-2 border-slate-800 bg-slate-900/70 px-4 py-3">
                     <p className="text-xs font-black uppercase tracking-widest text-amber-300">Narration</p>

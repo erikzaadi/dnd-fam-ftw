@@ -49,21 +49,21 @@ const buildHomeTutorialSteps = (showGettingStarted: boolean, hasSessions: boolea
     id: 'quick-start',
     selector: '[data-tutorial="home-quick-start"]',
     title: 'Quick start',
-    body: 'Roll straight into a ready-made realm with heroes and a first scene prepared.',
+    body: 'Roll straight into a ready-made adventure with heroes and a first scene prepared.',
     placement: 'top' as const,
   },
   {
     id: 'build-own',
     selector: '[data-tutorial="home-build-own"]',
     title: 'Build your own',
-    body: 'Create a custom realm, choose the pace, then assemble your heroes.',
+    body: 'Create a custom adventure, choose the pace, then assemble your heroes.',
     placement: 'top' as const,
   },
   ...(hasSessions ? [{
     id: 'active-realms',
     selector: '[data-tutorial="home-active-realms"]',
-    title: 'Continue a realm',
-    body: 'Saved realms live here. Open one to continue, assemble missing heroes, edit details, or view the chronicle.',
+    title: 'Continue an adventure',
+    body: 'Saved adventures live here. Open one to continue, assemble missing heroes, edit details, or view the chronicle.',
     placement: 'top' as const,
   }] : []),
   {
@@ -184,7 +184,7 @@ const EditSessionModal = ({
       <div className="bg-slate-900 border border-slate-700 rounded-[32px] p-6 max-w-md w-full shadow-2xl space-y-5">
         <div className="flex items-center gap-2">
           <h3 className="text-lg font-black uppercase tracking-tighter text-amber-400 italic flex-1">
-            {readOnly ? 'Realm Info' : 'Edit Realm'} - {sessionName}
+            {readOnly ? 'Adventure Info' : 'Edit Adventure'} - {sessionName}
           </h3>
           {readOnly && (
             <span className="text-[10px] font-black uppercase tracking-widest text-rose-500 border border-rose-700/50 bg-rose-900/20 px-1.5 py-0.5 rounded-full flex-shrink-0">
@@ -231,7 +231,7 @@ const EditSessionModal = ({
 
         {(worldDescription || !readOnly) && (
           <div className="flex flex-col gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Realm Description</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">World Description</span>
             {readOnly ? (
               <p className="text-sm text-slate-300 leading-relaxed px-1">
                 {worldDescription || <span className="text-slate-600 italic">No description set.</span>}
@@ -407,7 +407,7 @@ const WorldCard = ({
             </button>
           </Tooltip>
         ) : (
-          <Tooltip content="Enter realm" as="div" wrapperClassName="flex-shrink-0">
+          <Tooltip content="Enter adventure" as="div" wrapperClassName="flex-shrink-0">
             <button
               ref={enterRef}
               onClick={e => {
@@ -419,7 +419,7 @@ const WorldCard = ({
             </button>
           </Tooltip>
         )}
-        {/* Assemble Heroes - hidden for fallen realms */}
+        {/* Assemble Heroes - hidden for fallen adventures */}
         {!session.gameOver && (
           <Tooltip content="Manage heroes" as="div" wrapperClassName="flex-shrink-0">
             <button
@@ -434,25 +434,25 @@ const WorldCard = ({
             </button>
           </Tooltip>
         )}
-        <Tooltip content={session.gameOver ? 'View realm info' : 'Edit realm'} as="div" wrapperClassName="flex-shrink-0">
+        <Tooltip content={session.gameOver ? 'View adventure info' : 'Edit adventure'} as="div" wrapperClassName="flex-shrink-0">
           <button
             onClick={e => {
               e.stopPropagation(); onEdit();
             }}
             className="flex items-center gap-1 px-2 py-1.5 lg:w-8 lg:h-8 lg:p-0 lg:justify-center rounded-lg text-slate-600 hover:text-amber-400 hover:bg-amber-500/10 text-sm transition-colors"
-            aria-label={session.gameOver ? 'View realm info' : 'Edit realm'}
+            aria-label={session.gameOver ? 'View adventure info' : 'Edit adventure'}
           >
             <span>{session.gameOver ? 'ℹ' : '✎'}</span>
             <span className="text-xs font-semibold uppercase tracking-widest lg:hidden">{session.gameOver ? 'Info' : 'Edit'}</span>
           </button>
         </Tooltip>
-        <Tooltip content="Delete realm" align="right" as="div" wrapperClassName="flex-shrink-0">
+        <Tooltip content="Delete adventure" align="right" as="div" wrapperClassName="flex-shrink-0">
           <button
             onClick={e => {
               e.stopPropagation(); onDelete();
             }}
             className="flex items-center gap-1 px-2 py-1.5 lg:w-8 lg:h-8 lg:p-0 lg:justify-center rounded-lg text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 text-sm font-black transition-colors"
-            aria-label="Delete realm"
+            aria-label="Delete adventure"
           >
             <span>✕</span>
             <span className="text-xs font-semibold uppercase tracking-widest lg:hidden">Delete</span>
@@ -503,7 +503,7 @@ const WorldCard = ({
                 e.stopPropagation(); setFullscreenPreview(true);
               }}
               className="relative md:w-60 lg:w-72 aspect-[16/10] overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 flex-shrink-0 cursor-zoom-in group"
-              aria-label="Open realm preview"
+              aria-label="Open adventure preview"
             >
               <img
                 src={previewSrc}
@@ -725,7 +725,7 @@ export const Home = () => {
 
   const deleteSession = (id: string, displayName: string) => {
     setConfirmDialog({
-      message: `Delete realm "${displayName}"?`,
+      message: `Delete adventure "${displayName}"?`,
       onConfirm: async () => {
         await apiFetch(`/session/${id}`, { method: 'DELETE' });
         loadSessions();
@@ -849,8 +849,8 @@ export const Home = () => {
             if (sessionLimit && sessionLimit.current >= sessionLimit.max) {
               return (
                 <div className="px-8 py-5 bg-slate-800 border-2 border-slate-700 rounded-[32px] text-center">
-                  <p className="text-slate-400 font-black uppercase italic tracking-tighter text-xl md:text-2xl">REALM LIMIT REACHED</p>
-                  <p className="text-slate-500 text-sm mt-1">{sessionLimit.current} / {sessionLimit.max} realms - delete one to start another</p>
+                  <p className="text-slate-400 font-black uppercase italic tracking-tighter text-xl md:text-2xl">ADVENTURE LIMIT REACHED</p>
+                  <p className="text-slate-500 text-sm mt-1">{sessionLimit.current} / {sessionLimit.max} adventures - delete one to start another</p>
                   <button onClick={() => navigate('/settings')} className="mt-2 text-xs font-black uppercase tracking-wider text-amber-500 hover:text-amber-400 cursor-pointer">Your Realm</button>
                 </div>
               );
@@ -906,7 +906,7 @@ export const Home = () => {
                       className="w-8 h-8 md:w-14 md:h-14 rounded-full object-cover flex-shrink-0"
                       alt=""
                     />
-                    START A NEW REALM{sessionLimit ? ` (${sessionLimit.current}/${sessionLimit.max})` : ''}
+                    START A NEW ADVENTURE{sessionLimit ? ` (${sessionLimit.current}/${sessionLimit.max})` : ''}
                   </button>
                 )}
                 {!showGettingStarted && (
@@ -933,7 +933,7 @@ export const Home = () => {
           {/* Sessions list */}
           {activeSessions.length > 0 && (
             <div data-tutorial="home-active-realms" className="flex flex-col gap-2">
-              <h3 className="text-xl md:text-4xl font-black uppercase tracking-tighter text-white italic">Active Realms</h3>
+              <h3 className="text-xl md:text-4xl font-black uppercase tracking-tighter text-white italic">Active Adventures</h3>
               {activeSessions.map((sess, i) => (
                 <WorldCard
                   key={sess.id}

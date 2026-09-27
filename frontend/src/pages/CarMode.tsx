@@ -206,13 +206,13 @@ export const CarMode = () => {
   return (
     <div className="h-screen bg-slate-950 text-white flex flex-col overflow-hidden">
       <div className="flex-1 flex flex-col px-6 py-4 overflow-y-auto space-y-6">
-        {/* Realm Header Info */}
+        {/* Adventure Header Info */}
         <div className="text-center">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-400/10 text-amber-400 border border-amber-400/20 tracking-wider uppercase mb-1">
             Car Mode Active
           </span>
           <h2 className="text-2xl font-display font-black tracking-tight leading-tight truncate">
-            {session?.displayName || 'Loading Realm...'}
+            {session?.displayName || 'Loading Adventure...'}
           </h2>
           <p className="text-slate-500 text-xs mt-0.5">
             Active Scene: <span className="text-slate-300 font-medium">{session?.scene || 'Unknown'}</span>

@@ -20,7 +20,7 @@ const buildAssemblyTutorialSteps = (hasImportableCharacters: boolean): SetupTuto
     id: 'party-overview',
     selector: '[data-tutorial="party-overview"]',
     title: 'Build the party',
-    body: 'This is where the heroes for this realm come together. Add at least one hero, and bring more friends for a stronger party.',
+    body: 'This is where the heroes for this adventure come together. Add at least one hero, and bring more friends for a stronger party.',
     placement: 'bottom',
   },
   {
@@ -61,7 +61,7 @@ const buildAssemblyTutorialSteps = (hasImportableCharacters: boolean): SetupTuto
   {
     id: 'start-adventure',
     selector: '[data-tutorial="start-adventure"]',
-    title: 'Start the realm',
+    title: 'Start the adventure',
     body: 'When your party is ready, begin the adventure and the DM will set the first scene.',
     placement: 'top',
   },

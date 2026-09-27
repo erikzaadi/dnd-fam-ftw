@@ -92,7 +92,7 @@ export const InstantStartLoader = () => {
               {PUNS[punIndex]}
             </p>
           </div>
-          <p className="text-slate-500 text-sm">This may take a moment while your realm is conjured</p>
+          <p className="text-slate-500 text-sm">This may take a moment while your adventure is conjured</p>
         </div>
       </div>
     </div>
