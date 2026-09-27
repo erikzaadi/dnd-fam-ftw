@@ -1,20 +1,32 @@
 # DM Prep Guide
 
-DM Prep is an optional free-text field that acts as a creative brief for the AI Dungeon Master. It is set at realm creation and can be edited later from the home screen. When provided, the AI reads it on every narration call and weaves it into the story gradually rather than dumping everything at once.
+DM Prep is an optional free-text field that acts as a creative brief for the AI Dungeon Master. It is set when you create an adventure and can be edited later from the home screen. When provided, the AI reads it on every narration call and weaves it into the story gradually rather than dumping everything at once.
 
-This document is for players who want to handcraft a campaign instead of accepting the auto-generated brief.
+## Quick start
+
+Ordinary prose is enough. Write a few sentences about the premise, the tone (and anything to avoid), and a payoff you would love to see, then paste it into **DM Prep** when creating the adventure:
+
+```
+A grumpy dragon has stolen every bell in the village of Tinkerdale, and the harvest festival is tomorrow.
+Keep it silly and cozy: no scary deaths, lots of talking animals, and the dragon should turn out to be lonely rather than evil.
+It would be lovely if the heroes win by throwing the dragon a party instead of fighting it.
+```
+
+That is all most families need. These notes are suggestions for the storyteller, not rules: the AI weaves them in when the story allows, but dice, HP and the players' choices still decide what happens. Skip DM Prep entirely and the AI writes its own brief.
+
+The rest of this document is for people who want precise control: the structured brief format, encounter seeds, and what the AI does with each part.
 
 ---
 
 ## How it works
 
-When a realm is created with a world description, or when DM Prep is explicitly saved, the backend runs the text through a processing step that:
+When an adventure is created with a setting description, or when DM Prep is explicitly saved, the backend runs the text through a processing step that:
 
 1. Condenses the prose into a structured campaign brief (stored back as `dmPrep`).
 2. Extracts a machine-readable `ENCOUNTER_SEEDS` JSON block from the brief (stored as `dmPrepEncounters`).
-3. Generates a short visual-only summary for realm preview image generation.
+3. Generates a short visual-only summary for the adventure preview image.
 
-If you write DM Prep by hand (or edit it after the fact), the same processing runs when you save. You can also regenerate it from scratch via the realm edit screen.
+If you write DM Prep by hand (or edit it after the fact), the same processing runs when you save. You can also regenerate it from scratch from the adventure's edit screen on the home page.
 
 ---
 
@@ -177,9 +189,9 @@ This means each named encounter fires exactly once per session. If you want a re
 
 ---
 
-## One-evening sessions
+## One-evening adventures
 
-The session's **format** (one evening or long-lived) is a session setting, and it wins over anything the DM Prep says about campaign length. For a one-evening session:
+The adventure's **format** (one evening or long-lived) is an adventure setting, and it wins over anything the DM Prep says about campaign length. For a one-evening adventure:
 
 - Generated campaign briefs add `TONIGHT'S OBJECTIVE:` (player-facing) and `TONIGHT'S PAYOFF:` (private) lines.
 - Hand-written DM Prep is compiled into a bounded objective and a private payoff for tonight's chapter. Long campaign notes become one chapter within that world; wider hooks can stay open, and hidden villains or secrets can stay hidden.
@@ -192,7 +204,7 @@ The session's **format** (one evening or long-lived) is a session setting, and i
 - **Dice math** - base thresholds (8/12/16) and roll resolution are fixed.
 - **HP values** - set by enemy role, not by prep text.
 - **Turn order** - always round-robin through the party.
-- **Difficulty** - set at realm creation, not in prep.
+- **Difficulty** - set when the adventure is created (and editable), not in prep.
 - **Rescue limits** - set by difficulty.
 - **Image composition** - the image brief is auto-extracted; the inline text is not passed to image generation directly.
 
@@ -200,9 +212,9 @@ The session's **format** (one evening or long-lived) is a session setting, and i
 
 ## Tips for a tighter campaign
 
-- **Name your villain early and repeat them.** The AI will use that name in narration and choices if it appears in the VILLAIN section.
+- **Name your villain early and repeat them.** The AI will use that name in narration and ideas if it appears in the VILLAIN section.
 - **Setup/Payoff items must be specific.** Vague quest objects like "a clue" are ignored. Write "the Warden's Iron Key, found in the guard tower, unlocks the vault in the final stage."
 - **Keep encounter seeds to 3-4 max.** More seeds increase the chance of trigger collisions and thin the AI's attention on each one.
 - **Use `triggerHint` as a scene keyword, not a player instruction.** Write `when the party reaches the obsidian bridge` not `after two combat encounters`.
-- **Hazard enemies pair well with area tags.** A `hazard` enemy named "Lava Crack" with areas tagged `unstable` and `hot` gives the AI rich environment choices without requiring a killable target.
+- **Hazard enemies pair well with area tags.** A `hazard` enemy named "Lava Crack" with areas tagged `unstable` and `hot` gives the AI rich environment options without requiring a killable target.
 - **Traits beat long descriptions.** `blindsight, ignores invisibility` is more useful than a paragraph of lore the AI may not faithfully reproduce.

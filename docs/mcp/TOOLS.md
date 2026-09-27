@@ -45,7 +45,7 @@ Errors: `stale_revision`, `item_unavailable`, `riddle_unclear`, `riddle_answer_u
 Input: `adventureId`, `previewId`, `expectedRevision`, `requestId` (8-100 chars), `undoWindow?`.
 Output: `operation` (`id`, `requestId`, `kind`, `status`, `resultRevision`, `turnId`, `errorCode`), `replayed`, `retryAfterSeconds`.
 
-With `undoWindow: true` (only for `autoConfirmEligible` previews, else `needs_player_ok`) the server waits 5 seconds before accepting; if the client drops or cancels the call in that time (the player pressed Esc), nothing is sent. The preview must come from the same token and the current revision. The same `requestId` always returns the original operation, even after the preview expired. Errors: `stale_preview`, `stale_revision`, `operation_in_progress`, `request_id_conflict`, `adventure_completed`, `game_over`, budget codes.
+With `undoWindow: true` (only for `autoConfirmEligible` previews, else `needs_player_ok`) the server waits 5 seconds before accepting; if the client drops or cancels the call in that time (the player pressed Esc), nothing is sent and the call returns `undone`. A cancel after the wait may arrive after the server accepted the action: check `get_operation` with the `requestId` before treating it as stopped. The preview must come from the same token and the current revision. The same `requestId` always returns the original operation, even after the preview expired. Errors: `stale_preview`, `stale_revision`, `operation_in_progress`, `request_id_conflict`, `adventure_completed`, `game_over`, budget codes.
 
 ## get_operation
 
