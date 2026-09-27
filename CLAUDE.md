@@ -27,7 +27,7 @@ Two working modes:
 Manual verification checklist from repo root:
 
 ```bash
-npm run lint          # all linters: shared → backend → frontend → workflows → bash
+npm run lint          # all linters: shared → backend → frontend → workflows → bash → docs
 npm test              # all tests
 npm run tsc           # type-check all packages: shared → backend → frontend
 ```
@@ -41,6 +41,7 @@ Targeted variants:
 | `npm run lint:frontend` | ESLint on `frontend/src` |
 | `npm run lint:workflows` | actionlint + yamllint + shellcheck on CI workflows |
 | `npm run lint:bash` | shellcheck on deploy scripts |
+| `npm run lint:docs` | Markdown links/anchors, no local-plan links, no em/en dashes in Markdown and frontend source (`scripts/check-docs.mjs`) |
 | `npm run tsc:shared` | TypeScript check on `packages/shared` |
 | `npm run tsc:backend` | TypeScript check on `backend` |
 | `npm run tsc:frontend` | TypeScript check on `frontend` |

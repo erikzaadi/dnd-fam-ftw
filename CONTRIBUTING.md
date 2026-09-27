@@ -50,7 +50,8 @@ Run from the repo root:
 
 | Command | What it checks |
 | --- | --- |
-| `npm run lint` | ESLint (shared, backend, frontend), plus actionlint, yamllint and shellcheck on workflows and scripts |
+| `npm run lint` | ESLint (shared, backend, frontend), actionlint, yamllint and shellcheck on workflows and scripts, and the docs check below |
+| `npm run lint:docs` | Markdown links, images and anchors resolve; no links into local planning folders; no em or en dashes in Markdown or frontend source |
 | `npm run tsc` | TypeScript for shared, backend, frontend |
 | `npm test` | Backend and frontend unit tests |
 | `npm run test:integration` | Backend integration tests (temp SQLite, mocked narration) |

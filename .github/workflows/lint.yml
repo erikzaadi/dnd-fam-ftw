@@ -81,6 +81,19 @@ jobs:
           pip install --quiet yamllint
           yamllint .github/workflows/
 
+  # Fast and dependency-free, so it runs on every change.
+  lint-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+
+      - name: Docs links, anchors and dashes
+        run: node scripts/check-docs.mjs
+
   lint-shared:
     needs: changes
     if: >-
@@ -151,7 +164,7 @@ jobs:
   # job that ran failed or was cancelled. Skipped jobs (unchanged paths) pass.
   result:
     name: Lint result
-    needs: [changes, lint-workflows, lint-shared, lint-backend, lint-frontend]
+    needs: [changes, lint-workflows, lint-docs, lint-shared, lint-backend, lint-frontend]
     if: always()
     runs-on: ubuntu-latest
     steps:
