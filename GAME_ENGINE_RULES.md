@@ -68,9 +68,11 @@ The character edge bonus is currently `+2` and applies when the submitted action
 
 Free-text inferred bonuses are conservative and capped at two inferred bonus categories per action.
 
-### Free-text action preview
+### Action preview
 
-Typed custom actions are previewed before the turn is spent. The preview API accepts only the action text. The backend infers the active character, class, quirk, stats, current scene, story summary, recent turns, warnings, and possible free-text bonuses from the saved session.
+Typing (or saying) what the hero tries is the main way to play, and it is a single step for the player. Every typed action gets one preview call (stat, target, bonuses, warnings) before the turn is spent, but a clean preview is only shown briefly: it is sent after a 3-second Undo window (`ActionDock.tsx`, `needsConfirmation`; the terminal and MCP use the same rule). A confirm step appears only when the preview is worth a second look: warnings (a claimed outcome, a missing item, a riddle answer, a failed preview), an item action, dictated text (it can be misheard), or the player's **Ask before sending** setting. An idea picked from **Give me ideas** skips the preview and uses its stored choice descriptor.
+
+The preview API accepts only the action text. The backend infers the active character, class, quirk, stats, current scene, story summary, recent turns, warnings, and possible free-text bonuses from the saved session.
 
 This keeps preview, narrating state, and final turn resolution aligned with the current active hero. The client should not send character class, quirk, or previous-turn context in the preview body.
 
@@ -164,8 +166,11 @@ Damage is dealt to the **acting character** (the one whose turn it is). HP canno
 - Each hero has a **current HP** and a **max HP** set at character creation.
 - When a character reaches **0 HP** they become `downed` : they cannot act.
 - A downed character's **turn is skipped** in the rotation.
-- A downed character can still be targeted by healing items.
-- A character is revived (status → `active`) when their HP is raised above 0 by a healing item.
+- A downed character can be revived (status → `active`, HP at least 1, active effects cleared) in any of these ways:
+  - **A healing item** used on them (`use_item`); items can target downed heroes.
+  - **Another hero's successful healing or revive action** ("I pour my healing magic into Zara", "I wake Brom up"). The recovery agent proposes the revive; if it omits one on a successful healing action, the backend adds it (3 HP, 4 on a strong result, 5 on an extreme one). A successful action that names a downed hero with revive wording (revive, resurrect, bring back, wake up) revives them at a quarter of their max HP even without a proposal. A failed attempt revives no one and does not hurt the healer.
+  - **Story recovery**: a rest, healer or sanctuary scene can return a downed hero through the recovery agent's `suggestedRevive` (see Rest and recovery).
+  - **A party-wipe rescue** brings everyone back at 1 HP (see Party Wipe & Recovery).
 
 ### Backward compatibility
 

@@ -50,6 +50,7 @@ Run from the repo root:
 
 | Command | What it checks |
 | --- | --- |
+| `npm run verify` | Shorthand for `lint`, `tsc` and `test` in one go: the usual check before opening a pull request |
 | `npm run lint` | ESLint (shared, backend, frontend), actionlint, yamllint and shellcheck on workflows and scripts, and the docs check below |
 | `npm run lint:docs` | Markdown links, images and anchors resolve; no links into local planning folders; no em or en dashes in Markdown or frontend source |
 | `npm run tsc` | TypeScript for shared, backend, frontend |

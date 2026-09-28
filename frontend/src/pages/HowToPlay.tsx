@@ -85,7 +85,7 @@ export const HowToPlay = () => {
 
             <Section title="💀 Downed State">
               <p className="text-slate-300 text-lg leading-relaxed">
-                Reach 0 HP and your hero is <strong className="text-white">downed</strong>. They collapse and their turns are skipped. A teammate can revive them with a healing item.
+                Reach 0 HP and your hero is <strong className="text-white">downed</strong>. They collapse and their turns are skipped. A teammate can bring them back with a healing item or by trying to heal or wake them ("I pour my healing magic into Zara"). A rest or a party rescue can revive them too.
               </p>
             </Section>
 
@@ -94,7 +94,7 @@ export const HowToPlay = () => {
                 Healing is party-friendly. A hero can use a healing item on themselves, another injured hero, or a downed teammate. Typed healing actions can also target another party member - name who receives the healing so the DM applies HP to the right hero.
               </p>
               <p className="text-slate-500 text-base mt-3">
-                Failed healing or support actions should not hurt the healer just because the roll missed. If the story says someone recovers, their HP should change too.
+                A failed healing or support attempt does not hurt the healer, and a successful one always restores HP.
               </p>
             </Section>
 

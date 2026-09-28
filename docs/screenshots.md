@@ -39,5 +39,3 @@ Pick a difficulty, a pacing (Cinematic, Balanced, Fast, or ZUG-MA-GEDDON for pur
 ![Terminal mode: a retro adventure shell](terminal-mode.png)
 
 ![Starting an adventure from the Codex desktop app over MCP](CodexMCP.png)
-
-`CodexMCP.png` is a manual capture from the Codex desktop app, not produced by the generator. Refresh it by hand when the assistant flow changes visibly, and check it for personal content (names, tokens, private story text) before committing.
