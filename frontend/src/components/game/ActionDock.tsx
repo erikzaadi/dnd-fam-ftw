@@ -4,6 +4,7 @@ import { imgSrc, pulseSyncDelay } from '../../lib/api';
 import { currentIdeas, fetchIdeas } from '../../lib/ideas';
 import { askDm } from '../../lib/askDm';
 import { requestActionPreview, type ClarificationThread, type DraftAttachment } from '../../lib/previewAction';
+import { PREVIEW_REFRESHED_WARNING, type ConfirmPreviewOptions, type SubmitTurnResult } from '../../session/useSessionRuntime';
 import { computeChoiceOdds, COMBO_HELPER_BONUS, CHOICE_ITEM_BONUS, CHARACTER_EDGE_BONUS } from '../../lib/game';
 import { StatImg } from './StatIcon';
 import { STAT_COLORS, STAT_TEXT_COLORS } from '../../lib/statColors';
@@ -32,6 +33,8 @@ interface ActionDockProps {
   setCustomAction: (v: string) => void;
   error: string | null;
   onSubmit: (label: string, stat: string, diff: string, difficultyValue?: number, ownerCharId?: string | null, itemId?: string | null, targetCharId?: string | null, preview?: ActionPreviewBonuses) => Promise<void> | void;
+  // Confirms a preview by its server handle (session runtime confirmPreview).
+  onConfirmPreview: (preview: FreeActionPreview, options: ConfirmPreviewOptions) => Promise<SubmitTurnResult | void> | void;
   onShowPartyGear: () => void;
   onCharacterClick?: (char: Character) => void;
   // Session revision; a change invalidates any open preview computed against the old state.
@@ -50,8 +53,6 @@ interface ActionDockProps {
 }
 
 interface ActionPreviewBonuses {
-  // Server handle for a confirmed free-action preview; the server re-derives mechanics from it.
-  previewId?: string;
   // Stable id of the suggested choice; the server resolves mechanics from its stored descriptor.
   choiceId?: number;
   helperBonus?: number;
@@ -159,6 +160,7 @@ export const ActionDock = ({
   setCustomAction,
   error,
   onSubmit,
+  onConfirmPreview,
   onShowPartyGear,
   onCharacterClick,
   revision,
@@ -260,29 +262,36 @@ export const ActionDock = ({
     await onSubmit(choice.label, choice.stat, choice.difficulty, choice.difficultyValue, undefined, undefined, undefined, preview);
   }, [activeCharacter, choices, loading, onSubmit, party]);
 
-  const submitCustomText = useCallback(async (actionText: string, spoken = false) => {
-    const trimmed = actionText.trim();
-    if (!trimmed || loading || pendingSend) {
-      return;
-    }
+  // The request behind each preview shown here, so confirmPreview can ask again.
+  const previewRequestsRef = useRef(new WeakMap<FreeActionPreview, { text: string; thread: ClarificationThread | null; attachment: DraftAttachment | null }>());
+
+  // Previews a draft (or the reply to an open DM question) and shows it: the dialog, or
+  // the Undo window for a clean typed action. Returns the preview shown, if any.
+  const previewDraft = useCallback(async (
+    text: string,
+    thread: ClarificationThread | null,
+    draftAttachment: DraftAttachment | null,
+    spoken: boolean,
+    refreshed = false,
+  ): Promise<FreeActionPreview | null> => {
     setStatThinking(true);
     setPreviewNotice(null);
-    const result = await requestActionPreview(sessionId, trimmed, clarification, attachment);
+    const result = await requestActionPreview(sessionId, text, thread, draftAttachment);
     setStatThinking(false);
     if (result.kind === 'clarification') {
       // The box now takes the reply; the draft stays visible above it.
       setClarification(result.thread);
       setCustomAction('');
-      return;
+      return null;
     }
-    if (clarification) {
+    if (thread) {
       // The exchange is over either way: the draft goes back in the box.
       setClarification(null);
-      setCustomAction(clarification.originalDraft);
+      setCustomAction(thread.originalDraft);
     }
     if (result.kind === 'error') {
       setPreviewNotice(result.message);
-      return;
+      return null;
     }
     const draft = result.originalDraft;
     let preview: FreeActionPreview = {
@@ -293,26 +302,38 @@ export const ActionDock = ({
       warnings: [],
     };
     if (result.kind === 'preview') {
+      const warnings = result.preview.warnings ?? [];
       preview = {
         ...preview,
         ...result.preview,
         originalAction: draft,
         interpretedAction: result.preview.interpretedAction ?? draft,
         difficulty: result.preview.difficulty ?? preview.difficulty,
-        warnings: result.preview.warnings ?? [],
+        warnings: refreshed ? [...warnings, PREVIEW_REFRESHED_WARNING] : warnings,
       };
     } else {
       preview = {
         ...preview,
         warnings: ['Preview failed - submitting with default stat. You can still confirm or cancel.'],
+        clientFallback: true,
       };
     }
+    previewRequestsRef.current.set(preview, { text, thread, attachment: draftAttachment });
     if (needsConfirmation(preview, spoken, alwaysConfirm)) {
       setFreeActionPreview(preview);
     } else {
       setPendingSend(preview);
     }
-  }, [alwaysConfirm, attachment, clarification, loading, pendingSend, sessionId, setCustomAction]);
+    return preview;
+  }, [alwaysConfirm, sessionId, setCustomAction]);
+
+  const submitCustomText = useCallback(async (actionText: string, spoken = false) => {
+    const trimmed = actionText.trim();
+    if (!trimmed || loading || pendingSend) {
+      return;
+    }
+    await previewDraft(trimmed, clarification, attachment, spoken);
+  }, [attachment, clarification, loading, pendingSend, previewDraft]);
 
   const latestTurnId = turn?.id;
   const askForIdeas = useCallback(async (retry: boolean) => {
@@ -392,26 +413,18 @@ export const ActionDock = ({
 
   // Sends a previewed action: the server resolves it from the stored preview.
   const sendPreview = useCallback(async (sent: FreeActionPreview, useOriginalAction: boolean) => {
-    const preview: ActionPreviewBonuses = {
-      ...(sent.previewId !== undefined && { previewId: sent.previewId }),
-      ...(sent.helperBonus !== undefined && { helperBonus: sent.helperBonus }),
-      ...(sent.helperCharacterName !== undefined && { helperCharacterName: sent.helperCharacterName }),
-      ...(sent.choiceItemBonus !== undefined && { choiceItemBonus: sent.choiceItemBonus }),
-      ...(sent.choiceItemName !== undefined && { choiceItemName: sent.choiceItemName }),
-      ...(sent.choiceItemOwnerName !== undefined && { choiceItemOwnerName: sent.choiceItemOwnerName }),
-      ...(sent.characterBonus !== undefined && { characterBonus: sent.characterBonus }),
-      ...(sent.characterBonusLabel !== undefined && { characterBonusLabel: sent.characterBonusLabel }),
-      ...(sent.flavor !== undefined && { flavor: sent.flavor }),
-    };
-    const { interpretedAction, originalAction, stat, difficulty, difficultyValue, itemAction } = sent;
-    const submittedAction = useOriginalAction ? originalAction : interpretedAction;
-    if (itemAction) {
+    if (sent.itemAction) {
       // The item is on its way into the turn; the chip is done.
       onClearAttachment?.();
     }
-    // Gear resolves without a roll: the server takes the item action from the preview.
-    await onSubmit(submittedAction, itemAction ? 'none' : stat, difficulty, difficultyValue, undefined, undefined, undefined, preview);
-  }, [onClearAttachment, onSubmit]);
+    const request = previewRequestsRef.current.get(sent);
+    const repreview = request && (() => previewDraft(request.text, request.thread, request.attachment, false, true));
+    const result = await onConfirmPreview(sent, { useOriginalAction, ...(repreview && { repreview }) });
+    if (result && !result.ok && result.error === 'preview_stale') {
+      // The draft goes back in the box for a fresh preview.
+      setCustomAction(sent.originalAction);
+    }
+  }, [onClearAttachment, onConfirmPreview, previewDraft, setCustomAction]);
 
   const confirmFreeAction = useCallback(async (useOriginalAction: boolean = false) => {
     if (!freeActionPreview) {

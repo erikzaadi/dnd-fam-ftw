@@ -15,7 +15,7 @@ vi.mock('../lib/askDm', () => ({
 }));
 
 describe('TerminalMode', () => {
-  const mockSubmitAction = vi.fn().mockResolvedValue(undefined);
+  const mockConfirmPreview = vi.fn().mockResolvedValue({ ok: true });
   const mockSubmitChoice = vi.fn().mockResolvedValue(undefined);
   const mockRequestIdeas = vi.fn();
   const mockPreviewAction = vi.fn().mockResolvedValue(undefined);
@@ -73,7 +73,7 @@ describe('TerminalMode', () => {
         actionError: null,
         connectionState: 'connected',
         prevEncounterStatus: 'none',
-        submitAction: mockSubmitAction,
+        confirmPreview: mockConfirmPreview,
         submitChoice: mockSubmitChoice,
         previewAction: mockPreviewAction,
         actionPreview: null,
@@ -138,7 +138,7 @@ describe('TerminalMode', () => {
     expect(await screen.findByText('The DM says: It is heavy iron, but your shield could help.')).toBeInTheDocument();
     expect(vi.mocked(askDm)).toHaveBeenCalledWith('session-id-123', { question: 'can I break the door?', turnId: 1, revision: 0 });
     expect(mockPreviewAction).not.toHaveBeenCalled();
-    expect(mockSubmitAction).not.toHaveBeenCalled();
+    expect(mockConfirmPreview).not.toHaveBeenCalled();
   });
 
   it('submits a numbered choice selection', async () => {
@@ -150,7 +150,7 @@ describe('TerminalMode', () => {
 
     expect(screen.getByText(/Selected choice: Bash it down/i)).toBeInTheDocument();
     expect(mockSubmitChoice).toHaveBeenCalledWith(expect.objectContaining({ id: 41, label: 'Bash it down' }));
-    expect(mockSubmitAction).not.toHaveBeenCalled();
+    expect(mockConfirmPreview).not.toHaveBeenCalled();
   });
 
   it('handles custom actions with preview and confirm state', async () => {
@@ -182,7 +182,7 @@ describe('TerminalMode', () => {
         actionError: null,
         connectionState: 'connected',
         prevEncounterStatus: 'none',
-        submitAction: mockSubmitAction,
+        confirmPreview: mockConfirmPreview,
         submitChoice: mockSubmitChoice,
         previewAction: mockPreviewAction,
         actionPreview: preview,
@@ -206,15 +206,7 @@ describe('TerminalMode', () => {
     fireEvent.submit(confirmInput.closest('form')!);
 
     expect(screen.getByText(/Sending action to backend.../i)).toBeInTheDocument();
-    expect(mockSubmitAction).toHaveBeenCalledWith(
-      'Use Levitation on the door',
-      'magic',
-      'easy',
-      5,
-      null,
-      null,
-      null
-    );
+    expect(mockConfirmPreview).toHaveBeenCalledWith(preview);
   });
 
   describe('auto-send', () => {
@@ -237,7 +229,7 @@ describe('TerminalMode', () => {
           actionError: null,
           connectionState: 'connected',
           prevEncounterStatus: 'none',
-          submitAction: mockSubmitAction,
+          confirmPreview: mockConfirmPreview,
           submitChoice: mockSubmitChoice,
           previewAction: mockPreviewAction,
           actionPreview: preview,
@@ -265,11 +257,11 @@ describe('TerminalMode', () => {
         typeCommand('kick the door');
         previewArrives(cleanPreview);
         expect(screen.getByText(/Sending in 3s/i)).toBeInTheDocument();
-        expect(mockSubmitAction).not.toHaveBeenCalled();
+        expect(mockConfirmPreview).not.toHaveBeenCalled();
         act(() => {
           vi.advanceTimersByTime(3000);
         });
-        expect(mockSubmitAction).toHaveBeenCalledWith('Kick the door open', 'might', 'normal', 10, null, null, null);
+        expect(mockConfirmPreview).toHaveBeenCalledWith(cleanPreview);
       } finally {
         vi.useRealTimers();
       }
@@ -286,7 +278,7 @@ describe('TerminalMode', () => {
           vi.advanceTimersByTime(5000);
         });
         expect(screen.getByText(/Action cancelled/i)).toBeInTheDocument();
-        expect(mockSubmitAction).not.toHaveBeenCalled();
+        expect(mockConfirmPreview).not.toHaveBeenCalled();
       } finally {
         vi.useRealTimers();
       }
@@ -301,7 +293,7 @@ describe('TerminalMode', () => {
         act(() => {
           vi.advanceTimersByTime(5000);
         });
-        expect(mockSubmitAction).not.toHaveBeenCalled();
+        expect(mockConfirmPreview).not.toHaveBeenCalled();
         typeCommand('cancel');
 
         typeCommand('confirm on');
@@ -311,7 +303,7 @@ describe('TerminalMode', () => {
         act(() => {
           vi.advanceTimersByTime(5000);
         });
-        expect(mockSubmitAction).not.toHaveBeenCalled();
+        expect(mockConfirmPreview).not.toHaveBeenCalled();
       } finally {
         vi.useRealTimers();
         window.localStorage.removeItem('dnd-fam-ftw:terminal:always-confirm');
@@ -354,7 +346,7 @@ describe('TerminalMode', () => {
           actionError: null,
           connectionState: 'connected',
           prevEncounterStatus: 'none',
-          submitAction: mockSubmitAction,
+          confirmPreview: mockConfirmPreview,
           submitChoice: mockSubmitChoice,
           previewAction: mockPreviewAction,
           actionPreview: null,
@@ -386,7 +378,7 @@ describe('TerminalMode', () => {
       await waitFor(() => expect(mockPreviewAction).toHaveBeenCalledWith('yes'));
       type('1');
       await waitFor(() => expect(mockPreviewAction).toHaveBeenCalledWith('1'));
-      expect(mockSubmitAction).not.toHaveBeenCalled();
+      expect(mockConfirmPreview).not.toHaveBeenCalled();
       expect(mockSubmitChoice).not.toHaveBeenCalled();
     });
 
@@ -409,7 +401,7 @@ describe('TerminalMode', () => {
         actionError: null,
         connectionState: 'connected',
         prevEncounterStatus: 'none',
-        submitAction: mockSubmitAction,
+        confirmPreview: mockConfirmPreview,
         submitChoice: mockSubmitChoice,
         previewAction: mockPreviewAction,
         actionPreview: null,

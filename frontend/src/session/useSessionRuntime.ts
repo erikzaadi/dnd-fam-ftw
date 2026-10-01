@@ -112,6 +112,11 @@ export interface UseSessionRuntimeOptions {
 const PREVIEW_FAILED_WARNING = 'Preview failed - submitting with default stat. You can still confirm or cancel.';
 const PREVIEW_REFRESHED_MESSAGE = 'The story moved on. Check the new preview and confirm again.';
 const PREVIEW_STALE_MESSAGE = 'The story moved on. Preview your action again.';
+// On a preview asked for again by confirmPreview. Any warning makes every view wait for
+// an explicit confirm instead of sending by itself.
+export const PREVIEW_REFRESHED_WARNING = 'The story moved on while the DM read this. Check it again before confirming.';
+const withRefreshedWarning = (warnings: string[], refreshed: boolean): string[] =>
+  refreshed ? [...warnings, PREVIEW_REFRESHED_WARNING] : warnings;
 
 export function useSessionRuntime({ sessionId, presenter = {}, onboardingIdeas = false }: UseSessionRuntimeOptions) {
   const navigate = useNavigate();
@@ -423,7 +428,7 @@ export function useSessionRuntime({ sessionId, presenter = {}, onboardingIdeas =
   // Previews typed or spoken text. With an open DM question, the text is the reply and
   // is sent together with the original draft.
   const sessionLoaded = !!session;
-  const runPreview = useCallback(async (actionText: string, thread: ClarificationThread | null): Promise<FreeActionPreview | null> => {
+  const runPreview = useCallback(async (actionText: string, thread: ClarificationThread | null, refreshed = false): Promise<FreeActionPreview | null> => {
     if (!sessionLoaded) {
       return null;
     }
@@ -454,10 +459,10 @@ export function useSessionRuntime({ sessionId, presenter = {}, onboardingIdeas =
         ...result.preview,
         originalAction: draft,
         interpretedAction: result.preview.interpretedAction ?? draft,
-        warnings: result.preview.warnings ?? [],
+        warnings: withRefreshedWarning(result.preview.warnings ?? [], refreshed),
       }
       : { ...fallback, warnings: ['Preview failed - you can still confirm or cancel.'], clientFallback: true };
-    repreviewsRef.current.set(preview, () => runPreview(actionText, thread));
+    repreviewsRef.current.set(preview, () => runPreview(actionText, thread, true));
     lastPreviewRef.current = preview;
     setActionPreview(preview);
     setPreviewThinking(false);
@@ -472,10 +477,11 @@ export function useSessionRuntime({ sessionId, presenter = {}, onboardingIdeas =
 
   // Previews a structured scene action (gear, bless, aid, rally). `defaults` fill in
   // what the preview does not return, so a failed preview can still be confirmed.
-  const previewSceneAction = useCallback(async (
+  const runScenePreview = useCallback(async (
     request: ScenePreviewRequest,
-    defaults: Partial<FreeActionPreview> = {},
-    fallbackAction = request.action ?? 'Try a support action for the current situation',
+    defaults: Partial<FreeActionPreview>,
+    fallbackAction: string,
+    refreshed: boolean,
   ): Promise<FreeActionPreview> => {
     const actionText = request.action ?? fallbackAction;
     let preview: FreeActionPreview = {
@@ -501,7 +507,7 @@ export function useSessionRuntime({ sessionId, presenter = {}, onboardingIdeas =
           ...responsePreview,
           originalAction: responsePreview.originalAction ?? actionText,
           interpretedAction: responsePreview.interpretedAction ?? actionText,
-          warnings: responsePreview.warnings ?? [],
+          warnings: withRefreshedWarning(responsePreview.warnings ?? [], refreshed),
           choiceItemBonus: responsePreview.choiceItemBonus ?? preview.choiceItemBonus,
           choiceItemName: responsePreview.choiceItemName ?? preview.choiceItemName,
           choiceItemOwnerName: responsePreview.choiceItemOwnerName ?? preview.choiceItemOwnerName,
@@ -518,12 +524,18 @@ export function useSessionRuntime({ sessionId, presenter = {}, onboardingIdeas =
       ...(request.intent && { pendingIntent: request.intent }),
       ...(request.targetCharacterId && { pendingTargetCharacterId: request.targetCharacterId }),
     };
-    repreviewsRef.current.set(scenePreview, () => previewSceneAction(request, defaults, fallbackAction));
+    repreviewsRef.current.set(scenePreview, () => runScenePreview(request, defaults, fallbackAction, true));
     lastPreviewRef.current = scenePreview;
     setActionPreview(scenePreview);
     setPreviewThinking(false);
     return scenePreview;
   }, [sessionId]);
+
+  const previewSceneAction = useCallback((
+    request: ScenePreviewRequest,
+    defaults: Partial<FreeActionPreview> = {},
+    fallbackAction = request.action ?? 'Try a support action for the current situation',
+  ) => runScenePreview(request, defaults, fallbackAction, false), [runScenePreview]);
 
   // Confirms the preview the view captured, by its server handle: the server takes the
   // mechanics, actor, target, intent and item from its stored record. Unpreviewed text

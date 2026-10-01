@@ -132,7 +132,7 @@ export const TerminalMode: React.FC = () => {
     actionError: _actionError,
     connectionState,
     prevEncounterStatus,
-    submitAction,
+    confirmPreview,
     submitChoice,
     previewAction,
     actionPreview,
@@ -239,20 +239,12 @@ export const TerminalMode: React.FC = () => {
     setActionPreviewText(null);
     clearPreview();
     try {
-      await submitAction(
-        preview.interpretedAction,
-        preview.stat,
-        preview.difficulty,
-        preview.difficultyValue ?? null,
-        null,
-        null,
-        null
-      );
+      await confirmPreview(preview);
     } catch {
       addLogEntry('error', 'Action execution failed.');
     }
     shouldScrollRef.current = true;
-  }, [addLogEntry, cancelAutoSend, clearPreview, submitAction]);
+  }, [addLogEntry, cancelAutoSend, clearPreview, confirmPreview]);
 
   useEffect(() => {
     sendPreviewRef.current = sendPreview;

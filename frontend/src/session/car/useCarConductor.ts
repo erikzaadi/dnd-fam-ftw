@@ -27,6 +27,7 @@ import {
 } from './carSpeechSegment';
 import { currentIdeas, type IdeasRequestResult } from '../../lib/ideas';
 import { askDm } from '../../lib/askDm';
+import type { SubmitTurnResult } from '../useSessionRuntime';
 
 // With ideas on the table: read them and ask for a number or a custom action.
 // Without: an open question, never a list.
@@ -58,16 +59,8 @@ interface UseCarConductorProps {
   prevEncounterStatus: string;
   actionPreview: FreeActionPreview | null;
   previewThinking: boolean;
-  submitAction: (
-    action: string,
-    statUsed?: string,
-    difficulty?: string,
-    difficultyValue?: number | null,
-    ownerCharId?: string | null,
-    itemId?: string | null,
-    targetCharId?: string | null,
-    actionIntent?: string
-  ) => Promise<unknown>;
+  // Confirms the spoken preview by its server handle.
+  confirmPreview: (preview: FreeActionPreview) => Promise<SubmitTurnResult>;
   // Selects a suggestion explicitly by its stable id.
   submitChoice: (choice: Choice) => Promise<unknown>;
   previewAction: (actionText: string) => Promise<unknown>;
@@ -92,7 +85,7 @@ export function useCarConductor({
   prevEncounterStatus,
   actionPreview,
   previewThinking: _previewThinking,
-  submitAction,
+  confirmPreview,
   submitChoice,
   previewAction,
   clearPreview,
@@ -472,20 +465,18 @@ export function useCarConductor({
           addToTranscriptLog('Interpreted: Confirm Action');
           setConductorState('submitting');
           await speakAlert('Action sent.');
-          confirmingActionRef.current = null;
           try {
-            await submitAction(
-              preview.interpretedAction,
-              preview.stat,
-              preview.difficulty,
-              preview.difficultyValue ?? null,
-              null,
-              null,
-              null
-            );
+            const result = await confirmPreview(preview);
+            if (!result.ok && result.error === 'preview_refreshed') {
+              // The fresh preview is read out like any other and waits for confirm.
+              addToTranscriptLog('System: The story moved on. Previewed again.');
+              return;
+            }
+            confirmingActionRef.current = null;
             clearPreview();
             setConductorState('processing');
           } catch {
+            confirmingActionRef.current = null;
             addToTranscriptLog('System: Action submission failed.');
             setConductorState('error');
             await speakTempText('Something went wrong. Say repeat to try again.');

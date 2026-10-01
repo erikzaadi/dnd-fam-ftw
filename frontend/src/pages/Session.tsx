@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import type { ActionAttempt, Character, HpChange, TurnResult } from '../types';
+import type { ActionAttempt, Character, FreeActionPreview, HpChange, TurnResult } from '../types';
 import { apiFetch, imgSrc } from '../lib/api';
-import { useSessionRuntime } from '../session/useSessionRuntime';
+import { useSessionRuntime, type ConfirmPreviewOptions, type SubmitTurnResult } from '../session/useSessionRuntime';
 import { playRollSfx } from '../session/sessionAudio';
 import { PageLoader } from '../components/PageLoader';
 import { CharacterPopup } from '../components/CharacterPopup';
@@ -38,7 +38,6 @@ import { findConclusionTurn, isAdventureCompleted, isAdventureConcluding, reques
 import { RealmUsageNotice } from '../components/game/RealmUsageNotice';
 
 interface LastSubmittedAction {
-  previewId?: string;
   choiceId?: number;
   label: string;
   stat: string;
@@ -314,6 +313,7 @@ export const SessionPage = () => {
     revisionRef,
     updateSession,
     submitTurn,
+    confirmPreview,
     submitOperation,
     previewSceneAction,
     applyIdeas,
@@ -517,10 +517,7 @@ export const SessionPage = () => {
         ? `${itemOwner?.name ?? 'Someone'} used ${item.name} on ${itemTarget.name}`
         : action;
     setLastSubmittedAction({ label: displayAction, stat: statUsed, char: itemOwner, difficulty, difficultyValue: difficultyValue ?? undefined, ...preview });
-    recordTimingEvent('submit');
-    setMobileActionsOpen(false);
-    audioManager.stopNarrating();
-    narrationTtsService.stopNarration();
+    leaveForTurn();
     const result = await submitTurn({
       action,
       statUsed,
@@ -530,13 +527,46 @@ export const SessionPage = () => {
       itemId,
       targetCharacterId: targetCharId,
       actionIntent,
-      previewId: preview.previewId,
       choiceId: preview.choiceId,
     });
     if (!result.ok) {
       // A 409 refreshes the snapshot in the runtime; the typed draft stays in the action box.
       setLastSubmittedAction(null);
     }
+  };
+
+  // What the view does as an action leaves: timing, the mobile panel, narration audio.
+  const leaveForTurn = () => {
+    recordTimingEvent('submit');
+    setMobileActionsOpen(false);
+    audioManager.stopNarrating();
+    narrationTtsService.stopNarration();
+  };
+
+  // Confirms a preview (typed, gear or support) by its server handle. The roll panel
+  // shows the preview's own bonuses.
+  const confirmSessionPreview = async (preview: FreeActionPreview, options: ConfirmPreviewOptions = {}): Promise<SubmitTurnResult> => {
+    setLastSubmittedAction({
+      label: options.useOriginalAction ? preview.originalAction : preview.interpretedAction,
+      stat: preview.itemAction ? 'none' : preview.stat,
+      char: activeChar,
+      difficulty: preview.difficulty,
+      difficultyValue: preview.difficultyValue,
+      helperBonus: preview.helperBonus,
+      helperCharacterName: preview.helperCharacterName,
+      choiceItemBonus: preview.choiceItemBonus,
+      choiceItemName: preview.choiceItemName,
+      choiceItemOwnerName: preview.choiceItemOwnerName,
+      characterBonus: preview.characterBonus,
+      characterBonusLabel: preview.characterBonusLabel,
+      flavor: preview.flavor,
+    });
+    leaveForTurn();
+    const result = await confirmPreview(preview, options);
+    if (!result.ok) {
+      setLastSubmittedAction(null);
+    }
+    return result;
   };
 
   const previewGearAction = async (ownerCharId: string, itemId: string) => {
@@ -650,21 +680,10 @@ export const SessionPage = () => {
       return;
     }
     setGearPreviewSubmitting(true);
-    const preview: Partial<LastSubmittedAction> = {
-      ...(actionPreview.previewId !== undefined && { previewId: actionPreview.previewId }),
-      ...(actionPreview.helperBonus !== undefined && { helperBonus: actionPreview.helperBonus }),
-      ...(actionPreview.helperCharacterName !== undefined && { helperCharacterName: actionPreview.helperCharacterName }),
-      ...(actionPreview.choiceItemBonus !== undefined && { choiceItemBonus: actionPreview.choiceItemBonus }),
-      ...(actionPreview.choiceItemName !== undefined && { choiceItemName: actionPreview.choiceItemName }),
-      ...(actionPreview.choiceItemOwnerName !== undefined && { choiceItemOwnerName: actionPreview.choiceItemOwnerName }),
-      ...(actionPreview.characterBonus !== undefined && { characterBonus: actionPreview.characterBonus }),
-      ...(actionPreview.characterBonusLabel !== undefined && { characterBonusLabel: actionPreview.characterBonusLabel }),
-      ...(actionPreview.flavor !== undefined && { flavor: actionPreview.flavor }),
-    };
-    const { interpretedAction, stat, difficulty, difficultyValue, pendingIntent, pendingTargetCharacterId } = actionPreview;
+    const preview = actionPreview;
     runtime.clearPreview();
     setGearPreviewSubmitting(false);
-    await submitAction(interpretedAction, stat, difficulty, difficultyValue ?? null, null, null, pendingTargetCharacterId ?? null, preview, pendingIntent);
+    await confirmSessionPreview(preview);
   };
 
   const editGearAction = () => {
@@ -1017,6 +1036,7 @@ export const SessionPage = () => {
                 revision={session.revision}
                 error={actionError}
                 onSubmit={submitAction}
+                onConfirmPreview={confirmSessionPreview}
                 onShowPartyGear={() => setShowFullInventory(true)}
                 onCharacterClick={setSelectedCharacter}
                 onIdeas={applyIdeas}
@@ -1153,6 +1173,7 @@ export const SessionPage = () => {
                   revision={session.revision}
                   error={actionError}
                   onSubmit={submitAction}
+                  onConfirmPreview={confirmSessionPreview}
                   onShowPartyGear={() => setShowFullInventory(true)}
                   onCharacterClick={setSelectedCharacter}
                   onIdeas={applyIdeas}

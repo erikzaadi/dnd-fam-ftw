@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Session, SessionOperation, TurnResult } from '../types';
-import { useSessionRuntime, type SessionRuntimePresenter } from './useSessionRuntime';
+import { PREVIEW_REFRESHED_WARNING, useSessionRuntime, type SessionRuntimePresenter } from './useSessionRuntime';
 
 type Handlers = Record<string, (...args: unknown[]) => void>;
 
@@ -313,6 +313,8 @@ describe('useSessionRuntime', () => {
       expect(onPreviewReady).toHaveBeenCalledTimes(2);
       const fresh = hook.result.current.actionPreview!;
       expect(fresh).not.toBe(first);
+      // A warning makes every view wait for an explicit confirm.
+      expect(fresh.warnings).toContain(PREVIEW_REFRESHED_WARNING);
 
       await act(async () => {
         result = await hook.result.current.confirmPreview(fresh);

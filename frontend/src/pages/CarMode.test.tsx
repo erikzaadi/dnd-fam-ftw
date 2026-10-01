@@ -55,7 +55,7 @@ describe('CarMode', () => {
       loading: false,
       actionError: null,
       connectionState: 'connected',
-      submitAction: vi.fn(),
+      confirmPreview: vi.fn(),
       submitChoice: vi.fn(),
       previewAction: vi.fn(),
       clarification: null,

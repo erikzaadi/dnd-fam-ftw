@@ -3,7 +3,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useCarConductor } from './useCarConductor';
 import { useSpeechRecognition } from '../../stt/useSpeechRecognition';
 import { narrationTtsService } from '../../tts/narrationTtsService';
-import type { Session, TurnResult } from '../../types';
+import type { FreeActionPreview, Session, TurnResult } from '../../types';
 import type { TtsSettings } from '../../tts/ttsTypes';
 
 vi.mock('../../stt/useSpeechRecognition', () => ({
@@ -19,7 +19,7 @@ vi.mock('../../tts/narrationTtsService', () => ({
 }));
 
 describe('useCarConductor', () => {
-  const mockSubmitAction = vi.fn().mockResolvedValue(undefined);
+  const mockConfirmPreview = vi.fn().mockResolvedValue({ ok: true });
   const mockSubmitChoice = vi.fn().mockResolvedValue(undefined);
   const mockPreviewAction = vi.fn().mockResolvedValue(undefined);
   const mockClearPreview = vi.fn();
@@ -102,7 +102,7 @@ describe('useCarConductor', () => {
         prevEncounterStatus: 'none',
         actionPreview: null,
         previewThinking: false,
-        submitAction: mockSubmitAction,
+        confirmPreview: mockConfirmPreview,
         submitChoice: mockSubmitChoice,
         previewAction: mockPreviewAction,
         clearPreview: mockClearPreview,
@@ -125,7 +125,7 @@ describe('useCarConductor', () => {
         prevEncounterStatus: 'none',
         actionPreview: null,
         previewThinking: false,
-        submitAction: mockSubmitAction,
+        confirmPreview: mockConfirmPreview,
         submitChoice: mockSubmitChoice,
         previewAction: mockPreviewAction,
         clearPreview: mockClearPreview,
@@ -177,7 +177,7 @@ describe('useCarConductor', () => {
           prevEncounterStatus: 'none',
           actionPreview: null,
           previewThinking: false,
-          submitAction: mockSubmitAction,
+          confirmPreview: mockConfirmPreview,
           submitChoice: mockSubmitChoice,
           previewAction: mockPreviewAction,
           clearPreview: mockClearPreview,
@@ -209,6 +209,69 @@ describe('useCarConductor', () => {
       await settle();
 
       expect(spokenTexts().some(text => text.includes('Light a torch'))).toBe(false);
+    });
+  });
+  describe('confirming a spoken preview', () => {
+    const preview: FreeActionPreview = {
+      previewId: 'p-car',
+      originalAction: 'climb the wall',
+      interpretedAction: 'Hagar climbs the slick wall',
+      stat: 'might',
+      difficulty: 'normal',
+      warnings: [],
+    };
+    const settle = () => act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    });
+    const say = async (text: string) => {
+      const { onConfirmTranscript } = vi.mocked(useSpeechRecognition).mock.calls.at(-1)![0];
+      await act(async () => {
+        await onConfirmTranscript(text);
+      });
+    };
+
+    const renderConductor = () => renderHook(({ actionPreview }: { actionPreview: FreeActionPreview | null }) =>
+      useCarConductor({
+        session: mockSession,
+        history: mockHistory,
+        loading: false,
+        connectionState: 'connected',
+        prevEncounterStatus: 'none',
+        actionPreview,
+        previewThinking: false,
+        confirmPreview: mockConfirmPreview,
+        submitChoice: mockSubmitChoice,
+        previewAction: mockPreviewAction,
+        clearPreview: mockClearPreview,
+        ttsSettings: mockTtsSettings,
+        hasTts: true,
+      }), { initialProps: { actionPreview: null as FreeActionPreview | null } });
+
+    it('sends the preview object it read out, by its id', async () => {
+      const { rerender } = renderConductor();
+      await say('climb the wall');
+      expect(mockPreviewAction).toHaveBeenCalledWith('climb the wall');
+      rerender({ actionPreview: preview });
+      await settle();
+
+      await say('confirm');
+
+      expect(mockConfirmPreview).toHaveBeenCalledWith(preview);
+      expect(mockClearPreview).toHaveBeenCalled();
+    });
+
+    it('keeps waiting for a confirm when the preview was asked for again', async () => {
+      mockConfirmPreview.mockResolvedValueOnce({ ok: false, error: 'preview_refreshed', message: 'The story moved on.' });
+      const { rerender, result } = renderConductor();
+      await say('climb the wall');
+      rerender({ actionPreview: preview });
+      await settle();
+
+      await say('confirm');
+
+      expect(mockClearPreview).not.toHaveBeenCalled();
+      expect(result.current.conductorState).not.toBe('processing');
+      expect(result.current.transcriptLog).toContain('System: The story moved on. Previewed again.');
     });
   });
 });

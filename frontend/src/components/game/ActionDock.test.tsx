@@ -88,6 +88,7 @@ const renderDock = (overrides: Partial<ComponentProps<typeof ActionDock>> = {}) 
     setCustomAction: vi.fn(),
     error: null,
     onSubmit: vi.fn(),
+    onConfirmPreview: vi.fn(),
     onShowPartyGear: vi.fn(),
     ...overrides,
   };
@@ -142,15 +143,15 @@ describe('ActionDock speech input', () => {
 
   it('keeps manual custom action submission working', async () => {
     const setCustomAction = vi.fn();
-    const onSubmit = vi.fn();
-    renderDock({ customAction: 'cast shield', setCustomAction, onSubmit });
+    const onConfirmPreview = vi.fn();
+    renderDock({ customAction: 'cast shield', setCustomAction, onConfirmPreview });
 
     await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
-    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onConfirmPreview).not.toHaveBeenCalled();
     await userEvent.click(await screen.findByRole('button', { name: /^confirm$/i }));
 
     await waitFor(() => {
-      expect(onSubmit).toHaveBeenCalledWith('cast shield', 'magic', 'normal', undefined, undefined, undefined, undefined, {});
+      expect(onConfirmPreview).toHaveBeenCalledWith(expect.objectContaining({ interpretedAction: 'cast shield', stat: 'magic' }), expect.objectContaining({ useOriginalAction: false }));
     });
   });
 
@@ -164,22 +165,16 @@ describe('ActionDock speech input', () => {
         flavor: 'social',
       }),
     });
-    const onSubmit = vi.fn();
-    renderDock({ customAction: 'talk down the guard', onSubmit });
+    const onConfirmPreview = vi.fn();
+    renderDock({ customAction: 'talk down the guard', onConfirmPreview });
 
     await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
     await userEvent.click(await screen.findByRole('button', { name: /^confirm$/i }));
 
     await waitFor(() => {
-      expect(onSubmit).toHaveBeenCalledWith(
-        'talk down the guard',
-        'mischief',
-        'normal',
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        { characterBonus: 2, characterBonusLabel: 'social edge', flavor: 'social' },
+      expect(onConfirmPreview).toHaveBeenCalledWith(
+        expect.objectContaining({ interpretedAction: 'talk down the guard', stat: 'mischief', characterBonus: 2, characterBonusLabel: 'social edge', flavor: 'social' }),
+        expect.objectContaining({ useOriginalAction: false }),
       );
     });
   });
@@ -196,14 +191,14 @@ describe('ActionDock speech input', () => {
       }),
     });
     const setCustomAction = vi.fn();
-    const onSubmit = vi.fn();
-    renderDock({ customAction: 'cast sheld', setCustomAction, onSubmit });
+    const onConfirmPreview = vi.fn();
+    renderDock({ customAction: 'cast sheld', setCustomAction, onConfirmPreview });
 
     await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
     await userEvent.click(await screen.findByRole('button', { name: /^edit$/i }));
 
     expect(setCustomAction).toHaveBeenCalledWith('cast sheld');
-    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onConfirmPreview).not.toHaveBeenCalled();
   });
 
   it('can force the original custom action text when confirming', async () => {
@@ -217,35 +212,29 @@ describe('ActionDock speech input', () => {
         warnings: [],
       }),
     });
-    const onSubmit = vi.fn();
-    renderDock({ customAction: 'cast sheld', onSubmit });
+    const onConfirmPreview = vi.fn();
+    renderDock({ customAction: 'cast sheld', onConfirmPreview });
 
     await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
     await userEvent.click(await screen.findByLabelText(/force original text/i));
     await userEvent.click(screen.getByRole('button', { name: /^confirm$/i }));
 
     await waitFor(() => {
-      expect(onSubmit).toHaveBeenCalledWith(
-        'cast sheld',
-        'magic',
-        'normal',
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        {},
+      expect(onConfirmPreview).toHaveBeenCalledWith(
+        expect.objectContaining({ originalAction: 'cast sheld' }),
+        expect.objectContaining({ useOriginalAction: true }),
       );
     });
   });
 
   it('does not submit when canceling a previewed custom action', async () => {
-    const onSubmit = vi.fn();
-    renderDock({ customAction: 'cast shield', onSubmit });
+    const onConfirmPreview = vi.fn();
+    renderDock({ customAction: 'cast shield', onConfirmPreview });
 
     await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
     await userEvent.click(await screen.findByRole('button', { name: /^cancel$/i }));
 
-    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onConfirmPreview).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: /^confirm$/i })).not.toBeInTheDocument();
   });
 
@@ -326,7 +315,7 @@ describe('ActionDock clarification', () => {
   const QUESTION = 'Is "piano" your answer to the riddle?';
 
   // The draft is a controlled prop; keep it in state so the box behaves like the real page.
-  const StatefulDock = ({ initial, onSubmit }: { initial: string; onSubmit: ComponentProps<typeof ActionDock>['onSubmit'] }) => {
+  const StatefulDock = ({ initial, onConfirmPreview }: { initial: string; onConfirmPreview: ComponentProps<typeof ActionDock>['onConfirmPreview'] }) => {
     const [text, setText] = useState(initial);
     return (
       <ActionDock
@@ -339,7 +328,8 @@ describe('ActionDock clarification', () => {
         customAction={text}
         setCustomAction={setText}
         error={null}
-        onSubmit={onSubmit}
+        onSubmit={vi.fn()}
+        onConfirmPreview={onConfirmPreview}
         onShowPartyGear={vi.fn()}
       />
     );
@@ -357,8 +347,8 @@ describe('ActionDock clarification', () => {
         status: 200,
         json: async () => ({ originalAction: 'I play the piano', interpretedAction: 'Alice answers: a piano', stat: 'magic', difficulty: 'normal', warnings: ['Riddle answer: no dice roll, the riddle decides.'], previewId: 'p1' }),
       });
-    const onSubmit = vi.fn();
-    render(<StatefulDock initial="I play the piano" onSubmit={onSubmit} />);
+    const onConfirmPreview = vi.fn();
+    render(<StatefulDock initial="I play the piano" onConfirmPreview={onConfirmPreview} />);
 
     await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
     expect(await screen.findByText(QUESTION)).toBeInTheDocument();
@@ -374,14 +364,14 @@ describe('ActionDock clarification', () => {
     expect(body).toEqual({ action: 'I play the piano', supports: ['clarification'], clarifications: [{ question: QUESTION, answer: 'Yes!' }] });
     await userEvent.click(await screen.findByRole('button', { name: /^confirm$/i }));
     await waitFor(() => {
-      expect(onSubmit).toHaveBeenCalledWith('Alice answers: a piano', 'magic', 'normal', undefined, undefined, undefined, undefined, { previewId: 'p1' });
+      expect(onConfirmPreview).toHaveBeenCalledWith(expect.objectContaining({ interpretedAction: 'Alice answers: a piano', previewId: 'p1' }), expect.objectContaining({ useOriginalAction: false }));
     });
     expect(screen.queryByText(QUESTION)).not.toBeInTheDocument();
   });
 
   it('puts the draft back on Start over', async () => {
     mocks.apiFetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ kind: 'clarification', question: QUESTION, previewRevision: 3 }) });
-    render(<StatefulDock initial="I play the piano" onSubmit={vi.fn()} />);
+    render(<StatefulDock initial="I play the piano" onConfirmPreview={vi.fn()} />);
 
     await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
     await userEvent.click(await screen.findByRole('button', { name: /start over/i }));
@@ -392,7 +382,7 @@ describe('ActionDock clarification', () => {
 
   it('moves focus to the answer box, describes it with the question, and starts over on Escape', async () => {
     mocks.apiFetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ kind: 'clarification', question: QUESTION, previewRevision: 3 }) });
-    render(<StatefulDock initial="I play the piano" onSubmit={vi.fn()} />);
+    render(<StatefulDock initial="I play the piano" onConfirmPreview={vi.fn()} />);
 
     await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
     const box = await screen.findByLabelText('Your answer to the DM');
@@ -408,7 +398,7 @@ describe('ActionDock clarification', () => {
 
   it('shows a retryable explanation instead of a failed preview, keeping the draft', async () => {
     mocks.apiFetch.mockResolvedValueOnce({ ok: false, status: 409, json: async () => ({ error: 'riddle_answer_unknown', message: 'The DM is still puzzling over that riddle. Try again in a moment.' }) });
-    render(<StatefulDock initial="The answer is a piano" onSubmit={vi.fn()} />);
+    render(<StatefulDock initial="The answer is a piano" onConfirmPreview={vi.fn()} />);
 
     await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
 
@@ -510,9 +500,9 @@ describe('ActionDock gear attached to the draft', () => {
       status: 200,
       json: async () => ({ originalAction: 'Alice uses Healing Potion', interpretedAction: 'Alice uses Healing Potion', stat: 'mischief', difficulty: 'easy', warnings: [], previewId: 'p-item', itemAction: { kind: 'item_use', itemName: 'Healing Potion', ownerName: 'Alice' } }),
     });
-    const onSubmit = vi.fn();
+    const onConfirmPreview = vi.fn();
     const onClearAttachment = vi.fn();
-    renderDock({ attachment: ATTACHMENT, onClearAttachment, onSubmit, customAction: 'Alice uses Healing Potion' });
+    renderDock({ attachment: ATTACHMENT, onClearAttachment, onConfirmPreview, customAction: 'Alice uses Healing Potion' });
 
     await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
     expect(JSON.parse(mocks.apiFetch.mock.calls[0][1].body as string).attachment).toEqual({ actionType: 'use_item', itemId: 'potion-1', ownerCharacterId: 'alice' });
@@ -520,7 +510,7 @@ describe('ActionDock gear attached to the draft', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /^confirm$/i }));
     await waitFor(() => {
-      expect(onSubmit).toHaveBeenCalledWith('Alice uses Healing Potion', 'none', 'easy', undefined, undefined, undefined, undefined, { previewId: 'p-item' });
+      expect(onConfirmPreview).toHaveBeenCalledWith(expect.objectContaining({ previewId: 'p-item', itemAction: expect.objectContaining({ kind: 'item_use' }) }), expect.anything());
     });
     expect(onClearAttachment).toHaveBeenCalled();
   });
@@ -536,28 +526,28 @@ describe('ActionDock one-tap free actions', () => {
 
   it('sends a clean typed action after the undo window, without the dialog', async () => {
     mocks.apiFetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => CLEAN });
-    const onSubmit = vi.fn();
-    renderDock({ customAction: 'I juggle apples', onSubmit, autoSendDelayMs: 20 });
+    const onConfirmPreview = vi.fn();
+    renderDock({ customAction: 'I juggle apples', onConfirmPreview, autoSendDelayMs: 20 });
 
     await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
 
     expect(await screen.findByText('Alice juggles three apples')).toBeInTheDocument();
     expect(screen.queryByText('Confirm your action')).not.toBeInTheDocument();
     await waitFor(() => {
-      expect(onSubmit).toHaveBeenCalledWith('Alice juggles three apples', 'mischief', 'normal', undefined, undefined, undefined, undefined, { previewId: 'p-clean' });
+      expect(onConfirmPreview).toHaveBeenCalledWith(expect.objectContaining({ interpretedAction: 'Alice juggles three apples', previewId: 'p-clean' }), expect.objectContaining({ useOriginalAction: false }));
     });
   });
 
   it('takes the action back on Undo, keeping the draft', async () => {
     mocks.apiFetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => CLEAN });
-    const onSubmit = vi.fn();
-    renderDock({ customAction: 'I juggle apples', onSubmit, autoSendDelayMs: 60_000 });
+    const onConfirmPreview = vi.fn();
+    renderDock({ customAction: 'I juggle apples', onConfirmPreview, autoSendDelayMs: 60_000 });
 
     await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
     await userEvent.click(await screen.findByRole('button', { name: /^Undo/ }));
 
     expect(screen.queryByText('Alice juggles three apples')).not.toBeInTheDocument();
-    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onConfirmPreview).not.toHaveBeenCalled();
     expect(screen.getByLabelText('What do you try?')).toHaveValue('I juggle apples');
   });
 
@@ -612,15 +602,15 @@ describe('ActionDock keyboard shortcuts', () => {
 
   it('Escape undoes a pending send, even from the text box', async () => {
     mocks.apiFetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => CLEAN });
-    const onSubmit = vi.fn();
-    renderDock({ customAction: 'I juggle apples', onSubmit, autoSendDelayMs: 60_000 });
+    const onConfirmPreview = vi.fn();
+    renderDock({ customAction: 'I juggle apples', onConfirmPreview, autoSendDelayMs: 60_000 });
 
     await userEvent.click(screen.getByRole('button', { name: /unleash/i }));
     await screen.findByText('Alice juggles three apples');
     fireEvent.keyDown(screen.getByLabelText('What do you try?'), { key: 'Escape' });
 
     expect(screen.queryByText('Alice juggles three apples')).not.toBeInTheDocument();
-    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onConfirmPreview).not.toHaveBeenCalled();
   });
 });
 
