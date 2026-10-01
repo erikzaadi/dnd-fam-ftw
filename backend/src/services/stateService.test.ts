@@ -2,7 +2,7 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { getDb } from '../persistence/database.js';
+import { getDb, initializeDatabase } from '../persistence/database.js';
 import { StateService } from './stateService.js';
 import type { SessionState } from '../types.js';
 
@@ -16,7 +16,7 @@ beforeAll(() => {
   process.env.IMAGE_STORAGE_PROVIDER = 'local';
   process.env.OPENAI_BASE_URL = 'http://127.0.0.1:1';
   process.env.OPENAI_API_KEY = 'test-invalid-key';
-  StateService.initialize();
+  initializeDatabase();
 });
 
 afterAll(() => {

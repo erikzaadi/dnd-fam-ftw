@@ -5,8 +5,7 @@ import fs from 'fs';
 import type { Server } from 'http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { resetConfigForTests } from '../config/env.js';
-import { getDb } from '../persistence/database.js';
-import { StateService } from '../services/stateService.js';
+import { getDb, initializeDatabase } from '../persistence/database.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { createPilot, makeCallTool, setMcpTestEnv, startMcpServer } from '../mcp/testHarness.js';
 import { resetMcpRateLimits } from '../mcp/auth.js';
@@ -68,7 +67,7 @@ beforeAll(async () => {
   process.env.MCP_PUBLIC_URL = RESOURCE;
   process.env.FRONTEND_URL = 'https://play.example.com';
   setOAuth(true);
-  StateService.initialize();
+  initializeDatabase();
   ({ server, baseUrl } = startMcpServer());
   callTool = makeCallTool(baseUrl);
   const registration = await fetch(`${baseUrl}/oauth/register`, {

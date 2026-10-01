@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import Database, { type Database as DB } from 'libsql';
 import { getConfig } from '../config/env.js';
-import { StateService } from '../services/stateService.js';
+import { initializeDatabase } from '../persistence/database.js';
 import { deleteSession, seedChar, seedItem, seedTurn, type SeedChoice } from './seedHelpers.js';
 
 dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '.env'), quiet: true });
@@ -57,7 +57,7 @@ export function seed(db: DB): void {
 export const seedMechanicsShowcase = seed;
 
 if (process.argv[1]?.endsWith('seedMechanicsShowcase.ts')) {
-  StateService.initialize();
+  initializeDatabase();
   const db = new Database(path.resolve(getConfig().SQLITE_DB_PATH));
   seed(db);
   db.close();

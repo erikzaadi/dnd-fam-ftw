@@ -8,6 +8,7 @@ import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js'
 import { ImageService } from './imageService.js';
 import { readSceneImage, requestSceneImage } from './sceneImageService.js';
 import { StateService } from './stateService.js';
+import { initializeDatabase } from '../persistence/database.js';
 
 vi.mock('../providers/ai/images/imageBriefProvider.js', () => ({ generateImageBrief: vi.fn(async () => 'A troll on a bridge') }));
 
@@ -25,7 +26,7 @@ beforeAll(() => {
   process.env.SQLITE_DB_PATH = DB_PATH;
   process.env.IMAGE_STORAGE_PROVIDER = 'local';
   process.env.LOCAL_IMAGE_STORAGE_PATH = IMAGE_DIR;
-  StateService.initialize();
+  initializeDatabase();
 });
 
 beforeEach(() => {

@@ -3,11 +3,10 @@ import path from 'path';
 import fs from 'fs';
 import type { Server } from 'http';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getDb } from '../persistence/database.js';
+import { getDb, initializeDatabase } from '../persistence/database.js';
 import { operationRepository } from '../repositories/operationRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { autoConfirmRepository } from '../repositories/autoConfirmRepository.js';
-import { StateService } from '../services/stateService.js';
 import { accessTokenService } from '../services/accessTokenService.js';
 import { runAcceptedTurnAction } from '../services/turnSubmissionService.js';
 import { previewFreeAction } from '../services/statSuggestionService.js';
@@ -49,7 +48,7 @@ const preview = async (sessionId: string, extra: Record<string, unknown> = {}) =
 
 beforeAll(() => {
   setMcpTestEnv(DB_PATH);
-  StateService.initialize();
+  initializeDatabase();
   pilotA = createPilot('play-a@example.com');
   pilotB = createPilot('play-b@example.com');
   readOnly = createPilot('play-read@example.com', []);

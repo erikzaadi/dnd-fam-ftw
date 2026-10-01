@@ -15,7 +15,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import Database from 'libsql';
 import { getConfig } from '../config/env.js';
-import { StateService } from '../services/stateService.js';
+import { initializeDatabase } from '../persistence/database.js';
 import { seed as seedS1, SESSION_ID as S1 } from './seedSession1.js';
 import { seed as seedS2, SESSION_ID as S2 } from './seedSession2.js';
 import { seed as seedS3, SESSION_ID as S3 } from './seedSession3.js';
@@ -29,7 +29,7 @@ import { seed as seedRiddle, SESSION_ID as S10 } from './seedRiddle.js';
 
 dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '.env'), quiet: true });
 
-StateService.initialize();
+initializeDatabase();
 
 const db = new Database(path.resolve(getConfig().SQLITE_DB_PATH));
 

@@ -34,6 +34,7 @@ dotenv.config({ path: path.join(__dirname, '../../../.env'), quiet: true });
 
 import Database from 'libsql';
 import { StateService } from '../services/stateService.js';
+import { initializeDatabase } from '../persistence/database.js';
 import { StorySummaryService } from '../services/storySummaryService.js';
 import { getConfig } from '../config/env.js';
 import { emailOutboxRepository, type EmailOutboxStatus } from '../repositories/emailOutboxRepository.js';
@@ -91,7 +92,7 @@ function writeCsv(rows: Record<string, unknown>[], columns: string[]): void {
   }
 }
 
-StateService.initialize();
+initializeDatabase();
 
 switch (resource) {
 

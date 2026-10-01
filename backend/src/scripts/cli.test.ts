@@ -4,7 +4,7 @@ import fs from 'fs';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { getDb } from '../persistence/database.js';
+import { getDb, initializeDatabase } from '../persistence/database.js';
 import { StateService } from '../services/stateService.js';
 
 // Every test here spawns the CLI via cold `npx tsx` subprocesses (1s+ each under
@@ -46,7 +46,7 @@ beforeAll(() => {
   process.env.LOCAL_IMAGE_PUBLIC_BASE_URL = '/test-images';
   process.env.OPENAI_API_KEY = 'test-key';
   process.env.OPENAI_BASE_URL = 'http://127.0.0.1:1';
-  StateService.initialize();
+  initializeDatabase();
 });
 
 afterAll(() => {

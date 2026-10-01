@@ -8,7 +8,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { assertAuthConfig, getConfig, getTurnStrategy, isAllowedOrigin, isAuthEnabled, isGoogleAuthConfigured, isMcpEnabled, isMcpOAuthEnabled, memberInvitesUnavailableReason } from './config/env.js';
 import { authMiddleware } from './middleware/auth.js';
-import { getDb, runInTransaction } from './persistence/database.js';
+import { getDb, runInTransaction, initializeDatabase } from './persistence/database.js';
 import { seedOnboarding } from './scripts/seedOnboarding.js';
 import { countUnresolvedOwners } from './services/namespaceOwnershipService.js';
 import { usageAdmissionMiddleware } from './middleware/usageAdmission.js';
@@ -103,7 +103,7 @@ try {
 }
 
 // Bootstrap admin user if ADMIN_EMAIL is set and auth is enabled
-StateService.initialize();
+initializeDatabase();
 // Quick start ("Get me rollin'") copies this template; recreate it on every start so it
 // exists in every database and matches the current seed.
 try {

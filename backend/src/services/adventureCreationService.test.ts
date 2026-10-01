@@ -8,6 +8,7 @@ import { runInstantStartBackground } from './instantStartService.js';
 import { generateAndCommitInitialTurn } from './initialTurnService.js';
 import { buildDescribedHero, createAdventure, retryOpening } from './adventureCreationService.js';
 import { StateService } from './stateService.js';
+import { initializeDatabase } from '../persistence/database.js';
 
 vi.mock('./sessionNameService.js', () => ({ generateSessionDisplayName: vi.fn(async () => 'Troll Bridge') }));
 vi.mock('./instantStartService.js', async importOriginal => ({
@@ -34,7 +35,7 @@ const create = (requestId: string, overrides: Partial<Parameters<typeof createAd
 beforeAll(() => {
   process.env.SQLITE_DB_PATH = DB_PATH;
   process.env.IMAGE_STORAGE_PROVIDER = 'local';
-  StateService.initialize();
+  initializeDatabase();
 });
 
 beforeEach(() => {

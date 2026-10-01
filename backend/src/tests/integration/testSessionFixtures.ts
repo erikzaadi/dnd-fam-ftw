@@ -1,7 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { getDb } from '../../persistence/database.js';
+import { getDb, initializeDatabase } from '../../persistence/database.js';
 import { StateService } from '../../services/stateService.js';
 import type { Choice, SessionState } from '../../types.js';
 
@@ -23,7 +23,7 @@ export const setupIntegrationEnvironment = (name: string): IntegrationTestPaths 
   process.env.IMAGE_STORAGE_PROVIDER = 'local';
   process.env.OPENAI_BASE_URL = 'http://127.0.0.1:1';
   process.env.OPENAI_API_KEY = 'test-invalid-key';
-  StateService.initialize();
+  initializeDatabase();
 
   return paths;
 };

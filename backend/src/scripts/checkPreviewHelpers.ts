@@ -93,7 +93,7 @@ async function main() {
   process.env.IMAGE_STORAGE_PROVIDER = 'local';
 
   // Imported after the env above: config and the database are lazily bound.
-  const { StateService } = await import('../services/stateService.js');
+  const { initializeDatabase } = await import('../persistence/database.js');
   const { insertSessionState, makeTestSession } = await import('../tests/integration/testSessionFixtures.js');
   const { generateSessionDisplayName } = await import('../services/sessionNameService.js');
   const { suggestStatForSessionAction, previewFreeAction, buildEncounterContextFromEnemies } = await import('../services/statSuggestionService.js');
@@ -231,7 +231,7 @@ async function main() {
   }
   preflight('helpers');
 
-  StateService.initialize();
+  initializeDatabase();
   await insertSessionState(session());
 
   const runId = `helpers-${model}-${new Date().toISOString().replace(/[:.]/g, '-')}`;

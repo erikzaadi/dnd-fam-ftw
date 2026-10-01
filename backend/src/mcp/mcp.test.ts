@@ -6,7 +6,7 @@ import type { Server } from 'http';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { getDb } from '../persistence/database.js';
+import { getDb, initializeDatabase } from '../persistence/database.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { accessTokenService } from '../services/accessTokenService.js';
 import { StateService } from '../services/stateService.js';
@@ -49,7 +49,7 @@ beforeAll(async () => {
   process.env.JWT_SECRET = 'mcp-test-secret-that-is-long-enough-to-pass';
   process.env.MCP_ENABLED = 'true';
   process.env.IMAGE_STORAGE_PROVIDER = 'local';
-  StateService.initialize();
+  initializeDatabase();
 
   const a = userRepository.createUser('pilot-a@example.com');
   const b = userRepository.createUser('pilot-b@example.com');

@@ -1,5 +1,4 @@
 import { SessionState, TurnResult, type AdventureFormat, type Character, type GameMode, type ImagePolicy } from '../types.js';
-import { initializeDatabase } from '../persistence/database.js';
 import { characterRepository } from '../repositories/characterRepository.js';
 import { inviteRequestRepository, type InviteRequest } from '../repositories/inviteRequestRepository.js';
 import { namespaceRepository, type NamespaceListItem } from '../repositories/namespaceRepository.js';
@@ -13,11 +12,6 @@ import { removeMember } from './namespaceMembershipService.js';
 // Compatibility facade retained for stable callers. Persistence should live in
 // repositories; keep only cross-repository or side-effect orchestration here.
 export class StateService {
-  // Ensures the DB is open and migrations have run. Safe to call multiple times.
-  public static initialize(): void {
-    initializeDatabase();
-  }
-
   public static async createSession(worldDescription?: string, difficulty: string = 'normal', savingsMode: boolean = false, namespaceId: string = 'local', gameMode: GameMode = 'balanced', dmPrep?: string, initialDisplayName?: string, initialId?: string, adventureFormat: AdventureFormat = 'one_evening', imagePolicy?: ImagePolicy): Promise<SessionState> {
     return sessionRepository.createSession(worldDescription, difficulty, savingsMode, namespaceId, gameMode, dmPrep, initialDisplayName, initialId, adventureFormat, imagePolicy);
   }

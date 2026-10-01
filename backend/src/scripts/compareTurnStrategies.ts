@@ -323,10 +323,11 @@ const main = async (): Promise<void> => {
   process.env.IMAGE_STORAGE_PROVIDER = 'local';
 
   const { StateService } = await import('../services/stateService.js');
+  const { initializeDatabase } = await import('../persistence/database.js');
   const { executeTurnAction } = await import('../services/turnService.js');
   const { insertSessionState } = await import('../tests/integration/testSessionFixtures.js');
   const { sessionRepository } = await import('../repositories/sessionRepository.js');
-  StateService.initialize();
+  initializeDatabase();
 
   const outDir = path.join(args.outDir, runId);
   fs.mkdirSync(outDir, { recursive: true });
