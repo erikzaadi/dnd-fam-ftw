@@ -2,7 +2,7 @@ import { Router } from 'express';
 import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { createId } from '../lib/ids.js';
-import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
+import { summarizeHeroHistory } from '../services/playerSummaryService.js';
 import { broadcastSessionChanged, broadcastUpdate } from '../realtime/sessionEvents.js';
 import { ImageService } from '../services/imageService.js';
 import { StateService } from '../services/stateService.js';
@@ -183,19 +183,7 @@ export const createCharacterRouter = () => {
     }
     const session = await sessionRepository.listSessions(req.namespaceId);
     const sessionWithChar = session.find(s => s.party.some(p => p.id === charId));
-    const narrationContext = turns.slice(-10).map(t => t.narration).join(' ');
-    const { client, model } = createChatClientForTier('narration');
-    try {
-      const response = await client.chat.completions.create({
-        model,
-        messages: [{ role: 'user', content: `Summarize in one sentence how this adventurer performed in their past adventure${sessionWithChar ? ` in "${sessionWithChar.displayName}"` : ''}: ${narrationContext}. Focus on their notable actions. Reply with just the sentence, no preamble.` }],
-        max_tokens: 80,
-      }, { signal: AbortSignal.timeout(15_000) });
-      const summary = (response.choices[0].message.content ?? '').trim();
-      res.json({ summary });
-    } catch {
-      res.json({ summary: null });
-    }
+    res.json({ summary: await summarizeHeroHistory(turns, sessionWithChar?.displayName) });
   }));
 
   router.delete('/session/:sessionId/character/:charId', asyncHandler(async (req, res) => {

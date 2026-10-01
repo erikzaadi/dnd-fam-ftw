@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
-import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { validateTurnActionRequest } from '../services/turnService.js';
@@ -14,6 +13,7 @@ import { operationRepository, toPublicOperation } from '../repositories/operatio
 import { toPublicTurn } from '../services/sessionProjection.js';
 import { DIFFICULTY_VALUES, STAT_VALUES } from '../types.js';
 import { readCoherentSnapshot } from '../services/sessionSnapshotService.js';
+import { summarizeAdventure } from '../services/playerSummaryService.js';
 
 const MAX_ACTION_LENGTH = 600;
 
@@ -47,54 +47,12 @@ export const createTurnRouter = () => {
       turnHistoryRepository.getTurnHistory(req.params.id as string),
       sessionRepository.getSession(req.params.id as string),
     ]);
-    const battlesLine = session?.pastEncounters?.length
-      ? `\n\nBattles fought: ${session.pastEncounters.map(e => `${e.name} (${e.status})`).join(', ')}.`
-      : '';
-
-    const realmContext = [
-      session?.displayName ? `Realm: ${session.displayName}` : '',
-      session?.worldDescription ? `Description: ${session.worldDescription}` : '',
-      session?.difficulty ? `Difficulty: ${session.difficulty}` : '',
-      session?.gameMode ? `Mode: ${session.gameMode}` : '',
-    ].filter(Boolean).join('. ');
-
-    const formatChar = (c: { name: string; class: string; species: string; hp: number; status?: string }) => {
-      const status = c.hp === 0 || c.status === 'downed' ? ' - downed' : '';
-      return `${c.name} the ${c.class} (${c.species}${status})`;
-    };
-    const partyContext = session?.party.length
-      ? `\n\nParty: ${session.party.map(formatChar).join('; ')}.`
-      : '';
-
-    const originContext = session?.originStory
-      ? `\n\nOrigin: ${session.originStory}`
-      : '';
-
-    const narrationContext = history.length
-      ? `\n\nAdventure so far:\n${history.map(h => h.narration).join(' ')}${battlesLine}`
-      : '';
-
-    const instruction = history.length
-      ? '\n\nSummarize this adventure in 3 sentences for the players. Focus on main plot points, character moments, and current situation.'
-      : '\n\nSummarize the realm and party premise in 2-3 sentences for the players. The adventure has not yet begun.';
-
-    const prompt = `${realmContext}${partyContext}${originContext}${narrationContext}${instruction}`;
-    const { client, model } = createChatClientForTier('narration');
     try {
-      const response = await client.chat.completions.create({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 200,
-      }, { signal: AbortSignal.timeout(20_000) });
-      const msg = response.choices[0].message;
-      const content = msg.content || (msg as unknown as Record<string, string>)['reasoning_content'] || '';
-      res.json({ summary: content });
+      res.json({ summary: await summarizeAdventure(session, history) });
     } catch (err: unknown) {
-      if (sendRateLimitResponse(res, err)) {
-        return;
+      if (!sendRateLimitResponse(res, err)) {
+        throw err;
       }
-      console.error('[Summary] Failed:', err);
-      res.json({ summary: 'The adventure was too legendary to put into words.' });
     }
   }));
 
