@@ -27,7 +27,7 @@ A short map of how the app fits together. Details live in [MULTI_AGENT_WORKFLOW.
 | `backend/src/services/turnService.ts`, `turnResolution.ts`, `turnFinalizer.ts` | Player turns from request to commit |
 | `backend/src/services/dmTurnOrchestrator.ts` | AI agents per turn, and ideas |
 | `backend/src/services/gameEngine.ts` | Dice, damage, items, rotation, party wipes |
-| `backend/src/services/stateService.ts`, `backend/src/repositories/` | SQLite access ([repository rules](../backend/src/repositories/README.md)) |
+| `backend/src/persistence/`, `backend/src/repositories/` | SQLite: startup and migrations, then all SQL ([repository rules](../backend/src/repositories/README.md)) |
 | `backend/src/services/imageService.ts`, `backend/src/providers/` | Image prompts and storage, AI provider clients |
 | `backend/src/realtime/` | SSE broadcasting |
 | `backend/src/mcp/`, `backend/src/oauth/` | AI assistant endpoint and its OAuth server ([docs/mcp](mcp/SETUP.md)) |

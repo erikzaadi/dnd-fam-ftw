@@ -60,7 +60,6 @@ backend/src/
   index.ts                         # Express routes + SSE
   config/env.ts                    # All env var parsing - add new vars here
   services/
-    stateService.ts                # SQLite via libsql - all DB access
     authService.ts                 # Google OAuth + JWT
     aiDmService.ts                 # Narration entry point (calls dmTurnOrchestrator.ts)
     imageService.ts                # OpenAI-compatible image generation
@@ -73,6 +72,10 @@ backend/src/
   archive/
     adventureArchive.ts            # Adventure export/import (CLI): every column, references remapped
     adventureDeletion.ts           # Deleting an adventure: shared images kept, rows in one transaction
+  persistence/
+    database.ts                    # initializeDatabase() + getDb(): SQLite via libsql, migrations on startup
+    transaction.ts                 # withTransaction: synchronous, joins an outer transaction
+  repositories/                    # All SQL lives here (see repositories/README.md)
   realms/
     access.ts                      # realmAccess: membership, ownership, primary realm (keyed by user id)
     composition.ts                 # Internal building blocks for services/accountService.ts only
@@ -150,7 +153,7 @@ Membership, ownership and the primary pointer live in `realms/access.ts` (`realm
 
 Routes with a session id should use `registerSessionIdParam()` so missing sessions and sessions outside `req.namespaceId` return 404 before route handlers run, with the loaded session available as `req.session`.
 
-`StateService.deleteSession()` (`archive/adventureDeletion.ts`) deletes the adventure's images (turns, heroes, origin story, encounter enemies and areas) that no other adventure references, then its rows in one transaction; it refuses (409 on `DELETE /session/:id`) while an operation is running. CLI export/import live in `archive/adventureArchive.ts` (see `MANAGE.md`).
+`deleteAdventure()` (`archive/adventureDeletion.ts`) deletes the adventure's images (turns, heroes, origin story, encounter enemies and areas) that no other adventure references, then its rows in one transaction; it refuses (409 on `DELETE /session/:id`) while an operation is running. CLI export/import live in `archive/adventureArchive.ts` (see `MANAGE.md`).
 
 Usage tiers (`free` | `supporter` | `unlimited`) and daily text/picture budgets live in `services/usageLimitService.ts`; per-namespace session/turn overrides (NULL = tier default): see `MANAGE.md`. Every AI provider request is recorded in `provider_usage` by the SDK fetch in `providers/ai/usageRecordingFetch.ts`, attributed via `lib/usageContext.ts`: `user_id` is the actor, `owner_user_id` the realm owner when the request began. Build usage contexts only with `createUsageContext` (`services/usageAttribution.ts`); a real realm without a valid owner is refused paid work. Whether a realm may start paid work is decided at entry by paid-work admission (`services/paidWorkAdmission.ts`: `admitPaidWork`, `checkAdventureCap`); HTTP routes that start AI work carry `requirePaidWork(kind)` (`middleware/usageAdmission.ts`, listed in `routes/paidRoutes.test.ts`; the action route admits inside the turn command, after replay), MCP tools go through `admitPaidCall` (`mcp/admission.ts`, which adds the per-grant daily counter). The provider-level backstop in `usageRecordingFetch.ts` stays separate, with looser thresholds.
 
@@ -186,7 +189,7 @@ When adding CLI subcommands or flags, also update `scripts/cli-completion.bash`.
 
 ## DB migrations
 
-`stateService.ts` runs `migrate()` on every startup. Add columns as `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` at the bottom of `migrate()`. Never drop columns or change column types. Update `seedSessions.ts` when adding migrations or changing game engine state shape.
+`initializeDatabase()` (`persistence/database.ts`) runs `migrate()` (`persistence/migrations.ts`) on every startup. Add columns as `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` at the bottom of `migrate()`. Never drop columns or change column types. Update `seedSessions.ts` when adding migrations or changing game engine state shape.
 
 ## Image storage
 
