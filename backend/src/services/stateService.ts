@@ -6,7 +6,7 @@ import { sessionRepository, type SessionPatch } from '../repositories/sessionRep
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { usageRepository } from '../repositories/usageRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
-import { deleteSessionWithAssets } from './sessionDeletionService.js';
+import { deleteAdventure } from '../archive/adventureDeletion.js';
 
 // Compatibility facade retained for stable callers. Persistence should live in
 // repositories; keep only cross-repository or side-effect orchestration here.
@@ -20,7 +20,7 @@ export class StateService {
   }
 
   public static async deleteSession(id: string): Promise<void> {
-    return deleteSessionWithAssets(id);
+    await deleteAdventure(id);
   }
 
   public static async updateSession(id: string, state: SessionState): Promise<void> {
