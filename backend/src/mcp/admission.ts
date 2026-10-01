@@ -1,7 +1,8 @@
 import { getConfig } from '../config/env.js';
 import { authChallengeRepository } from '../repositories/authChallengeRepository.js';
 import type { McpPrincipal } from '../services/accessTokenService.js';
-import { checkTextBudget } from '../services/usageLimitService.js';
+import { getUsageContext } from '../lib/usageContext.js';
+import { admitPaidWork } from '../services/paidWorkAdmission.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -16,9 +17,9 @@ export const admitPaidCall = (principal: McpPrincipal, now: number = Date.now())
   if (ceiling === 0) {
     return { ok: false, code: 'paid_tools_disabled', message: 'Playing through an assistant is paused on this server right now. Reading adventures still works.' };
   }
-  const budget = checkTextBudget(principal.namespaceId, { now: new Date(now) });
-  if (budget) {
-    return { ok: false, code: 'limit_reached', message: budget.message };
+  const admission = admitPaidWork('assistant', { namespaceId: principal.namespaceId, attribution: getUsageContext()?.attribution }, new Date(now));
+  if (!admission.ok) {
+    return { ok: false, code: admission.refusal.error, message: admission.refusal.message };
   }
   const dayStart = Math.floor(now / DAY_MS) * DAY_MS;
   const count = authChallengeRepository.incrementRateLimit(`mcp-paid:${principal.grantId}`, dayStart);
