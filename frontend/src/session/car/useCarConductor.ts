@@ -62,7 +62,7 @@ interface UseCarConductorProps {
   // Confirms the spoken preview by its server handle.
   confirmPreview: (preview: FreeActionPreview) => Promise<SubmitTurnResult>;
   // Selects a suggestion explicitly by its stable id.
-  submitChoice: (choice: Choice) => Promise<unknown>;
+  submitChoice: (choice: Choice) => Promise<SubmitTurnResult>;
   previewAction: (actionText: string) => Promise<unknown>;
   clearPreview: () => void;
   // An open DM question about the draft: the next utterance answers it.
@@ -382,6 +382,14 @@ export function useCarConductor({
     void playSequence(seq);
   }, [history, latestIdeas, session, prevEncounterStatus, playSequence]);
 
+  // The server refused the action (a stale option, a spent budget): say why and listen
+  // again. Nothing is processing.
+  const speakRefusal = async (message: string) => {
+    addToTranscriptLog(`System: ${message}`);
+    setConductorState('error');
+    await speakTempText(message);
+  };
+
   const handleSpeechTranscript = async (transcript: string) => {
     if (isPausedRef.current) {
       return;
@@ -442,7 +450,11 @@ export function useCarConductor({
         setConductorState('submitting');
         await speakAlert('Action sent.');
         try {
-          await submitChoice(choice);
+          const result = await submitChoice(choice);
+          if (!result.ok) {
+            await speakRefusal(result.message);
+            return;
+          }
           setConductorState('processing');
         } catch {
           addToTranscriptLog('System: Action submission failed.');
@@ -474,6 +486,10 @@ export function useCarConductor({
             }
             confirmingActionRef.current = null;
             clearPreview();
+            if (!result.ok) {
+              await speakRefusal(result.message);
+              return;
+            }
             setConductorState('processing');
           } catch {
             confirmingActionRef.current = null;

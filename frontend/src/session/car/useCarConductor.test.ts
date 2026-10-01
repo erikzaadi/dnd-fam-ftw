@@ -20,7 +20,7 @@ vi.mock('../../tts/narrationTtsService', () => ({
 
 describe('useCarConductor', () => {
   const mockConfirmPreview = vi.fn().mockResolvedValue({ ok: true });
-  const mockSubmitChoice = vi.fn().mockResolvedValue(undefined);
+  const mockSubmitChoice = vi.fn().mockResolvedValue({ ok: true });
   const mockPreviewAction = vi.fn().mockResolvedValue(undefined);
   const mockClearPreview = vi.fn();
 
@@ -258,6 +258,22 @@ describe('useCarConductor', () => {
 
       expect(mockConfirmPreview).toHaveBeenCalledWith(preview);
       expect(mockClearPreview).toHaveBeenCalled();
+    });
+
+    // Behaviour change (plan 6 B2). Before: a refused submission still moved the
+    // conductor to processing. After: it says why and stays out of processing.
+    it('says why a confirm was refused and does not wait for a turn', async () => {
+      mockConfirmPreview.mockResolvedValueOnce({ ok: false, error: 'usage_limit', message: 'The realm is out of stories for today.' });
+      const { rerender, result } = renderConductor();
+      await say('climb the wall');
+      rerender({ actionPreview: preview });
+      await settle();
+
+      await say('confirm');
+
+      expect(result.current.conductorState).not.toBe('processing');
+      expect(result.current.transcriptLog).toContain('System: The realm is out of stories for today.');
+      expect(vi.mocked(narrationTtsService.speakNarration).mock.calls.some(call => call[0].text === 'The realm is out of stories for today.')).toBe(true);
     });
 
     it('keeps waiting for a confirm when the preview was asked for again', async () => {
