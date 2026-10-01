@@ -10,7 +10,7 @@ import { assertAuthConfig, getConfig, getTurnStrategy, isAllowedOrigin, isAuthEn
 import { authMiddleware } from './middleware/auth.js';
 import { getDb, runInTransaction, initializeDatabase } from './persistence/database.js';
 import { seedOnboarding } from './scripts/seedOnboarding.js';
-import { countUnresolvedOwners } from './services/namespaceOwnershipService.js';
+import { countUnresolvedOwners } from './realms/ownershipReport.js';
 import { usageAdmissionMiddleware } from './middleware/usageAdmission.js';
 import { startEmailAuthMaintenance } from './services/emailAuthService.js';
 import { startOutboxDispatcher } from './services/emailService.js';

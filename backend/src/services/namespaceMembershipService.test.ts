@@ -6,10 +6,10 @@ import { getDb, initializeDatabase } from '../persistence/database.js';
 import { migrate } from '../persistence/migrations.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
-import { removeMember } from './namespaceMembershipService.js';
 import { resolveVerifiedSignIn } from './signupService.js';
-import { accountService } from '../services/accountService.js';
+import { accountService } from './accountService.js';
 import { realmAccess } from '../realms/access.js';
+import { deleteRealm, removeMember } from './realmAdmin.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-membership-test-${Date.now()}.sqlite`);
 
@@ -120,9 +120,9 @@ describe('deleteUser with ownership', () => {
 describe('deleteNamespace', () => {
   it('refuses while members remain and deletes an empty realm', () => {
     const owner = accountService.createUser('ns-owner@example.com');
-    expect(namespaceRepository.deleteNamespace(owner.namespaceId)).toMatchObject({ ok: false });
+    expect(deleteRealm(owner.namespaceId)).toMatchObject({ ok: false });
     const { namespaceId } = namespaceRepository.createNamespace('Empty');
-    expect(namespaceRepository.deleteNamespace(namespaceId)).toEqual({ ok: true });
+    expect(deleteRealm(namespaceId)).toEqual({ ok: true });
     expect(namespaceRepository.getNamespaceById(namespaceId)).toBeNull();
   });
 });

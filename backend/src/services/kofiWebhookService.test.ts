@@ -8,7 +8,7 @@ import { limitRequestRepository } from '../repositories/limitRequestRepository.j
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { handleKofiWebhook, KOFI_SUPPORTER_DAYS } from './kofiWebhookService.js';
 import { getEffectiveLimits, getNamespaceTier } from './usageLimitService.js';
-import { accountService } from '../services/accountService.js';
+import { accountService } from './accountService.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-kofi-test-${Date.now()}.sqlite`);
 const TOKEN = 'test-kofi-token';

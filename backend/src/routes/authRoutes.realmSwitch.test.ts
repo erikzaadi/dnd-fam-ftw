@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { resetConfigForTests } from '../config/env.js';
 import { initializeDatabase } from '../persistence/database.js';
 import { signJwt } from '../services/authService.js';
-import { removeMember } from '../services/namespaceMembershipService.js';
+import { removeMember } from '../services/realmAdmin.js';
 import { createAuthRouter } from './authRoutes.js';
 import { accountService } from '../services/accountService.js';
 import { realmAccess } from '../realms/access.js';

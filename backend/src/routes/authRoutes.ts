@@ -10,7 +10,6 @@ import { authMiddleware, requireFullIdentity, requirePendingInviteToken, require
 import { buildGoogleAuthUrl, createOAuthState, createPkcePair, exchangeCodeForIdentity, getAuthPublicConfig, safeEqual } from '../services/authService.js';
 import { StateService } from '../services/stateService.js';
 import { userRepository } from '../repositories/userRepository.js';
-import { isNamespaceOwner } from '../services/namespaceOwnershipService.js';
 import { canInvite } from '../services/namespaceInviteService.js';
 import {
   EMAIL_CHALLENGE_COOKIE,
@@ -286,7 +285,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
   router.get('/auth/session/namespaces', requireFullIdentity, (req, res) => {
     const identity = req.fullIdentity!;
     const namespaces = realmAccess.realmsFor(identity.userId)
-      .map(namespace => ({ ...namespace, isOwner: isNamespaceOwner(identity.userId, namespace.id) }));
+      .map(namespace => ({ ...namespace, isOwner: realmAccess.isOwner(identity.userId, namespace.id) }));
     const currentNamespaceId = namespaces.some(n => n.id === identity.namespaceId) ? identity.namespaceId : null;
     const body: SessionNamespacesResponse = {
       currentNamespaceId,

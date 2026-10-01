@@ -16,10 +16,9 @@ import type {
   NamespaceInvitationsResponse,
 } from '../types.js';
 import { buildInvitationEmail, enqueueSignupNotice, getAppUrl } from './emailService.js';
-import { LOCAL_NAMESPACE_ID } from './namespaceOwnershipService.js';
 import { isSignupPaused, startOfUtcDay } from './usageLimitService.js';
-import { realmAccess } from '../realms/access.js';
-import { accountService } from '../services/accountService.js';
+import { LOCAL_REALM_ID, realmAccess } from '../realms/access.js';
+import { accountService } from './accountService.js';
 
 // Member invitations: an owner (or, when the owner allows it, any member) emails a
 // single-use link that adds the recipient to the realm as an ordinary member. The link
@@ -44,7 +43,7 @@ const isOwner = (userId: string, namespaceId: string) => namespaceRepository.get
 
 // Only the owner, or any member when the owner has turned member invitations on.
 export function canInvite(userId: string, namespaceId: string): boolean {
-  if (!isInvitesEnabled() || namespaceId === LOCAL_NAMESPACE_ID || !realmAccess.isMember(userId, namespaceId)) {
+  if (!isInvitesEnabled() || namespaceId === LOCAL_REALM_ID || !realmAccess.isMember(userId, namespaceId)) {
     return false;
   }
   return isOwner(userId, namespaceId) || namespaceRepository.getMemberInvitesEnabled(namespaceId);

@@ -1,14 +1,14 @@
 import { runInTransaction } from '../persistence/database.js';
-import { namespaceInviteRepository } from '../repositories/namespaceInviteRepository.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
-import { realmAccess } from '../realms/access.js';
+import { LOCAL_REALM_ID } from './rules.js';
 
-// Every real (authenticated) namespace has exactly one owner, who exists and is a
-// member. The users FK covers "exists" and blocks deleting an owner; the rest is
-// enforced here and reported by `cli namespaces owners`. 'local' (auth disabled) is
-// the one ownerless system namespace.
-export const LOCAL_NAMESPACE_ID = 'local';
+// Ownership report for operators (cli namespaces owners). Every real (authenticated)
+// realm has exactly one owner, who exists and is a member. The users FK covers
+// "exists" and blocks deleting an owner; realms/access.ts enforces the rest, and this
+// report finds realms that drifted. The local realm (auth disabled) is the one
+// ownerless system realm and is never listed. Reads all realms in bulk queries rather
+// than per-realm lookups.
 
 export type OwnershipStatus =
   | 'ok'            // owner set, exists, and is a member
@@ -39,7 +39,7 @@ export interface OwnershipReportRow {
 export function buildOwnershipReport(): OwnershipReportRow[] {
   const byNamespace = new Map<string, { name: string; ownerUserId: string | null; members: OwnershipReportMember[] }>();
   for (const row of namespaceRepository.listMembershipRows()) {
-    if (row.namespace_id === LOCAL_NAMESPACE_ID) {
+    if (row.namespace_id === LOCAL_REALM_ID) {
       continue;
     }
     const entry = byNamespace.get(row.namespace_id) ?? { name: row.namespace_name, ownerUserId: row.owner_user_id, members: [] };
@@ -96,42 +96,4 @@ export function applyProposedOwners(): number {
 // nobody can play there, and the first member added becomes the owner.
 export function countUnresolvedOwners(): number {
   return buildOwnershipReport().filter(row => row.status !== 'ok' && row.members.length > 0).length;
-}
-
-export type SetOwnerResult =
-  | { ok: true; previousOwnerUserId: string | null; userId: string }
-  | { ok: false; reason: string };
-
-// Operator mapping and ownership transfer (cli namespaces set-owner). The new owner
-// must already be a member. A transfer revokes every pending invitation in the same
-// transaction, so the new owner controls further admissions.
-export function setNamespaceOwner(namespaceId: string, email: string, now: number = Date.now()): SetOwnerResult {
-  if (namespaceId === LOCAL_NAMESPACE_ID) {
-    return { ok: false, reason: 'The local namespace has no owner' };
-  }
-  if (!namespaceRepository.getNamespaceById(namespaceId)) {
-    return { ok: false, reason: `Namespace not found: ${namespaceId}` };
-  }
-  const user = userRepository.getUserByEmail(email);
-  if (!user) {
-    return { ok: false, reason: `User not found: ${email}` };
-  }
-  if (!realmAccess.isMember(user.id, namespaceId)) {
-    return { ok: false, reason: `${email} is not a member of ${namespaceId}; add them first (namespaces add-user)` };
-  }
-  const previousOwnerUserId = namespaceRepository.getOwnerUserId(namespaceId);
-  if (previousOwnerUserId === user.id) {
-    return { ok: true, previousOwnerUserId, userId: user.id };
-  }
-  runInTransaction(() => {
-    namespaceRepository.setOwnerUserId(namespaceId, user.id);
-    if (previousOwnerUserId) {
-      namespaceInviteRepository.revokeAllPending(namespaceId, now);
-    }
-  });
-  return { ok: true, previousOwnerUserId, userId: user.id };
-}
-
-export function isNamespaceOwner(userId: string, namespaceId: string): boolean {
-  return namespaceRepository.getOwnerUserId(namespaceId) === userId;
 }

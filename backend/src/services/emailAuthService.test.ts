@@ -8,7 +8,7 @@ import { setEmailProviderForTests } from '../providers/email/emailProviderFactor
 import { userRepository } from '../repositories/userRepository.js';
 import { resendEmailCode, startEmailSignIn, verifyEmailCode } from './emailAuthService.js';
 import { resolveVerifiedSignIn } from './signupService.js';
-import { accountService } from '../services/accountService.js';
+import { accountService } from './accountService.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-email-auth-test-${Date.now()}.sqlite`);
 let mail: CaptureEmailProvider;

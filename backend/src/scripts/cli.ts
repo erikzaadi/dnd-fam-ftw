@@ -52,8 +52,8 @@ import { USAGE_TIERS, getEffectiveLimits, getNamespaceTier, isUsageTier, tierLab
 import { isMcpEligible } from '../services/accessTokenService.js';
 import { mcpAccessRequestService } from '../services/mcpAccessRequestService.js';
 import { mcpAccessRequestRepository, type McpAccessRequestStatus } from '../repositories/mcpAccessRequestRepository.js';
-import { applyProposedOwners, buildOwnershipReport, setNamespaceOwner } from '../services/namespaceOwnershipService.js';
-import { removeMember } from '../services/namespaceMembershipService.js';
+import { applyProposedOwners, buildOwnershipReport } from '../realms/ownershipReport.js';
+import { addMember, deleteRealm, removeMember, setNamespaceOwner, setPrimary } from '../services/realmAdmin.js';
 import { namespaceInviteRepository } from '../repositories/namespaceInviteRepository.js';
 import { realmAccess } from '../realms/access.js';
 import { accountService } from '../services/accountService.js';
@@ -187,7 +187,7 @@ case 'users': {
     if (!email || !namespaceId) {
       fail('Usage: cli users set-primary <email> <namespaceId>');
     }
-    const result = StateService.setPrimaryNamespace(email, namespaceId);
+    const result = setPrimary(email, namespaceId);
     if (result.ok) {
       console.log(`Updated primary namespace for ${email} to ${namespaceId}`);
     } else {
@@ -313,7 +313,7 @@ case 'namespaces': {
     if (!name) {
       fail('Usage: cli namespaces create <name>');
     }
-    const { namespaceId } = StateService.createNamespace(name);
+    const { namespaceId } = namespaceRepository.createNamespace(name);
     console.log(`Created namespace: "${name}"\n  namespaceId: ${namespaceId}`);
     console.log('  It has no owner yet: the first member you add (namespaces add-user) becomes its owner.');
     break;
@@ -382,7 +382,7 @@ case 'namespaces': {
     if (!id) {
       fail('Usage: cli namespaces delete <id>');
     }
-    const result = StateService.deleteNamespace(id);
+    const result = deleteRealm(id);
     if (result.ok) {
       console.log(`Deleted namespace: ${id}`);
     } else {
@@ -442,7 +442,7 @@ case 'namespaces': {
     if (!nsId || !email) {
       fail('Usage: cli namespaces add-user <namespaceId> <email>');
     }
-    const result = StateService.addUserToNamespace(email, nsId);
+    const result = addMember(email, nsId);
     if (result.ok) {
       console.log(`Granted ${email} access to namespace ${nsId}`);
     } else {

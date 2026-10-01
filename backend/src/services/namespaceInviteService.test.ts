@@ -9,7 +9,7 @@ import { setEmailProviderForTests } from '../providers/email/emailProviderFactor
 import { namespaceInviteRepository } from '../repositories/namespaceInviteRepository.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
-import { removeMember } from './namespaceMembershipService.js';
+import { removeMember } from './realmAdmin.js';
 import {
   acceptInvitation,
   createInvitation,
@@ -21,7 +21,7 @@ import {
   INVITE_TTL_MS,
   setMemberInvites,
 } from './namespaceInviteService.js';
-import { accountService } from '../services/accountService.js';
+import { accountService } from './accountService.js';
 import { realmAccess } from '../realms/access.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-invite-test-${Date.now()}.sqlite`);

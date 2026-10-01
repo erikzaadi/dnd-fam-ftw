@@ -14,6 +14,7 @@ import { seedOnboarding, ONBOARDING_TEMPLATE_SESSION_ID } from '../scripts/seedO
 import type { SessionState } from '../types.js';
 import { accountService } from '../services/accountService.js';
 import { realmAccess } from '../realms/access.js';
+import { deleteRealm } from '../services/realmAdmin.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-repository-test-${Date.now()}.sqlite`);
 const IMAGE_PATH = path.join(os.tmpdir(), `dnd-repository-images-${Date.now()}`);
@@ -182,13 +183,12 @@ describe('userRepository and namespaceRepository', () => {
 
   it('refuses to delete namespaces with users or sessions', () => {
     const { namespaceId: userNamespaceId } = accountService.createUser('repo-namespace-user@example.com');
-    expect(namespaceRepository.deleteNamespace(userNamespaceId)).toMatchObject({ ok: false });
+    expect(deleteRealm(userNamespaceId)).toMatchObject({ ok: false });
 
     const { namespaceId: sessionNamespaceId } = namespaceRepository.createNamespace('Repository Session Namespace');
     insertSession('repo-session-namespace-delete', sessionNamespaceId);
-    const result = namespaceRepository.deleteNamespace(sessionNamespaceId);
-    expect(result.ok).toBe(false);
-    expect(result.reason).toMatch(/session/);
+    const result = deleteRealm(sessionNamespaceId);
+    expect(result).toMatchObject({ ok: false, reason: expect.stringMatching(/session/) });
   });
 });
 

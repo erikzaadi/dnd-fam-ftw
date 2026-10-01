@@ -5,9 +5,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getDb, initializeDatabase } from '../persistence/database.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
-import { removeMember } from './namespaceMembershipService.js';
-import { buildOwnershipReport, setNamespaceOwner } from './namespaceOwnershipService.js';
-import { accountService } from '../services/accountService.js';
+import { buildOwnershipReport } from '../realms/ownershipReport.js';
+import { deleteRealm, removeMember, setNamespaceOwner } from './realmAdmin.js';
+import { accountService } from './accountService.js';
 import { realmAccess } from '../realms/access.js';
 
 // Characterization of realm membership and ownership rules before the realm access
@@ -96,17 +96,16 @@ describe('replacement primary realm', () => {
 
 describe('deleteNamespace', () => {
   it('refuses an unknown realm', () => {
-    expect(namespaceRepository.deleteNamespace('no-such-realm')).toMatchObject({ ok: false, reason: 'Namespace not found: no-such-realm' });
+    expect(deleteRealm('no-such-realm')).toMatchObject({ ok: false, reason: 'Namespace not found: no-such-realm' });
   });
 
   it('refuses while a user has it as primary and no other realm', () => {
     const { namespaceId } = namespaceRepository.createNamespace('Stranding');
     insertStrandedUser(namespaceId);
 
-    const result = namespaceRepository.deleteNamespace(namespaceId);
+    const result = deleteRealm(namespaceId);
 
-    expect(result.ok).toBe(false);
-    expect(result.reason).toContain('has this namespace as primary and no other realm');
+    expect(result).toMatchObject({ ok: false, reason: expect.stringContaining('has this namespace as primary and no other realm') });
     expect(namespaceRepository.getNamespaceById(namespaceId)).not.toBeNull();
   });
 
@@ -115,7 +114,7 @@ describe('deleteNamespace', () => {
     const other = accountService.createUser(email('moved'));
     getDb().prepare('UPDATE users SET namespace_id = ? WHERE id = ?').run(namespaceId, other.userId);
 
-    expect(namespaceRepository.deleteNamespace(namespaceId)).toEqual({ ok: true });
+    expect(deleteRealm(namespaceId)).toEqual({ ok: true });
     expect(userRepository.getUserById(other.userId)?.namespace_id).toBe(other.namespaceId);
     expect(namespaceRepository.getNamespaceById(namespaceId)).toBeNull();
   });

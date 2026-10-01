@@ -4,9 +4,9 @@ import fs from 'fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getDb, initializeDatabase } from '../persistence/database.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
-import { setNamespaceOwner } from './namespaceOwnershipService.js';
+import { setNamespaceOwner } from './realmAdmin.js';
 import { createUsageContext } from './usageAttribution.js';
-import { accountService } from '../services/accountService.js';
+import { accountService } from './accountService.js';
 import { realmAccess } from '../realms/access.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-attribution-test-${Date.now()}.sqlite`);

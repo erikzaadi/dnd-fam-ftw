@@ -12,7 +12,8 @@ import { usageRepository } from '../repositories/usageRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { realmAccess } from '../realms/access.js';
 import type { SessionState } from '../types.js';
-import { accountService } from '../services/accountService.js';
+import { accountService } from './accountService.js';
+import { addMember, deleteRealm, removeMember, setPrimary } from './realmAdmin.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-test-${Date.now()}.sqlite`);
 const IMAGE_STORAGE_PATH = path.join(os.tmpdir(), `dnd-test-imgs-state-${Date.now()}`);
@@ -345,7 +346,7 @@ describe('StateService - User / Namespace management', () => {
   });
 
   it('createNamespace + getNamespaceById', () => {
-    const { namespaceId } = StateService.createNamespace('The Guild');
+    const { namespaceId } = namespaceRepository.createNamespace('The Guild');
     const ns = namespaceRepository.getNamespaceById(namespaceId);
     expect(ns).not.toBeNull();
     expect(ns!.name).toBe('The Guild');
@@ -356,49 +357,47 @@ describe('StateService - User / Namespace management', () => {
   });
 
   it('renameNamespace updates name', () => {
-    const { namespaceId } = StateService.createNamespace('Old Name');
+    const { namespaceId } = namespaceRepository.createNamespace('Old Name');
     expect(StateService.renameNamespace(namespaceId, 'New Name')).toBe(true);
     expect(namespaceRepository.getNamespaceById(namespaceId)!.name).toBe('New Name');
   });
 
   it('deleteNamespace rejects the local namespace', () => {
-    expect(StateService.deleteNamespace('local').ok).toBe(false);
+    expect(deleteRealm('local').ok).toBe(false);
   });
 
   it('deleteNamespace rejects namespace with members', () => {
     const { namespaceId } = accountService.createUser('has-users@example.com');
-    const result = StateService.deleteNamespace(namespaceId);
-    expect(result.ok).toBe(false);
-    expect(result.reason).toMatch(/member/);
+    const result = deleteRealm(namespaceId);
+    expect(result).toMatchObject({ ok: false, reason: expect.stringMatching(/member/) });
   });
 
   it('addUserToNamespace + getUserNamespaces + removeUserFromNamespace', () => {
     const { namespaceId: primaryNs } = accountService.createUser('multi-ns@example.com');
-    const { namespaceId: secondNs } = StateService.createNamespace('Second Realm');
+    const { namespaceId: secondNs } = namespaceRepository.createNamespace('Second Realm');
     // The first member of an empty realm becomes its owner; add one before our user.
     accountService.createUser('second-realm-owner@example.com');
-    expect(StateService.addUserToNamespace('second-realm-owner@example.com', secondNs).ok).toBe(true);
-    expect(StateService.addUserToNamespace('multi-ns@example.com', secondNs).ok).toBe(true);
+    expect(addMember('second-realm-owner@example.com', secondNs).ok).toBe(true);
+    expect(addMember('multi-ns@example.com', secondNs).ok).toBe(true);
     const realmsOf = (email: string) => realmAccess.realmsFor(userRepository.getUserByEmail(email)!.id);
     const nsIds = realmsOf('multi-ns@example.com').map(n => n.id);
     expect(nsIds).toContain(primaryNs);
     expect(nsIds).toContain(secondNs);
-    expect(StateService.removeUserFromNamespace('multi-ns@example.com', secondNs).ok).toBe(true);
+    expect(removeMember('multi-ns@example.com', secondNs).ok).toBe(true);
     expect(realmsOf('multi-ns@example.com').some(n => n.id === secondNs)).toBe(false);
   });
 
   it('removeUserFromNamespace rejects the owner', () => {
     const { namespaceId } = accountService.createUser('primary-ns@example.com');
-    const result = StateService.removeUserFromNamespace('primary-ns@example.com', namespaceId);
-    expect(result.ok).toBe(false);
-    expect(result.reason).toMatch(/owns/);
+    const result = removeMember('primary-ns@example.com', namespaceId);
+    expect(result).toMatchObject({ ok: false, reason: expect.stringMatching(/owns/) });
   });
 
   it('setPrimaryNamespace changes primary namespace', () => {
     const { namespaceId: primaryNs } = accountService.createUser('switch-ns@example.com');
-    const { namespaceId: newPrimaryNs } = StateService.createNamespace('New Primary');
-    StateService.addUserToNamespace('switch-ns@example.com', newPrimaryNs);
-    expect(StateService.setPrimaryNamespace('switch-ns@example.com', newPrimaryNs).ok).toBe(true);
+    const { namespaceId: newPrimaryNs } = namespaceRepository.createNamespace('New Primary');
+    addMember('switch-ns@example.com', newPrimaryNs);
+    expect(setPrimary('switch-ns@example.com', newPrimaryNs).ok).toBe(true);
     expect(userRepository.getUserByEmail('switch-ns@example.com')!.namespace_id).toBe(newPrimaryNs);
     expect(realmAccess.realmsFor(userRepository.getUserByEmail('switch-ns@example.com')!.id).some(n => n.id === primaryNs)).toBe(true);
   });
@@ -406,7 +405,7 @@ describe('StateService - User / Namespace management', () => {
 
 describe('StateService - Namespace limits', () => {
   it('setNamespaceLimits + getNamespaceLimits', () => {
-    const { namespaceId } = StateService.createNamespace('Limited Realm');
+    const { namespaceId } = namespaceRepository.createNamespace('Limited Realm');
     const before = StateService.getNamespaceLimits(namespaceId);
     expect(before.maxSessions).toBeNull();
     expect(before.maxTurns).toBeNull();
@@ -421,7 +420,7 @@ describe('StateService - Namespace limits', () => {
   });
 
   it('countSessionsInNamespace', () => {
-    const { namespaceId } = StateService.createNamespace('Count Realm');
+    const { namespaceId } = namespaceRepository.createNamespace('Count Realm');
     expect(sessionRepository.countSessionsInNamespace(namespaceId)).toBe(0);
     insertTestSession('sess-count-1', namespaceId);
     insertTestSession('sess-count-2', namespaceId);
@@ -431,7 +430,7 @@ describe('StateService - Namespace limits', () => {
 
 describe('StateService - TTS usage', () => {
   it('records TTS request count and character usage by namespace', () => {
-    const { namespaceId } = StateService.createNamespace('Audio Realm');
+    const { namespaceId } = namespaceRepository.createNamespace('Audio Realm');
     StateService.recordTtsUsage(namespaceId, 'fable', 120);
     StateService.recordTtsUsage(namespaceId, 'sage', 80);
     StateService.recordTtsUsage('local', 'fable', 50);

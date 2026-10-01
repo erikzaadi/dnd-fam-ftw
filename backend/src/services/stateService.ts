@@ -5,11 +5,8 @@ import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { sessionRepository, type SessionPatch } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { usageRepository } from '../repositories/usageRepository.js';
-import { userRepository, type DeleteUserResult } from '../repositories/userRepository.js';
+import { userRepository } from '../repositories/userRepository.js';
 import { deleteSessionWithAssets } from './sessionDeletionService.js';
-import { removeMember } from './namespaceMembershipService.js';
-import { accountService } from '../services/accountService.js';
-import { realmAccess } from '../realms/access.js';
 
 // Compatibility facade retained for stable callers. Persistence should live in
 // repositories; keep only cross-repository or side-effect orchestration here.
@@ -76,68 +73,16 @@ export class StateService {
 
   // --- Namespace / User management ---
 
-  public static createUser(email: string, namespaceName?: string, role: string = 'member'): { userId: string; namespaceId: string } {
-    return accountService.createUser(email, namespaceName, role);
-  }
-
-  public static ensureAdminUser(email: string): void {
-    accountService.ensureAdminUser(email);
-  }
-
-  public static deleteUser(email: string): DeleteUserResult {
-    return accountService.deleteUser(email);
-  }
-
   public static recordLogin(email: string): void {
     userRepository.recordLogin(email);
-  }
-
-  public static setPrimaryNamespace(email: string, namespaceId: string): { ok: boolean; reason?: string } {
-    const user = userRepository.getUserByEmail(email);
-    if (!user) {
-      return { ok: false, reason: `User not found: ${email}` };
-    }
-    const ns = namespaceRepository.getNamespaceById(namespaceId);
-    if (!ns) {
-      return { ok: false, reason: `Namespace not found: ${namespaceId}` };
-    }
-    realmAccess.setPrimary(user.id, namespaceId);
-    return { ok: true };
-  }
-
-  public static createNamespace(name: string): { namespaceId: string } {
-    return namespaceRepository.createNamespace(name);
   }
 
   public static renameNamespace(id: string, newName: string): boolean {
     return namespaceRepository.renameNamespace(id, newName);
   }
 
-  public static deleteNamespace(id: string): { ok: boolean; reason?: string } {
-    return namespaceRepository.deleteNamespace(id);
-  }
-
   public static assignSessionToNamespace(sessionId: string, namespaceId: string): boolean {
     return sessionRepository.assignSessionToNamespace(sessionId, namespaceId);
-  }
-
-  // --- Multi-namespace user access ---
-
-  public static addUserToNamespace(email: string, namespaceId: string): { ok: boolean; reason?: string } {
-    const user = userRepository.getUserByEmail(email);
-    if (!user) {
-      return { ok: false, reason: `User not found: ${email}` };
-    }
-    const ns = namespaceRepository.getNamespaceById(namespaceId);
-    if (!ns) {
-      return { ok: false, reason: `Namespace not found: ${namespaceId}` };
-    }
-    realmAccess.addMember(user.id, namespaceId);
-    return { ok: true };
-  }
-
-  public static removeUserFromNamespace(email: string, namespaceId: string): { ok: boolean; reason?: string } {
-    return removeMember(email, namespaceId);
   }
 
   // --- Namespace limits ---
@@ -176,7 +121,4 @@ export class StateService {
     return inviteRequestRepository.clearInviteRequests();
   }
 
-  public static createUserInExistingNamespace(email: string, namespaceId: string, role?: string): { userId: string; namespaceId: string } {
-    return accountService.createUserInExistingNamespace(email, namespaceId, role);
-  }
 }

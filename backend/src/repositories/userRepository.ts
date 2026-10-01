@@ -25,30 +25,6 @@ export type DeleteUserResult =
   | { ok: true; deletedNamespaceIds: string[] }
   | { ok: false; reason: string; notFound?: boolean };
 
-// Deletes a namespace row and what hangs off it. Callers check members, sessions and
-// primary references first. Other users still pointing at it as primary are moved
-// to their next membership. provider_usage keeps its rows (no FK); the legacy
-// tts_usage table references namespaces, so its rows go with the realm.
-export function deleteNamespaceRows(namespaceId: string): void {
-  const db = getDb();
-  const stranded = db.prepare('SELECT id FROM users WHERE namespace_id = ?').all(namespaceId) as { id: string }[];
-  for (const other of stranded) {
-    const next = userRepository.getPrimaryCandidates(other.id, namespaceId)[0];
-    if (!next) {
-      throw new Error(`User ${other.id} has namespace ${namespaceId} as primary and no other membership`);
-    }
-    db.prepare('UPDATE users SET namespace_id = ? WHERE id = ?').run(next, other.id);
-  }
-  db.prepare('DELETE FROM user_namespaces WHERE namespace_id = ?').run(namespaceId);
-  db.prepare('DELETE FROM namespace_settings WHERE namespace_id = ?').run(namespaceId);
-  db.prepare('DELETE FROM tts_usage WHERE namespace_id = ?').run(namespaceId);
-  db.prepare('DELETE FROM access_tokens WHERE namespace_id = ?').run(namespaceId);
-  db.prepare('DELETE FROM oauth_tokens WHERE grant_id IN (SELECT id FROM oauth_grants WHERE namespace_id = ?)').run(namespaceId);
-  db.prepare('DELETE FROM oauth_grants WHERE namespace_id = ?').run(namespaceId);
-  db.prepare('DELETE FROM oauth_codes WHERE namespace_id = ?').run(namespaceId);
-  db.prepare('DELETE FROM namespaces WHERE id = ?').run(namespaceId);
-}
-
 export const userRepository = {
   getUserByEmail(email: string): UserRecord | null {
     const db = getDb();

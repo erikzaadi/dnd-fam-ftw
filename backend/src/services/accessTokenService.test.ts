@@ -6,7 +6,7 @@ import { getDb, initializeDatabase } from '../persistence/database.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { accessTokenService, isMcpEligible, MAX_ACTIVE_TOKENS_PER_USER, TOKEN_LIFETIME_MS } from './accessTokenService.js';
-import { accountService } from '../services/accountService.js';
+import { accountService } from './accountService.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-access-tokens-test-${Date.now()}.sqlite`);
 

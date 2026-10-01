@@ -8,7 +8,7 @@ import { mcpAccessRequestRepository } from '../repositories/mcpAccessRequestRepo
 import { userRepository } from '../repositories/userRepository.js';
 import { isMcpEligible } from './accessTokenService.js';
 import { MAX_REQUESTS_PER_WINDOW, mcpAccessRequestService } from './mcpAccessRequestService.js';
-import { accountService } from '../services/accountService.js';
+import { accountService } from './accountService.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-mcp-access-requests-test-${Date.now()}.sqlite`);
 

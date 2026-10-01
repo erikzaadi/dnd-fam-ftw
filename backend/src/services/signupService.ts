@@ -6,7 +6,7 @@ import { userRepository } from '../repositories/userRepository.js';
 import { enqueueSignupNotice } from './emailService.js';
 import { isSignupPaused, startOfUtcDay } from './usageLimitService.js';
 import { realmAccess } from '../realms/access.js';
-import { accountService } from '../services/accountService.js';
+import { accountService } from './accountService.js';
 
 export type SignInMethod = 'email' | 'google';
 

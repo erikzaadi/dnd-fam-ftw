@@ -1,6 +1,5 @@
 import { createId } from '../lib/ids.js';
-import { getDb, runInTransaction } from '../persistence/database.js';
-import { deleteNamespaceRows, userRepository } from './userRepository.js';
+import { getDb } from '../persistence/database.js';
 
 export type NamespaceListItem = {
   id: string;
@@ -70,33 +69,6 @@ export const namespaceRepository = {
     const db = getDb();
     const result = db.prepare('UPDATE namespaces SET name = ? WHERE id = ?').run(newName, id);
     return result.changes > 0;
-  },
-
-  // Explicit deletion only: refuses while the realm has members or adventures. Users
-  // who still point at it as primary (without membership) move to their next realm.
-  deleteNamespace(id: string): { ok: boolean; reason?: string } {
-    const db = getDb();
-    if (id === 'local') {
-      return { ok: false, reason: 'Cannot delete the local namespace' };
-    }
-    if (!namespaceRepository.getNamespaceById(id)) {
-      return { ok: false, reason: `Namespace not found: ${id}` };
-    }
-    const members = db.prepare('SELECT COUNT(*) as count FROM user_namespaces WHERE namespace_id = ?').get(id) as { count: number };
-    if (members.count > 0) {
-      return { ok: false, reason: `Namespace has ${members.count} member(s) - remove them first` };
-    }
-    const sessions = db.prepare('SELECT COUNT(*) as count FROM sessions WHERE namespace_id = ?').get(id) as { count: number };
-    if (sessions.count > 0) {
-      return { ok: false, reason: `Namespace has ${sessions.count} session(s) - delete them first` };
-    }
-    const stranded = db.prepare('SELECT id, email FROM users WHERE namespace_id = ?').all(id) as { id: string; email: string }[];
-    const nowhere = stranded.find(user => userRepository.getPrimaryCandidates(user.id, id).length === 0);
-    if (nowhere) {
-      return { ok: false, reason: `${nowhere.email} has this namespace as primary and no other realm - remove that user first` };
-    }
-    runInTransaction(() => deleteNamespaceRows(id));
-    return { ok: true };
   },
 
   getNamespaceLimits(namespaceId: string): { maxSessions: number | null; maxTurns: number | null } {

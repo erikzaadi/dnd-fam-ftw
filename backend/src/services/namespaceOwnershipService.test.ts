@@ -6,8 +6,9 @@ import { getDb, initializeDatabase } from '../persistence/database.js';
 import { migrate } from '../persistence/migrations.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
-import { applyProposedOwners, buildOwnershipReport, isNamespaceOwner, setNamespaceOwner } from './namespaceOwnershipService.js';
-import { accountService } from '../services/accountService.js';
+import { applyProposedOwners, buildOwnershipReport } from '../realms/ownershipReport.js';
+import { setNamespaceOwner } from './realmAdmin.js';
+import { accountService } from './accountService.js';
 import { realmAccess } from '../realms/access.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-ownership-test-${Date.now()}.sqlite`);
@@ -33,9 +34,9 @@ const reportFor = (namespaceId: string) => buildOwnershipReport().find(row => ro
 describe('namespace ownership', () => {
   it('makes a new account the owner of its own namespace, but not of one it joins', () => {
     const owner = accountService.createUser('owner-a@example.com');
-    expect(isNamespaceOwner(owner.userId, owner.namespaceId)).toBe(true);
+    expect(realmAccess.isOwner(owner.userId, owner.namespaceId)).toBe(true);
     const joined = accountService.createUserInExistingNamespace('joiner-a@example.com', owner.namespaceId);
-    expect(isNamespaceOwner(joined.userId, owner.namespaceId)).toBe(false);
+    expect(realmAccess.isOwner(joined.userId, owner.namespaceId)).toBe(false);
     expect(reportFor(owner.namespaceId)?.status).toBe('ok');
   });
 
@@ -128,8 +129,8 @@ describe('namespace ownership', () => {
     expect(result).toEqual({ ok: true, previousOwnerUserId: first.userId, userId: second.userId });
     // The new owner controls further admissions: pending invitations are revoked.
     expect((getDb().prepare("SELECT status FROM namespace_invites WHERE id = 'inv-transfer'").get() as { status: string }).status).toBe('revoked');
-    expect(isNamespaceOwner(second.userId, first.namespaceId)).toBe(true);
-    expect(isNamespaceOwner(outsider.userId, first.namespaceId)).toBe(false);
+    expect(realmAccess.isOwner(second.userId, first.namespaceId)).toBe(true);
+    expect(realmAccess.isOwner(outsider.userId, first.namespaceId)).toBe(false);
 
     expect(setNamespaceOwner('local', 'transfer-2@example.com')).toMatchObject({ ok: false });
   });

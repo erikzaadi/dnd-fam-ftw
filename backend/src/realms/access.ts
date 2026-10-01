@@ -53,6 +53,12 @@ export const realmAccess = {
     return ownerUserId && userRepository.isNamespaceMember(ownerUserId, realmId) ? { userId: ownerUserId } : null;
   },
 
+  // Whether this user is the recorded owner (no membership check: an owner who left
+  // still counts here, as for the owner badge and invitation rights today).
+  isOwner(userId: string, realmId: string): boolean {
+    return namespaceRepository.getOwnerUserId(realmId) === userId;
+  },
+
   // The recorded owner even when no longer valid, for repair and reporting.
   inspectOwnership(realmId: string): OwnershipInspection {
     const recordedOwnerId = namespaceRepository.getOwnerUserId(realmId);
