@@ -34,7 +34,7 @@ import { devLog } from '../lib/devLog';
 import type { DraftAttachment } from '../lib/previewAction';
 import { AdventurePanel } from '../components/game/AdventurePanel';
 import { AdventureEnding } from '../components/game/AdventureEnding';
-import { findConclusionTurn, isAdventureCompleted, isAdventureConcluding, requestWrapUp, setAdventureFormat, setAutoIdeas } from '../session/adventureActions';
+import { findConclusionTurn, isAdventureCompleted, isAdventureConcluding, setAdventureFormat, setAutoIdeas } from '../session/adventureActions';
 import { RealmUsageNotice } from '../components/game/RealmUsageNotice';
 
 interface LastSubmittedAction {
@@ -314,6 +314,8 @@ export const SessionPage = () => {
     submitChoice,
     confirmPreview,
     submitOperation,
+    wrapUpAdventure,
+    endAdventure,
     previewSceneAction,
     applyIdeas,
   } = runtime;
@@ -680,12 +682,10 @@ export const SessionPage = () => {
     if (!session) {
       return;
     }
-    const result = await requestWrapUp(session.id, revisionRef.current);
-    if (!result.ok) {
-      setActionError(result.message);
-      return;
+    const message = await wrapUpAdventure();
+    if (message) {
+      setActionError(message);
     }
-    updateSession(result.adventure ? { adventure: result.adventure } : {}, result.revision);
   };
 
   const handleToggleAutoIdeas = async () => {
@@ -722,7 +722,7 @@ export const SessionPage = () => {
       confirmLabel: 'End here',
       onConfirm: () => {
         void (async () => {
-          const message = await submitOperation('/adventure/end', {}, { expectsFollowUp: true });
+          const message = await endAdventure();
           if (message) {
             setActionError(message);
           }

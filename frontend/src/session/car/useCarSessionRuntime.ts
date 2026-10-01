@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react';
 import type { Choice, Session, TurnResult, FreeActionPreview } from '../../types';
 import { useSessionRuntime, type SubmitTurnResult } from '../useSessionRuntime';
-import { requestWrapUp } from '../adventureActions';
 import { applySessionTension, playRollSfx } from '../sessionAudio';
 
 interface UseCarSessionRuntimeProps {
@@ -82,7 +81,6 @@ export function useCarSessionRuntime({
       onPreviewNotice,
     },
   });
-  const { submitOperation, updateSession, revisionRef } = runtime;
 
   // A refreshed preview is not an error: the fresh one arrives through onPreviewReady.
   const runtimeConfirmPreview = runtime.confirmPreview;
@@ -102,21 +100,6 @@ export function useCarSessionRuntime({
     }
     return result;
   }, [runtimeSubmitChoice, onTurnError]);
-
-  // Session-management commands (spoken in car mode, typed in the terminal).
-  const wrapUpAdventure = useCallback(async (): Promise<string | null> => {
-    const result = await requestWrapUp(sessionId, revisionRef.current);
-    if (!result.ok) {
-      return result.message;
-    }
-    updateSession(result.adventure ? { adventure: result.adventure } : {}, result.revision);
-    return null;
-  }, [sessionId, revisionRef, updateSession]);
-
-  const endAdventure = useCallback(
-    () => submitOperation('/adventure/end', {}, { expectsFollowUp: true }),
-    [submitOperation],
-  );
 
   // Encounter status before the latest turn landed, so a view can announce boundaries
   // (encounter began / ended) when it speaks or prints that turn.
@@ -144,8 +127,9 @@ export function useCarSessionRuntime({
     submitChoice,
     confirmPreview,
     previewAction: runtime.previewAction,
-    wrapUpAdventure,
-    endAdventure,
+    // Session-management commands (spoken in car mode, typed in the terminal).
+    wrapUpAdventure: runtime.wrapUpAdventure,
+    endAdventure: runtime.endAdventure,
     operationPhase: runtime.operationPhase,
     actionPreview: runtime.actionPreview,
     clearPreview: runtime.clearPreview,

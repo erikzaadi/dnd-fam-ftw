@@ -6,6 +6,7 @@ import { patchEncounterAreaImage, patchEncounterEnemyAvatar } from '../lib/encou
 import { applyIdeasPayload, currentIdeas, fetchIdeas, type IdeasRequestResult } from '../lib/ideas';
 import { requestActionPreview, type ClarificationThread } from '../lib/previewAction';
 import { useSessionEvents, type NarratingPayload, type OperationEventMeta } from '../hooks/useSessionEvents';
+import { requestWrapUp } from './adventureActions';
 import { useAutoIdeas } from './useAutoIdeas';
 import { useSessionOperations } from './useSessionOperations';
 
@@ -435,6 +436,23 @@ export function useSessionRuntime({ sessionId, presenter = {}, onboardingIdeas =
     setSession(prev => prev ? { ...prev, ...patch, ...(revision !== undefined && { revision: Math.max(prev.revision ?? 0, revision) }) } : prev);
   }, [noteRevision]);
 
+  // Wrap-up and end, for every view. Each resolves to the refusal message, or null.
+  // Asking for a wrap-up only changes the adventure's pacing; ending it runs the ending
+  // as a follow-up turn of the same operation.
+  const wrapUpAdventure = useCallback(async (): Promise<string | null> => {
+    const result = await requestWrapUp(sessionId, ops.revisionRef.current);
+    if (!result.ok) {
+      return result.message;
+    }
+    updateSession(result.adventure ? { adventure: result.adventure } : {}, result.revision);
+    return null;
+  }, [sessionId, ops.revisionRef, updateSession]);
+
+  const endAdventure = useCallback(
+    () => submitOperation('/adventure/end', {}, { expectsFollowUp: true }),
+    [submitOperation],
+  );
+
   // Previews typed or spoken text. With an open DM question, the text is the reply and
   // is sent together with the original draft.
   const sessionLoaded = !!session;
@@ -674,6 +692,8 @@ export function useSessionRuntime({ sessionId, presenter = {}, onboardingIdeas =
     confirmPreview,
     submitChoice,
     submitOperation,
+    wrapUpAdventure,
+    endAdventure,
     previewAction,
     previewSceneAction,
     actionPreview,
