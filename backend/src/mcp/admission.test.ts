@@ -2,6 +2,7 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { resetConfigForTests } from '../config/env.js';
 import { getDb, initializeDatabase } from '../persistence/database.js';
 import { usageRepository } from '../repositories/usageRepository.js';
 import type { McpPrincipal } from '../services/accessTokenService.js';
@@ -18,7 +19,7 @@ beforeAll(() => {
   process.env.SQLITE_DB_PATH = DB_PATH;
   process.env.MCP_DAILY_PAID_CALLS_PER_TOKEN = '2';
   initializeDatabase();
-  getDb().prepare("INSERT INTO namespaces (id, name, tier) VALUES ('ns-free', 'Free', 'free'), ('ns-open', 'Open', 'unlimited')").run();
+  getDb().prepare("INSERT INTO namespaces (id, name, tier) VALUES ('ns-free', 'Free', 'free'), ('ns-open', 'Open', 'unlimited'), ('ns-ownerless', 'Ownerless', 'free')").run();
 });
 
 afterAll(() => {
@@ -53,5 +54,32 @@ describe('admitPaidCall', () => {
       });
     }
     expect(admitPaidCall(principal('t3', 'ns-free'))).toMatchObject({ ok: false, code: 'limit_reached' });
+  });
+
+  // Characterization (architecture-deepening plan 4): the order of the checks.
+  it('refuses on a spent realm budget without using up a grant attempt', () => {
+    const now = Date.UTC(2026, 8, 28, 12);
+    for (let i = 0; i < 3; i++) {
+      expect(admitPaidCall(principal('g-order', 'ns-free'), now)).toMatchObject({ ok: false, code: 'limit_reached' });
+    }
+    // The same grant still has both of its attempts.
+    expect(admitPaidCall(principal('g-order', 'ns-open'), now)).toEqual({ ok: true });
+    expect(admitPaidCall(principal('g-order', 'ns-open'), now)).toEqual({ ok: true });
+    expect(admitPaidCall(principal('g-order', 'ns-open'), now)).toMatchObject({ ok: false, code: 'token_daily_limit' });
+  });
+
+  it('admits a realm without a valid owner and leaves the refusal to the provider backstop', () => {
+    expect(admitPaidCall(principal('g-ownerless', 'ns-ownerless'), Date.UTC(2026, 8, 28, 12))).toEqual({ ok: true });
+  });
+
+  it('reports paid tools disabled before anything else', () => {
+    process.env.MCP_DAILY_PAID_CALLS_PER_TOKEN = '0';
+    resetConfigForTests();
+    try {
+      expect(admitPaidCall(principal('g-off', 'ns-free'))).toMatchObject({ ok: false, code: 'paid_tools_disabled' });
+    } finally {
+      process.env.MCP_DAILY_PAID_CALLS_PER_TOKEN = '2';
+      resetConfigForTests();
+    }
   });
 });
