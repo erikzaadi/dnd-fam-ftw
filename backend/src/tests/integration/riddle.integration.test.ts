@@ -207,6 +207,17 @@ describe.each(TURN_STRATEGIES)('riddles (%s)', (strategy) => {
       expect(riddleStatuses(`narrated-riddle-${strategy}`)).toEqual(['solved']);
     });
 
+    it('appends the posed riddle when narration only alludes to it', async () => {
+      await plainSession(`narrated-allusion-${strategy}`);
+      const prompt = 'I answer you back but never speak first. What am I?';
+      scriptTurnOutput({ ...FIXED_NARRATION_OUTPUT, narration: 'Pip reads the riddle carved into the cave wall aloud.', narratedRiddle: { prompt, canonicalAnswer: 'an echo', aliases: [] } });
+
+      await act(`narrated-allusion-${strategy}`, 'Pip reads the carvings');
+
+      const history = await turnHistoryRepository.getTurnHistory(`narrated-allusion-${strategy}`);
+      expect(history[history.length - 1].narration).toBe(`Pip reads the riddle carved into the cave wall aloud.\n\n"${prompt}"`);
+    });
+
     it('overrides a different answer guessed by the choices agent', async () => {
       await plainSession(`narrated-override-${strategy}`);
       scriptTurnOutput({ ...FIXED_NARRATION_OUTPUT, narration: ECHO_NARRATION, choices: FLAGGED, narratedRiddle: { canonicalAnswer: 'an echo', aliases: [] } });

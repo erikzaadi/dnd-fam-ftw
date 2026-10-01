@@ -248,6 +248,25 @@ test('session narration fullscreen', async ({ page, request }) => {
   await screenshotViewports(page, 'session-narration-fullscreen-closed');
 });
 
+test('session riddle shown in the story', async ({ page, request }) => {
+  test.setTimeout(60_000);
+  await suppressFirstRunOverlays(page);
+  const session = await getSessionOrFail(request, SESSIONS.riddle);
+  await enableSavingsMode(request, session.id);
+
+  await page.goto(`/session/${session.id}`);
+  await dismissAudioOverlay(page);
+  await waitForSessionReady(page);
+  await page.getByRole('button', { name: 'Hide banner' }).click();
+
+  // Players only see the narration, so the riddle itself must be on the story stage.
+  const narration = page.getByLabel('Story narration');
+  await expect(narration).toBeVisible();
+  await expect(narration).toContainText('I have keys but open no locks.');
+  await expect(narration).toContainText('What am I?');
+  await screenshotViewports(page, 'session-riddle');
+});
+
 test('session chronicle open and second turn', async ({ page, request }) => {
   test.setTimeout(60_000);
   await suppressFirstRunOverlays(page);

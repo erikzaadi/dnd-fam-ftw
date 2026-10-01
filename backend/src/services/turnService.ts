@@ -7,7 +7,7 @@ import { GameEngine } from './gameEngine.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { compileDmPrepPremise } from './dmPrepCompilationService.js';
-import { assessRiddleAction, ensureActiveRiddle, syncRiddleChoices, toRiddleAttempt } from './riddleService.js';
+import { assessRiddleAction, ensureActiveRiddle, syncRiddleChoices, toRiddleAttempt, withRiddlePrompt } from './riddleService.js';
 import { extractRiddleAnswer } from './riddleRepairService.js';
 import { riddleRepository } from '../repositories/riddleRepository.js';
 import {
@@ -140,10 +140,18 @@ const resolveItemTurn = async (
   });
 };
 
-// A riddle posed by narration without a usable answer gets one bounded extraction
-// call before the commit. If that fails too, the riddle is recorded as answer unknown.
+// A riddle posed by narration is shown in it (appended when narration only alludes to
+// it). One without a usable answer gets one bounded extraction call before the commit.
+// If that fails too, the riddle is recorded as answer unknown.
 const completeNarratedRiddle = async (turnResult: ServerTurnResult, diagnostics: TurnDiagnostics): Promise<NarratedRiddle | null> => {
   const narrated = turnResult.narrationFailed ? null : turnResult.narratedRiddle ?? null;
+  if (narrated) {
+    const narration = withRiddlePrompt(turnResult.narration, narrated.prompt);
+    if (narration !== turnResult.narration) {
+      turnResult.narration = narration;
+      diagnostics.repair('riddle_prompt_appended');
+    }
+  }
   if (!narrated || narrated.canonicalAnswer) {
     return narrated;
   }

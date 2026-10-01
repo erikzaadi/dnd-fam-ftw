@@ -9,6 +9,7 @@ export const SESSIONS = {
   fallen: 'seed-session-6',
   storyRealm: 'seed-session-5',
   mechanicsShowcase: 'seed-session-7',
+  riddle: 'seed-session-10',
 } as const;
 
 export type SessionListItem = { id: string; displayName: string; gameOver?: boolean };

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Choice } from '../types.js';
 import type { StoredRiddle } from '../repositories/riddleRepository.js';
-import { assessRiddleAction, syncRiddleChoices, toRiddleAttempt } from './riddleService.js';
+import { assessRiddleAction, syncRiddleChoices, toRiddleAttempt, withRiddlePrompt } from './riddleService.js';
 
 const riddle: StoredRiddle = {
   id: 'r1',
@@ -192,5 +192,23 @@ describe('syncRiddleChoices', () => {
   it('leaves choices alone when the answer is unknown, and adds nothing to an empty list', () => {
     expect(syncRiddleChoices([guessedRiver, hint], 'unknown')).toEqual([guessedRiver, hint]);
     expect(syncRiddleChoices([], key)).toEqual([]);
+  });
+});
+
+describe('withRiddlePrompt', () => {
+  const prompt = 'I dance on strings but never play. What am I?';
+
+  it('appends the riddle when narration only alludes to it', () => {
+    expect(withRiddlePrompt('Mortessa reads the riddle aloud. Wobblehat, what do you try?', prompt))
+      .toBe(`Mortessa reads the riddle aloud. Wobblehat, what do you try?\n\n"${prompt}"`);
+  });
+
+  it('leaves narration that already contains the riddle, ignoring case and punctuation', () => {
+    const narration = 'The wood whispers: "i dance on strings, but never play - what am I?" Wobblehat, what do you try?';
+    expect(withRiddlePrompt(narration, prompt)).toBe(narration);
+  });
+
+  it('leaves narration alone when no riddle text was given', () => {
+    expect(withRiddlePrompt('A riddle hums in the air.', undefined)).toBe('A riddle hums in the air.');
   });
 });

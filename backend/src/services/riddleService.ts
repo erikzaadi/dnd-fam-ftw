@@ -83,6 +83,16 @@ export const mentionsRiddleAnswer = (text: string, riddle: StoredRiddle): boolea
   return correctAnswers(riddle).some(answer => matchesAnswer(candidate, answer));
 };
 
+// Players only see the narration, so a posed riddle must be in it. Narration that only
+// alludes to the riddle ("reads the riddle aloud") gets the posed riddle appended.
+export const withRiddlePrompt = (narration: string, prompt: string | undefined): string => {
+  const normalizedPrompt = prompt ? normalize(prompt) : '';
+  if (!prompt || !normalizedPrompt || normalize(narration).includes(normalizedPrompt)) {
+    return narration;
+  }
+  return `${narration.trimEnd()}\n\n"${prompt.trim()}"`;
+};
+
 // Judges one asserted clause; the caller has already removed negated ones.
 // forceAnswer: the player was asked about the riddle, so what they assert is their answer.
 const assessClause = (clause: string, riddle: StoredRiddle, forceAnswer: boolean): RiddleAssessment => {
