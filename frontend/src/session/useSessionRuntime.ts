@@ -143,9 +143,6 @@ export function useSessionRuntime({ sessionId, presenter = {}, onboardingIdeas =
 
   const [previewThinking, setPreviewThinking] = useState(false);
   const [actionPreview, setActionPreview] = useState<FreeActionPreview | null>(null);
-  // The server handle of the last preview; kept after the preview UI closes so a
-  // confirm flow that hides it before submitting still sends it.
-  const lastPreviewRef = useRef<FreeActionPreview | null>(null);
   const [clarification, setClarification] = useState<ClarificationThread | null>(null);
   const clarificationRef = useRef<ClarificationThread | null>(null);
   // How to ask again for each preview the runtime made, and which previews already are
@@ -248,7 +245,6 @@ export function useSessionRuntime({ sessionId, presenter = {}, onboardingIdeas =
   }, [commitHistory]);
 
   const dropPreview = useCallback(() => {
-    lastPreviewRef.current = null;
     setActionPreview(null);
   }, []);
 
@@ -377,14 +373,8 @@ export function useSessionRuntime({ sessionId, presenter = {}, onboardingIdeas =
   const submitTurn = useCallback(async (input: SubmitTurnInput): Promise<SubmitTurnResult> => {
     setActionError(null);
     setActionPreview(null);
-    const { action, itemId, choiceId } = input;
+    const { action, itemId, choiceId, previewId } = input;
     const actionType = itemId ? (action === 'use item' ? 'use_item' : 'give_item') : undefined;
-    // Confirming the last preview sends its server handle so mechanics are verified.
-    const lastPreview = lastPreviewRef.current;
-    const previewId = input.previewId ?? (choiceId === undefined && lastPreview && (lastPreview.interpretedAction === action || lastPreview.originalAction === action)
-      ? lastPreview.previewId
-      : undefined);
-    lastPreviewRef.current = null;
     try {
       const result = await ops.submit(`/session/${sessionId}/action`, {
         action,
@@ -491,7 +481,6 @@ export function useSessionRuntime({ sessionId, presenter = {}, onboardingIdeas =
       }
       : { ...fallback, warnings: ['Preview failed - you can still confirm or cancel.'], clientFallback: true };
     repreviewsRef.current.set(preview, () => runPreview(actionText, thread, true));
-    lastPreviewRef.current = preview;
     setActionPreview(preview);
     setPreviewThinking(false);
     presenterRef.current.onPreviewReady?.(preview);
@@ -553,7 +542,6 @@ export function useSessionRuntime({ sessionId, presenter = {}, onboardingIdeas =
       ...(request.targetCharacterId && { pendingTargetCharacterId: request.targetCharacterId }),
     };
     repreviewsRef.current.set(scenePreview, () => runScenePreview(request, defaults, fallbackAction, true));
-    lastPreviewRef.current = scenePreview;
     setActionPreview(scenePreview);
     setPreviewThinking(false);
     return scenePreview;
@@ -604,12 +592,12 @@ export function useSessionRuntime({ sessionId, presenter = {}, onboardingIdeas =
     return { ok: false, error: 'preview_refreshed', message: PREVIEW_REFRESHED_MESSAGE };
   }, [submitTurn]);
 
-  // Hides the preview UI; the server handle is kept until the next submission.
+  // Hides the preview UI. A view that confirms afterwards passes the preview it captured.
   const clearPreview = useCallback(() => {
     setActionPreview(null);
   }, []);
 
-  // Cancels the preview: nothing of it is sent with a later action.
+  // Cancels the preview.
   const dismissPreview = dropPreview;
 
   // Drops an open DM question ("cancel", "never mind"); the player starts a new draft.

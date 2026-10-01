@@ -178,11 +178,12 @@ describe('useSessionRuntime', () => {
     expect(mocks.submitSessionOperation.mock.calls[0][1]).not.toHaveProperty('previewId');
   });
 
-  // Characterization (plan 6 A1): what confirming by text does today.
   describe('submitTurn and the last preview', () => {
     const accept = () => mocks.submitSessionOperation.mockResolvedValue({ kind: 'accepted', operation: operation(), replayed: false });
 
-    it('attaches the last preview id to text that equals the preview', async () => {
+    // Behaviour change (plan 6 B1). Before: text equal to the last preview got its id.
+    // After: unpreviewed text is sent as it is; confirming goes through confirmPreview.
+    it('sends text equal to an earlier preview as raw text', async () => {
       const hook = await setup();
       mocks.apiFetch.mockImplementationOnce(() => json({ interpretedAction: 'Pip juggles knives', stat: 'mischief', difficulty: 'normal', previewId: 'p-2' }));
       await act(() => hook.result.current.previewAction('juggle'));
@@ -191,7 +192,7 @@ describe('useSessionRuntime', () => {
       await act(async () => {
         await hook.result.current.submitTurn({ action: 'Pip juggles knives', statUsed: 'mischief' });
       });
-      expect(mocks.submitSessionOperation.mock.calls[0][1]).toMatchObject({ previewId: 'p-2' });
+      expect(mocks.submitSessionOperation.mock.calls[0][1]).not.toHaveProperty('previewId');
     });
 
     it('never attaches a preview id to an explicit choice', async () => {
