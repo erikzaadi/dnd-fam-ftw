@@ -34,8 +34,9 @@ export type AppConfig = {
   SUPPORT_URL: string | null;
   // Ko-fi webhook verification token (Ko-fi > Settings > API). Unset disables /webhooks/kofi.
   KOFI_VERIFICATION_TOKEN?: string;
-  // MCP endpoint (/mcp) for AI assistants, invite-only pilot. Off by default and only
-  // allowed with auth enabled. MCP_PUBLIC_URL is shown on the Access tokens page.
+  // MCP endpoint (/mcp) for AI assistants, invite-only pilot. Only allowed with auth
+  // enabled. Unset: on for local development (auth enabled, NODE_ENV neither production
+  // nor test), off otherwise. MCP_PUBLIC_URL is shown on the Access tokens page.
   MCP_ENABLED: boolean;
   MCP_PUBLIC_URL: string | null;
   // Paid MCP tool calls (previews, turns, questions, new adventures) per token per UTC
@@ -256,6 +257,16 @@ function parseBooleanFlag(name: string): boolean {
   throw new Error(`[Config] Invalid ${name}: "${process.env[name]}". Must be "true" or "false".`);
 }
 
+// Unset defaults to on only for local development with auth, so production and tests
+// stay closed unless they opt in, and auth-disabled dev does not fail startup.
+function parseMcpEnabled(authMode: AuthMode): boolean {
+  if (process.env.MCP_ENABLED?.trim()) {
+    return parseBooleanFlag('MCP_ENABLED');
+  }
+  const nodeEnv = process.env.NODE_ENV;
+  return authMode === 'enabled' && nodeEnv !== 'production' && nodeEnv !== 'test';
+}
+
 // https only, except plain http on loopback for local development.
 function parseMcpPublicUrl(): string | null {
   const raw = process.env.MCP_PUBLIC_URL?.trim();
@@ -341,6 +352,7 @@ function parse(): AppConfig {
   if (IMAGE_STORAGE_PROVIDER !== 'local' && IMAGE_STORAGE_PROVIDER !== 's3') {
     throw new Error(`[Config] Invalid IMAGE_STORAGE_PROVIDER: "${IMAGE_STORAGE_PROVIDER}". Must be "local" or "s3".`);
   }
+  const AUTH_MODE = parseAuthMode();
   return {
     SQLITE_DB_PATH: process.env.SQLITE_DB_PATH ?? './data/dnd-fam-ftw.sqlite',
     IMAGE_STORAGE_PROVIDER: IMAGE_STORAGE_PROVIDER as 'local' | 's3',
@@ -350,7 +362,7 @@ function parse(): AppConfig {
     S3_IMAGE_BUCKET: process.env.S3_IMAGE_BUCKET,
     S3_IMAGE_PREFIX: process.env.S3_IMAGE_PREFIX ?? 'generated/',
     S3_IMAGE_PUBLIC_BASE_URL: process.env.S3_IMAGE_PUBLIC_BASE_URL,
-    AUTH_MODE: parseAuthMode(),
+    AUTH_MODE,
     SIGNUP_MODE: parseSignupMode(),
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
@@ -368,7 +380,7 @@ function parse(): AppConfig {
     SIGNUP_NOTIFY_EMAIL: process.env.SIGNUP_NOTIFY_EMAIL?.trim() || process.env.ADMIN_EMAIL?.trim() || undefined,
     SUPPORT_URL: parseSupportUrl(),
     KOFI_VERIFICATION_TOKEN: process.env.KOFI_VERIFICATION_TOKEN?.trim() || undefined,
-    MCP_ENABLED: parseBooleanFlag('MCP_ENABLED'),
+    MCP_ENABLED: parseMcpEnabled(AUTH_MODE),
     MCP_PUBLIC_URL: parseMcpPublicUrl(),
     MCP_DAILY_PAID_CALLS_PER_TOKEN: parseNonNegativeInt('MCP_DAILY_PAID_CALLS_PER_TOKEN', 200),
     MCP_DEFAULT_TIERS: parseMcpDefaultTiers(),
