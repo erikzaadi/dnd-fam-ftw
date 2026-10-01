@@ -9,7 +9,7 @@ import type { SessionState, TurnResult } from '../types.js';
 import { extractRiddleAnswer } from './riddleRepairService.js';
 import { syncRiddleChoices } from './riddleService.js';
 import { acceptSessionOperation, runSessionOperation } from './sessionOperationService.js';
-import { StateService } from './stateService.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
 
 // A riddle recorded without its answer must not block the table. The first answer
 // attempt starts recovery: one more attempt to find the answer, and if that fails too,
@@ -32,14 +32,14 @@ const isStillUnanswered = (riddleId: string): boolean => {
 // Commits the closing beat under the session guard. The beat is a narration-only turn:
 // nobody acts, the active hero keeps their turn, and nothing else in the state changes.
 const commitAbandonment = async (sessionId: string, namespaceId: string, riddleId: string, operation: StoredOperation): Promise<void> => {
-  const session = await StateService.getSession(sessionId);
+  const session = await sessionRepository.getSession(sessionId);
   // Under the guard nothing else commits, so this check holds until the commit below.
   if (!session || !isStillUnanswered(riddleId)) {
     // Nothing to do. Close the operation quietly: nobody asked for it, so no turn_error.
     operationRepository.fail(operation.id, 'riddle_settled', 'The riddle was already settled.');
     return;
   }
-  const history = await StateService.getTurnHistory(sessionId);
+  const history = await turnHistoryRepository.getTurnHistory(sessionId);
   // The current suggestions stay valid actions; only their riddle answers go away.
   const choices = syncRiddleChoices(history[history.length - 1]?.choices ?? [], null);
   const beat: TurnResult = {

@@ -9,7 +9,7 @@ import { runChoicesWithRetry, toPlayerChoices } from './dmTurnOrchestrator.js';
 import { createNarrationProvider } from '../providers/ai/AiProviderFactory.js';
 import { ensureActiveRiddle, syncRiddleChoices } from './riddleService.js';
 import { toPublicChoice } from './sessionProjection.js';
-import { StateService } from './stateService.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
 
 // Suggested actions on request ("Give me ideas"). Ideas are the latest turn's choices,
 // generated lazily for the current turn, revision, and acting hero, and shared by every
@@ -124,7 +124,7 @@ const claimOnboardingRequest = (sessionId: string): boolean =>
   getDb().prepare("UPDATE sessions SET onboarding_ideas = 'requested' WHERE id = ? AND onboarding_ideas = 'pending'").run(sessionId).changes > 0;
 
 const produceIdeas = async (sessionId: string, request: IdeasRequest): Promise<IdeasResult> => {
-  const session = await StateService.getSession(sessionId);
+  const session = await sessionRepository.getSession(sessionId);
   if (!session) {
     return reject(404, 'not_found', 'Session not found');
   }
@@ -142,7 +142,7 @@ const produceIdeas = async (sessionId: string, request: IdeasRequest): Promise<I
     return reject(429, 'ideas_rate_limited', 'Lots of ideas already! Try one, or ask again in a minute.');
   }
 
-  const history = await StateService.getTurnHistory(sessionId);
+  const history = await turnHistoryRepository.getTurnHistory(sessionId);
   let generated: { choices: Choice[]; degraded: boolean };
   try {
     generated = await generate(session, history);

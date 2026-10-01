@@ -34,12 +34,15 @@ const session = {
   storySummary: 'The party is robbing a rune vault.',
 };
 
-vi.mock('../../services/stateService.js', () => ({
-  StateService: {
-    getSession: vi.fn(async () => session),
-    getTurnHistory: vi.fn(async () => []),
-  },
-}));
+vi.mock('../../repositories/sessionRepository.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../repositories/sessionRepository.js')>();
+  return { ...actual, sessionRepository: { ...actual.sessionRepository, getSession: vi.fn(async () => session) } };
+});
+
+vi.mock('../../repositories/turnHistoryRepository.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../repositories/turnHistoryRepository.js')>();
+  return { ...actual, turnHistoryRepository: { ...actual.turnHistoryRepository, getTurnHistory: vi.fn(async () => []) } };
+});
 
 const completion = (content: string, finishReason = 'stop') => ({
   choices: [{ finish_reason: finishReason, message: { content, refusal: null } }],

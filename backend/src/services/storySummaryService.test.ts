@@ -5,6 +5,8 @@ import {
   StorySummaryService,
   villainMentionedInAction,
 } from './storySummaryService.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
+import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { StateService } from './stateService.js';
 import * as dmPrepCompilationService from './dmPrepCompilationService.js';
 import type { SessionState, TurnResult } from '../types.js';
@@ -183,8 +185,8 @@ describe('StorySummaryService.maybeUpdate candidate derivation', () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
-    getSessionSpy = vi.spyOn(StateService, 'getSession');
-    getTurnHistorySpy = vi.spyOn(StateService, 'getTurnHistory');
+    getSessionSpy = vi.spyOn(sessionRepository, 'getSession');
+    getTurnHistorySpy = vi.spyOn(turnHistoryRepository, 'getTurnHistory');
     updateSummarySpy = vi.spyOn(StateService, 'updateStorySummary').mockResolvedValue(true);
     callSummarizeSpy = vi.spyOn(
       StorySummaryService as unknown as {

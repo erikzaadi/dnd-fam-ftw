@@ -4,11 +4,11 @@ import { StorySummaryService } from './storySummaryService.js';
 import { compileDmPrepPremise } from './dmPrepCompilationService.js';
 import { broadcastSessionListUpdate, broadcastUpdate } from '../realtime/sessionEvents.js';
 import { runBackground } from '../middleware/runBackground.js';
-import type { SessionPatch } from '../repositories/sessionRepository.js';
+import { sessionRepository, type SessionPatch } from '../repositories/sessionRepository.js';
 
 export const triggerPreviewRegen = (sessionId: string, namespaceId?: string) => {
   runBackground(`preview-regen session=${sessionId}`, async () => {
-    const session = await StateService.getSession(sessionId);
+    const session = await sessionRepository.getSession(sessionId);
     if (!session) {
       console.warn(`[Preview] Skipping generation for missing session ${sessionId}`);
       return;
@@ -21,7 +21,7 @@ export const triggerPreviewRegen = (sessionId: string, namespaceId?: string) => 
     const result = await ImageService.generateSessionPreview(session);
     if (result) {
       StateService.updateSessionPreviewImage(sessionId, result.url);
-      const eventNamespaceId = namespaceId ?? StateService.getSessionNamespaceId(sessionId);
+      const eventNamespaceId = namespaceId ?? sessionRepository.getSessionNamespaceId(sessionId);
       broadcastUpdate(sessionId, 'image_ready', { target: 'session_preview', imageUrl: result.url });
       broadcastSessionListUpdate(eventNamespaceId, 'preview_image_available', { sessionId, previewImageUrl: result.url });
       console.log(`[Preview] Updated preview for ${sessionId}: ${result.url}`);

@@ -374,7 +374,7 @@ const main = async (): Promise<void> => {
         }
         const sessionId = sessionIds[strategy];
         const scripted = scenario.actions[turnIndex];
-        const before = await StateService.getSession(sessionId);
+        const before = await sessionRepository.getSession(sessionId);
         if (!before || before.gameOver || before.adventure?.status !== undefined && before.adventure.status !== 'active') {
           // Ended trajectories stop: record early completion instead of padding turns.
           ended[strategy] = true;

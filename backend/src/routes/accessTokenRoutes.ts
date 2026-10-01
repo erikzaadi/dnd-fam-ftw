@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { z } from 'zod';
 import { getUsageContext } from '../lib/usageContext.js';
-import { StateService } from '../services/stateService.js';
+import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { getConfig, isAllowedOrigin, isAuthEnabled, isMcpEnabled, isMcpOAuthEnabled } from '../config/env.js';
 import { accessTokenService, isMcpEligible, MAX_ACTIVE_TOKENS_PER_USER, type CreateTokenResult } from '../services/accessTokenService.js';
 import { dispatchOutbox } from '../services/emailService.js';
@@ -86,7 +86,7 @@ export const createAccessTokenRouter = ({ isProduction }: { isProduction: boolea
       oauthAvailable: isMcpOAuthEnabled(),
       ...mcpAccessRequestService.getState(userId, req.namespaceId),
       mcpUrl: eligible ? getConfig().MCP_PUBLIC_URL : null,
-      namespaceName: StateService.getNamespaceById(req.namespaceId)?.name ?? null,
+      namespaceName: namespaceRepository.getNamespaceById(req.namespaceId)?.name ?? null,
       maxActiveTokens: MAX_ACTIVE_TOKENS_PER_USER,
       // Listed even without access here, so old tokens can still be revoked.
       tokens: accessTokenService.list(userId),
@@ -184,7 +184,7 @@ export const createAccessTokenRouter = ({ isProduction }: { isProduction: boolea
     }
     const userId = getUsageContext()!.userId!;
     const sessionId = req.params.sessionId as string;
-    if (StateService.getSessionNamespaceId(sessionId) !== req.namespaceId) {
+    if (sessionRepository.getSessionNamespaceId(sessionId) !== req.namespaceId) {
       res.status(404).json({ error: 'not_found', message: 'Adventure not found.' });
       return;
     }

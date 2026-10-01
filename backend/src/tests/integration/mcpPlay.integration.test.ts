@@ -4,7 +4,7 @@ import { createImageProvider } from '../../providers/ai/AiProviderFactory.js';
 import { operationRepository } from '../../repositories/operationRepository.js';
 import { sessionRepository } from '../../repositories/sessionRepository.js';
 import { acceptSessionOperation } from '../../services/sessionOperationService.js';
-import { StateService } from '../../services/stateService.js';
+import { turnHistoryRepository } from '../../repositories/turnHistoryRepository.js';
 import { resetMcpRateLimits } from '../../mcp/auth.js';
 import { clearPreviewDedupForTests } from '../../mcp/previewDedup.js';
 import { createPilot, insertSession, makeCallTool, setMcpTestEnv, startMcpServer } from '../../mcp/testHarness.js';
@@ -110,7 +110,7 @@ describe('MCP play end to end', () => {
       premise: 'A silly forest where a troll guards a bridge', heroes: 'auto', partySize: 2, requestId: 'create-e2e-0001',
     }));
     expect(replay).toMatchObject({ adventureId: created.adventureId, replayed: true });
-    expect(StateService.countSessionsInNamespace(player.namespaceId)).toBe(1);
+    expect(sessionRepository.countSessionsInNamespace(player.namespaceId)).toBe(1);
 
     const adventure = structured<{ revision: number; party: unknown[]; history: unknown[] }>(
       await callTool(player.secret, 'get_adventure', { adventureId: created.adventureId }));
@@ -128,7 +128,7 @@ describe('MCP play end to end', () => {
     expect(result.turns.length).toBeGreaterThanOrEqual(1);
 
     // Website handoff: the same history is what the browser reads.
-    expect(await StateService.getTurnHistory(created.adventureId)).toHaveLength(1 + result.turns.length);
+    expect(await turnHistoryRepository.getTurnHistory(created.adventureId)).toHaveLength(1 + result.turns.length);
 
     // The spent preview cannot be confirmed again, even with a new request id.
     const again = await callTool(player.secret, 'confirm_action', {
@@ -174,6 +174,6 @@ describe('MCP play end to end', () => {
     namespaceRepository.setNamespaceLimits(limited.namespaceId, 0, null);
     const res = await callTool(limited.secret, 'create_adventure', { premise: 'Too many', requestId: 'create-limit-0001' });
     expect(errorText(res)).toContain('session_limit');
-    expect(StateService.countSessionsInNamespace(limited.namespaceId)).toBe(0);
+    expect(sessionRepository.countSessionsInNamespace(limited.namespaceId)).toBe(0);
   });
 });

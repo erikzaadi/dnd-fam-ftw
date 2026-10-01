@@ -1,11 +1,11 @@
-import { SessionState, TurnResult, type AdventureFormat, type Character, type GameMode, type ImagePolicy } from '../types.js';
+import { SessionState, TurnResult, type AdventureFormat, type GameMode, type ImagePolicy } from '../types.js';
 import { characterRepository } from '../repositories/characterRepository.js';
-import { inviteRequestRepository, type InviteRequest } from '../repositories/inviteRequestRepository.js';
-import { namespaceRepository, type NamespaceListItem } from '../repositories/namespaceRepository.js';
-import { sessionRepository, type SessionListItem, type SessionPatch } from '../repositories/sessionRepository.js';
+import { inviteRequestRepository } from '../repositories/inviteRequestRepository.js';
+import { namespaceRepository } from '../repositories/namespaceRepository.js';
+import { sessionRepository, type SessionPatch } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
-import { usageRepository, type TtsUsage } from '../repositories/usageRepository.js';
-import { userRepository, type DeleteUserResult, type UserListItem, type UserRecord } from '../repositories/userRepository.js';
+import { usageRepository } from '../repositories/usageRepository.js';
+import { userRepository, type DeleteUserResult } from '../repositories/userRepository.js';
 import { deleteSessionWithAssets } from './sessionDeletionService.js';
 import { removeMember } from './namespaceMembershipService.js';
 
@@ -14,14 +14,6 @@ import { removeMember } from './namespaceMembershipService.js';
 export class StateService {
   public static async createSession(worldDescription?: string, difficulty: string = 'normal', savingsMode: boolean = false, namespaceId: string = 'local', gameMode: GameMode = 'balanced', dmPrep?: string, initialDisplayName?: string, initialId?: string, adventureFormat: AdventureFormat = 'one_evening', imagePolicy?: ImagePolicy): Promise<SessionState> {
     return sessionRepository.createSession(worldDescription, difficulty, savingsMode, namespaceId, gameMode, dmPrep, initialDisplayName, initialId, adventureFormat, imagePolicy);
-  }
-
-  public static async getSession(id: string): Promise<SessionState | undefined> {
-    return sessionRepository.getSession(id);
-  }
-
-  public static getSessionNamespaceId(id: string): string | undefined {
-    return sessionRepository.getSessionNamespaceId(id);
   }
 
   public static async setSavingsMode(id: string, enabled: boolean): Promise<void> {
@@ -52,32 +44,12 @@ export class StateService {
     return sessionRepository.patchEncounterAreaImage(sessionId, encounterId, areaId, imageUrl);
   }
 
-  public static async listSessions(namespaceId: string = 'local'): Promise<SessionListItem[]> {
-    return sessionRepository.listSessions(namespaceId);
-  }
-
-  public static async getSessionIdForCharacter(charId: string): Promise<string | null> {
-    return characterRepository.getSessionIdForCharacter(charId);
-  }
-
-  public static async listAllCharacters(namespaceId: string): Promise<Character[]> {
-    return characterRepository.listAllCharacters(namespaceId);
-  }
-
-  public static async getTurnHistory(id: string): Promise<TurnResult[]> {
-    return turnHistoryRepository.getTurnHistory(id);
-  }
-
   public static async updateStorySummary(sessionId: string, summary: string, sourceTurn?: number): Promise<boolean> {
     return sessionRepository.updateStorySummary(sessionId, summary, sourceTurn);
   }
 
   public static async updateTurnImage(sessionId: string, turnId: number, imageUrl: string, storageKey: string, storageProvider: string): Promise<boolean> {
     return turnHistoryRepository.updateTurnImage(sessionId, turnId, imageUrl, storageKey, storageProvider);
-  }
-
-  public static getRevision(id: string): number | undefined {
-    return sessionRepository.getRevision(id);
   }
 
   public static setOriginStoryIfMissing(id: string, originStory: string, generatedAt: string): boolean {
@@ -102,20 +74,12 @@ export class StateService {
 
   // --- Namespace / User management ---
 
-  public static getUserByEmail(email: string): UserRecord | null {
-    return userRepository.getUserByEmail(email);
-  }
-
   public static createUser(email: string, namespaceName?: string, role: string = 'member'): { userId: string; namespaceId: string } {
     return userRepository.createUser(email, namespaceName, role);
   }
 
   public static ensureAdminUser(email: string): void {
     userRepository.ensureAdminUser(email);
-  }
-
-  public static listUsers(): UserListItem[] {
-    return userRepository.listUsers();
   }
 
   public static deleteUser(email: string): DeleteUserResult {
@@ -127,24 +91,16 @@ export class StateService {
   }
 
   public static setPrimaryNamespace(email: string, namespaceId: string): { ok: boolean; reason?: string } {
-    const user = this.getUserByEmail(email);
+    const user = userRepository.getUserByEmail(email);
     if (!user) {
       return { ok: false, reason: `User not found: ${email}` };
     }
-    const ns = this.getNamespaceById(namespaceId);
+    const ns = namespaceRepository.getNamespaceById(namespaceId);
     if (!ns) {
       return { ok: false, reason: `Namespace not found: ${namespaceId}` };
     }
     userRepository.setPrimaryNamespace(user.id, namespaceId);
     return { ok: true };
-  }
-
-  public static listNamespaces(): NamespaceListItem[] {
-    return namespaceRepository.listNamespaces();
-  }
-
-  public static getNamespaceById(id: string): { id: string; name: string } | null {
-    return namespaceRepository.getNamespaceById(id);
   }
 
   public static createNamespace(name: string): { namespaceId: string } {
@@ -163,10 +119,6 @@ export class StateService {
     return sessionRepository.assignSessionToNamespace(sessionId, namespaceId);
   }
 
-  public static listSessionsInNamespace(namespaceId: string): { id: string; displayName: string; turn: number; createdAt: string }[] {
-    return sessionRepository.listSessionsInNamespace(namespaceId);
-  }
-
   // --- Multi-namespace user access ---
 
   public static getUserNamespaces(email: string): { id: string; name: string }[] {
@@ -174,11 +126,11 @@ export class StateService {
   }
 
   public static addUserToNamespace(email: string, namespaceId: string): { ok: boolean; reason?: string } {
-    const user = this.getUserByEmail(email);
+    const user = userRepository.getUserByEmail(email);
     if (!user) {
       return { ok: false, reason: `User not found: ${email}` };
     }
-    const ns = this.getNamespaceById(namespaceId);
+    const ns = namespaceRepository.getNamespaceById(namespaceId);
     if (!ns) {
       return { ok: false, reason: `Namespace not found: ${namespaceId}` };
     }
@@ -204,10 +156,6 @@ export class StateService {
     return namespaceRepository.setNamespaceLimits(namespaceId, maxSessions, maxTurns);
   }
 
-  public static countSessionsInNamespace(namespaceId: string): number {
-    return sessionRepository.countSessionsInNamespace(namespaceId);
-  }
-
   public static cloneOnboardingSession(namespaceId: string): string {
     return sessionRepository.cloneOnboardingSession(namespaceId);
   }
@@ -216,28 +164,10 @@ export class StateService {
     usageRepository.recordTtsUsage(namespaceId, voice, characterCount, provider);
   }
 
-  public static getTtsUsage(namespaceId: string): TtsUsage {
-    return usageRepository.getTtsUsage(namespaceId);
-  }
-
-  // --- Character history ---
-
-  public static getCharacterTurnHistory(charId: string): { narration: string; actionAttempt: string | null }[] {
-    return turnHistoryRepository.getCharacterTurnHistory(charId);
-  }
-
   // --- Invite requests ---
-
-  public static hasInviteRequest(email: string): boolean {
-    return inviteRequestRepository.hasInviteRequest(email);
-  }
 
   public static addInviteRequest(email: string, message?: string): void {
     inviteRequestRepository.addInviteRequest(email, message);
-  }
-
-  public static listInviteRequests(): InviteRequest[] {
-    return inviteRequestRepository.listInviteRequests();
   }
 
   public static removeInviteRequest(email: string): boolean {
@@ -246,10 +176,6 @@ export class StateService {
 
   public static clearInviteRequests(): number {
     return inviteRequestRepository.clearInviteRequests();
-  }
-
-  public static getNamespaceByName(name: string): { id: string; name: string } | null {
-    return namespaceRepository.getNamespaceByName(name);
   }
 
   public static createUserInExistingNamespace(email: string, namespaceId: string, role?: string): { userId: string; namespaceId: string } {

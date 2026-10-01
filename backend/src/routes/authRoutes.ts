@@ -9,6 +9,7 @@ import { resolveGoogleSignIn, type SignInOutcome } from '../services/signupServi
 import { authMiddleware, requireFullIdentity, requirePendingInviteToken, requirePendingNamespaceToken } from '../middleware/auth.js';
 import { buildGoogleAuthUrl, createOAuthState, createPkcePair, exchangeCodeForIdentity, getAuthPublicConfig, safeEqual } from '../services/authService.js';
 import { StateService } from '../services/stateService.js';
+import { userRepository } from '../repositories/userRepository.js';
 import { isNamespaceOwner } from '../services/namespaceOwnershipService.js';
 import { canInvite } from '../services/namespaceInviteService.js';
 import {
@@ -267,7 +268,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
       return;
     }
     const { namespaceId } = body;
-    const user = StateService.getUserByEmail(req.pendingPayload!.email);
+    const user = userRepository.getUserByEmail(req.pendingPayload!.email);
     const namespaces = StateService.getUserNamespaces(req.pendingPayload!.email);
     if (!user || !namespaces.some(n => n.id === namespaceId)) {
       res.status(403).json({ error: 'Namespace access denied' });

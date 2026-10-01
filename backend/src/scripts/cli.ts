@@ -34,6 +34,9 @@ dotenv.config({ path: path.join(__dirname, '../../../.env'), quiet: true });
 
 import Database from 'libsql';
 import { StateService } from '../services/stateService.js';
+import { inviteRequestRepository } from '../repositories/inviteRequestRepository.js';
+import { namespaceRepository } from '../repositories/namespaceRepository.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
 import { initializeDatabase } from '../persistence/database.js';
 import { StorySummaryService } from '../services/storySummaryService.js';
 import { getConfig } from '../config/env.js';
@@ -101,7 +104,7 @@ switch (resource) {
 case 'users': {
   switch (subcommand) {
   case 'list': {
-    const users = StateService.listUsers();
+    const users = userRepository.listUsers();
     if (jsonMode) {
       process.stdout.write(JSON.stringify(users, null, 2) + '\n');
     } else if (users.length === 0) {
@@ -123,14 +126,14 @@ case 'users': {
     if (!email) {
       fail('Usage: cli users add <email> [namespace-name]');
     }
-    const existing = StateService.getUserByEmail(email);
+    const existing = userRepository.getUserByEmail(email);
     if (existing) {
       console.error(`User already exists: ${email} (namespace: ${existing.namespace_id})`);
       process.exit(1);
     }
     let addResult: { userId: string; namespaceId: string };
     if (namespaceName) {
-      const existingNs = StateService.getNamespaceByName(namespaceName);
+      const existingNs = namespaceRepository.getNamespaceByName(namespaceName);
       if (existingNs) {
         addResult = StateService.createUserInExistingNamespace(email, existingNs.id);
         console.log(`Created user: ${email} (added to existing namespace: ${existingNs.name})`);
@@ -157,7 +160,7 @@ case 'users': {
     if (!plan.ok) {
       fail(plan.reason);
     }
-    const doomedSessions = plan.deleteNamespaceIds.flatMap(id => StateService.listSessionsInNamespace(id));
+    const doomedSessions = plan.deleteNamespaceIds.flatMap(id => sessionRepository.listSessionsInNamespace(id));
     if (doomedSessions.length > 0) {
       if (!process.argv.includes('--with-adventures')) {
         fail(`Deleting ${email} also deletes their realm(s) ${plan.deleteNamespaceIds.join(', ')} with ${doomedSessions.length} adventure(s). Re-run with --with-adventures to confirm.`);
@@ -199,7 +202,7 @@ case 'users': {
     if (!email || (value !== undefined && value !== 'on' && value !== 'off' && value !== 'default')) {
       fail('Usage: cli users mcp-access <email> [on|off|default]');
     }
-    const user = StateService.getUserByEmail(email);
+    const user = userRepository.getUserByEmail(email);
     if (!user) {
       fail(`User not found: ${email}`);
     }
@@ -247,7 +250,7 @@ case 'users': {
     if (!email) {
       fail('Usage: cli users mcp-revoke <email>');
     }
-    const user = StateService.getUserByEmail(email);
+    const user = userRepository.getUserByEmail(email);
     if (!user) {
       fail(`User not found: ${email}`);
     }
@@ -279,7 +282,7 @@ Options:
 case 'namespaces': {
   switch (subcommand) {
   case 'list': {
-    const ns = StateService.listNamespaces();
+    const ns = namespaceRepository.listNamespaces();
     if (jsonMode) {
       process.stdout.write(JSON.stringify(ns, null, 2) + '\n');
     } else if (ns.length === 0) {
@@ -391,12 +394,12 @@ case 'namespaces': {
     if (!id) {
       fail('Usage: cli namespaces sessions <namespace-id>');
     }
-    const ns = StateService.getNamespaceById(id);
+    const ns = namespaceRepository.getNamespaceById(id);
     if (!ns) {
       console.error(`Namespace not found: ${id}`);
       process.exit(1);
     }
-    const sessions = StateService.listSessionsInNamespace(id);
+    const sessions = sessionRepository.listSessionsInNamespace(id);
     if (jsonMode) {
       process.stdout.write(JSON.stringify(sessions, null, 2) + '\n');
     } else if (sessions.length === 0) {
@@ -418,7 +421,7 @@ case 'namespaces': {
     if (!sessionId || !nsId) {
       fail('Usage: cli namespaces assign-session <sessionId> <namespaceId>');
     }
-    const ns = StateService.getNamespaceById(nsId);
+    const ns = namespaceRepository.getNamespaceById(nsId);
     if (!ns) {
       console.error(`Namespace not found: ${nsId}`);
       process.exit(1);
@@ -470,7 +473,7 @@ case 'namespaces': {
     if (!id) {
       fail('Usage: cli namespaces set-limits <id> [--max-sessions N] [--max-turns N]');
     }
-    const ns = StateService.getNamespaceById(id);
+    const ns = namespaceRepository.getNamespaceById(id);
     if (!ns) {
       console.error(`Namespace not found: ${id}`);
       process.exit(1);
@@ -511,7 +514,7 @@ case 'namespaces': {
     if (!id) {
       fail(`Usage: cli namespaces tier <id> [${USAGE_TIERS.join('|')}]`);
     }
-    const ns = StateService.getNamespaceById(id);
+    const ns = namespaceRepository.getNamespaceById(id);
     if (!ns) {
       fail(`Namespace not found: ${id}`);
     }
@@ -814,7 +817,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
     if (!sessionId) {
       fail('Usage: cli sessions regenerate-dm-prep <sessionId>');
     }
-    const session = await StateService.getSession(sessionId);
+    const session = await sessionRepository.getSession(sessionId);
     if (!session) {
       fail(`Session not found: ${sessionId}`);
     }
@@ -1228,7 +1231,7 @@ case 'metrics': {
 case 'invite-requests': {
   switch (subcommand) {
   case 'list': {
-    const requests = StateService.listInviteRequests();
+    const requests = inviteRequestRepository.listInviteRequests();
     if (jsonMode) {
       process.stdout.write(JSON.stringify(requests, null, 2) + '\n');
     } else if (requests.length === 0) {
@@ -1251,18 +1254,18 @@ case 'invite-requests': {
     if (!approveEmail) {
       fail('Usage: cli invite-requests approve <email> [--namespace <name>]');
     }
-    if (!StateService.hasInviteRequest(approveEmail)) {
+    if (!inviteRequestRepository.hasInviteRequest(approveEmail)) {
       console.error(`No invite request found for: ${approveEmail}`);
       process.exit(1);
     }
-    const existingApproveUser = StateService.getUserByEmail(approveEmail);
+    const existingApproveUser = userRepository.getUserByEmail(approveEmail);
     if (existingApproveUser) {
       console.error(`User already exists: ${approveEmail}`);
       process.exit(1);
     }
     let approveResult: { userId: string; namespaceId: string };
     if (approveNsName) {
-      const approveNs = StateService.getNamespaceByName(approveNsName);
+      const approveNs = namespaceRepository.getNamespaceByName(approveNsName);
       if (!approveNs) {
         console.error(`Namespace not found: ${approveNsName}`);
         process.exit(1);
@@ -1430,7 +1433,7 @@ case 'mcp-grants': {
     const emailArg = parseArgValue(allArgs.find(a => a === '--email' || a.startsWith('--email=')));
     let rows = oauthGrantRepository.listAll();
     if (emailArg) {
-      const user = StateService.getUserByEmail(emailArg);
+      const user = userRepository.getUserByEmail(emailArg);
       if (!user) {
         fail(`User not found: ${emailArg}`);
       }

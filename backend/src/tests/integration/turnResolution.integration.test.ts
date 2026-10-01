@@ -1,7 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NarrationStreamCallbacks } from '../../providers/ai/narration/NarrationProvider.js';
 import { GameEngine } from '../../services/gameEngine.js';
-import { StateService } from '../../services/stateService.js';
+import { sessionRepository } from '../../repositories/sessionRepository.js';
+import { turnHistoryRepository } from '../../repositories/turnHistoryRepository.js';
 import { executeTurnAction } from '../../services/turnService.js';
 import type { SessionState } from '../../types.js';
 import {
@@ -152,7 +153,7 @@ describe.each(TURN_STRATEGIES)('turn resolution characterization (%s)', (strateg
     }
 
     await expect(executeTurnAction(id, 'local', { action: 'Pip juggles three apples', statUsed: 'mischief' })).rejects.toMatchObject({ status: 429 });
-    expect(await StateService.getTurnHistory(id)).toHaveLength(0);
+    expect(await turnHistoryRepository.getTurnHistory(id)).toHaveLength(0);
   });
 
   it('repairs a low-quality encounter name through the preview client', async () => {
@@ -174,7 +175,7 @@ describe.each(TURN_STRATEGIES)('turn resolution characterization (%s)', (strateg
 
     expectTurnStrategy(result, strategy);
     expect(mocks.nameRepairCreate).toHaveBeenCalled();
-    const stored = await StateService.getSession(id);
+    const stored = await sessionRepository.getSession(id);
     expect(stored?.encounterState?.name).toBe('Soot Gremlin');
     expect(stored?.encounterState?.enemies[0].name).toBe('Soot Gremlin');
   });
@@ -196,7 +197,7 @@ describe('turn resolution characterization (parallel only)', () => {
     }
     expect(result.body.turnResult.narrationFailed).toBe(true);
     expect(result.body.turnResult.choices).toEqual([]);
-    const history = await StateService.getTurnHistory(id);
+    const history = await turnHistoryRepository.getTurnHistory(id);
     expect(history).toHaveLength(1);
     expect(history[0].narrationFailed).toBe(true);
     expect(history[0].narrationValidationError).toBe('provider down');
@@ -224,7 +225,7 @@ describe('turn resolution characterization (resolved_first only)', () => {
       return;
     }
     expect(result.body.turnResult.narrationFailed).toBe(true);
-    expect((await StateService.getTurnHistory(id))[0].narrationFailed).toBe(true);
+    expect((await turnHistoryRepository.getTurnHistory(id))[0].narrationFailed).toBe(true);
   });
 
   it('fails the turn without a fallback when presentation throws', async () => {
@@ -233,7 +234,7 @@ describe('turn resolution characterization (resolved_first only)', () => {
     mockNarrateResolved.mockRejectedValueOnce(new Error('provider down'));
 
     await expect(executeTurnAction(id, 'local', { action: 'Pip juggles three apples', statUsed: 'mischief' })).rejects.toThrow('provider down');
-    expect(await StateService.getTurnHistory(id)).toHaveLength(0);
+    expect(await turnHistoryRepository.getTurnHistory(id)).toHaveLength(0);
   });
 
   it('strips choices that still target an enemy the frozen mechanics defeated', async () => {

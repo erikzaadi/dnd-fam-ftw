@@ -8,6 +8,7 @@ import { createQuickStartId } from '../lib/ids.js';
 import { ImageService } from '../services/imageService.js';
 import { SettingsService } from '../services/settingsService.js';
 import { StateService } from '../services/stateService.js';
+import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { refreshDmPrepImageBriefAndPreview, triggerPreviewRegen } from '../services/sessionPreviewService.js';
 import { StorySummaryService } from '../services/storySummaryService.js';
 import { RealmOriginStoryService } from '../services/realmOriginStoryService.js';
@@ -58,14 +59,14 @@ export const createSessionRouter = () => {
   registerSessionIdParam(router);
 
   router.get('/sessions', asyncHandler(async (req, res) => {
-    const sessions = await StateService.listSessions(req.namespaceId);
+    const sessions = await sessionRepository.listSessions(req.namespaceId);
     res.json(sessions);
   }));
 
   router.post('/session/quick-start', asyncHandler(async (req, res) => {
     const limits = getEffectiveLimits(req.namespaceId);
     if (limits.maxSessions !== null) {
-      const count = StateService.countSessionsInNamespace(req.namespaceId);
+      const count = sessionRepository.countSessionsInNamespace(req.namespaceId);
       if (count >= limits.maxSessions) {
         res.status(403).json({ error: 'session_limit', message: `Your group has reached its limit of ${limits.maxSessions} adventure(s). Delete an old adventure to start a new one.` });
         return;
@@ -79,7 +80,7 @@ export const createSessionRouter = () => {
   router.post('/session/instant-start', asyncHandler(async (req, res) => {
     const limits = getEffectiveLimits(req.namespaceId);
     if (limits.maxSessions !== null) {
-      const count = StateService.countSessionsInNamespace(req.namespaceId);
+      const count = sessionRepository.countSessionsInNamespace(req.namespaceId);
       if (count >= limits.maxSessions) {
         res.status(403).json({ error: 'session_limit', message: `Your group has reached its limit of ${limits.maxSessions} adventure(s). Delete an old adventure to start a new one.` });
         return;
@@ -138,7 +139,7 @@ export const createSessionRouter = () => {
     try {
       const limits = getEffectiveLimits(req.namespaceId);
       if (limits.maxSessions !== null) {
-        const count = StateService.countSessionsInNamespace(req.namespaceId);
+        const count = sessionRepository.countSessionsInNamespace(req.namespaceId);
         if (count >= limits.maxSessions) {
           res.status(403).json({ error: 'session_limit', message: `Your group has reached its limit of ${limits.maxSessions} adventure(s). Delete an old adventure to start a new one.` });
           return;
@@ -287,7 +288,7 @@ export const createSessionRouter = () => {
       res.status(500).json({ error: 'Failed to generate campaign brief' });
       return;
     }
-    const updated = await StateService.getSession(session.id);
+    const updated = await sessionRepository.getSession(session.id);
     res.json({ dmPrep: brief, dmPrepEncounters: updated?.dmPrepEncounters ?? null });
   }));
 
@@ -295,7 +296,7 @@ export const createSessionRouter = () => {
     const sessionId = req.params.id as string;
     const session = req.session!;
 
-    const history = await StateService.getTurnHistory(sessionId);
+    const history = await turnHistoryRepository.getTurnHistory(sessionId);
     if (history.length > 0) {
       res.json({ success: true, message: 'Already started' });
       return;

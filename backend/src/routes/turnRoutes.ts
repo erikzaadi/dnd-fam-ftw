@@ -2,7 +2,8 @@ import { Router } from 'express';
 import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
-import { StateService } from '../services/stateService.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
+import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { validateTurnActionRequest } from '../services/turnService.js';
 import { runAcceptedTurnAction } from '../services/turnSubmissionService.js';
 import { parseBody } from './routeValidation.js';
@@ -43,8 +44,8 @@ export const createTurnRouter = () => {
 
   router.get('/session/:id/summary', asyncHandler(async (req, res) => {
     const [history, session] = await Promise.all([
-      StateService.getTurnHistory(req.params.id as string),
-      StateService.getSession(req.params.id as string),
+      turnHistoryRepository.getTurnHistory(req.params.id as string),
+      sessionRepository.getSession(req.params.id as string),
     ]);
     const battlesLine = session?.pastEncounters?.length
       ? `\n\nBattles fought: ${session.pastEncounters.map(e => `${e.name} (${e.status})`).join(', ')}.`
@@ -151,7 +152,7 @@ export const createTurnRouter = () => {
   }));
 
   router.get('/session/:id/history', asyncHandler(async (req, res) => {
-    const history = await StateService.getTurnHistory(req.params.id as string);
+    const history = await turnHistoryRepository.getTurnHistory(req.params.id as string);
     res.json(history.map(toPublicTurn));
   }));
 

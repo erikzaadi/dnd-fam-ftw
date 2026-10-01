@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GameEngine } from '../../services/gameEngine.js';
 import { StateService } from '../../services/stateService.js';
+import { sessionRepository } from '../../repositories/sessionRepository.js';
 import { executeTurnAction } from '../../services/turnService.js';
 import { FIXED_NARRATION_OUTPUT, TURN_STRATEGIES, expectTurnStrategy, narratingMock, narrationInputFor, pinTurnStrategy, scriptTurnOutput } from './mockNarrationProvider.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
@@ -78,7 +79,7 @@ describe.each(TURN_STRATEGIES)('executeTurnAction free action integration (%s)',
     expect(result.body.turnResult.imagePrompt).toBeNull();
     expect(result.body.turnResult.imageSuggested).toBe(false);
 
-    const stored = await StateService.getSession(`free-action-session-${strategy}`);
+    const stored = await sessionRepository.getSession(`free-action-session-${strategy}`);
     expect(stored?.turn).toBe(2);
     expect(stored?.activeCharacterId).toBe('char-pip');
   });
@@ -214,7 +215,7 @@ describe.each(TURN_STRATEGIES)('executeTurnAction free action integration (%s)',
     expect(socialResult.body.actionAttempt.actionResult.characterBonus).toBe(2);
     expect(socialResult.body.actionAttempt.actionResult.characterBonusLabel).toBe('social edge');
 
-    const stored = await StateService.getSession(`free-action-edge-session-${strategy}`);
+    const stored = await sessionRepository.getSession(`free-action-edge-session-${strategy}`);
     expect(stored).toBeTruthy();
     if (!stored) {
       return;
@@ -308,7 +309,7 @@ describe('executeTurnAction free action integration (parallel repairs)', () => {
       enemyName: 'Ambusher',
       newStatus: 'defeated',
     });
-    const stored = await StateService.getSession('free-action-resolved-encounter-session');
+    const stored = await sessionRepository.getSession('free-action-resolved-encounter-session');
     expect(stored?.party[0].inventory.map(item => item.name)).toContain(lootName);
     expect(stored?.lastChoices.map(choice => choice.label).join(' ')).not.toContain('Ambusher');
   });

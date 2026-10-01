@@ -8,6 +8,8 @@ import { createTurnRouter } from '../../routes/turnRoutes.js';
 import { resetIdeasStateForTests } from '../../services/ideasService.js';
 import { acceptSessionOperation } from '../../services/sessionOperationService.js';
 import { StateService } from '../../services/stateService.js';
+import { sessionRepository } from '../../repositories/sessionRepository.js';
+import { turnHistoryRepository } from '../../repositories/turnHistoryRepository.js';
 import type { Choice, IdeasPayload, SessionSnapshot } from '../../types.js';
 import { resetMockNarrationProvider } from './mockNarrationProvider.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
@@ -66,12 +68,12 @@ const askIdeas = (sessionId: string, body: Record<string, unknown>) => post(`/se
 const seed = async (id: string): Promise<{ turnId: number; revision: number }> => {
   await insertSessionState(makeTestSession({ id }));
   await StateService.addTurnResult(id, { narration: 'The kitchen bubbles.', choices: [], imagePrompt: null, imageSuggested: false }, null);
-  const history = await StateService.getTurnHistory(id);
-  return { turnId: history[history.length - 1].id as number, revision: StateService.getRevision(id) ?? 0 };
+  const history = await turnHistoryRepository.getTurnHistory(id);
+  return { turnId: history[history.length - 1].id as number, revision: sessionRepository.getRevision(id) ?? 0 };
 };
 
 const storedChoices = async (sessionId: string): Promise<Choice[]> => {
-  const history = await StateService.getTurnHistory(sessionId);
+  const history = await turnHistoryRepository.getTurnHistory(sessionId);
   return history[history.length - 1].choices;
 };
 
@@ -116,7 +118,7 @@ describe('POST /session/:id/ideas', () => {
     expect(payload.choices.map(c => c.label)).toEqual(IDEAS.map(c => c.label));
     expect(payload.choices.every(c => typeof c.id === 'number')).toBe(true);
     expect((await storedChoices('ideas-basic')).map(c => c.id)).toEqual(payload.choices.map(c => c.id));
-    expect(StateService.getRevision('ideas-basic')).toBe(key.revision);
+    expect(sessionRepository.getRevision('ideas-basic')).toBe(key.revision);
     expect(mocks.broadcastUpdate).toHaveBeenCalledWith('ideas-basic', 'ideas_updated', expect.objectContaining({ turnId: key.turnId, revision: key.revision }));
     expect(mocks.broadcastUpdate.mock.calls.some(call => call[1] === 'turn_complete')).toBe(false);
   });
@@ -225,7 +227,7 @@ describe('POST /session/:id/ideas', () => {
 
     expect((await askIdeas('ideas-onboarding', { ...key, reason: 'onboarding_auto' })).status).toBe(200);
     expect(await (await askIdeas('ideas-onboarding', { ...key, reason: 'onboarding_auto' })).json()).toMatchObject({ error: 'already_requested' });
-    expect((await StateService.getSession('ideas-onboarding'))?.onboardingIdeasPending).toBeUndefined();
+    expect((await sessionRepository.getSession('ideas-onboarding'))?.onboardingIdeasPending).toBeUndefined();
 
     const other = await seed('ideas-not-onboarding');
     expect(await (await askIdeas('ideas-not-onboarding', { ...other, reason: 'onboarding_auto' })).json()).toMatchObject({ error: 'already_requested' });
@@ -235,7 +237,7 @@ describe('POST /session/:id/ideas', () => {
     const key = await seed('ideas-rate');
     const statuses: number[] = [];
     for (let i = 0; i < 7; i++) {
-      statuses.push((await askIdeas('ideas-rate', { turnId: key.turnId, revision: StateService.getRevision('ideas-rate') ?? 0 })).status);
+      statuses.push((await askIdeas('ideas-rate', { turnId: key.turnId, revision: sessionRepository.getRevision('ideas-rate') ?? 0 })).status);
       StateService.bumpRevision('ideas-rate');
     }
     expect(statuses.slice(0, 6)).toEqual([200, 200, 200, 200, 200, 200]);

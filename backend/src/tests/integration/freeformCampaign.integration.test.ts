@@ -3,6 +3,8 @@ import { GameEngine } from '../../services/gameEngine.js';
 import { resolvePartyRecovery } from '../../services/partyRecoveryService.js';
 import { acceptSessionOperation } from '../../services/sessionOperationService.js';
 import { StateService } from '../../services/stateService.js';
+import { sessionRepository } from '../../repositories/sessionRepository.js';
+import { turnHistoryRepository } from '../../repositories/turnHistoryRepository.js';
 import { executeTurnAction } from '../../services/turnService.js';
 import { TURN_STRATEGIES } from './mockNarrationProvider.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
@@ -90,7 +92,7 @@ afterAll(() => {
 const rollDice = (roll: number) => vi.spyOn(GameEngine, 'rollDice').mockReturnValue({ roll, total: roll + 2 });
 
 const setPipHp = async (sessionId: string, hp: number) => {
-  const stored = await StateService.getSession(sessionId);
+  const stored = await sessionRepository.getSession(sessionId);
   if (!stored) {
     throw new Error('session missing');
   }
@@ -175,14 +177,14 @@ describe.each(TURN_STRATEGIES)('freeform campaign through the real orchestrator 
     expect(await wipeAndRecover(id, `wipe-1-${strategy}`)).toBe('intervention');
     expect(await wipeAndRecover(id, `wipe-2-${strategy}`)).toBe('sanctuary');
 
-    const history = await StateService.getTurnHistory(id);
+    const history = await turnHistoryRepository.getTurnHistory(id);
     expect(history.map(turn => turn.turnType ?? 'normal')).toEqual(expect.arrayContaining(['intervention', 'sanctuary']));
     // No turn stored suggestions, and no turn ran the choices agent (or its retry or fallback).
     for (const turn of history) {
       expect(turn.choices).toEqual([]);
       expect(turn.choicesFailed ?? false).toBe(false);
     }
-    expect((await StateService.getSession(id))?.lastChoices ?? []).toEqual([]);
+    expect((await sessionRepository.getSession(id))?.lastChoices ?? []).toEqual([]);
     expect(sdk.agents).not.toContain('choices_agent_output');
     expect(sdk.agents.filter(agent => agent === 'narration_agent_output').length).toBeGreaterThanOrEqual(history.length);
   });

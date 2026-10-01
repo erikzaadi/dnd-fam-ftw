@@ -5,6 +5,8 @@ import type { NarrationStreamCallbacks } from '../providers/ai/narration/Narrati
 import { createNarrationProvider } from '../providers/ai/AiProviderFactory.js';
 import { GameEngine } from './gameEngine.js';
 import { StateService } from './stateService.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
+import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { compileDmPrepPremise } from './dmPrepCompilationService.js';
 import { assessRiddleAction, ensureActiveRiddle, syncRiddleChoices, toRiddleAttempt } from './riddleService.js';
 import { extractRiddleAnswer } from './riddleRepairService.js';
@@ -352,17 +354,17 @@ export const executeTurnAction = async (
   const turnStart = Date.now();
   let stepStart = turnStart;
 
-  const sessionNamespace = StateService.getSessionNamespaceId(sessionId);
+  const sessionNamespace = sessionRepository.getSessionNamespaceId(sessionId);
   if (!sessionNamespace || sessionNamespace !== (namespaceId ?? 'local')) {
     logTurnStep(sessionId, 'namespace-miss', stepStart);
     return rejectTurnAction(404, { error: 'Session not found' });
   }
-  const session = await StateService.getSession(sessionId);
+  const session = await sessionRepository.getSession(sessionId);
   stepStart = logTurnStep(sessionId, 'load-session', stepStart);
   if (!session) {
     return rejectTurnAction(404, { error: 'Session not found' });
   }
-  const history = await StateService.getTurnHistory(sessionId);
+  const history = await turnHistoryRepository.getTurnHistory(sessionId);
   stepStart = logTurnStep(sessionId, 'load-history', stepStart, `history=${history.length}`);
   // Only current ideas: session.lastChoices is empty once they went stale.
   const latestChoices = session.lastChoices;

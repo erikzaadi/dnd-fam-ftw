@@ -7,7 +7,7 @@ import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js'
 import { devLog } from '../lib/devLog.js';
 import type { AskDmPayload, InventoryItem, SessionState } from '../types.js';
 import { mentionsRiddleAnswer } from './riddleService.js';
-import { StateService } from './stateService.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
 
 // "Ask the DM": a short, non-mutating answer to an out-of-character question about the
 // scene ("can I climb the wall?", "what does my amulet do?"). Grounded only in what the
@@ -102,7 +102,7 @@ const SYSTEM_PROMPT = [
 ].join(' ');
 
 export const askDm = async (sessionId: string, request: AskDmRequest): Promise<AskDmResult> => {
-  const session = await StateService.getSession(sessionId);
+  const session = await sessionRepository.getSession(sessionId);
   if (!session) {
     return reject(404, 'not_found', 'Session not found');
   }

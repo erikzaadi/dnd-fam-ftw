@@ -2,7 +2,7 @@ import { broadcastUpdate } from '../realtime/sessionEvents.js';
 import { commitTurn } from '../repositories/turnCommitRepository.js';
 import type { SessionState, TurnResult } from '../types.js';
 import { AiDmService } from './aiDmService.js';
-import { StateService } from './stateService.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
 import { buildAdventureDirective } from './adventureLifecycleService.js';
 
 // Generates and atomically commits a session's opening turn. Shared by the manual
@@ -12,7 +12,7 @@ export const generateAndCommitInitialTurn = async (params: {
   operationId?: string;
 }): Promise<{ turn: TurnResult; state: SessionState } | null> => {
   const { sessionId, operationId } = params;
-  const session = await StateService.getSession(sessionId);
+  const session = await sessionRepository.getSession(sessionId);
   if (!session) {
     return null;
   }

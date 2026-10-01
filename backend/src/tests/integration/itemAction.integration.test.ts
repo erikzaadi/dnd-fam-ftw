@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StateService } from '../../services/stateService.js';
+import { sessionRepository } from '../../repositories/sessionRepository.js';
 import { executeTurnAction } from '../../services/turnService.js';
 import { FIXED_NARRATION_OUTPUT, TURN_STRATEGIES, expectTurnStrategy, mockGenerateTurn, mockNarrateResolved, mockProposeMechanics, narratingMock, narrationInputFor, scriptTurnOutput } from './mockNarrationProvider.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
@@ -79,7 +80,7 @@ describe.each(TURN_STRATEGIES)('executeTurnAction item action integration (%s)',
       expect(narrationInputFor(strategy)?.resolvedTurn?.facts.join(' ')).toContain('Pip regained 3 HP');
     }
 
-    const stored = await StateService.getSession(`item-action-session-${strategy}`);
+    const stored = await sessionRepository.getSession(`item-action-session-${strategy}`);
     expect(stored?.party[0].hp).toBe(7);
     expect(stored?.party[0].inventory).toHaveLength(0);
 
@@ -145,7 +146,7 @@ describe('executeTurnAction item action limits', () => {
       expect(mockGenerateTurn).not.toHaveBeenCalled();
       expect(mockProposeMechanics).not.toHaveBeenCalled();
       expect(mockNarrateResolved).not.toHaveBeenCalled();
-      expect((await StateService.getSession('item-action-limit-session'))?.party[0].inventory).toHaveLength(1);
+      expect((await sessionRepository.getSession('item-action-limit-session'))?.party[0].inventory).toHaveLength(1);
     } finally {
       StateService.setNamespaceLimits('local', null, null);
     }

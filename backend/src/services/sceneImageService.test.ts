@@ -19,7 +19,7 @@ let seq = 0;
 const newSession = async (imagePolicy: 'off' | 'on_demand' | 'automatic') => {
   const session = await StateService.createSession('A troll bridge', 'normal', true, 'local', 'balanced', undefined, 'Troll Bridge', `scene-${++seq}`, 'one_evening', imagePolicy);
   const turnId = turnHistoryRepository.insertTurnResultSync(session.id, { narration: 'The troll grins.', choices: [], imagePrompt: null, imageSuggested: false }, null);
-  return { session: (await StateService.getSession(session.id))!, turnId };
+  return { session: (await sessionRepository.getSession(session.id))!, turnId };
 };
 
 beforeAll(() => {
@@ -43,18 +43,18 @@ describe('image policy', () => {
     const { session } = await newSession('on_demand');
     expect(session).toMatchObject({ imagePolicy: 'on_demand', savingsMode: true });
     await StateService.setSavingsMode(session.id, false);
-    expect(await StateService.getSession(session.id)).toMatchObject({ imagePolicy: 'automatic', savingsMode: false });
+    expect(await sessionRepository.getSession(session.id)).toMatchObject({ imagePolicy: 'automatic', savingsMode: false });
     await StateService.setSavingsMode(session.id, true);
-    expect(await StateService.getSession(session.id)).toMatchObject({ imagePolicy: 'off', savingsMode: true });
+    expect(await sessionRepository.getSession(session.id)).toMatchObject({ imagePolicy: 'off', savingsMode: true });
     sessionRepository.setImagePolicy(session.id, 'on_demand');
-    expect(await StateService.getSession(session.id)).toMatchObject({ imagePolicy: 'on_demand', savingsMode: true });
+    expect(await sessionRepository.getSession(session.id)).toMatchObject({ imagePolicy: 'on_demand', savingsMode: true });
   });
 
   it('derives the policy for rows that only have savingsMode', async () => {
     const created = await StateService.createSession('Old', 'normal', false, 'local', 'balanced', undefined, 'Old', `legacy-${++seq}`);
     const { getDb } = await import('../persistence/database.js');
     getDb().prepare('UPDATE sessions SET image_policy = NULL WHERE id = ?').run(created.id);
-    expect(await StateService.getSession(created.id)).toMatchObject({ imagePolicy: 'automatic', savingsMode: false });
+    expect(await sessionRepository.getSession(created.id)).toMatchObject({ imagePolicy: 'automatic', savingsMode: false });
   });
 });
 

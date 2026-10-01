@@ -8,6 +8,7 @@ import { createTurnRouter } from '../../routes/turnRoutes.js';
 import { createSessionRouter } from '../../routes/sessionRoutes.js';
 import { GameEngine } from '../../services/gameEngine.js';
 import { StateService } from '../../services/stateService.js';
+import { sessionRepository } from '../../repositories/sessionRepository.js';
 import { createInitialArc, serializeArc } from '../../services/adventureLifecycleService.js';
 import type { AdventureArcState, SessionSnapshot } from '../../types.js';
 import { FIXED_NARRATION_OUTPUT, TURN_STRATEGIES, mockGenerateTurn, mockNarrateResolved, mockProposeMechanics, narratingMock, scriptTurnOutput } from './mockNarrationProvider.js';
@@ -153,7 +154,7 @@ describe('one-evening lifecycle (E1/E2)', () => {
   it('ends early with an epilogue without rolling, then continues the world as a new chapter', async () => {
     await insertSessionState(makeTestSession({ id: 'end-here' }));
     setAdventure('end-here', 'one_evening', { phase: 'development', playerActionCount: 4 });
-    const before = await StateService.getSession('end-here');
+    const before = await sessionRepository.getSession('end-here');
 
     const end = await post('/session/end-here/adventure/end', { requestId: 'end-1' });
     expect(end.status).toBe(202);
@@ -194,6 +195,6 @@ describe('one-evening lifecycle (E1/E2)', () => {
     const created = await StateService.createSession('A realm', 'normal', true, 'local', 'balanced', undefined, 'New Realm');
     expect(created.adventure?.format).toBe('one_evening');
     await insertSessionState(makeTestSession({ id: 'legacy-row' }));
-    expect((await StateService.getSession('legacy-row'))?.adventure?.format).toBe('long_lived');
+    expect((await sessionRepository.getSession('legacy-row'))?.adventure?.format).toBe('long_lived');
   });
 });

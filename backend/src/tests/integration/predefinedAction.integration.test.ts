@@ -2,6 +2,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import type { ActionAttempt, TurnResult } from '../../types.js';
 import { GameEngine } from '../../services/gameEngine.js';
 import { StateService } from '../../services/stateService.js';
+import { sessionRepository } from '../../repositories/sessionRepository.js';
+import { turnHistoryRepository } from '../../repositories/turnHistoryRepository.js';
 import { executeTurnAction } from '../../services/turnService.js';
 import { FIXED_NARRATION_OUTPUT, TURN_STRATEGIES, expectTurnStrategy, narratingMock, narrationInputFor, pinTurnStrategy, scriptTurnOutput } from './mockNarrationProvider.js';
 import { choicesForSession, cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
@@ -66,11 +68,11 @@ describe.each(TURN_STRATEGIES)('executeTurnAction predefined action integration 
     expect(result.body.turnResult.lastAction?.actionAttempt).toBe('Press the attack');
     expect(result.body.turnResult.characterId).toBe('char-pip');
 
-    const stored = await StateService.getSession(`predefined-action-session-${strategy}`);
+    const stored = await sessionRepository.getSession(`predefined-action-session-${strategy}`);
     expect(stored?.turn).toBe(2);
     expect(stored?.activeCharacterId).toBe('char-zara');
 
-    const history = await StateService.getTurnHistory(`predefined-action-session-${strategy}`);
+    const history = await turnHistoryRepository.getTurnHistory(`predefined-action-session-${strategy}`);
     expect(history).toHaveLength(1);
     expect(history[0].narration).toBe(FIXED_NARRATION_OUTPUT.narration);
     expect(history[0].lastAction?.actionAttempt).toBe('Press the attack');
@@ -243,7 +245,7 @@ describe('executeTurnAction predefined action integration (parallel narration gu
     expect(result.body.turnResult.narration).toBe('Pip presses into The Crimson Cliffs after the path opens.');
     expect(result.body.turnResult.narrationFailed).toBe(true);
 
-    const history = await StateService.getTurnHistory('predefined-action-fallback-persist-session');
+    const history = await turnHistoryRepository.getTurnHistory('predefined-action-fallback-persist-session');
     expect(history).toHaveLength(1);
     expect(history[0].narration).toBe('Pip presses into The Crimson Cliffs after the path opens.');
     expect(history[0].choices.map(choice => choice.label)).toEqual([

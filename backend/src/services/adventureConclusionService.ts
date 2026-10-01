@@ -3,7 +3,7 @@ import { broadcastSessionChanged, broadcastUpdate } from '../realtime/sessionEve
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { commitTurn } from '../repositories/turnCommitRepository.js';
 import type { AdventureResolution, SessionState, TurnResult } from '../types.js';
-import { StateService } from './stateService.js';
+import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { devLog } from '../lib/devLog.js';
 
 const CONCLUSION_TIMEOUT_MS = 25_000;
@@ -100,13 +100,13 @@ export const concludeAdventure = async (params: {
   resolution: AdventureResolution;
 }): Promise<TurnResult | null> => {
   const { sessionId, namespaceId, operationId } = params;
-  const session = await StateService.getSession(sessionId);
+  const session = await sessionRepository.getSession(sessionId);
   if (!session?.adventure || session.adventure.status === 'completed') {
     return null;
   }
   // A chapter already concluding keeps the resolution its finale earned.
   const resolution = session.adventure.resolution ?? params.resolution;
-  const history = await StateService.getTurnHistory(sessionId);
+  const history = await turnHistoryRepository.getTurnHistory(sessionId);
   const { text, failed } = await generateEpilogueText(session, history, resolution);
   devLog.log(`[Adventure] epilogue session=${sessionId} resolution=${resolution} fallback=${failed}`);
 

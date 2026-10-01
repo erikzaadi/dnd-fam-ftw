@@ -6,6 +6,8 @@ import { RIDDLE_ABANDONED_NARRATION, recoverRiddle } from '../../services/riddle
 import { ensureActiveRiddle } from '../../services/riddleService.js';
 import { acceptSessionOperation } from '../../services/sessionOperationService.js';
 import { StateService } from '../../services/stateService.js';
+import { sessionRepository } from '../../repositories/sessionRepository.js';
+import { turnHistoryRepository } from '../../repositories/turnHistoryRepository.js';
 import { executeTurnAction } from '../../services/turnService.js';
 import type { Choice } from '../../types.js';
 import type { NarrationChoice } from '../../providers/ai/narration/NarrationProvider.js';
@@ -104,7 +106,7 @@ describe.each(TURN_STRATEGIES)('riddles (%s)', (strategy) => {
       expect(JSON.stringify(result)).not.toContain('river');
       expect(narratingMock(strategy)).not.toHaveBeenCalled();
       expect(mockProposeMechanics).not.toHaveBeenCalled();
-      expect(await StateService.getTurnHistory(`riddle-unclear-${strategy}`)).toHaveLength(1);
+      expect(await turnHistoryRepository.getTurnHistory(`riddle-unclear-${strategy}`)).toHaveLength(1);
       expect(riddleStatuses(`riddle-unclear-${strategy}`)).toEqual(['active']);
     });
 
@@ -125,7 +127,7 @@ describe.each(TURN_STRATEGIES)('riddles (%s)', (strategy) => {
       expect(mockProposeMechanics).not.toHaveBeenCalled();
 
       await vi.waitFor(() => expect(riddleStatuses(`riddle-unknown-${strategy}`)).toEqual(['abandoned']));
-      const history = await StateService.getTurnHistory(`riddle-unknown-${strategy}`);
+      const history = await turnHistoryRepository.getTurnHistory(`riddle-unknown-${strategy}`);
       expect(history).toHaveLength(2);
       expect(history[1].narration).toBe(RIDDLE_ABANDONED_NARRATION);
       expect(history[1].characterId ?? null).toBeNull();
@@ -140,7 +142,7 @@ describe.each(TURN_STRATEGIES)('riddles (%s)', (strategy) => {
       await seedRiddleSession(`riddle-guard-${strategy}`, FLAGGED.map(({ riddleCorrect: _riddleCorrect, ...choice }) => choice));
       const blocking = acceptSessionOperation({ sessionId: `riddle-guard-${strategy}`, namespaceId: 'local', kind: 'action', payload: { action: 'busy' } });
       expect(blocking.type).toBe('accepted');
-      const session = await StateService.getSession(`riddle-guard-${strategy}`);
+      const session = await sessionRepository.getSession(`riddle-guard-${strategy}`);
       const riddle = ensureActiveRiddle(session!);
 
       const recovering = recoverRiddle(`riddle-guard-${strategy}`, 'local', riddle!);
@@ -164,7 +166,7 @@ describe.each(TURN_STRATEGIES)('riddles (%s)', (strategy) => {
 
       const second = await act(`riddle-recovered-${strategy}`, 'The answer is a river');
       expect(second.ok && second.body.actionAttempt.actionResult).toMatchObject({ success: true, roll: 0 });
-      expect(await StateService.getTurnHistory(`riddle-recovered-${strategy}`)).toHaveLength(2);
+      expect(await turnHistoryRepository.getTurnHistory(`riddle-recovered-${strategy}`)).toHaveLength(2);
     });
 
     it('expires an unanswered riddle once the story has moved well past it', async () => {
@@ -182,7 +184,7 @@ describe.each(TURN_STRATEGIES)('riddles (%s)', (strategy) => {
   describe('riddles posed by narration', () => {
     const ECHO_NARRATION = 'A voice booms: "I speak without a mouth and hear without ears. What am I?"';
     const answerChoices = (sessionId: string) => async () => {
-      const history = await StateService.getTurnHistory(sessionId);
+      const history = await turnHistoryRepository.getTurnHistory(sessionId);
       return history[history.length - 1].choices.filter(c => c.riddleAnswer);
     };
     const plainSession = async (id: string) => {

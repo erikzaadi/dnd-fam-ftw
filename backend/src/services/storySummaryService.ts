@@ -1,6 +1,8 @@
 import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
 import { runBackground } from '../middleware/runBackground.js';
 import { StateService } from './stateService.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
+import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { ImageService } from './imageService.js';
 import { compileDmPrepPremise } from './dmPrepCompilationService.js';
 import type { AdventureFormat, EncounterSeed } from '../types.js';
@@ -130,8 +132,8 @@ export class StorySummaryService {
     }
     try {
       const [session, history] = await Promise.all([
-        StateService.getSession(sessionId),
-        StateService.getTurnHistory(sessionId),
+        sessionRepository.getSession(sessionId),
+        turnHistoryRepository.getTurnHistory(sessionId),
       ]);
       if (!session) {
         return;
@@ -188,7 +190,7 @@ export class StorySummaryService {
 
   static async updateAfterIntervention(sessionId: string, interventionNarration: string, sourceTurn?: number): Promise<void> {
     try {
-      const session = await StateService.getSession(sessionId);
+      const session = await sessionRepository.getSession(sessionId);
       if (!session) {
         return;
       }
@@ -353,7 +355,7 @@ ${dmPrep}`;
     if (!seeds?.length) {
       return seeds;
     }
-    const session = await StateService.getSession(sessionId);
+    const session = await sessionRepository.getSession(sessionId);
     if (session?.savingsMode) {
       return seeds;
     }

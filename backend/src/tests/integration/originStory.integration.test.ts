@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RealmOriginStoryService } from '../../services/realmOriginStoryService.js';
 import { StateService } from '../../services/stateService.js';
+import { sessionRepository } from '../../repositories/sessionRepository.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
 
 const { create } = vi.hoisted(() => ({ create: vi.fn() }));
@@ -43,7 +44,7 @@ describe('RealmOriginStoryService.generate', () => {
 
     expect(create).toHaveBeenCalledTimes(1);
     expect(new Set(stories).size).toBe(1);
-    expect((await StateService.getSession('origin-concurrent'))?.originStory).toBe(stories[0]);
+    expect((await sessionRepository.getSession('origin-concurrent'))?.originStory).toBe(stories[0]);
   });
 
   it('never replaces a stored story', async () => {
@@ -63,6 +64,6 @@ describe('RealmOriginStoryService.generate', () => {
     });
 
     expect(await RealmOriginStoryService.generate('origin-race')).toBe('The other story.');
-    expect((await StateService.getSession('origin-race'))?.originStory).toBe('The other story.');
+    expect((await sessionRepository.getSession('origin-race'))?.originStory).toBe('The other story.');
   });
 });

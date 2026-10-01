@@ -6,6 +6,8 @@ import { getDb } from '../../persistence/database.js';
 import { createStatSuggestionRouter } from '../../routes/statSuggestionRoutes.js';
 import { createTurnRouter } from '../../routes/turnRoutes.js';
 import { StateService } from '../../services/stateService.js';
+import { sessionRepository } from '../../repositories/sessionRepository.js';
+import { turnHistoryRepository } from '../../repositories/turnHistoryRepository.js';
 import type { Choice, FreeActionPreview, PreviewClarification, SessionSnapshot } from '../../types.js';
 import { resetMockNarrationProvider } from './mockNarrationProvider.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
@@ -97,7 +99,7 @@ describe('preview clarification contract', () => {
 
     expect(res.status).toBe(200);
     const body = await res.json() as PreviewClarification;
-    expect(body).toEqual({ kind: 'clarification', question: 'Is "piano" your answer to the riddle?', previewRevision: StateService.getRevision('clarify-ask') });
+    expect(body).toEqual({ kind: 'clarification', question: 'Is "piano" your answer to the riddle?', previewRevision: sessionRepository.getRevision('clarify-ask') });
     expect(mockCreateCompletion).not.toHaveBeenCalled();
     expect(riddleStatus('clarify-ask')).toBe('active');
   });
@@ -125,7 +127,7 @@ describe('preview clarification contract', () => {
     const accepted = await confirm('clarify-yes', { action: body.originalAction, statUsed: body.stat, previewId: body.previewId, requestId: 'clarify-yes-1' });
     expect(accepted.status).toBe(202);
     await waitForIdle('clarify-yes');
-    const history = await StateService.getTurnHistory('clarify-yes');
+    const history = await turnHistoryRepository.getTurnHistory('clarify-yes');
     expect(history[1].lastAction?.actionResult).toMatchObject({ success: true, roll: 0, statUsed: 'none' });
     expect(riddleStatus('clarify-yes')).toBe('solved');
   });
@@ -138,7 +140,7 @@ describe('preview clarification contract', () => {
 
     await confirm('clarify-no', { action: body.originalAction, statUsed: body.stat, previewId: body.previewId, requestId: 'clarify-no-1' });
     await waitForIdle('clarify-no');
-    const history = await StateService.getTurnHistory('clarify-no');
+    const history = await turnHistoryRepository.getTurnHistory('clarify-no');
     expect(history[1].lastAction?.actionResult.roll).toBeGreaterThan(0);
     expect(riddleStatus('clarify-no')).toBe('active');
   });
@@ -249,9 +251,9 @@ describe('gear attached to the draft', () => {
     const accepted = await confirm('gear-use', { action: body.interpretedAction, statUsed: 'none', previewId: body.previewId, requestId: 'gear-use-1' });
     expect(accepted.status).toBe(202);
     await waitForIdle('gear-use');
-    const history = await StateService.getTurnHistory('gear-use');
+    const history = await turnHistoryRepository.getTurnHistory('gear-use');
     expect(history[history.length - 1].lastAction?.actionResult).toMatchObject({ roll: 0, statUsed: 'none' });
-    const stored = await StateService.getSession('gear-use');
+    const stored = await sessionRepository.getSession('gear-use');
     expect(stored?.party[0].inventory.some(item => item.id === 'potion-1')).toBe(false);
   });
 

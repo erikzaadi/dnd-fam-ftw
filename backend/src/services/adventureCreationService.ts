@@ -11,6 +11,8 @@ import { generateAndCommitInitialTurn } from './initialTurnService.js';
 import { runBackground } from '../middleware/runBackground.js';
 import { generateSessionDisplayName } from './sessionNameService.js';
 import { StateService } from './stateService.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
+import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { getEffectiveLimits } from './usageLimitService.js';
 
 // Durable adventure creation for clients without the website's setup screens (MCP
@@ -85,7 +87,7 @@ const inFlight = new Map<string, Promise<CreateAdventureResult>>();
 const advance = async (command: CreateCommandRow, input: CreateAdventureInput, replayed: boolean): Promise<CreateAdventureResult> => {
   const { owner_key: ownerKey, request_id: requestId, session_id: sessionId, namespace_id: namespaceId } = command;
   let phase = command.phase;
-  let session = await StateService.getSession(sessionId);
+  let session = await sessionRepository.getSession(sessionId);
 
   if (phase === 'reserved') {
     if (!session) {
@@ -162,7 +164,7 @@ export const createAdventure = async (params: {
       return advance(existing, input, true);
     }
     const limits = getEffectiveLimits(namespaceId);
-    if (limits.maxSessions !== null && StateService.countSessionsInNamespace(namespaceId) >= limits.maxSessions) {
+    if (limits.maxSessions !== null && sessionRepository.countSessionsInNamespace(namespaceId) >= limits.maxSessions) {
       return fail(403, 'session_limit', `This realm has reached its limit of ${limits.maxSessions} adventure(s). Delete an old one on the website to start a new one.`);
     }
     const admission = params.admit();
@@ -192,7 +194,7 @@ export const createAdventure = async (params: {
 // Deliberate retry of an opening that never committed (for example after a restart).
 // Only for a session with no turns and no operation in progress.
 export const retryOpening = async (sessionId: string, namespaceId: string, requestId: string): Promise<CreateAdventureResult> => {
-  const session = await StateService.getSession(sessionId);
+  const session = await sessionRepository.getSession(sessionId);
   if (!session) {
     return fail(404, 'not_found', 'Adventure not found.');
   }
@@ -200,7 +202,7 @@ export const retryOpening = async (sessionId: string, namespaceId: string, reque
   if (known) {
     return { ok: true, sessionId, operation: toPublicOperation(known), replayed: true };
   }
-  if ((await StateService.getTurnHistory(sessionId)).length > 0) {
+  if ((await turnHistoryRepository.getTurnHistory(sessionId)).length > 0) {
     return fail(409, 'already_started', 'This adventure already has its opening scene. Read it with get_adventure.');
   }
   if (session.party.length === 0) {

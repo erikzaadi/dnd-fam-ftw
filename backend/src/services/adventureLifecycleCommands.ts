@@ -10,7 +10,6 @@ import { ensureEveningObjective } from './adventureObjectiveService.js';
 import { AiDmService } from './aiDmService.js';
 import { applyGuardedSessionMutation } from './sessionMutationService.js';
 import { acceptSessionOperation, describeAcceptance, runSessionOperation, type AcceptanceOutcome } from './sessionOperationService.js';
-import { StateService } from './stateService.js';
 
 // Adventure lifecycle commands shared by the REST adventure routes and MCP
 // manage_adventure: same state checks, operations, and broadcasts for both.
@@ -129,7 +128,7 @@ export const continueAdventureWorld = (params: {
   const operation = outcome.operation;
   if (operation) {
     runBackground(`continue-world session=${sessionId} operation=${operation.id}`, () => runSessionOperation(operation, async () => {
-      const current = await StateService.getSession(sessionId);
+      const current = await sessionRepository.getSession(sessionId);
       if (!current?.adventure || current.adventure.status !== 'completed') {
         return { error: 'adventure_active', message: 'Only a completed adventure can continue into a new chapter.' };
       }

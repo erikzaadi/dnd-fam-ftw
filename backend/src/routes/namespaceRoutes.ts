@@ -6,7 +6,8 @@ import { limitRequestRepository } from '../repositories/limitRequestRepository.j
 import { toSqliteTimestamp } from '../repositories/usageRepository.js';
 import { dispatchOutbox, enqueueLimitRequestNotice } from '../services/emailService.js';
 import { parseBody } from './routeValidation.js';
-import { StateService } from '../services/stateService.js';
+import { namespaceRepository } from '../repositories/namespaceRepository.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
 import { KOFI_SUPPORTER_DAYS } from '../services/kofiWebhookService.js';
 import { checkPictureBudget, getDailyUsage, getEffectiveLimits, nextUtcReset, tierLabel } from '../services/usageLimitService.js';
 import type { LimitRequestErrorResponse, NamespaceUsageResponse } from '../types.js';
@@ -22,7 +23,7 @@ export const createNamespaceRouter = () => {
 
   router.get('/namespace/limits', (req, res) => {
     const limits = getEffectiveLimits(req.namespaceId);
-    const sessionCount = StateService.countSessionsInNamespace(req.namespaceId);
+    const sessionCount = sessionRepository.countSessionsInNamespace(req.namespaceId);
     res.json({
       maxSessions: limits.maxSessions,
       maxTurns: limits.maxTurns,
@@ -44,7 +45,7 @@ export const createNamespaceRouter = () => {
         maxTurns: limits.maxTurns,
       },
       today: { textCredits: today.textCredits, pictures: today.pictures },
-      sessionCount: StateService.countSessionsInNamespace(req.namespaceId),
+      sessionCount: sessionRepository.countSessionsInNamespace(req.namespaceId),
       resetsAt: nextUtcReset().toISOString(),
       picturesPaused: checkPictureBudget(req.namespaceId) !== null,
       supportUrl: getConfig().SUPPORT_URL,
@@ -86,7 +87,7 @@ export const createNamespaceRouter = () => {
     enqueueLimitRequestNotice({
       requestId: id,
       namespaceId: req.namespaceId,
-      namespaceName: StateService.getNamespaceById(req.namespaceId)?.name ?? null,
+      namespaceName: namespaceRepository.getNamespaceById(req.namespaceId)?.name ?? null,
       tier: limits.tier,
       email: req.userEmail,
       note,

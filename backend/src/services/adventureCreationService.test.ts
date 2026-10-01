@@ -8,6 +8,7 @@ import { runInstantStartBackground } from './instantStartService.js';
 import { generateAndCommitInitialTurn } from './initialTurnService.js';
 import { buildDescribedHero, createAdventure, retryOpening } from './adventureCreationService.js';
 import { StateService } from './stateService.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
 import { initializeDatabase } from '../persistence/database.js';
 
 vi.mock('./sessionNameService.js', () => ({ generateSessionDisplayName: vi.fn(async () => 'Troll Bridge') }));
@@ -55,7 +56,7 @@ describe('createAdventure', () => {
     if (!result.ok) {
       return;
     }
-    const session = await StateService.getSession(result.sessionId);
+    const session = await sessionRepository.getSession(result.sessionId);
     expect(session).toMatchObject({ displayName: 'Troll Bridge', savingsMode: true, worldDescription: 'A silly forest with a grumpy troll' });
     expect(session?.adventure?.format).toBe('one_evening');
     expect(session?.party).toHaveLength(2);
@@ -109,7 +110,7 @@ describe('createAdventure', () => {
 
     const result = await create(requestId, input);
     expect(result).toMatchObject({ ok: true, sessionId: created.id, replayed: true });
-    expect((await StateService.getSession(created.id))?.party.map(hero => hero.name)).toEqual(['Zara']);
+    expect((await sessionRepository.getSession(created.id))?.party.map(hero => hero.name)).toEqual(['Zara']);
     expect(runInstantStartBackground).toHaveBeenCalledTimes(1);
     expect(admit).not.toHaveBeenCalled();
   });

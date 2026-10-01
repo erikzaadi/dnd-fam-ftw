@@ -4,6 +4,12 @@ import fs from 'fs';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { getDb, initializeDatabase } from '../persistence/database.js';
 import { StateService } from './stateService.js';
+import { inviteRequestRepository } from '../repositories/inviteRequestRepository.js';
+import { namespaceRepository } from '../repositories/namespaceRepository.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
+import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
+import { usageRepository } from '../repositories/usageRepository.js';
+import { userRepository } from '../repositories/userRepository.js';
 import type { SessionState } from '../types.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-test-${Date.now()}.sqlite`);
@@ -50,12 +56,12 @@ function insertTestCharacter(charId: string, sessionId: string, name: string, hp
 
 describe('StateService - Session CRUD', () => {
   it('getSession returns undefined for unknown ID', async () => {
-    expect(await StateService.getSession('no-such-session')).toBeUndefined();
+    expect(await sessionRepository.getSession('no-such-session')).toBeUndefined();
   });
 
   it('getSession returns session with correct fields', async () => {
     insertTestSession('sess-read', 'local', 'Shadow Realm');
-    const session = await StateService.getSession('sess-read');
+    const session = await sessionRepository.getSession('sess-read');
     expect(session).toBeDefined();
     expect(session!.id).toBe('sess-read');
     expect(session!.displayName).toBe('Shadow Realm');
@@ -69,7 +75,7 @@ describe('StateService - Session CRUD', () => {
     getTestDb().prepare(
       'INSERT INTO inventory (characterId, itemId, name, description, healValue, consumable, transferable) VALUES (?, ?, ?, ?, ?, ?, ?)'
     ).run('char-a', 'item-1', 'Healing Potion', 'Restores HP', 3, 1, 1);
-    const session = await StateService.getSession('sess-chars');
+    const session = await sessionRepository.getSession('sess-chars');
     expect(session!.party).toHaveLength(1);
     expect(session!.party[0].name).toBe('Pip');
     expect(session!.party[0].inventory).toHaveLength(1);
@@ -79,7 +85,7 @@ describe('StateService - Session CRUD', () => {
 
   it('updateSession persists scene, turn, HP, and inventory', async () => {
     insertTestSession('sess-update', 'local', 'Dragon Lair');
-    let session = await StateService.getSession('sess-update');
+    let session = await sessionRepository.getSession('sess-update');
     session = {
       ...session!,
       scene: 'Updated Scene',
@@ -92,7 +98,7 @@ describe('StateService - Session CRUD', () => {
       activeCharacterId: 'char-upd',
     };
     await StateService.updateSession('sess-update', session);
-    const reloaded = await StateService.getSession('sess-update');
+    const reloaded = await sessionRepository.getSession('sess-update');
     expect(reloaded!.scene).toBe('Updated Scene');
     expect(reloaded!.turn).toBe(5);
     expect(reloaded!.party[0].hp).toBe(7);
@@ -103,7 +109,7 @@ describe('StateService - Session CRUD', () => {
     getTestDb().prepare(
       'INSERT INTO sessions (id, scene, sceneId, worldDescription, turn, tone, displayName, difficulty, gameMode, useLocalAI, savingsMode, namespace_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run('sess-local-ai', 'Forest', 'forest-1', 'A world of trees', 1, 'mystery', 'Old World', 'normal', 'balanced', 1, 0, 'local');
-    const session = await StateService.getSession('sess-local-ai');
+    const session = await sessionRepository.getSession('sess-local-ai');
     expect(session).toBeDefined();
     expect(session!.id).toBe('sess-local-ai');
     expect(session!.displayName).toBe('Old World');
@@ -113,11 +119,11 @@ describe('StateService - Session CRUD', () => {
     insertTestSession('sess-ns-a', 'local', 'Local World');
     const { namespaceId: otherNs } = StateService.createUser('list-ns-test@test.com');
     insertTestSession('sess-ns-b', otherNs, 'Other Namespace World');
-    const localSessions = await StateService.listSessions('local');
+    const localSessions = await sessionRepository.listSessions('local');
     const ids = localSessions.map(s => s.id);
     expect(ids).toContain('sess-ns-a');
     expect(ids).not.toContain('sess-ns-b');
-    const otherSessions = await StateService.listSessions(otherNs);
+    const otherSessions = await sessionRepository.listSessions(otherNs);
     expect(otherSessions.some(s => s.id === 'sess-ns-b')).toBe(true);
   });
 
@@ -147,7 +153,7 @@ describe('StateService - Session CRUD', () => {
       turnType: 'normal',
     }, 'char-t1');
     expect(turnId).toBeTruthy();
-    const history = await StateService.getTurnHistory('sess-turns');
+    const history = await turnHistoryRepository.getTurnHistory('sess-turns');
     expect(history).toHaveLength(1);
     expect(history[0].narration).toBe('The hero attacks!');
     expect(history[0].encounterId).toBe('enc-turns-1');
@@ -170,8 +176,8 @@ describe('StateService - Session CRUD', () => {
       choices: [], lastAction: null, turnType: 'normal',
     }, null);
     await StateService.deleteSession('sess-del');
-    expect(await StateService.getSession('sess-del')).toBeUndefined();
-    expect(await StateService.getTurnHistory('sess-del')).toHaveLength(0);
+    expect(await sessionRepository.getSession('sess-del')).toBeUndefined();
+    expect(await turnHistoryRepository.getTurnHistory('sess-del')).toHaveLength(0);
   });
 
   it('deleteSession deletes stored turn images and character avatars by storage key', async () => {
@@ -230,7 +236,7 @@ describe('StateService - Session CRUD', () => {
     }, null);
     // A late image for the first turn must not land on the newer second turn.
     const attached = await StateService.updateTurnImage('sess-img-update', firstId, 'http://example.com/img.png', 'img-key-123', 'local');
-    const history = await StateService.getTurnHistory('sess-img-update');
+    const history = await turnHistoryRepository.getTurnHistory('sess-img-update');
     expect(attached).toBe(true);
     expect(history[0].imageUrl).toBe('http://example.com/img.png');
     expect(history[1].imageUrl).toBeNull();
@@ -246,7 +252,7 @@ describe('StateService - Session CRUD', () => {
     insertTestSession('sess-summary-version', 'local', 'Summary World');
     expect(await StateService.updateStorySummary('sess-summary-version', 'Summary from turn 10.', 10)).toBe(true);
     expect(await StateService.updateStorySummary('sess-summary-version', 'Late summary from turn 5.', 5)).toBe(false);
-    const session = await StateService.getSession('sess-summary-version');
+    const session = await sessionRepository.getSession('sess-summary-version');
     expect(session?.storySummary).toBe('Summary from turn 10.');
   });
 
@@ -266,20 +272,20 @@ describe('StateService - Session CRUD', () => {
     addTurn('sess-order-old', '2026-04-01 10:00:00');
     addTurn('sess-order-mid', '2026-02-15 10:00:00');
 
-    expect((await StateService.listSessions(ns)).map(s => s.id)).toEqual(['sess-order-old', 'sess-order-new', 'sess-order-mid']);
+    expect((await sessionRepository.listSessions(ns)).map(s => s.id)).toEqual(['sess-order-old', 'sess-order-new', 'sess-order-mid']);
 
     addTurn('sess-order-mid', '2026-05-01 10:00:00');
-    expect((await StateService.listSessions(ns)).map(s => s.id)).toEqual(['sess-order-mid', 'sess-order-old', 'sess-order-new']);
+    expect((await sessionRepository.listSessions(ns)).map(s => s.id)).toEqual(['sess-order-mid', 'sess-order-old', 'sess-order-new']);
   });
 
   it('persists preview image URLs for getSession and listSessions', async () => {
     insertTestSession('sess-preview', 'local', 'Preview World');
     StateService.updateSessionPreviewImage('sess-preview', '/test-images/preview_sess-preview.png');
 
-    const session = await StateService.getSession('sess-preview');
+    const session = await sessionRepository.getSession('sess-preview');
     expect(session!.previewImageUrl).toBe('/test-images/preview_sess-preview.png');
 
-    const listed = await StateService.listSessions('local');
+    const listed = await sessionRepository.listSessions('local');
     expect(listed.find(s => s.id === 'sess-preview')?.previewImageUrl).toBe('/test-images/preview_sess-preview.png');
   });
 });
@@ -289,20 +295,20 @@ describe('StateService - User / Namespace management', () => {
     const { userId, namespaceId } = StateService.createUser('hero@example.com');
     expect(userId).toBeTruthy();
     expect(namespaceId).toBeTruthy();
-    const user = StateService.getUserByEmail('hero@example.com');
+    const user = userRepository.getUserByEmail('hero@example.com');
     expect(user).not.toBeNull();
     expect(user!.email).toBe('hero@example.com');
     expect(user!.namespace_id).toBe(namespaceId);
   });
 
   it('getUserByEmail returns null for unknown email', () => {
-    expect(StateService.getUserByEmail('nobody@nowhere.com')).toBeNull();
+    expect(userRepository.getUserByEmail('nobody@nowhere.com')).toBeNull();
   });
 
   it('deleteUser removes user', () => {
     StateService.createUser('todelete@example.com');
     expect(StateService.deleteUser('todelete@example.com').ok).toBe(true);
-    expect(StateService.getUserByEmail('todelete@example.com')).toBeNull();
+    expect(userRepository.getUserByEmail('todelete@example.com')).toBeNull();
   });
 
   it('deleteUser returns false for unknown email', () => {
@@ -311,16 +317,16 @@ describe('StateService - User / Namespace management', () => {
 
   it('ensureAdminUser creates admin with role=admin and is idempotent', () => {
     StateService.ensureAdminUser('admin@example.com');
-    const admin = StateService.getUserByEmail('admin@example.com');
+    const admin = userRepository.getUserByEmail('admin@example.com');
     expect(admin).not.toBeNull();
     expect(admin!.role).toBe('admin');
     StateService.ensureAdminUser('admin@example.com');
-    expect(StateService.getUserByEmail('admin@example.com')!.id).toBe(admin!.id);
+    expect(userRepository.getUserByEmail('admin@example.com')!.id).toBe(admin!.id);
   });
 
   it('listUsers returns user with namespace info', () => {
     StateService.createUser('list-test@example.com');
-    const users = StateService.listUsers();
+    const users = userRepository.listUsers();
     const found = users.find(u => u.email === 'list-test@example.com');
     expect(found).toBeDefined();
     expect(found!.namespace_name).toBeTruthy();
@@ -331,26 +337,26 @@ describe('StateService - User / Namespace management', () => {
   it('recordLogin sets lastLogin for the user', () => {
     StateService.createUser('login-test@example.com');
     StateService.recordLogin('login-test@example.com');
-    const users = StateService.listUsers();
+    const users = userRepository.listUsers();
     const found = users.find(u => u.email === 'login-test@example.com');
     expect(found!.lastLogin).toBeTruthy();
   });
 
   it('createNamespace + getNamespaceById', () => {
     const { namespaceId } = StateService.createNamespace('The Guild');
-    const ns = StateService.getNamespaceById(namespaceId);
+    const ns = namespaceRepository.getNamespaceById(namespaceId);
     expect(ns).not.toBeNull();
     expect(ns!.name).toBe('The Guild');
   });
 
   it('getNamespaceById returns null for unknown ID', () => {
-    expect(StateService.getNamespaceById('no-such-ns')).toBeNull();
+    expect(namespaceRepository.getNamespaceById('no-such-ns')).toBeNull();
   });
 
   it('renameNamespace updates name', () => {
     const { namespaceId } = StateService.createNamespace('Old Name');
     expect(StateService.renameNamespace(namespaceId, 'New Name')).toBe(true);
-    expect(StateService.getNamespaceById(namespaceId)!.name).toBe('New Name');
+    expect(namespaceRepository.getNamespaceById(namespaceId)!.name).toBe('New Name');
   });
 
   it('deleteNamespace rejects the local namespace', () => {
@@ -390,7 +396,7 @@ describe('StateService - User / Namespace management', () => {
     const { namespaceId: newPrimaryNs } = StateService.createNamespace('New Primary');
     StateService.addUserToNamespace('switch-ns@example.com', newPrimaryNs);
     expect(StateService.setPrimaryNamespace('switch-ns@example.com', newPrimaryNs).ok).toBe(true);
-    expect(StateService.getUserByEmail('switch-ns@example.com')!.namespace_id).toBe(newPrimaryNs);
+    expect(userRepository.getUserByEmail('switch-ns@example.com')!.namespace_id).toBe(newPrimaryNs);
     expect(StateService.getUserNamespaces('switch-ns@example.com').some(n => n.id === primaryNs)).toBe(true);
   });
 });
@@ -413,10 +419,10 @@ describe('StateService - Namespace limits', () => {
 
   it('countSessionsInNamespace', () => {
     const { namespaceId } = StateService.createNamespace('Count Realm');
-    expect(StateService.countSessionsInNamespace(namespaceId)).toBe(0);
+    expect(sessionRepository.countSessionsInNamespace(namespaceId)).toBe(0);
     insertTestSession('sess-count-1', namespaceId);
     insertTestSession('sess-count-2', namespaceId);
-    expect(StateService.countSessionsInNamespace(namespaceId)).toBe(2);
+    expect(sessionRepository.countSessionsInNamespace(namespaceId)).toBe(2);
   });
 });
 
@@ -427,21 +433,21 @@ describe('StateService - TTS usage', () => {
     StateService.recordTtsUsage(namespaceId, 'sage', 80);
     StateService.recordTtsUsage('local', 'fable', 50);
 
-    expect(StateService.getTtsUsage(namespaceId)).toEqual({
+    expect(usageRepository.getTtsUsage(namespaceId)).toEqual({
       requestCount: 2,
       characterCount: 200,
     });
-    expect(StateService.getTtsUsage('local').requestCount).toBeGreaterThanOrEqual(1);
+    expect(usageRepository.getTtsUsage('local').requestCount).toBeGreaterThanOrEqual(1);
   });
 });
 
 describe('StateService - Invite requests', () => {
   it('addInviteRequest + hasInviteRequest, duplicate ignored', () => {
-    expect(StateService.hasInviteRequest('newbie@example.com')).toBe(false);
+    expect(inviteRequestRepository.hasInviteRequest('newbie@example.com')).toBe(false);
     StateService.addInviteRequest('newbie@example.com', 'Please let me in!');
-    expect(StateService.hasInviteRequest('newbie@example.com')).toBe(true);
+    expect(inviteRequestRepository.hasInviteRequest('newbie@example.com')).toBe(true);
     StateService.addInviteRequest('newbie@example.com', 'Again!');
-    const all = StateService.listInviteRequests().filter(r => r.email === 'newbie@example.com');
+    const all = inviteRequestRepository.listInviteRequests().filter(r => r.email === 'newbie@example.com');
     expect(all).toHaveLength(1);
     expect(all[0].message).toBe('Please let me in!');
   });
@@ -451,7 +457,7 @@ describe('StateService - Invite requests', () => {
     StateService.addInviteRequest('b@example.com');
     const count = StateService.clearInviteRequests();
     expect(count).toBeGreaterThan(0);
-    expect(StateService.listInviteRequests()).toHaveLength(0);
+    expect(inviteRequestRepository.listInviteRequests()).toHaveLength(0);
   });
 });
 
@@ -470,17 +476,17 @@ describe('StateService - Character history', () => {
       choices: [], lastAction: { actionAttempt: 'Cast fireball', actionResult: { success: true, roll: 18, statUsed: 'magic' } },
       turnType: 'normal',
     }, 'char-hist-2');
-    const bardHistory = StateService.getCharacterTurnHistory('char-hist-1');
+    const bardHistory = turnHistoryRepository.getCharacterTurnHistory('char-hist-1');
     expect(bardHistory).toHaveLength(1);
     expect(bardHistory[0].narration).toBe('Bard plays a tune.');
     expect(bardHistory[0].actionAttempt).toBe('Play lute');
-    expect(StateService.getCharacterTurnHistory('char-hist-2')).toHaveLength(1);
+    expect(turnHistoryRepository.getCharacterTurnHistory('char-hist-2')).toHaveLength(1);
   });
 
   it('updateStorySummary persists summary', async () => {
     insertTestSession('sess-summary', 'local', 'Summary World');
     await StateService.updateStorySummary('sess-summary', 'The party defeated the goblin king.');
-    const session = await StateService.getSession('sess-summary');
+    const session = await sessionRepository.getSession('sess-summary');
     expect(session!.storySummary).toBe('The party defeated the goblin king.');
   });
 });
@@ -488,7 +494,7 @@ describe('StateService - Character history', () => {
 describe('StateService - Encounter state persistence', () => {
   it('persists a full encounter through updateSession + getSession', async () => {
     insertTestSession('sess-enc-full', 'local', 'Encounter World');
-    const base = await StateService.getSession('sess-enc-full');
+    const base = await sessionRepository.getSession('sess-enc-full');
     const withEncounter: SessionState = {
       ...base!,
       encounterState: {
@@ -511,7 +517,7 @@ describe('StateService - Encounter state persistence', () => {
       },
     };
     await StateService.updateSession('sess-enc-full', withEncounter);
-    const loaded = await StateService.getSession('sess-enc-full');
+    const loaded = await sessionRepository.getSession('sess-enc-full');
     expect(loaded!.encounterState?.id).toBe('enc-1');
     expect(loaded!.encounterState?.name).toBe('Goblin Brawl');
     expect(loaded!.encounterState?.round).toBe(3);
@@ -526,7 +532,7 @@ describe('StateService - Encounter state persistence', () => {
 
   it('persists enemy HP changes across sequential updateSession calls', async () => {
     insertTestSession('sess-enc-seq', 'local', 'Turn Tracking World');
-    const base = await StateService.getSession('sess-enc-seq');
+    const base = await sessionRepository.getSession('sess-enc-seq');
     const initial: SessionState = {
       ...base!,
       encounterState: {
@@ -537,38 +543,38 @@ describe('StateService - Encounter state persistence', () => {
     };
     await StateService.updateSession('sess-enc-seq', initial);
 
-    const after1 = await StateService.getSession('sess-enc-seq');
+    const after1 = await sessionRepository.getSession('sess-enc-seq');
     await StateService.updateSession('sess-enc-seq', {
       ...after1!,
       encounterState: { ...after1!.encounterState!, round: 2, enemies: [{ ...after1!.encounterState!.enemies[0], hp: 6 }] },
     });
 
-    const after2 = await StateService.getSession('sess-enc-seq');
+    const after2 = await sessionRepository.getSession('sess-enc-seq');
     await StateService.updateSession('sess-enc-seq', {
       ...after2!,
       encounterState: { ...after2!.encounterState!, round: 3, enemies: [{ ...after2!.encounterState!.enemies[0], hp: 2 }] },
     });
 
-    const final = await StateService.getSession('sess-enc-seq');
+    const final = await sessionRepository.getSession('sess-enc-seq');
     expect(final!.encounterState?.round).toBe(3);
     expect(final!.encounterState?.enemies[0].hp).toBe(2);
   });
 
   it('clears encounter state when removed from session via updateSession', async () => {
     insertTestSession('sess-enc-clr', 'local', 'Clear World');
-    const base = await StateService.getSession('sess-enc-clr');
+    const base = await sessionRepository.getSession('sess-enc-clr');
     const withEnc: SessionState = {
       ...base!,
       encounterState: { id: 'enc-tmp', name: 'Temp Encounter', status: 'active', round: 1, enemies: [], areas: [] },
     };
     await StateService.updateSession('sess-enc-clr', withEnc);
-    const mid = await StateService.getSession('sess-enc-clr');
+    const mid = await sessionRepository.getSession('sess-enc-clr');
     expect(mid!.encounterState?.id).toBe('enc-tmp');
 
     const withoutEnc: SessionState = { ...mid! };
     delete withoutEnc.encounterState;
     await StateService.updateSession('sess-enc-clr', withoutEnc);
-    const cleared = await StateService.getSession('sess-enc-clr');
+    const cleared = await sessionRepository.getSession('sess-enc-clr');
     expect(cleared!.encounterState).toBeUndefined();
   });
 });

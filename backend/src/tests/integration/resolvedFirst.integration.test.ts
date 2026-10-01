@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GameEngine } from '../../services/gameEngine.js';
-import { StateService } from '../../services/stateService.js';
+import { sessionRepository } from '../../repositories/sessionRepository.js';
+import { turnHistoryRepository } from '../../repositories/turnHistoryRepository.js';
 import { executeTurnAction } from '../../services/turnService.js';
 import {
   mockGenerateTurn,
@@ -75,7 +76,7 @@ describe('resolved_first strategy (plan 4 candidate)', () => {
     expect(presentationInput.inventory.map(item => item.name)).toContain('Silver Ladle');
 
     // The committed state is exactly the frozen one.
-    const stored = await StateService.getSession('rf-loot');
+    const stored = await sessionRepository.getSession('rf-loot');
     expect(stored?.party.find(c => c.id === 'char-pip')?.inventory.map(i => i.name)).toEqual(['Silver Ladle']);
     expect(result.body.turnResult.inventoryChanges).toEqual([{ characterName: 'Pip', itemName: 'Silver Ladle', type: 'added' }]);
     expect(result.diagnostics).toMatchObject({ strategy: 'resolved_first' });
@@ -93,7 +94,7 @@ describe('resolved_first strategy (plan 4 candidate)', () => {
 
     const result = await executeTurnAction('rf-no-prose-fight', 'local', { action: 'Open the pantry', statUsed: 'might' });
     expect(result.ok).toBe(true);
-    expect((await StateService.getSession('rf-no-prose-fight'))?.encounterState).toBeUndefined();
+    expect((await sessionRepository.getSession('rf-no-prose-fight'))?.encounterState).toBeUndefined();
   });
 
   it('falls back to the parallel comparator when the provider has no staged methods', async () => {
@@ -132,7 +133,7 @@ describe('resolved_first strategy (plan 4 candidate)', () => {
     expect(result.ok).toBe(true);
     const { riddleRepository } = await import('../../repositories/riddleRepository.js');
     expect(riddleRepository.getActive('rf-riddle')).toMatchObject({ source: 'narration', canonicalAnswer: 'a bottle', answerKnown: true, wrongAnswers: ['a shirt'] });
-    const stored = await StateService.getTurnHistory('rf-riddle');
+    const stored = await turnHistoryRepository.getTurnHistory('rf-riddle');
     const answers = stored[stored.length - 1].choices.filter(c => c.riddleAnswer);
     expect(answers.find(c => c.riddleCorrect)?.riddleAnswer).toBe('a bottle');
     expect(answers.find(c => c.riddleCorrect === false)?.riddleAnswer).toBe('a shirt');
@@ -152,7 +153,7 @@ describe('resolved_first strategy (plan 4 candidate)', () => {
     expect(mockGenerateTurn).not.toHaveBeenCalled();
     expect(mockNarrateResolved.mock.calls[0][0].resolvedTurn?.facts.join(' ')).toContain('Pip regained 3 HP');
     expect(result.ok && result.diagnostics?.strategy).toBe('resolved_first');
-    expect((await StateService.getSession('rf-item'))?.party[0].hp).toBe(7);
+    expect((await sessionRepository.getSession('rf-item'))?.party[0].hp).toBe(7);
   });
 
   it('is the default strategy', async () => {

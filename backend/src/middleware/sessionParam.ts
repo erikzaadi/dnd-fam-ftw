@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response, Router } from 'express';
-import { StateService } from '../services/stateService.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
 import { setUsageSessionId } from '../lib/usageContext.js';
 
 export function registerSessionIdParam(router: Router, paramName: string = 'id'): void {
@@ -10,13 +10,13 @@ export function registerSessionIdParam(router: Router, paramName: string = 'id')
 
 async function loadSessionForNamespace(req: Request, res: Response, next: NextFunction, sessionId: string): Promise<void> {
   try {
-    const sessionNamespace = StateService.getSessionNamespaceId(sessionId);
+    const sessionNamespace = sessionRepository.getSessionNamespaceId(sessionId);
     if (!sessionNamespace || sessionNamespace !== req.namespaceId) {
       res.status(404).json({ error: 'Session not found' });
       return;
     }
 
-    const session = await StateService.getSession(sessionId);
+    const session = await sessionRepository.getSession(sessionId);
     if (!session) {
       res.status(404).json({ error: 'Session not found' });
       return;

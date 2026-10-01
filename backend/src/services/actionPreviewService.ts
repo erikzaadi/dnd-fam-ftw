@@ -3,7 +3,7 @@ import { buildEncounterContextFromEnemies, previewFreeAction } from './statSugge
 import { buildFreeActionWarnings, getFreeActionDifficulty } from './freeActionPolicyService.js';
 import { devLog } from '../lib/devLog.js';
 import { storeActionPreviewRecord, type StoredActionPreview } from './actionPreviewStore.js';
-import { StateService } from './stateService.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
 import { assessRiddleAction, ensureActiveRiddle, RIDDLE_ANSWER_UNKNOWN_MESSAGE } from './riddleService.js';
 import { scheduleRiddleRecovery } from './riddleRecoveryService.js';
 
@@ -103,7 +103,7 @@ export const previewAction = async (
     }
     const { preview, stored } = itemPreview;
     let record: StoredActionPreview | null = null;
-    if (StateService.getRevision(sessionId) === (session.revision ?? 0)) {
+    if (sessionRepository.getRevision(sessionId) === (session.revision ?? 0)) {
       record = storeActionPreviewRecord({ sessionId, revision: session.revision ?? 0, actingCharacterId: session.activeCharacterId, ...stored, ...principal, publicPreview: preview });
       preview.previewId = record.id;
     }
@@ -190,7 +190,7 @@ export const previewAction = async (
   // already stale and confirmation will ask for a fresh preview.
   const previewRevision = session.revision ?? 0;
   let record: StoredActionPreview | null = null;
-  if (StateService.getRevision(sessionId) === previewRevision) {
+  if (sessionRepository.getRevision(sessionId) === previewRevision) {
     record = storeActionPreviewRecord({
       sessionId,
       revision: previewRevision,

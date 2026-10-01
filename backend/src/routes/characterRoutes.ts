@@ -6,6 +6,8 @@ import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
 import { broadcastSessionChanged, broadcastUpdate } from '../realtime/sessionEvents.js';
 import { ImageService } from '../services/imageService.js';
 import { StateService } from '../services/stateService.js';
+import { characterRepository } from '../repositories/characterRepository.js';
+import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { getStartingMaxHp } from '../services/characterHpService.js';
 import { triggerPreviewRegen } from '../services/sessionPreviewService.js';
 import type { Character } from '../types.js';
@@ -39,12 +41,12 @@ export const createCharacterRouter = () => {
   registerSessionIdParam(router, 'sessionId');
 
   router.get('/characters/all', asyncHandler(async (req, res) => {
-    const characters = await StateService.listAllCharacters(req.namespaceId);
-    const sessions = await StateService.listSessions(req.namespaceId);
+    const characters = await characterRepository.listAllCharacters(req.namespaceId);
+    const sessions = await sessionRepository.listSessions(req.namespaceId);
     const sessionMap = new Map(sessions.map(s => [s.id, s.displayName]));
 
     const enhancedCharacters = await Promise.all(characters.map(async (char) => {
-      const sessionId = await StateService.getSessionIdForCharacter(char.id);
+      const sessionId = await characterRepository.getSessionIdForCharacter(char.id);
       return { ...char, sessionName: sessionId ? sessionMap.get(sessionId) : 'Unknown' };
     }));
     res.json(enhancedCharacters);
@@ -56,12 +58,12 @@ export const createCharacterRouter = () => {
       return;
     }
     const { sessionId, characterData } = body;
-    const sessionNamespace = StateService.getSessionNamespaceId(sessionId);
+    const sessionNamespace = sessionRepository.getSessionNamespaceId(sessionId);
     if (!sessionNamespace || sessionNamespace !== req.namespaceId) {
       res.status(404).json({ error: 'Session not found' });
       return;
     }
-    const session = await StateService.getSession(sessionId);
+    const session = await sessionRepository.getSession(sessionId);
     if (!session) {
       res.status(404).json({ error: 'Session not found' });
       return;
@@ -119,12 +121,12 @@ export const createCharacterRouter = () => {
     }
     const { sessionId, characterData } = body;
     const charId = req.params.charId as string;
-    const sessionNamespace = StateService.getSessionNamespaceId(sessionId);
+    const sessionNamespace = sessionRepository.getSessionNamespaceId(sessionId);
     if (!sessionNamespace || sessionNamespace !== req.namespaceId) {
       res.status(404).json({ error: 'Session not found' });
       return;
     }
-    const session = await StateService.getSession(sessionId);
+    const session = await sessionRepository.getSession(sessionId);
     if (!session) {
       res.status(404).json({ error: 'Session not found' });
       return;
@@ -174,12 +176,12 @@ export const createCharacterRouter = () => {
 
   router.get('/character/:charId/history-summary', asyncHandler(async (req, res) => {
     const charId = req.params.charId as string;
-    const turns = StateService.getCharacterTurnHistory(charId);
+    const turns = turnHistoryRepository.getCharacterTurnHistory(charId);
     if (turns.length === 0) {
       res.json({ summary: null });
       return;
     }
-    const session = await StateService.listSessions(req.namespaceId);
+    const session = await sessionRepository.listSessions(req.namespaceId);
     const sessionWithChar = session.find(s => s.party.some(p => p.id === charId));
     const narrationContext = turns.slice(-10).map(t => t.narration).join(' ');
     const { client, model } = createChatClientForTier('narration');
@@ -211,7 +213,7 @@ export const createCharacterRouter = () => {
       res.status(mutation.status).json(mutation.body);
       return;
     }
-    const updated = await StateService.getSession(sessionId as string);
+    const updated = await sessionRepository.getSession(sessionId as string);
     broadcastUpdate(sessionId as string, 'party_update', { session: updated ?? session, revision: mutation.revision });
     broadcastSessionChanged(req.namespaceId, sessionId as string, 'updated');
     triggerPreviewRegen(sessionId as string, req.namespaceId);

@@ -1,6 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { McpPrincipal } from '../services/accessTokenService.js';
-import { StateService } from '../services/stateService.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
 import { setUsageSessionId } from '../lib/usageContext.js';
 import type { AccessTokenScope, SessionState } from '../types.js';
 
@@ -24,14 +24,14 @@ export const scopeHint = (principal: McpPrincipal, label: string): string => pri
 // Tools act only inside the token's namespace. A session in another namespace looks
 // exactly like a missing one. The model never supplies the namespace.
 export const ownsAdventure = (principal: McpPrincipal, sessionId: string): boolean =>
-  StateService.getSessionNamespaceId(sessionId) === principal.namespaceId;
+  sessionRepository.getSessionNamespaceId(sessionId) === principal.namespaceId;
 
 export const loadOwnedSession = async (principal: McpPrincipal, sessionId: string): Promise<SessionState | null> => {
   if (!ownsAdventure(principal, sessionId)) {
     return null;
   }
   setUsageSessionId(sessionId);
-  return (await StateService.getSession(sessionId)) ?? null;
+  return (await sessionRepository.getSession(sessionId)) ?? null;
 };
 
 export const NOT_FOUND_MESSAGE = 'Adventure not found. Call list_adventures to see the adventures in this realm.';

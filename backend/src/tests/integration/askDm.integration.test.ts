@@ -7,6 +7,8 @@ import { RIDDLE_SAFE_ANSWER, resetAskDmStateForTests } from '../../services/askD
 import { ensureActiveRiddle } from '../../services/riddleService.js';
 import { acceptSessionOperation } from '../../services/sessionOperationService.js';
 import { StateService } from '../../services/stateService.js';
+import { sessionRepository } from '../../repositories/sessionRepository.js';
+import { turnHistoryRepository } from '../../repositories/turnHistoryRepository.js';
 import type { AskDmPayload } from '../../types.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
 
@@ -32,8 +34,8 @@ const ask = (sessionId: string, body: Record<string, unknown>) => fetch(`${baseU
 const seed = async (id: string, overrides: Parameters<typeof makeTestSession>[0] = {}): Promise<{ turnId: number; revision: number }> => {
   await insertSessionState(makeTestSession({ id, ...overrides }));
   await StateService.addTurnResult(id, { narration: 'A rope bridge sways over the gorge.', choices: [], imagePrompt: null, imageSuggested: false }, null);
-  const history = await StateService.getTurnHistory(id);
-  return { turnId: history[history.length - 1].id as number, revision: StateService.getRevision(id) ?? 0 };
+  const history = await turnHistoryRepository.getTurnHistory(id);
+  return { turnId: history[history.length - 1].id as number, revision: sessionRepository.getRevision(id) ?? 0 };
 };
 
 beforeAll(async () => {
@@ -79,13 +81,13 @@ describe('POST /session/:id/ask', () => {
     expect(prompt).toContain('Can I cross the bridge?');
     expect(prompt).not.toContain('SECRET');
     // Transient: no turn, no revision bump.
-    expect(await StateService.getTurnHistory('ask-basic')).toHaveLength(1);
-    expect(StateService.getRevision('ask-basic')).toBe(key.revision);
+    expect(await turnHistoryRepository.getTurnHistory('ask-basic')).toHaveLength(1);
+    expect(sessionRepository.getRevision('ask-basic')).toBe(key.revision);
   });
 
   it('never gives away the answer to an open riddle, even when the model does', async () => {
     const key = await seed('ask-riddle');
-    const session = await StateService.getSession('ask-riddle');
+    const session = await sessionRepository.getSession('ask-riddle');
     ensureActiveRiddle({
       id: 'ask-riddle',
       turn: session?.turn ?? 1,

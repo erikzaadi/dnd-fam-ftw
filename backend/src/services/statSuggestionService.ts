@@ -2,7 +2,8 @@ import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
 import { getTierRequestSettings, warnIfEmptyTruncation } from '../providers/ai/openAiClient.js';
 import type { FreeActionBonusPreview } from './freeActionInferenceService.js';
 import { inferFreeActionBonuses, toFreeActionBonusPreview } from './freeActionInferenceService.js';
-import { StateService } from './stateService.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
+import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import type { Character, EncounterEnemy, EncounterWeakness, FreeActionPreview } from '../types.js';
 
 import { devLog } from '../lib/devLog.js';
@@ -38,8 +39,8 @@ export type PreviewActionContext = {
 async function buildFreeActionStoryContext(sessionId: string): Promise<string> {
   const start = Date.now();
   const [session, history] = await Promise.all([
-    StateService.getSession(sessionId),
-    StateService.getTurnHistory(sessionId),
+    sessionRepository.getSession(sessionId),
+    turnHistoryRepository.getTurnHistory(sessionId),
   ]);
   if (!session) {
     return '';
@@ -120,7 +121,7 @@ export async function previewFreeAction(
   input: { action?: string; context?: PreviewActionContext; encounterContext?: EncounterPreviewContext | null; allowClarification?: boolean },
 ): Promise<SessionActionStatSuggestion & { narration?: string; interpretedAction?: string; generatedAction?: string; clarificationQuestion?: string } & PreviewEncounterFields> {
   const { action, context, encounterContext, allowClarification = false } = input;
-  const session = await StateService.getSession(sessionId);
+  const session = await sessionRepository.getSession(sessionId);
   if (!session) {
     return { stat: 'mischief' };
   }
@@ -322,7 +323,7 @@ export async function suggestStatForSessionAction(
   input: { action: string },
 ): Promise<SessionActionStatSuggestion> {
   const { action } = input;
-  const session = await StateService.getSession(sessionId);
+  const session = await sessionRepository.getSession(sessionId);
   if (!session) {
     return { stat: 'mischief' };
   }

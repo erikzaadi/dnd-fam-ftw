@@ -9,7 +9,7 @@ import { RealmOriginStoryService } from '../services/realmOriginStoryService.js'
 import { askDm } from '../services/askDmService.js';
 import { acceptSessionOperation, describeAcceptance, type AcceptanceOutcome } from '../services/sessionOperationService.js';
 import { toPublicTurn } from '../services/sessionProjection.js';
-import { StateService } from '../services/stateService.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
 import { runAcceptedTurnAction } from '../services/turnSubmissionService.js';
 import { validateTurnActionRequest, type TurnActionRequest } from '../services/turnService.js';
 import type { OperationAcceptedResponse, SessionState, TurnResult } from '../types.js';
@@ -150,7 +150,7 @@ const waitForOriginStory = async (adventureId: string, session: SessionState, si
   }
   const settled = pending.then(() => true, () => true);
   await Promise.race([settled, waitUnlessStopped(ORIGIN_WAIT_MS, [signal])]);
-  return (await StateService.getSession(adventureId)) ?? session;
+  return (await sessionRepository.getSession(adventureId)) ?? session;
 };
 
 export const registerPlayTools = (server: McpServer, principal: McpPrincipal, disconnected: AbortSignal): void => {
@@ -336,7 +336,7 @@ export const registerPlayTools = (server: McpServer, principal: McpPrincipal, di
       operation = read() ?? operation;
     }
     const done = isDone(operation);
-    let session = done ? await StateService.getSession(adventureId) : undefined;
+    let session = done ? await sessionRepository.getSession(adventureId) : undefined;
     const isOpening = done && operation.kind === 'start' && operation.status === 'completed';
     if (session && isOpening) {
       session = await waitForOriginStory(adventureId, session, extra.signal);
@@ -348,7 +348,7 @@ export const registerPlayTools = (server: McpServer, principal: McpPrincipal, di
     const view: GetOperationView = {
       operation: mcpOperation,
       done,
-      revision: StateService.getRevision(adventureId) ?? null,
+      revision: sessionRepository.getRevision(adventureId) ?? null,
       turns,
       retryAfterSeconds: done ? null : RETRY_AFTER_SECONDS,
       message: operationMessage(mcpOperation),

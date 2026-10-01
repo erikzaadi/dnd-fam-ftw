@@ -1,5 +1,6 @@
 import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
 import { StateService } from './stateService.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
 import type { SessionState } from '../types.js';
 
 function buildFallback(session: SessionState): string {
@@ -77,7 +78,7 @@ Rules:
 const inFlight = new Map<string, Promise<string>>();
 
 async function generateOnce(sessionId: string): Promise<string> {
-  const session = await StateService.getSession(sessionId);
+  const session = await sessionRepository.getSession(sessionId);
   if (!session) {
     throw new Error(`Session ${sessionId} not found`);
   }
@@ -116,7 +117,7 @@ async function generateOnce(sessionId: string): Promise<string> {
 
   if (!StateService.setOriginStoryIfMissing(sessionId, text, new Date().toISOString())) {
     // Another process stored one first: everyone gets that one.
-    const stored = (await StateService.getSession(sessionId))?.originStory;
+    const stored = (await sessionRepository.getSession(sessionId))?.originStory;
     console.log(`[OriginStory] Kept existing for session=${sessionId}`);
     return stored || text;
   }

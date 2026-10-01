@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { requestIdeas, resetIdeasStateForTests } from '../../services/ideasService.js';
-import { StateService } from '../../services/stateService.js';
+import { sessionRepository } from '../../repositories/sessionRepository.js';
+import { turnHistoryRepository } from '../../repositories/turnHistoryRepository.js';
 import { executeTurnAction } from '../../services/turnService.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
 
@@ -31,7 +32,7 @@ afterAll(() => {
 });
 
 const latestTurn = async (sessionId: string) => {
-  const history = await StateService.getTurnHistory(sessionId);
+  const history = await turnHistoryRepository.getTurnHistory(sessionId);
   return history[history.length - 1];
 };
 
@@ -47,9 +48,9 @@ describe.each(STRATEGIES)('turn pipeline %s', (strategy) => {
     expect(first.ok).toBe(true);
     const turn = await latestTurn(id);
     expect(turn.choices).toEqual([]);
-    expect((await StateService.getSession(id))?.lastChoices).toEqual([]);
+    expect((await sessionRepository.getSession(id))?.lastChoices).toEqual([]);
 
-    const ideas = await requestIdeas(id, { turnId: turn.id as number, revision: StateService.getRevision(id) ?? 0 });
+    const ideas = await requestIdeas(id, { turnId: turn.id as number, revision: sessionRepository.getRevision(id) ?? 0 });
     expect(ideas.ok).toBe(true);
     if (!ideas.ok) {
       return;

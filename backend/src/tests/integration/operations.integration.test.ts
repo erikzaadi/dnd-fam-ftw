@@ -12,6 +12,7 @@ import { createSessionRouter } from '../../routes/sessionRoutes.js';
 import { resolvePartyRecovery } from '../../services/partyRecoveryService.js';
 import { acceptSessionOperation, reconcileInterruptedOperations } from '../../services/sessionOperationService.js';
 import { StateService } from '../../services/stateService.js';
+import { sessionRepository } from '../../repositories/sessionRepository.js';
 import type { NarrationOutput } from '../../providers/ai/narration/NarrationProvider.js';
 import type { SessionOperation, SessionSnapshot, SessionState, TurnResult } from '../../types.js';
 import { FIXED_NARRATION_OUTPUT, mockGenerateTurn, pinTurnStrategy, resetMockNarrationProvider } from './mockNarrationProvider.js';
@@ -180,7 +181,7 @@ describe('commitTurn (R1/R2)', () => {
     commitTurn({ sessionId: 'commit-cas', expectedRevision: 0, state: { ...session, turn: 2 }, turn: makeTurn('first'), characterId: null });
     expect(() => commitTurn({ sessionId: 'commit-cas', expectedRevision: 0, state: { ...session, turn: 2 }, turn: makeTurn('second'), characterId: null }))
       .toThrow(StaleRevisionError);
-    const history = await StateService.getTurnHistory('commit-cas');
+    const history = await turnHistoryRepository.getTurnHistory('commit-cas');
     expect(history.map(h => h.narration)).toEqual(['first']);
     expect(stateRow('commit-cas')).toMatchObject({ turn: 2, revision: 1 });
   });
@@ -201,11 +202,11 @@ describe('commitTurn (R1/R2)', () => {
     expect(() => commitTurn({ sessionId: 'commit-fault', expectedRevision: 0, state: changed, turn: makeTurn('never'), characterId: null, operationId: accepted.operation.id }))
       .toThrow('disk full');
 
-    const stored = await StateService.getSession('commit-fault');
+    const stored = await sessionRepository.getSession('commit-fault');
     expect(stored?.turn).toBe(1);
     expect(stored?.party[0].hp).toBe(pip.hp);
     expect(stored?.party[0].inventory.map(i => i.name)).toEqual(['Potion']);
-    expect(await StateService.getTurnHistory('commit-fault')).toHaveLength(0);
+    expect(await turnHistoryRepository.getTurnHistory('commit-fault')).toHaveLength(0);
     expect(stateRow('commit-fault').revision).toBe(0);
     expect(operationRepository.get('commit-fault', accepted.operation.id)?.status).toBe('accepted');
   });
@@ -234,7 +235,7 @@ describe('commitTurn (R1/R2)', () => {
     };
     commitTurn({ sessionId: 'commit-media', expectedRevision: 0, state: staleSnapshot, turn: makeTurn('hit'), characterId: 'char-pip' });
 
-    const stored = await StateService.getSession('commit-media');
+    const stored = await sessionRepository.getSession('commit-media');
     expect(stored?.party.find(c => c.id === 'char-pip')?.avatarUrl).toBe('/avatars/pip.png');
     expect(stored?.encounterState?.enemies[0]).toMatchObject({ hp: 1, avatarUrl: '/enemies/pan.png' });
     expect(stored?.encounterState?.areas[0].imageUrl).toBe('/areas/stove.png');
@@ -271,10 +272,10 @@ describe('party wipe recovery stays inside the operation', () => {
       revision: wipeCommit.revision,
     });
 
-    const stored = await StateService.getSession('wipe-rescue');
+    const stored = await sessionRepository.getSession('wipe-rescue');
     expect(stored?.party.every(c => c.status === 'active' && c.hp === 1)).toBe(true);
     expect(stored?.interventionState.rescuesUsed).toBe(1);
-    const history = await StateService.getTurnHistory('wipe-rescue');
+    const history = await turnHistoryRepository.getTurnHistory('wipe-rescue');
     expect(history.map(h => h.turnType)).toEqual(['normal', 'intervention']);
     expect(operationRepository.get('wipe-rescue', accepted.operation.id)).toMatchObject({ status: 'completed', resultRevision: 2 });
   });
@@ -305,7 +306,7 @@ describe('action route lifecycle (R1/R3)', () => {
     expect(replay.status).toBe(200);
     expect(await replay.json()).toMatchObject({ replayed: true, queued: false, operation: { id: accepted.operation.id, status: 'completed' } });
     expect(mockGenerateTurn).toHaveBeenCalledTimes(1);
-    expect(await StateService.getTurnHistory('route-lifecycle')).toHaveLength(1);
+    expect(await turnHistoryRepository.getTurnHistory('route-lifecycle')).toHaveLength(1);
 
     const snapshot = await (await fetch(`${baseUrl}/session/route-lifecycle/snapshot`)).json() as SessionSnapshot;
     expect(snapshot.revision).toBe(1);
@@ -337,7 +338,7 @@ describe('action route lifecycle (R1/R3)', () => {
       expect(snapshot.activeOperation).toBeNull();
       expect(snapshot.revision).toBe(1);
     });
-    expect(await StateService.getTurnHistory('route-concurrent')).toHaveLength(1);
+    expect(await turnHistoryRepository.getTurnHistory('route-concurrent')).toHaveLength(1);
   });
 
   it('broadcasts turn_error with the operation ID and frees the guard when resolution fails', async () => {
@@ -381,7 +382,7 @@ describe('action route lifecycle (R1/R3)', () => {
     expect((await (await fetch(`${baseUrl}/session/route-auto-ideas`)).json() as { autoIdeas?: boolean }).autoIdeas).toBe(true);
 
     await patch({ autoIdeas: false, expectedRevision: 1 });
-    expect((await StateService.getSession('route-auto-ideas'))?.autoIdeas).toBeUndefined();
+    expect((await sessionRepository.getSession('route-auto-ideas'))?.autoIdeas).toBeUndefined();
     expect((await patch({ autoIdeas: 'yes' })).status).toBe(400);
   });
 
@@ -411,7 +412,7 @@ describe('action route lifecycle (R1/R3)', () => {
       expect(body).toContain('"kind":"riddle_answer"');
     }
     // The server still resolves riddles from its own copy.
-    const stored = await StateService.getTurnHistory('route-riddle-private');
+    const stored = await turnHistoryRepository.getTurnHistory('route-riddle-private');
     expect(stored[0].choices[0]).toMatchObject({ riddleAnswer: 'a piano', riddleCorrect: true });
   });
 
@@ -457,7 +458,7 @@ describe('action route lifecycle (R1/R3)', () => {
         { label: 'Charm the lock', stat: 'magic', difficulty: 'easy', difficultyValue: 8 },
       ],
     }, null);
-    const [kick, charm] = (await StateService.getTurnHistory('route-choice-id'))[0].choices;
+    const [kick, charm] = (await turnHistoryRepository.getTurnHistory('route-choice-id'))[0].choices;
     expect(kick.id).toBeTypeOf('number');
 
     // The client echoes the wrong stat; the stored descriptor wins.
@@ -466,7 +467,7 @@ describe('action route lifecycle (R1/R3)', () => {
     await vi.waitFor(async () => {
       expect((await (await fetch(`${baseUrl}/session/route-choice-id/snapshot`)).json() as SessionSnapshot).activeOperation).toBeNull();
     });
-    const history = await StateService.getTurnHistory('route-choice-id');
+    const history = await turnHistoryRepository.getTurnHistory('route-choice-id');
     expect(history[1].lastAction?.actionResult).toMatchObject({ statUsed: 'magic', difficultyTarget: 8 });
     // New suggestions carry fresh ids.
     expect(history[1].choices.every(c => typeof c.id === 'number' && c.id !== kick.id)).toBe(true);
@@ -485,6 +486,6 @@ describe('action route lifecycle (R1/R3)', () => {
       body: JSON.stringify({ difficulty: 'hard' }),
     });
     expect(res.status).toBe(409);
-    expect((await StateService.getSession('route-patch'))?.difficulty).toBe('normal');
+    expect((await sessionRepository.getSession('route-patch'))?.difficulty).toBe('normal');
   });
 });
