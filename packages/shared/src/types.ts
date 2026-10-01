@@ -855,6 +855,9 @@ export interface FreeActionPreview {
   flavor?: ChoiceFlavor;
   pendingIntent?: string;
   pendingTargetCharacterId?: string;
+  // Client-only, never sent by the server: the preview request failed and the client
+  // filled in defaults. Confirming it sends the client's mechanics, as its warning says.
+  clientFallback?: boolean;
   school?: 'fire' | 'frost' | 'light' | 'shadow' | 'nature' | 'storm' | 'mind' | 'force' | 'holy' | 'mechanical' | null;
   actionTags?: string[];
   likelyEnemyId?: string;

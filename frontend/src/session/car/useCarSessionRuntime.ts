@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import type { Choice, Session, TurnResult, FreeActionPreview } from '../../types';
-import { useSessionRuntime } from '../useSessionRuntime';
+import { useSessionRuntime, type SubmitTurnResult } from '../useSessionRuntime';
 import { requestWrapUp } from '../adventureActions';
 import { applySessionTension, playRollSfx } from '../sessionAudio';
 
@@ -84,12 +84,23 @@ export function useCarSessionRuntime({
   });
   const { submitTurn, submitOperation, updateSession, revisionRef } = runtime;
 
-  const send = useCallback(async (input: Parameters<typeof submitTurn>[0]) => {
+  const send = useCallback(async (input: Parameters<typeof submitTurn>[0]): Promise<SubmitTurnResult> => {
     const result = await submitTurn(input);
     if (!result.ok) {
       onTurnError(result.error, result.message);
     }
+    return result;
   }, [submitTurn, onTurnError]);
+
+  // A refreshed preview is not an error: the fresh one arrives through onPreviewReady.
+  const runtimeConfirmPreview = runtime.confirmPreview;
+  const confirmPreview = useCallback(async (preview: FreeActionPreview): Promise<SubmitTurnResult> => {
+    const result = await runtimeConfirmPreview(preview);
+    if (!result.ok && result.error !== 'preview_refreshed') {
+      onTurnError(result.error, result.message);
+    }
+    return result;
+  }, [runtimeConfirmPreview, onTurnError]);
 
   const submitAction = useCallback((
     action: string,
@@ -147,6 +158,7 @@ export function useCarSessionRuntime({
     prevEncounterStatus: encounterTrack.before,
     submitAction,
     submitChoice,
+    confirmPreview,
     previewAction: runtime.previewAction,
     wrapUpAdventure,
     endAdventure,

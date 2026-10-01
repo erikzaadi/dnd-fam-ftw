@@ -67,10 +67,10 @@ interface UseCarConductorProps {
     itemId?: string | null,
     targetCharId?: string | null,
     actionIntent?: string
-  ) => Promise<void>;
+  ) => Promise<unknown>;
   // Selects a suggestion explicitly by its stable id.
-  submitChoice: (choice: Choice) => Promise<void>;
-  previewAction: (actionText: string) => Promise<void>;
+  submitChoice: (choice: Choice) => Promise<unknown>;
+  previewAction: (actionText: string) => Promise<unknown>;
   clearPreview: () => void;
   // An open DM question about the draft: the next utterance answers it.
   clarification?: ClarificationThread | null;

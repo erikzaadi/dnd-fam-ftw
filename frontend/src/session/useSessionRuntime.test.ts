@@ -178,6 +178,161 @@ describe('useSessionRuntime', () => {
     expect(mocks.submitSessionOperation.mock.calls[0][1]).not.toHaveProperty('previewId');
   });
 
+  // Characterization (plan 6 A1): what confirming by text does today.
+  describe('submitTurn and the last preview', () => {
+    const accept = () => mocks.submitSessionOperation.mockResolvedValue({ kind: 'accepted', operation: operation(), replayed: false });
+
+    it('attaches the last preview id to text that equals the preview', async () => {
+      const hook = await setup();
+      mocks.apiFetch.mockImplementationOnce(() => json({ interpretedAction: 'Pip juggles knives', stat: 'mischief', difficulty: 'normal', previewId: 'p-2' }));
+      await act(() => hook.result.current.previewAction('juggle'));
+      act(() => hook.result.current.clearPreview());
+      accept();
+      await act(async () => {
+        await hook.result.current.submitTurn({ action: 'Pip juggles knives', statUsed: 'mischief' });
+      });
+      expect(mocks.submitSessionOperation.mock.calls[0][1]).toMatchObject({ previewId: 'p-2' });
+    });
+
+    it('never attaches a preview id to an explicit choice', async () => {
+      const hook = await setup();
+      mocks.apiFetch.mockImplementationOnce(() => json({ interpretedAction: 'Hide', stat: 'mischief', difficulty: 'normal', previewId: 'p-3' }));
+      await act(() => hook.result.current.previewAction('hide'));
+      accept();
+      await act(async () => {
+        await hook.result.current.submitTurn({ action: 'Hide', choiceId: 1 });
+      });
+      expect(mocks.submitSessionOperation.mock.calls[0][1]).not.toHaveProperty('previewId');
+    });
+  });
+
+  describe('confirmPreview', () => {
+    const accept = () => mocks.submitSessionOperation.mockResolvedValue({ kind: 'accepted', operation: operation(), replayed: false });
+    const body = () => mocks.submitSessionOperation.mock.calls[0][1] as Record<string, unknown>;
+
+    it('sends the captured preview by its id after the preview state was cleared', async () => {
+      const hook = await setup();
+      mocks.apiFetch.mockImplementationOnce(() => json({ interpretedAction: 'Pip juggles knives', stat: 'mischief', difficulty: 'hard', previewId: 'p-1' }));
+      let preview = null as Awaited<ReturnType<typeof hook.result.current.previewAction>>;
+      await act(async () => {
+        preview = await hook.result.current.previewAction('juggle');
+      });
+      act(() => hook.result.current.dismissPreview());
+      accept();
+      let result: unknown;
+      await act(async () => {
+        result = await hook.result.current.confirmPreview(preview!);
+      });
+      expect(result).toEqual({ ok: true });
+      expect(body()).toMatchObject({ action: 'Pip juggles knives', previewId: 'p-1', statUsed: 'mischief', difficulty: 'hard' });
+    });
+
+    it('confirms a target and intent shortcut by id alone', async () => {
+      const hook = await setup();
+      mocks.apiFetch.mockImplementationOnce(() => json({ interpretedAction: 'Pip blesses Bo', stat: 'magic', difficulty: 'normal', previewId: 'p-4' }));
+      await act(() => hook.result.current.previewSceneAction({ intent: 'bless_character', targetCharacterId: 'c2' }));
+      const preview = hook.result.current.actionPreview!;
+      accept();
+      await act(async () => {
+        await hook.result.current.confirmPreview(preview);
+      });
+      expect(body()).toMatchObject({ action: 'Pip blesses Bo', previewId: 'p-4' });
+      expect(body()).not.toHaveProperty('actionIntent');
+      expect(body()).not.toHaveProperty('targetCharacterId');
+    });
+
+    it('confirms an item preview without a roll', async () => {
+      const hook = await setup();
+      accept();
+      await act(async () => {
+        await hook.result.current.confirmPreview({
+          previewId: 'p-5', originalAction: 'Give the potion to Bo', interpretedAction: 'Pip gives Bo the potion',
+          stat: 'might', difficulty: 'normal', warnings: [], itemAction: { kind: 'item_give', itemName: 'Potion', ownerName: 'Pip', targetName: 'Bo' },
+        });
+      });
+      expect(body()).toMatchObject({ action: 'Pip gives Bo the potion', previewId: 'p-5', statUsed: 'none' });
+    });
+
+    it('sends the player\'s own words when asked (riddle answers)', async () => {
+      const hook = await setup();
+      accept();
+      await act(async () => {
+        await hook.result.current.confirmPreview(
+          { previewId: 'p-6', originalAction: 'an echo', interpretedAction: 'Pip answers: an echo', stat: 'magic', difficulty: 'normal', warnings: [] },
+          { useOriginalAction: true },
+        );
+      });
+      expect(body()).toMatchObject({ action: 'an echo', previewId: 'p-6' });
+    });
+
+    it('returns a stale-preview refusal from the server', async () => {
+      const hook = await setup();
+      mocks.submitSessionOperation.mockResolvedValue({ kind: 'rejected', status: 409, error: 'stale_preview', message: 'Review it again.' });
+      mocks.fetchSessionSnapshot.mockResolvedValue(null);
+      let result: unknown;
+      await act(async () => {
+        result = await hook.result.current.confirmPreview({ previewId: 'p-7', originalAction: 'x', interpretedAction: 'x', stat: 'magic', difficulty: 'normal', warnings: [] });
+      });
+      expect(result).toEqual({ ok: false, error: 'stale_preview', message: 'Review it again.' });
+      expect(hook.result.current.turnPhase).toBe('ready');
+    });
+
+    it('sends a failed preview with the client mechanics its warning promised', async () => {
+      const hook = await setup();
+      mocks.apiFetch.mockImplementationOnce(() => Promise.reject(new Error('offline')));
+      await act(() => hook.result.current.previewSceneAction({ intent: 'party_boost' }, {}, 'Pip rallies'));
+      const preview = hook.result.current.actionPreview!;
+      expect(preview.clientFallback).toBe(true);
+      accept();
+      await act(async () => {
+        await hook.result.current.confirmPreview(preview);
+      });
+      expect(body()).toMatchObject({ action: 'Pip rallies', statUsed: 'mischief', actionIntent: 'party_boost' });
+      expect(body()).not.toHaveProperty('previewId');
+    });
+
+    // Behaviour change (plan 6 decision 1). Before: a preview without an id was sent as
+    // unpreviewed text with the client's mechanics. After: one fresh preview, then a refusal.
+    it('asks for a fresh preview once when the preview has no id, then refuses', async () => {
+      const onPreviewReady = vi.fn();
+      const hook = await setup({ onPreviewReady });
+      mocks.apiFetch.mockImplementation((path: string) => path === '/session/s1/preview-action'
+        ? json({ interpretedAction: 'Pip juggles knives', stat: 'mischief', difficulty: 'normal' })
+        : json({}));
+      let first = null as Awaited<ReturnType<typeof hook.result.current.previewAction>>;
+      await act(async () => {
+        first = await hook.result.current.previewAction('juggle');
+      });
+
+      let result: unknown;
+      await act(async () => {
+        result = await hook.result.current.confirmPreview(first!);
+      });
+      expect(result).toMatchObject({ ok: false, error: 'preview_refreshed' });
+      expect(mocks.submitSessionOperation).not.toHaveBeenCalled();
+      expect(onPreviewReady).toHaveBeenCalledTimes(2);
+      const fresh = hook.result.current.actionPreview!;
+      expect(fresh).not.toBe(first);
+
+      await act(async () => {
+        result = await hook.result.current.confirmPreview(fresh);
+      });
+      expect(result).toMatchObject({ ok: false, error: 'preview_stale', message: 'The story moved on. Preview your action again.' });
+      expect(hook.result.current.actionError).toBe('The story moved on. Preview your action again.');
+      expect(mocks.submitSessionOperation).not.toHaveBeenCalled();
+    });
+
+    it('refuses a preview without an id that it cannot preview again', async () => {
+      const hook = await setup();
+      let result: unknown;
+      await act(async () => {
+        result = await hook.result.current.confirmPreview({ originalAction: 'x', interpretedAction: 'x', stat: 'magic', difficulty: 'normal', warnings: [] });
+      });
+      expect(result).toMatchObject({ ok: false, error: 'preview_stale' });
+      expect(mocks.submitSessionOperation).not.toHaveBeenCalled();
+    });
+  });
+
   it('keeps a failed turn readable and unlocks the view', async () => {
     const onTurnError = vi.fn();
     const hook = await setup({ onTurnError });
