@@ -8,7 +8,6 @@ import { dispatchOutbox, enqueueInviteRequestNotice } from '../services/emailSer
 import { resolveGoogleSignIn, type SignInOutcome } from '../services/signupService.js';
 import { authMiddleware, requireFullIdentity, requirePendingInviteToken, requirePendingNamespaceToken } from '../middleware/auth.js';
 import { buildGoogleAuthUrl, createOAuthState, createPkcePair, exchangeCodeForIdentity, getAuthPublicConfig, safeEqual } from '../services/authService.js';
-import { StateService } from '../services/stateService.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { canInvite } from '../services/namespaceInviteService.js';
 import {
@@ -34,6 +33,7 @@ import type {
 import { parseBody } from './routeValidation.js';
 import { requireBrowserJsonPost } from './browserPost.js';
 import { realmAccess } from '../realms/access.js';
+import { inviteRequestRepository } from '../repositories/inviteRequestRepository.js';
 
 interface AuthRoutesOptions {
   isProduction: boolean;
@@ -90,7 +90,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
       setPendingInviteCookie(res, { email: outcome.email, namespaceId: '', type }, { isProduction });
       return '/request-invite';
     }
-    StateService.recordLogin(outcome.email);
+    userRepository.recordLogin(outcome.email);
     clearPendingAuthCookies(res);
     setFullAuthCookie(res, { email: outcome.email, namespaceId: outcome.namespaceId, type: 'full', userId: outcome.userId }, { isProduction });
     if (outcome.created) {
@@ -275,7 +275,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
       return;
     }
     clearPendingAuthCookies(res);
-    StateService.recordLogin(user.email);
+    userRepository.recordLogin(user.email);
     setFullAuthCookie(res, { email: user.email, namespaceId, type: 'full', userId: user.id }, { isProduction });
     res.json({ ok: true });
   }));
@@ -324,7 +324,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
       return;
     }
     const { message } = body;
-    StateService.addInviteRequest(req.pendingPayload!.email, message);
+    inviteRequestRepository.addInviteRequest(req.pendingPayload!.email, message);
     enqueueInviteRequestNotice({ email: req.pendingPayload!.email, message: message?.trim() || null, requestedAt: new Date() });
     void dispatchOutbox();
     res.clearCookie('jwt_pending_invite', { path: '/' });

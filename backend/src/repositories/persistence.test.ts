@@ -3,17 +3,17 @@ import path from 'path';
 import fs from 'fs';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { getDb, initializeDatabase } from '../persistence/database.js';
-import { StateService } from './stateService.js';
-import { inviteRequestRepository } from '../repositories/inviteRequestRepository.js';
-import { namespaceRepository } from '../repositories/namespaceRepository.js';
-import { sessionRepository } from '../repositories/sessionRepository.js';
-import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
-import { usageRepository } from '../repositories/usageRepository.js';
-import { userRepository } from '../repositories/userRepository.js';
+import { inviteRequestRepository } from './inviteRequestRepository.js';
+import { namespaceRepository } from './namespaceRepository.js';
+import { sessionRepository } from './sessionRepository.js';
+import { turnHistoryRepository } from './turnHistoryRepository.js';
+import { usageRepository } from './usageRepository.js';
+import { userRepository } from './userRepository.js';
 import { realmAccess } from '../realms/access.js';
 import type { SessionState } from '../types.js';
-import { accountService } from './accountService.js';
-import { addMember, deleteRealm, removeMember, setPrimary } from './realmAdmin.js';
+import { accountService } from '../services/accountService.js';
+import { addMember, deleteRealm, removeMember, setPrimary } from '../services/realmAdmin.js';
+import { deleteAdventure } from '../archive/adventureDeletion.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-test-${Date.now()}.sqlite`);
 const IMAGE_STORAGE_PATH = path.join(os.tmpdir(), `dnd-test-imgs-state-${Date.now()}`);
@@ -57,7 +57,7 @@ function insertTestCharacter(charId: string, sessionId: string, name: string, hp
   ).run(charId, sessionId, name, 'Rogue', 'Halfling', 'Sneaky', hp, 10, 2, 1, 3, 'active');
 }
 
-describe('StateService - Session CRUD', () => {
+describe('Session CRUD', () => {
   it('getSession returns undefined for unknown ID', async () => {
     expect(await sessionRepository.getSession('no-such-session')).toBeUndefined();
   });
@@ -178,7 +178,7 @@ describe('StateService - Session CRUD', () => {
       narration: 'Final turn.', imagePrompt: null, imageSuggested: false, imageUrl: null,
       choices: [], lastAction: null, turnType: 'normal',
     }, null);
-    await StateService.deleteSession('sess-del');
+    await deleteAdventure('sess-del');
     expect(await sessionRepository.getSession('sess-del')).toBeUndefined();
     expect(await turnHistoryRepository.getTurnHistory('sess-del')).toHaveLength(0);
   });
@@ -198,7 +198,7 @@ describe('StateService - Session CRUD', () => {
       'INSERT INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatar_storage_key, avatar_storage_provider, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     ).run('char-delete-assets-keyed', 'sess-delete-assets-keyed', 'Asset Hero', 'Fighter', 'Dwarf', 'Polishes shields', 10, 10, 3, 1, 1, '/test-images/avatar-key-delete.png', 'avatar-key-delete.png', 'local', 'active');
 
-    await StateService.deleteSession('sess-delete-assets-keyed');
+    await deleteAdventure('sess-delete-assets-keyed');
 
     expect(fs.existsSync(turnImagePath)).toBe(false);
     expect(fs.existsSync(avatarImagePath)).toBe(false);
@@ -221,7 +221,7 @@ describe('StateService - Session CRUD', () => {
       'INSERT INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     ).run('char-delete-assets-legacy', 'sess-delete-assets-legacy', 'Legacy Hero', 'Ranger', 'Elf', 'Keeps receipts', 10, 10, 2, 2, 3, '/test-images/legacy-avatar-delete.png', 'active');
 
-    await StateService.deleteSession('sess-delete-assets-legacy');
+    await deleteAdventure('sess-delete-assets-legacy');
 
     expect(fs.existsSync(legacyTurnPath)).toBe(false);
     expect(fs.existsSync(legacyAvatarPath)).toBe(false);
@@ -293,7 +293,7 @@ describe('StateService - Session CRUD', () => {
   });
 });
 
-describe('StateService - User / Namespace management', () => {
+describe('User / Namespace management', () => {
   it('createUser + getUserByEmail round-trip', () => {
     const { userId, namespaceId } = accountService.createUser('hero@example.com');
     expect(userId).toBeTruthy();
@@ -339,7 +339,7 @@ describe('StateService - User / Namespace management', () => {
 
   it('recordLogin sets lastLogin for the user', () => {
     accountService.createUser('login-test@example.com');
-    StateService.recordLogin('login-test@example.com');
+    userRepository.recordLogin('login-test@example.com');
     const users = userRepository.listUsers();
     const found = users.find(u => u.email === 'login-test@example.com');
     expect(found!.lastLogin).toBeTruthy();
@@ -358,7 +358,7 @@ describe('StateService - User / Namespace management', () => {
 
   it('renameNamespace updates name', () => {
     const { namespaceId } = namespaceRepository.createNamespace('Old Name');
-    expect(StateService.renameNamespace(namespaceId, 'New Name')).toBe(true);
+    expect(namespaceRepository.renameNamespace(namespaceId, 'New Name')).toBe(true);
     expect(namespaceRepository.getNamespaceById(namespaceId)!.name).toBe('New Name');
   });
 
@@ -403,18 +403,18 @@ describe('StateService - User / Namespace management', () => {
   });
 });
 
-describe('StateService - Namespace limits', () => {
+describe('Namespace limits', () => {
   it('setNamespaceLimits + getNamespaceLimits', () => {
     const { namespaceId } = namespaceRepository.createNamespace('Limited Realm');
-    const before = StateService.getNamespaceLimits(namespaceId);
+    const before = namespaceRepository.getNamespaceLimits(namespaceId);
     expect(before.maxSessions).toBeNull();
     expect(before.maxTurns).toBeNull();
-    expect(StateService.setNamespaceLimits(namespaceId, 5, 100)).toBe(true);
-    const after = StateService.getNamespaceLimits(namespaceId);
+    expect(namespaceRepository.setNamespaceLimits(namespaceId, 5, 100)).toBe(true);
+    const after = namespaceRepository.getNamespaceLimits(namespaceId);
     expect(after.maxSessions).toBe(5);
     expect(after.maxTurns).toBe(100);
-    StateService.setNamespaceLimits(namespaceId, null, null);
-    const removed = StateService.getNamespaceLimits(namespaceId);
+    namespaceRepository.setNamespaceLimits(namespaceId, null, null);
+    const removed = namespaceRepository.getNamespaceLimits(namespaceId);
     expect(removed.maxSessions).toBeNull();
     expect(removed.maxTurns).toBeNull();
   });
@@ -428,12 +428,12 @@ describe('StateService - Namespace limits', () => {
   });
 });
 
-describe('StateService - TTS usage', () => {
+describe('TTS usage', () => {
   it('records TTS request count and character usage by namespace', () => {
     const { namespaceId } = namespaceRepository.createNamespace('Audio Realm');
-    StateService.recordTtsUsage(namespaceId, 'fable', 120);
-    StateService.recordTtsUsage(namespaceId, 'sage', 80);
-    StateService.recordTtsUsage('local', 'fable', 50);
+    usageRepository.recordTtsUsage(namespaceId, 'fable', 120);
+    usageRepository.recordTtsUsage(namespaceId, 'sage', 80);
+    usageRepository.recordTtsUsage('local', 'fable', 50);
 
     expect(usageRepository.getTtsUsage(namespaceId)).toEqual({
       requestCount: 2,
@@ -443,27 +443,27 @@ describe('StateService - TTS usage', () => {
   });
 });
 
-describe('StateService - Invite requests', () => {
+describe('Invite requests', () => {
   it('addInviteRequest + hasInviteRequest, duplicate ignored', () => {
     expect(inviteRequestRepository.hasInviteRequest('newbie@example.com')).toBe(false);
-    StateService.addInviteRequest('newbie@example.com', 'Please let me in!');
+    inviteRequestRepository.addInviteRequest('newbie@example.com', 'Please let me in!');
     expect(inviteRequestRepository.hasInviteRequest('newbie@example.com')).toBe(true);
-    StateService.addInviteRequest('newbie@example.com', 'Again!');
+    inviteRequestRepository.addInviteRequest('newbie@example.com', 'Again!');
     const all = inviteRequestRepository.listInviteRequests().filter(r => r.email === 'newbie@example.com');
     expect(all).toHaveLength(1);
     expect(all[0].message).toBe('Please let me in!');
   });
 
   it('clearInviteRequests removes all', () => {
-    StateService.addInviteRequest('a@example.com');
-    StateService.addInviteRequest('b@example.com');
-    const count = StateService.clearInviteRequests();
+    inviteRequestRepository.addInviteRequest('a@example.com');
+    inviteRequestRepository.addInviteRequest('b@example.com');
+    const count = inviteRequestRepository.clearInviteRequests();
     expect(count).toBeGreaterThan(0);
     expect(inviteRequestRepository.listInviteRequests()).toHaveLength(0);
   });
 });
 
-describe('StateService - Character history', () => {
+describe('Character history', () => {
   it('getCharacterTurnHistory returns turns scoped to character', async () => {
     insertTestSession('sess-char-hist', 'local', 'History World');
     insertTestCharacter('char-hist-1', 'sess-char-hist', 'Bard');
@@ -493,7 +493,7 @@ describe('StateService - Character history', () => {
   });
 });
 
-describe('StateService - Encounter state persistence', () => {
+describe('Encounter state persistence', () => {
   it('persists a full encounter through updateSession + getSession', async () => {
     insertTestSession('sess-enc-full', 'local', 'Encounter World');
     const base = await sessionRepository.getSession('sess-enc-full');

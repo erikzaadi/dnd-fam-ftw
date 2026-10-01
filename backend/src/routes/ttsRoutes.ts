@@ -4,9 +4,9 @@ import { z } from 'zod';
 import { OPENAI_TTS_VOICES, OPENAI_TTS_DEFAULT_VOICE } from '@dnd-fam-ftw/shared';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireTextBudget } from '../middleware/usageAdmission.js';
-import { StateService } from '../services/stateService.js';
 import { generateSpeech, normalizeTextForSpeech, resolveEffectiveTtsVoice, TTS_MAX_INPUT_CHARS } from '../services/ttsService.js';
 import { parseBody } from './routeValidation.js';
+import { usageRepository } from '../repositories/usageRepository.js';
 
 const ttsBodySchema = z.object({
   text: z.string(),
@@ -43,7 +43,7 @@ export const createTtsRouter = () => {
     const namespaceId = req.namespaceId;
     setImmediate(() => {
       try {
-        StateService.recordTtsUsage(namespaceId, effectiveVoice, normalized.length);
+        usageRepository.recordTtsUsage(namespaceId, effectiveVoice, normalized.length);
       } catch (error) {
         console.warn('[TTS] Failed to record usage:', error);
       }

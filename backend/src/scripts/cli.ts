@@ -33,7 +33,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../../../.env'), quiet: true });
 
 import Database from 'libsql';
-import { StateService } from '../services/stateService.js';
 import { inviteRequestRepository } from '../repositories/inviteRequestRepository.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
@@ -58,6 +57,7 @@ import { addMember, deleteRealm, removeMember, setNamespaceOwner, setPrimary } f
 import { namespaceInviteRepository } from '../repositories/namespaceInviteRepository.js';
 import { realmAccess } from '../realms/access.js';
 import { accountService } from '../services/accountService.js';
+import { deleteAdventure } from '../archive/adventureDeletion.js';
 
 const [, , resource, subcommand, ...rest] = process.argv;
 const allArgs = [subcommand, ...rest].filter(Boolean);
@@ -169,7 +169,7 @@ case 'users': {
         fail(`Deleting ${email} also deletes their realm(s) ${plan.deleteNamespaceIds.join(', ')} with ${doomedSessions.length} adventure(s). Re-run with --with-adventures to confirm.`);
       }
       for (const session of doomedSessions) {
-        await StateService.deleteSession(session.id);
+        await deleteAdventure(session.id);
       }
       console.log(`Deleted ${doomedSessions.length} adventure(s)`);
     }
@@ -369,7 +369,7 @@ case 'namespaces': {
     if (!id || !newName) {
       fail('Usage: cli namespaces rename <id> <new-name>');
     }
-    const ok = StateService.renameNamespace(id, newName);
+    const ok = namespaceRepository.renameNamespace(id, newName);
     if (ok) {
       console.log(`Renamed namespace ${id} to "${newName}"`);
     } else {
@@ -497,16 +497,16 @@ case 'namespaces': {
     const maxSessions = parseLimit(maxSessionsArg);
     const maxTurns = parseLimit(maxTurnsArg);
     if (maxSessions === undefined && maxTurns === undefined) {
-      const limits = StateService.getNamespaceLimits(id);
+      const limits = namespaceRepository.getNamespaceLimits(id);
       console.log(`Namespace "${ns.name}" (${id}) limits:`);
       console.log(`  max-sessions: ${limits.maxSessions ?? 'tier default'}`);
       console.log(`  max-turns:    ${limits.maxTurns ?? 'tier default'}`);
       break;
     }
-    const current = StateService.getNamespaceLimits(id);
+    const current = namespaceRepository.getNamespaceLimits(id);
     const newMaxSessions = maxSessions !== undefined ? maxSessions : current.maxSessions;
     const newMaxTurns = maxTurns !== undefined ? maxTurns : current.maxTurns;
-    StateService.setNamespaceLimits(id, newMaxSessions, newMaxTurns);
+    namespaceRepository.setNamespaceLimits(id, newMaxSessions, newMaxTurns);
     console.log(`Updated limits for "${ns.name}" (${id}):`);
     console.log(`  max-sessions: ${newMaxSessions ?? 'tier default'}`);
     console.log(`  max-turns:    ${newMaxTurns ?? 'tier default'}`);
@@ -537,7 +537,7 @@ case 'namespaces': {
     if (!isUsageTier(tier)) {
       fail(`Unknown tier "${tier}". Use one of: ${USAGE_TIERS.join(', ')}`);
     }
-    StateService.setNamespaceTier(id, tier);
+    namespaceRepository.setNamespaceTier(id, tier);
     console.log(`Namespace "${ns.name}" (${id}) is now ${tier} (${tierLabel(tier)}), with no expiry.`);
     break;
   }
@@ -1147,13 +1147,13 @@ case 'invite-requests': {
       approveResult = accountService.createUser(approveEmail);
       console.log(`Approved invite for: ${approveEmail}`);
     }
-    StateService.removeInviteRequest(approveEmail);
+    inviteRequestRepository.removeInviteRequest(approveEmail);
     console.log(`  userId:      ${approveResult.userId}`);
     console.log(`  namespaceId: ${approveResult.namespaceId}`);
     break;
   }
   case 'clear': {
-    const count = StateService.clearInviteRequests();
+    const count = inviteRequestRepository.clearInviteRequests();
     console.log(`Cleared ${count} invite request(s).`);
     break;
   }
@@ -1208,7 +1208,7 @@ case 'limit-requests': {
     if (!request || request.status !== 'pending') {
       fail(`No pending limit request with id ${id}.`);
     }
-    StateService.setNamespaceTier(request.namespace_id, tierArg);
+    namespaceRepository.setNamespaceTier(request.namespace_id, tierArg);
     limitRequestRepository.resolve(id, 'approved');
     console.log(`Approved request ${id}: namespace ${request.namespace_id} is now ${tierArg} (${tierLabel(tierArg)}).`);
     break;

@@ -7,7 +7,6 @@ import { pickWorldSeed } from '../data/instantStartArchetypes.js';
 import { createQuickStartId } from '../lib/ids.js';
 import { ImageService } from '../services/imageService.js';
 import { SettingsService } from '../services/settingsService.js';
-import { StateService } from '../services/stateService.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { refreshDmPrepImageBriefAndPreview, triggerPreviewRegen } from '../services/sessionPreviewService.js';
 import { StorySummaryService } from '../services/storySummaryService.js';
@@ -28,7 +27,7 @@ import { attachTurnImage } from '../services/turnSideEffectService.js';
 import { toPublicSession } from '../services/sessionProjection.js';
 import { AdventureCapReached, assertAdventureCap, checkAdventureCap, type AdventureCapRefusal } from '../services/paidWorkAdmission.js';
 import { getDb } from '../persistence/database.js';
-import { AdventureBusyError } from '../archive/adventureDeletion.js';
+import { AdventureBusyError, deleteAdventure } from '../archive/adventureDeletion.js';
 import { requirePaidWork } from '../middleware/usageAdmission.js';
 
 const createSessionBodySchema = z.object({
@@ -156,7 +155,7 @@ export const createSessionRouter = () => {
   router.delete('/session/:id', asyncHandler(async (req, res) => {
     const sessionId = req.params.id as string;
     try {
-      await StateService.deleteSession(sessionId);
+      await deleteAdventure(sessionId);
     } catch (err) {
       if (err instanceof AdventureBusyError) {
         res.status(409).json({ error: 'operation_in_progress', message: err.message });

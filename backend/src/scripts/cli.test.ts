@@ -5,7 +5,7 @@ import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { getDb, initializeDatabase } from '../persistence/database.js';
-import { StateService } from '../services/stateService.js';
+import { inviteRequestRepository } from '../repositories/inviteRequestRepository.js';
 
 // Every test here spawns the CLI via cold `npx tsx` subprocesses (1s+ each under
 // load), so the default 5s vitest timeout is too tight for multi-command tests.
@@ -399,7 +399,7 @@ describe('CLI invite-requests', () => {
   });
 
   it('list --json shows invite requests after they are added', () => {
-    StateService.addInviteRequest('cli-invite@example.com', 'Let me in!');
+    inviteRequestRepository.addInviteRequest('cli-invite@example.com', 'Let me in!');
     const { stdout, status } = cli('invite-requests', 'list', '--json');
     expect(status).toBe(0);
     const requests = JSON.parse(stdout) as { email: string }[];

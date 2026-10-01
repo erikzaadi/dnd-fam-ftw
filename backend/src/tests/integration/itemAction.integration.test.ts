@@ -1,9 +1,9 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { StateService } from '../../services/stateService.js';
 import { sessionRepository } from '../../repositories/sessionRepository.js';
 import { executeTurnAction } from '../../services/turnService.js';
 import { FIXED_NARRATION_OUTPUT, TURN_STRATEGIES, expectTurnStrategy, mockGenerateTurn, mockNarrateResolved, mockProposeMechanics, narratingMock, narrationInputFor, scriptTurnOutput } from './mockNarrationProvider.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
+import { namespaceRepository } from '../../repositories/namespaceRepository.js';
 
 vi.mock('../../providers/ai/AiProviderFactory.js', async () => {
   const { createStagedMockNarrationProvider } = await import('./mockNarrationProvider.js');
@@ -133,7 +133,7 @@ describe('executeTurnAction item action limits', () => {
       }],
       activeCharacterId: 'char-pip',
     }));
-    StateService.setNamespaceLimits('local', null, 2);
+    namespaceRepository.setNamespaceLimits('local', null, 2);
     try {
       const result = await executeTurnAction('item-action-limit-session', 'local', {
         action: 'use item',
@@ -148,7 +148,7 @@ describe('executeTurnAction item action limits', () => {
       expect(mockNarrateResolved).not.toHaveBeenCalled();
       expect((await sessionRepository.getSession('item-action-limit-session'))?.party[0].inventory).toHaveLength(1);
     } finally {
-      StateService.setNamespaceLimits('local', null, null);
+      namespaceRepository.setNamespaceLimits('local', null, null);
     }
   });
 });
