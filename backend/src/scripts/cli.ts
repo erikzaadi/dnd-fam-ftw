@@ -38,6 +38,7 @@ import { inviteRequestRepository } from '../repositories/inviteRequestRepository
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { initializeDatabase } from '../persistence/database.js';
+import { adventureArchive, ArchiveImportError, type ImportReport } from '../archive/adventureArchive.js';
 import { StorySummaryService } from '../services/storySummaryService.js';
 import { getConfig } from '../config/env.js';
 import { emailOutboxRepository, type EmailOutboxStatus } from '../repositories/emailOutboxRepository.js';
@@ -632,44 +633,15 @@ case 'sessions': {
     const nsFilter = parseArgValue(allArgs.find(a => a === '--namespace' || a.startsWith('--namespace=')));
     const outputFile = parseArgValue(allArgs.find(a => a === '--output' || a.startsWith('--output=')));
 
-    const dbPath = path.resolve(getConfig().SQLITE_DB_PATH);
-    const db = new Database(dbPath, { readonly: true });
-
-    let sessionRows: Record<string, unknown>[];
-    if (sessionFilter) {
-      sessionRows = db.prepare('SELECT * FROM sessions WHERE id = ?').all(sessionFilter) as Record<string, unknown>[];
-      if (sessionRows.length === 0) {
-        db.close();
-        fail(`Session not found: ${sessionFilter}`);
-      }
-    } else if (nsFilter) {
-      sessionRows = db.prepare('SELECT * FROM sessions WHERE namespace_id = ?').all(nsFilter) as Record<string, unknown>[];
-    } else {
-      sessionRows = db.prepare('SELECT * FROM sessions').all() as Record<string, unknown>[];
+    const archive = adventureArchive.export({ adventureId: sessionFilter, realmId: nsFilter });
+    if (sessionFilter && archive.sessions.length === 0) {
+      fail(`Session not found: ${sessionFilter}`);
     }
-
-    const exported = sessionRows.map(s => {
-      const sessionId = s.id as string;
-      const characters = (db.prepare('SELECT * FROM characters WHERE sessionId = ?').all(sessionId) as Record<string, unknown>[]).map(c => {
-        const charId = c.id as string;
-        const inventory = db.prepare('SELECT * FROM inventory WHERE characterId = ?').all(charId);
-        return { ...c, inventory };
-      });
-      const turnHistory = (db.prepare('SELECT * FROM turn_history WHERE sessionId = ?').all(sessionId) as Record<string, unknown>[]).map(t => {
-        const turnId = t.id as number;
-        const choices = db.prepare('SELECT * FROM turn_choices WHERE turnId = ?').all(turnId);
-        return { ...t, choices };
-      });
-      return { ...s, characters, turnHistory };
-    });
-
-    db.close();
-
-    const output = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), sessions: exported }, null, 2);
+    const output = JSON.stringify(archive, null, 2);
 
     if (outputFile) {
       fs.writeFileSync(outputFile, output, 'utf-8');
-      console.error(`Exported ${exported.length} session(s) to ${outputFile}`);
+      console.error(`Exported ${archive.sessions.length} session(s) to ${outputFile}`);
     } else {
       process.stdout.write(output + '\n');
     }
@@ -678,140 +650,37 @@ case 'sessions': {
   case 'import': {
     const [inputFile] = positional;
     if (!inputFile) {
-      fail('Usage: cli sessions import <file.json> [--namespace-id <id>]');
+      fail('Usage: cli sessions import <file.json> [--namespace-id <id>] [--allow-drop]');
     }
     const targetNsId = parseArgValue(allArgs.find(a => a === '--namespace-id' || a.startsWith('--namespace-id=')));
 
-    let data: { version?: number; sessions: Record<string, unknown>[] };
+    let data: unknown;
     try {
-      data = JSON.parse(fs.readFileSync(inputFile, 'utf-8')) as typeof data;
+      data = JSON.parse(fs.readFileSync(inputFile, 'utf-8'));
     } catch (err) {
       fail(`Failed to read ${inputFile}: ${err}`);
     }
-    if (!data.sessions || !Array.isArray(data.sessions)) {
-      fail('Invalid export file: missing sessions array');
-    }
 
-    const dbPath = path.resolve(getConfig().SQLITE_DB_PATH);
-    const db = new Database(dbPath);
-
-    if (targetNsId) {
-      const ns = db.prepare('SELECT id FROM namespaces WHERE id = ?').get(targetNsId);
-      if (!ns) {
-        db.close();
-        fail(`Namespace not found: ${targetNsId}`);
+    let report: ImportReport;
+    try {
+      report = adventureArchive.import(data, { targetRealm: targetNsId, allowDrop: allArgs.includes('--allow-drop') });
+    } catch (err) {
+      if (err instanceof ArchiveImportError) {
+        fail(err.message);
       }
+      throw err;
     }
-
-    let importedCount = 0;
-
-    const importAll = db.transaction(() => {
-      for (const session of data.sessions) {
-        const oldSessionId = session.id as string;
-        const exists = db.prepare('SELECT id FROM sessions WHERE id = ?').get(oldSessionId);
-        const newSessionId = exists ? Math.random().toString(36).substring(7) : oldSessionId;
-        const nsId = targetNsId ?? (session.namespace_id as string) ?? 'local';
-
-        db.prepare(`
-          INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, turn, activeCharacterId, tone, displayName, difficulty, gameMode, savingsMode, useLocalAI, interventionUsed, storySummary, namespace_id, createdAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          newSessionId,
-          session.scene, session.sceneId, session.worldDescription ?? null, session.dm_prep ?? null,
-          session.dm_prep_image_brief ?? null,
-          session.turn, session.activeCharacterId, session.tone, session.displayName,
-          session.difficulty, session.gameMode ?? 'balanced',
-          session.savingsMode ?? 0, 0, session.interventionUsed ?? 0,
-          session.storySummary ?? '', nsId,
-          session.createdAt ?? null,
-        );
-
-        const charIdMap = new Map<string, string>();
-        for (const char of (session.characters as Record<string, unknown>[]) ?? []) {
-          const oldCharId = char.id as string;
-          const charExists = db.prepare('SELECT id FROM characters WHERE id = ?').get(oldCharId);
-          const newCharId = charExists ? Math.random().toString(36).substring(7) : oldCharId;
-          charIdMap.set(oldCharId, newCharId);
-
-          db.prepare(`
-            INSERT INTO characters (id, sessionId, name, class, species, quirk, hp, max_hp, might, magic, mischief, avatarUrl, avatarPrompt, status, avatar_storage_key, avatar_storage_provider, history, gender)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(
-            newCharId, newSessionId,
-            char.name, char.class, char.species, char.quirk,
-            char.hp, char.max_hp, char.might, char.magic, char.mischief,
-            char.avatarUrl ?? null, char.avatarPrompt ?? null,
-            char.status ?? 'active',
-            char.avatar_storage_key ?? null, char.avatar_storage_provider ?? null,
-            char.history ?? null, char.gender ?? null,
-          );
-
-          for (const item of (char.inventory as Record<string, unknown>[]) ?? []) {
-            db.prepare(`
-              INSERT INTO inventory (characterId, itemId, name, description, statBonuses, healValue, transferable, consumable, tags, effect, charges, condition, boundToCharacterId)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).run(
-              newCharId, item.itemId ?? null, item.name, item.description ?? '',
-              item.statBonuses ?? null, item.healValue ?? null,
-              item.transferable ?? null, item.consumable ?? null,
-              item.tags ?? null, item.effect ?? null, item.charges ?? null,
-              item.condition ?? null, item.boundToCharacterId ?? null,
-            );
-          }
-        }
-
-        for (const turn of (session.turnHistory as Record<string, unknown>[]) ?? []) {
-          const mappedCharId = turn.characterId ? (charIdMap.get(turn.characterId as string) ?? null) : null;
-          const result = db.prepare(`
-INSERT INTO turn_history (sessionId, characterId, encounterId, narration, rollNarration, imagePrompt, imageSuggested, imageUrl, image_storage_key, image_storage_provider, actionAttempt, actionStat, actionSuccess, actionRoll, actionStatBonus, actionItemBonus, actionHelperBonus, actionHelperCharacterName, actionChoiceItemBonus, actionChoiceItemName, actionChoiceItemOwnerName, actionCharacterBonus, actionCharacterBonusLabel, actionIsCritical, actionImpact, actionDifficultyTarget, turnType, currentTensionLevel, hpChanges, inventoryChanges, narrationRetried, narrationFailed, narrationValidationError, narrationRetryValidationError, createdAt)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(
-            newSessionId, mappedCharId, turn.encounterId ?? null,
-            turn.narration, turn.rollNarration ?? null,
-            turn.imagePrompt ?? null, turn.imageSuggested ?? 0,
-            turn.imageUrl ?? null, turn.image_storage_key ?? null, turn.image_storage_provider ?? null,
-            turn.actionAttempt ?? null, turn.actionStat ?? null,
-            turn.actionSuccess ?? null, turn.actionRoll ?? null,
-            turn.actionStatBonus ?? null, turn.actionItemBonus ?? null,
-            turn.actionHelperBonus ?? null, turn.actionHelperCharacterName ?? null,
-            turn.actionChoiceItemBonus ?? null, turn.actionChoiceItemName ?? null, turn.actionChoiceItemOwnerName ?? null,
-            turn.actionCharacterBonus ?? null, turn.actionCharacterBonusLabel ?? null,
-            turn.actionIsCritical ?? null, turn.actionImpact ?? null, turn.actionDifficultyTarget ?? null,
-            turn.turnType ?? 'normal',
-            turn.currentTensionLevel ?? null, turn.hpChanges ?? null, turn.inventoryChanges ?? null,
-            turn.narrationRetried ?? null, turn.narrationFailed ?? null,
-            turn.narrationValidationError ?? null, turn.narrationRetryValidationError ?? null,
-            turn.createdAt ?? null,
-          );
-
-          const newTurnId = result.lastInsertRowid;
-          for (const choice of (turn.choices as Record<string, unknown>[]) ?? []) {
-            db.prepare('INSERT INTO turn_choices (turnId, label, difficulty, stat, difficultyValue, narration, flavor, helperCharacterName, itemOwnerName, itemName, environmentFeature) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-              .run(
-                newTurnId,
-                choice.label,
-                choice.difficulty,
-                choice.stat,
-                choice.difficultyValue ?? null,
-                choice.narration ?? null,
-                choice.flavor ?? null,
-                choice.helperCharacterName ?? null,
-                choice.itemOwnerName ?? null,
-                choice.itemName ?? null,
-                choice.environmentFeature ?? null,
-              );
-          }
-        }
-
-        const idNote = exists ? ` (old ID: ${oldSessionId} -> new: ${newSessionId})` : ` (ID: ${newSessionId})`;
-        console.log(`  Imported "${session.displayName}"${idNote} -> namespace: ${nsId}`);
-        importedCount++;
-      }
-    });
-
-    importAll();
-    db.close();
-    console.log(`\nImported ${importedCount} session(s).`);
+    for (const adventure of report.adventures) {
+      const idNote = adventure.oldId !== adventure.newId ? ` (old ID: ${adventure.oldId} -> new: ${adventure.newId})` : ` (ID: ${adventure.newId})`;
+      console.log(`  Imported "${adventure.name}"${idNote} -> namespace: ${adventure.realmId}`);
+    }
+    for (const field of report.dropped) {
+      console.log(`  Dropped unknown field ${field.table}.${field.column}`);
+    }
+    if (report.defaulted.length > 0) {
+      console.log(`  Not in the export, database default used: ${report.defaulted.map(field => `${field.table}.${field.column}`).join(', ')}`);
+    }
+    console.log(`\nImported ${report.adventures.length} session(s). Images are references only: files are not part of an export.`);
     break;
   }
   case 'regenerate-dm-prep': {
@@ -847,7 +716,7 @@ sessions <sub-command>
   nuke                                                  Delete all sessions and their data (dev only)
   seed                                                  Seed example sessions (dev only, idempotent)
   export [--session <id>] [--namespace <id>] [--output <file>]   Export sessions to JSON (stdout if no --output)
-  import <file.json> [--namespace-id <id>]              Import sessions from a JSON export file
+  import <file.json> [--namespace-id <id>] [--allow-drop]   Import sessions from a JSON export file (no image files)
   regenerate-dm-prep <sessionId>                        Regenerate the DM campaign brief and encounter seeds using AI
 `);
   }

@@ -188,7 +188,7 @@ describe('CLI sessions export/import', () => {
     const { stdout, status } = cli('sessions', 'export');
     expect(status).toBe(0);
     const data = JSON.parse(stdout) as { version: number; sessions: unknown[] };
-    expect(data.version).toBe(1);
+    expect(data.version).toBe(2);
     expect(Array.isArray(data.sessions)).toBe(true);
   });
 
@@ -199,7 +199,7 @@ describe('CLI sessions export/import', () => {
       expect(status).toBe(0);
       expect(fs.existsSync(outFile)).toBe(true);
       const data = JSON.parse(fs.readFileSync(outFile, 'utf8')) as { version: number; sessions: unknown[] };
-      expect(data.version).toBe(1);
+      expect(data.version).toBe(2);
     } finally {
       try {
         fs.unlinkSync(outFile);

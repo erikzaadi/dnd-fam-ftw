@@ -35,7 +35,7 @@ _dnd_supports_json() {
 _dnd_flags() {
   case "$1/$2" in
     sessions/export)  echo "--session= --namespace= --output=" ;;
-    sessions/import)  echo "--namespace-id=" ;;
+    sessions/import)  echo "--namespace-id= --allow-drop" ;;
     metrics/)           echo "--since=" ;;
     metrics/usage)     echo "--since= --namespace= --by-owner --owner-user-id=" ;;
     metrics/narration) echo "--format= --csv --failed-only --namespace= --session= --since=" ;;
