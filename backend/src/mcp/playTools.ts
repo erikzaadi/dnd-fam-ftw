@@ -7,11 +7,10 @@ import { getActionPreview } from '../services/actionPreviewStore.js';
 import { previewAction, type ActionPreviewOutcome, type ActionPreviewRequest } from '../services/actionPreviewService.js';
 import { RealmOriginStoryService } from '../services/realmOriginStoryService.js';
 import { askDm } from '../services/askDmService.js';
-import { acceptSessionOperation, describeAcceptance, type AcceptanceOutcome } from '../services/sessionOperationService.js';
+import { describeAcceptance, type AcceptanceOutcome } from '../services/sessionOperationService.js';
 import { toPublicTurn } from '../services/sessionProjection.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
-import { runAcceptedTurnAction } from '../services/turnSubmissionService.js';
-import { validateTurnActionRequest, type TurnActionRequest } from '../services/turnService.js';
+import { isAcceptanceResult, submitTurnCommand } from '../services/turnCommand.js';
 import type { OperationAcceptedResponse, SessionState, TurnResult } from '../types.js';
 import { admitPaidCall } from './admission.js';
 import { isAutoConfirmEligible } from './autoConfirm.js';
@@ -249,58 +248,53 @@ export const registerPlayTools = (server: McpServer, principal: McpPrincipal, di
       return toolError(NOT_FOUND_MESSAGE);
     }
     // The dedup key is the preview itself: the same request id resolves the original
-    // operation even after the preview expired or the story moved on.
-    const payload = { mcpPreviewId: previewId, principal: principalKey(principal) };
-    if (operationRepository.getByRequestId(adventureId, requestId)) {
-      const replay = describeAcceptance(acceptSessionOperation({ sessionId: adventureId, namespaceId: principal.namespaceId, kind: 'action', requestId, payload }));
-      return operationToolResult(replay, principal, 'confirm_action', startedAt, adventureId);
-    }
-    const preview = getActionPreview(previewId);
-    if (!preview || preview.sessionId !== adventureId || preview.principal !== principalKey(principal)) {
-      audit(principal, 'confirm_action', startedAt, 'unknown_preview', adventureId);
-      return toolError('That preview is unknown or expired. Preview the player\'s action again.', 'stale_preview');
-    }
-    if ((session.revision ?? 0) !== expectedRevision || preview.revision !== expectedRevision) {
-      audit(principal, 'confirm_action', startedAt, 'stale_revision', adventureId);
-      return toolError(STALE_REVISION_MESSAGE, 'stale_revision');
-    }
-    const request: TurnActionRequest = { action: preview.originalAction, statUsed: preview.stat, previewId };
-    const rejection = validateTurnActionRequest(session, principal.namespaceId, request);
-    if (rejection) {
-      const code = String(rejection.body.error ?? 'rejected');
-      audit(principal, 'confirm_action', startedAt, code, adventureId);
-      return toolError(String(rejection.body.message ?? 'This action cannot be taken right now.'), code);
-    }
-    if (undoWindow) {
-      // Sending without asking is only for previews the server marked eligible; the
-      // player can still stop it by interrupting this call during the window.
-      if (!isAutoConfirmEligible(principal, adventureId, preview, false)) {
-        audit(principal, 'confirm_action', startedAt, 'needs_player_ok', adventureId);
-        return toolError('This preview needs the player\'s OK before it is sent. Show it and ask them.', 'needs_player_ok');
-      }
-      const stopped = await waitUnlessStopped(undoWindowMs, [disconnected, extra.signal]);
-      if (stopped) {
-        audit(principal, 'confirm_action', startedAt, 'undone', adventureId);
-        return toolError('Stopped: the action was not sent.', 'undone');
-      }
-    }
-    const admission = admitPaidCall(principal);
-    if (!admission.ok) {
-      audit(principal, 'confirm_action', startedAt, admission.code, adventureId);
-      return toolError(admission.message, admission.code);
-    }
-    const outcome = describeAcceptance(acceptSessionOperation({
-      sessionId: adventureId,
-      namespaceId: principal.namespaceId,
-      kind: 'action',
+    // operation even after the preview expired or the story moved on (the turn command
+    // replays before it prepares anything).
+    type Stop = { audit: string; code: string; message: string };
+    let preview: ReturnType<typeof getActionPreview> = null;
+    let cancelled: Stop = { audit: 'undone', code: 'undone', message: 'Stopped: the action was not sent.' };
+    const result = await submitTurnCommand<Stop, Stop>({
+      adventureId,
+      realmId: principal.namespaceId,
       requestId,
+      idempotencyPayload: { mcpPreviewId: previewId, principal: principalKey(principal) },
       expectedRevision,
-      payload,
-    }));
-    if (outcome.operation) {
-      runAcceptedTurnAction(outcome.operation, adventureId, principal.namespaceId, request);
+      session,
+      prepareNewWork: () => {
+        preview = getActionPreview(previewId);
+        if (!preview || preview.sessionId !== adventureId || preview.principal !== principalKey(principal)) {
+          return { ok: false, reason: { audit: 'unknown_preview', code: 'stale_preview', message: 'That preview is unknown or expired. Preview the player\'s action again.' } };
+        }
+        if ((session.revision ?? 0) !== expectedRevision || preview.revision !== expectedRevision) {
+          return { ok: false, reason: { audit: 'stale_revision', code: 'stale_revision', message: STALE_REVISION_MESSAGE } };
+        }
+        return { ok: true, request: { action: preview.originalAction, statUsed: preview.stat, previewId } };
+      },
+      ...(undoWindow && {
+        // Sending without asking is only for previews the server marked eligible; the
+        // player can still stop it by interrupting this call during the window.
+        beforeAdmit: async () => {
+          if (!preview || !isAutoConfirmEligible(principal, adventureId, preview, false)) {
+            cancelled = { audit: 'needs_player_ok', code: 'needs_player_ok', message: 'This preview needs the player\'s OK before it is sent. Show it and ask them.' };
+            return 'cancelled' as const;
+          }
+          return await waitUnlessStopped(undoWindowMs, [disconnected, extra.signal]) ? 'cancelled' as const : 'continue' as const;
+        },
+      }),
+      admit: () => {
+        const admission = admitPaidCall(principal);
+        return admission.ok ? { ok: true } : { ok: false, refusal: { audit: admission.code, code: admission.code, message: admission.message } };
+      },
+    });
+    if (isAcceptanceResult(result)) {
+      return operationToolResult(describeAcceptance(result), principal, 'confirm_action', startedAt, adventureId);
     }
-    return operationToolResult(outcome, principal, 'confirm_action', startedAt, adventureId);
+    const stop = result.type === 'not_ready' ? result.reason
+      : result.type === 'refused' ? result.refusal
+        : result.type === 'cancelled' ? cancelled
+          : { audit: String(result.rejection.body.error ?? 'rejected'), code: String(result.rejection.body.error ?? 'rejected'), message: String(result.rejection.body.message ?? 'This action cannot be taken right now.') };
+    audit(principal, 'confirm_action', startedAt, stop.audit, adventureId);
+    return toolError(stop.message, stop.code);
   });
 
   server.registerTool('get_operation', {
