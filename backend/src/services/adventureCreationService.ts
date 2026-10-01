@@ -13,7 +13,7 @@ import { generateSessionDisplayName } from './sessionNameService.js';
 import { StateService } from './stateService.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
-import { checkAdventureCap } from './paidWorkAdmission.js';
+import { checkAdventureCap, refusalStatus } from './paidWorkAdmission.js';
 
 // Durable adventure creation for clients without the website's setup screens (MCP
 // create_adventure). The command is recorded before any generation and advances through
@@ -169,7 +169,7 @@ export const createAdventure = async (params: {
     }
     const admission = params.admit();
     if (!admission.ok) {
-      return fail(429, admission.code, admission.message);
+      return fail(refusalStatus(admission.code), admission.code, admission.message);
     }
     const now = params.now ?? Date.now();
     const reserved = adventureCreateCommandRepository.reserve({

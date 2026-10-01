@@ -17,6 +17,7 @@ export const admitPaidCall = (principal: McpPrincipal, now: number = Date.now())
   if (ceiling === 0) {
     return { ok: false, code: 'paid_tools_disabled', message: 'Playing through an assistant is paused on this server right now. Reading adventures still works.' };
   }
+  // An ownerless realm is refused here, before the grant counter, so it uses up no attempt.
   const admission = admitPaidWork('assistant', { namespaceId: principal.namespaceId, attribution: getUsageContext()?.attribution }, new Date(now));
   if (!admission.ok) {
     return { ok: false, code: admission.refusal.error, message: admission.refusal.message };

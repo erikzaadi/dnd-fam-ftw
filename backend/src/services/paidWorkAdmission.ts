@@ -28,8 +28,8 @@ const POLICY = {
   website: ['owner', 'text'],
   // Read-aloud: no early owner refusal (the backstop refuses).
   tts: ['text'],
-  // Assistant (MCP) tools: no early owner refusal (the backstop refuses).
-  assistant: ['text'],
+  // Assistant (MCP) tools. The per-grant counter runs after these (mcp/admission.ts).
+  assistant: ['owner', 'text'],
 } as const satisfies Record<string, readonly PaidWorkCheck[]>;
 
 export type PaidWorkKind = keyof typeof POLICY;
@@ -58,9 +58,19 @@ export const admitPaidWork = (kind: PaidWorkKind, realm: PaidWorkRealm, now: Dat
   return { ok: true };
 };
 
+// One status per refusal code, for the website and assistant adventure creation alike.
+const REFUSAL_STATUS: Record<string, number> = {
+  limit_reached: 429,
+  token_daily_limit: 429,
+  session_limit: 403,
+  realm_owner_missing: 503,
+  paid_tools_disabled: 503,
+};
+
+export const refusalStatus = (code: string): number => REFUSAL_STATUS[code] ?? 429;
+
 // HTTP status for a refusal.
-export const paidWorkRefusalStatus = (refusal: PaidWorkRefusal): number =>
-  refusal.error === 'realm_owner_missing' ? 503 : 429;
+export const paidWorkRefusalStatus = (refusal: PaidWorkRefusal): number => refusalStatus(refusal.error);
 
 export type AdventureCapRefusal = { error: 'session_limit'; limit: number; message: string };
 

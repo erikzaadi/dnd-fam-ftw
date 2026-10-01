@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getDb, initializeDatabase } from '../persistence/database.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { usageRepository } from '../repositories/usageRepository.js';
-import { admitPaidWork, checkAdventureCap, paidWorkRefusalStatus } from './paidWorkAdmission.js';
+import { admitPaidWork, checkAdventureCap, paidWorkRefusalStatus, refusalStatus } from './paidWorkAdmission.js';
 import { getTierLimits } from './usageLimitService.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-paid-work-test-${Date.now()}.sqlite`);
@@ -43,9 +43,16 @@ describe('admitPaidWork', () => {
     expect(!admission.ok && paidWorkRefusalStatus(admission.refusal)).toBe(503);
   });
 
-  it('leaves an ownerless realm to the backstop for read-aloud and assistant tools', () => {
+  it('leaves an ownerless realm to the backstop for read-aloud', () => {
     expect(admitPaidWork('tts', { namespaceId: 'ns-fresh', attribution: 'unresolved' })).toEqual({ ok: true });
-    expect(admitPaidWork('assistant', { namespaceId: 'ns-fresh', attribution: 'unresolved' })).toEqual({ ok: true });
+  });
+
+  it('refuses an ownerless realm up front for assistant tools', () => {
+    expect(admitPaidWork('assistant', { namespaceId: 'ns-fresh', attribution: 'unresolved' })).toMatchObject({ ok: false, refusal: { error: 'realm_owner_missing' } });
+  });
+
+  it('maps every refusal code to one status', () => {
+    expect(['limit_reached', 'token_daily_limit', 'session_limit', 'realm_owner_missing', 'paid_tools_disabled'].map(refusalStatus)).toEqual([429, 429, 403, 503, 503]);
   });
 });
 
