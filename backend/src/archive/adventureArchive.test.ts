@@ -37,13 +37,23 @@ const seed = (adventureId = ADVENTURE, pip = PIP, zara = ZARA) => {
     .run(`${adventureId}-riddle`, adventureId, first);
 };
 
+// libsql attaches query timing (_metadata) to result rows: compare columns only.
+const plain = (row: Row | undefined): Row | undefined => {
+  if (!row) {
+    return row;
+  }
+  const { _metadata: _timing, ...columns } = row;
+  return columns;
+};
+const all = (sql: string, id: string): Row[] => (db().prepare(sql).all(id) as Row[]).map(row => plain(row)!);
+
 const rowsFor = (adventureId: string) => ({
-  session: db().prepare('SELECT * FROM sessions WHERE id = ?').get(adventureId) as Row,
-  characters: db().prepare('SELECT * FROM characters WHERE sessionId = ? ORDER BY name').all(adventureId) as Row[],
-  inventory: db().prepare('SELECT i.* FROM inventory i JOIN characters c ON c.id = i.characterId WHERE c.sessionId = ?').all(adventureId) as Row[],
-  turns: db().prepare('SELECT * FROM turn_history WHERE sessionId = ? ORDER BY id').all(adventureId) as Row[],
-  choices: db().prepare('SELECT tc.* FROM turn_choices tc JOIN turn_history t ON t.id = tc.turnId WHERE t.sessionId = ?').all(adventureId) as Row[],
-  riddles: db().prepare('SELECT * FROM session_riddles WHERE session_id = ?').all(adventureId) as Row[],
+  session: plain(db().prepare('SELECT * FROM sessions WHERE id = ?').get(adventureId) as Row | undefined) as Row,
+  characters: all('SELECT * FROM characters WHERE sessionId = ? ORDER BY name', adventureId),
+  inventory: all('SELECT i.* FROM inventory i JOIN characters c ON c.id = i.characterId WHERE c.sessionId = ?', adventureId),
+  turns: all('SELECT * FROM turn_history WHERE sessionId = ? ORDER BY id', adventureId),
+  choices: all('SELECT tc.* FROM turn_choices tc JOIN turn_history t ON t.id = tc.turnId WHERE t.sessionId = ?', adventureId),
+  riddles: all('SELECT * FROM session_riddles WHERE session_id = ?', adventureId),
 });
 
 const without = (row: Row, ...keys: string[]): Row => Object.fromEntries(Object.entries(row).filter(([key]) => !keys.includes(key)));
