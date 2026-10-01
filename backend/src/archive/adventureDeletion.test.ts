@@ -118,4 +118,21 @@ describe('deleteAdventure', () => {
     expect(storage.deleteImage).not.toHaveBeenCalled();
     expect(count('SELECT COUNT(*) AS n FROM sessions WHERE id = ?', id)).toBe(1);
   });
+
+  // Behaviour change (plan 3 decision 8). Before: a failed delete of an image stored
+  // before storage keys threw and stopped the deletion. After: logged, deletion goes on.
+  it('logs a failed legacy image delete and still deletes the adventure', async () => {
+    const id = seed();
+    getDb().prepare('UPDATE characters SET avatar_storage_key = NULL, avatar_storage_provider = NULL WHERE sessionId = ?').run(id);
+    const legacyImageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dnd-legacy-'));
+    // A directory where the file should be: unlink fails.
+    fs.mkdirSync(path.join(legacyImageDir, `pip-${id}.png`));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await deleteAdventure(id, { storage: fakeStorage(), legacyImageDir });
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('legacy image'), expect.anything());
+    expect(count('SELECT COUNT(*) AS n FROM sessions WHERE id = ?', id)).toBe(0);
+    fs.rmSync(legacyImageDir, { recursive: true, force: true });
+  });
 });

@@ -150,10 +150,15 @@ export const deleteAdventure = async (adventureId: string, deps: DeleteAdventure
       }
     } else if (!ref.byUrl) {
       // Images stored before storage keys were tracked: delete from the local folder.
+      // A failure is logged and deletion continues, as for keyed images.
       const localPath = path.join(legacyImageDir, path.basename(ref.url!));
-      if (fs.existsSync(localPath)) {
-        fs.unlinkSync(localPath);
-        report.imagesDeleted++;
+      try {
+        if (fs.existsSync(localPath)) {
+          fs.unlinkSync(localPath);
+          report.imagesDeleted++;
+        }
+      } catch (err) {
+        console.warn(`[AdventureDeletion] Failed to delete legacy image "${localPath}":`, err);
       }
     }
   }
