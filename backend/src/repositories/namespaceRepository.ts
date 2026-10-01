@@ -59,6 +59,13 @@ export const namespaceRepository = {
     return { namespaceId };
   },
 
+  // A realm row with a tier, for new accounts (realms/composition). Owner set separately.
+  insertNamespace(name: string, tier: string): { namespaceId: string } {
+    const namespaceId = createId();
+    getDb().prepare('INSERT INTO namespaces (id, name, tier) VALUES (?, ?, ?)').run(namespaceId, name, tier);
+    return { namespaceId };
+  },
+
   renameNamespace(id: string, newName: string): boolean {
     const db = getDb();
     const result = db.prepare('UPDATE namespaces SET name = ? WHERE id = ?').run(newName, id);
@@ -121,6 +128,43 @@ export const namespaceRepository = {
 
   setOwnerUserId(namespaceId: string, userId: string): boolean {
     return getDb().prepare('UPDATE namespaces SET owner_user_id = ? WHERE id = ?').run(userId, namespaceId).changes > 0;
+  },
+
+  // Sets the owner only when there is none yet. Rules about who may claim live in realms/.
+  setOwnerIfNone(namespaceId: string, userId: string): boolean {
+    return getDb().prepare('UPDATE namespaces SET owner_user_id = ? WHERE id = ? AND owner_user_id IS NULL').run(userId, namespaceId).changes > 0;
+  },
+
+  countMembers(namespaceId: string): number {
+    return (getDb().prepare('SELECT COUNT(*) AS count FROM user_namespaces WHERE namespace_id = ?').get(namespaceId) as { count: number }).count;
+  },
+
+  countSessions(namespaceId: string): number {
+    return (getDb().prepare('SELECT COUNT(*) AS count FROM sessions WHERE namespace_id = ?').get(namespaceId) as { count: number }).count;
+  },
+
+  // Users whose primary pointer names this realm, members or not.
+  listPrimaryReferences(namespaceId: string): { id: string; email: string }[] {
+    return getDb().prepare('SELECT id, email FROM users WHERE namespace_id = ?').all(namespaceId) as { id: string; email: string }[];
+  },
+
+  // Deletes the realm row and the rows that belong to it. Plain deletes: the caller
+  // (realms/) has already checked safety and moved primary pointers elsewhere.
+  // provider_usage keeps its rows (no FK); the legacy tts_usage rows go with the realm.
+  deleteRealmRows(namespaceId: string): void {
+    const db = getDb();
+    db.prepare('DELETE FROM user_namespaces WHERE namespace_id = ?').run(namespaceId);
+    db.prepare('DELETE FROM namespace_settings WHERE namespace_id = ?').run(namespaceId);
+    db.prepare('DELETE FROM tts_usage WHERE namespace_id = ?').run(namespaceId);
+    db.prepare('DELETE FROM access_tokens WHERE namespace_id = ?').run(namespaceId);
+    db.prepare('DELETE FROM oauth_tokens WHERE grant_id IN (SELECT id FROM oauth_grants WHERE namespace_id = ?)').run(namespaceId);
+    db.prepare('DELETE FROM oauth_grants WHERE namespace_id = ?').run(namespaceId);
+    db.prepare('DELETE FROM oauth_codes WHERE namespace_id = ?').run(namespaceId);
+    db.prepare('DELETE FROM namespaces WHERE id = ?').run(namespaceId);
+  },
+
+  clearOwner(namespaceId: string): void {
+    getDb().prepare('UPDATE namespaces SET owner_user_id = NULL WHERE id = ?').run(namespaceId);
   },
 
   // Namespace ids this user owns.

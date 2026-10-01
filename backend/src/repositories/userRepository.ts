@@ -281,6 +281,26 @@ export const userRepository = {
     return rows.map(row => ({ id: row.id, email: row.email, access: fromMcpAccessValue(row.mcp_access) }));
   },
 
+  // Plain membership and primary-pointer writes for realms/: no ownership side effects.
+  insertMembership(userId: string, namespaceId: string): boolean {
+    return getDb().prepare('INSERT OR IGNORE INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(userId, namespaceId).changes > 0;
+  },
+
+  setPrimaryPointer(userId: string, namespaceId: string): void {
+    getDb().prepare('UPDATE users SET namespace_id = ? WHERE id = ?').run(namespaceId, userId);
+  },
+
+  // Memberships of one user, oldest realm first.
+  listNamespacesForUser(userId: string): { id: string; name: string }[] {
+    return getDb().prepare(`
+      SELECT n.id, n.name
+      FROM namespaces n
+      JOIN user_namespaces un ON un.namespace_id = n.id
+      WHERE un.user_id = ?
+      ORDER BY n.created_at
+    `).all(userId) as { id: string; name: string }[];
+  },
+
   removeUserFromNamespace(userId: string, namespaceId: string): boolean {
     const result = getDb().prepare('DELETE FROM user_namespaces WHERE user_id = ? AND namespace_id = ?').run(userId, namespaceId);
     return result.changes > 0;
