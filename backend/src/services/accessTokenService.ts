@@ -7,6 +7,7 @@ import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { getNamespaceTier } from './usageLimitService.js';
 import { ACCESS_TOKEN_SCOPE_VALUES, type AccessTokenScope, type AccessTokenSummary } from '../types.js';
+import { realmAccess } from '../realms/access.js';
 
 // Personal access tokens for the MCP endpoint. The secret is 256 random bits, shown
 // once; only its SHA-256 digest is stored. A token is valid only while it is unexpired,
@@ -102,7 +103,7 @@ export const accessTokenService = {
     if (!isMcpEligible(input.userId, input.namespaceId, now)) {
       return { ok: false, error: 'not_eligible' };
     }
-    if (!userRepository.isNamespaceMember(input.userId, input.namespaceId)) {
+    if (!realmAccess.isMember(input.userId, input.namespaceId)) {
       return { ok: false, error: 'not_member' };
     }
     return withTransaction((): CreateTokenResult => {
@@ -121,7 +122,7 @@ export const accessTokenService = {
       if (!old || old.revoked_at !== null || old.expires_at <= now) {
         return { ok: false, error: 'not_found' };
       }
-      if (!userRepository.isNamespaceMember(userId, old.namespace_id)) {
+      if (!realmAccess.isMember(userId, old.namespace_id)) {
         return { ok: false, error: 'not_member' };
       }
       if (!isMcpEligible(userId, old.namespace_id, now)) {
@@ -148,7 +149,7 @@ export const accessTokenService = {
       return null;
     }
     const user = userRepository.getUserById(row.user_id);
-    if (!user || !isMcpEligible(user.id, row.namespace_id, now) || !userRepository.isNamespaceMember(user.id, row.namespace_id)) {
+    if (!user || !isMcpEligible(user.id, row.namespace_id, now) || !realmAccess.isMember(user.id, row.namespace_id)) {
       return null;
     }
     accessTokenRepository.touch(row.id, now);

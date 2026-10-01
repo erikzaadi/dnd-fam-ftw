@@ -10,6 +10,7 @@ import { sessionRepository } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { usageRepository } from '../repositories/usageRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
+import { realmAccess } from '../realms/access.js';
 import type { SessionState } from '../types.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-test-${Date.now()}.sqlite`);
@@ -377,11 +378,12 @@ describe('StateService - User / Namespace management', () => {
     StateService.createUser('second-realm-owner@example.com');
     expect(StateService.addUserToNamespace('second-realm-owner@example.com', secondNs).ok).toBe(true);
     expect(StateService.addUserToNamespace('multi-ns@example.com', secondNs).ok).toBe(true);
-    const nsIds = StateService.getUserNamespaces('multi-ns@example.com').map(n => n.id);
+    const realmsOf = (email: string) => realmAccess.realmsFor(userRepository.getUserByEmail(email)!.id);
+    const nsIds = realmsOf('multi-ns@example.com').map(n => n.id);
     expect(nsIds).toContain(primaryNs);
     expect(nsIds).toContain(secondNs);
     expect(StateService.removeUserFromNamespace('multi-ns@example.com', secondNs).ok).toBe(true);
-    expect(StateService.getUserNamespaces('multi-ns@example.com').some(n => n.id === secondNs)).toBe(false);
+    expect(realmsOf('multi-ns@example.com').some(n => n.id === secondNs)).toBe(false);
   });
 
   it('removeUserFromNamespace rejects the owner', () => {
@@ -397,7 +399,7 @@ describe('StateService - User / Namespace management', () => {
     StateService.addUserToNamespace('switch-ns@example.com', newPrimaryNs);
     expect(StateService.setPrimaryNamespace('switch-ns@example.com', newPrimaryNs).ok).toBe(true);
     expect(userRepository.getUserByEmail('switch-ns@example.com')!.namespace_id).toBe(newPrimaryNs);
-    expect(StateService.getUserNamespaces('switch-ns@example.com').some(n => n.id === primaryNs)).toBe(true);
+    expect(realmAccess.realmsFor(userRepository.getUserByEmail('switch-ns@example.com')!.id).some(n => n.id === primaryNs)).toBe(true);
   });
 });
 

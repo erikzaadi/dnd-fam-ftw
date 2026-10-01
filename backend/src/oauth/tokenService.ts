@@ -10,6 +10,7 @@ import type { AccessTokenScope, OAuthGrantSummary } from '../types.js';
 import { parseScopeParam } from './authorizationService.js';
 import { digestSecret, newSecret, verifyPkce } from './secrets.js';
 import { mcpResource, resolveResource } from './urls.js';
+import { realmAccess } from '../realms/access.js';
 
 // Token endpoint logic for MCP OAuth: authorization code exchange, refresh rotation,
 // and revocation (RFC 6749, 7636, 7009, 8707).
@@ -51,7 +52,7 @@ const revokeGrantNow = (grantId: string | null, now: number, reason: string): vo
 
 const stillAllowed = (grant: Pick<OAuthGrantRow, 'user_id' | 'namespace_id'>, now: number): boolean =>
   !!userRepository.getUserById(grant.user_id)
-  && userRepository.isNamespaceMember(grant.user_id, grant.namespace_id)
+  && realmAccess.isMember(grant.user_id, grant.namespace_id)
   && isMcpEligible(grant.user_id, grant.namespace_id, now);
 
 const issuePair = (grant: Pick<OAuthGrantRow, 'id' | 'expires_at'>, scopes: string, now: number): OAuthTokenResponse => {

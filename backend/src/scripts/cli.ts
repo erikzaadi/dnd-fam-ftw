@@ -55,6 +55,7 @@ import { mcpAccessRequestRepository, type McpAccessRequestStatus } from '../repo
 import { applyProposedOwners, buildOwnershipReport, setNamespaceOwner } from '../services/namespaceOwnershipService.js';
 import { removeMember } from '../services/namespaceMembershipService.js';
 import { namespaceInviteRepository } from '../repositories/namespaceInviteRepository.js';
+import { realmAccess } from '../realms/access.js';
 
 const [, , resource, subcommand, ...rest] = process.argv;
 const allArgs = [subcommand, ...rest].filter(Boolean);
@@ -214,7 +215,7 @@ case 'users': {
       }
     }
     console.log(`MCP access override for ${user.email}: ${userRepository.getMcpAccess(user.id)}`);
-    for (const ns of userRepository.getUserNamespaces(user.email)) {
+    for (const ns of realmAccess.realmsFor(user.id)) {
       const tier = getNamespaceTier(ns.id);
       console.log(`  ${ns.name.padEnd(30)} ${tier.padEnd(10)} ${isMcpEligible(user.id, ns.id) ? 'can use MCP' : 'no MCP'}`);
     }

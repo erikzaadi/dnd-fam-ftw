@@ -1,6 +1,5 @@
 import type { UsageContext } from '../lib/usageContext.js';
-import { namespaceRepository } from '../repositories/namespaceRepository.js';
-import { userRepository } from '../repositories/userRepository.js';
+import { realmAccess } from '../realms/access.js';
 import { LOCAL_NAMESPACE_ID } from './namespaceOwnershipService.js';
 
 // The one place a usage context is built for a real namespace, so browser requests,
@@ -11,9 +10,9 @@ export function createUsageContext(namespaceId: string, userId: string | null): 
   if (namespaceId === LOCAL_NAMESPACE_ID) {
     return { namespaceId, userId, ownerUserId: null, attribution: 'system' };
   }
-  const ownerUserId = namespaceRepository.getOwnerUserId(namespaceId);
-  if (!ownerUserId || !userRepository.isNamespaceMember(ownerUserId, namespaceId)) {
+  const owner = realmAccess.ownerOf(namespaceId);
+  if (!owner) {
     return { namespaceId, userId, ownerUserId: null, attribution: 'unresolved' };
   }
-  return { namespaceId, userId, ownerUserId, attribution: 'verified' };
+  return { namespaceId, userId, ownerUserId: owner.userId, attribution: 'verified' };
 }

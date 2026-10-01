@@ -6,6 +6,7 @@ import { runWithUsageContext } from '../lib/usageContext.js';
 import { createUsageContext } from '../services/usageAttribution.js';
 import { setFullAuthCookie } from '../routes/authCookies.js';
 import type { NamespaceAccessLostResponse, NamespaceChangedResponse } from '../types.js';
+import { realmAccess } from '../realms/access.js';
 
 // Sliding session: an active player whose login has less than this left gets a fresh
 // 30-day cookie, so only people who stop playing have to sign in again.
@@ -128,7 +129,7 @@ function resolveFullIdentity(req: Request, res: Response): FullIdentity | null {
 }
 
 function isMember(identity: FullIdentity): boolean {
-  return userRepository.getUserNamespaces(identity.email).some(namespace => namespace.id === identity.namespaceId);
+  return realmAccess.isMember(identity.userId, identity.namespaceId);
 }
 
 function refreshFullCookie(res: Response, identity: FullIdentity): void {

@@ -5,6 +5,7 @@ import { inviteRequestRepository } from '../repositories/inviteRequestRepository
 import { userRepository } from '../repositories/userRepository.js';
 import { enqueueSignupNotice } from './emailService.js';
 import { isSignupPaused, startOfUtcDay } from './usageLimitService.js';
+import { realmAccess } from '../realms/access.js';
 
 export type SignInMethod = 'email' | 'google';
 
@@ -40,7 +41,7 @@ export function canCreateAccounts(now: Date = new Date()): boolean {
 export function resolveVerifiedSignIn(email: string, method: SignInMethod, now: Date = new Date()): SignInOutcome {
   const existing = userRepository.getUserByEmail(email);
   if (existing) {
-    const namespaces = userRepository.getUserNamespaces(existing.email);
+    const namespaces = realmAccess.realmsFor(existing.id);
     // Membership is the only source of access: with none left, the realm picker shows
     // the no-access screen instead of falling back to the primary pointer.
     if (namespaces.length !== 1) {

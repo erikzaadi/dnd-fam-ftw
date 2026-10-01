@@ -34,6 +34,7 @@ import type {
 } from '../types.js';
 import { parseBody } from './routeValidation.js';
 import { requireBrowserJsonPost } from './browserPost.js';
+import { realmAccess } from '../realms/access.js';
 
 interface AuthRoutesOptions {
   isProduction: boolean;
@@ -258,7 +259,8 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
   });
   
   router.get('/auth/namespaces', requirePendingNamespaceToken, (req, res) => {
-    const namespaces = StateService.getUserNamespaces(req.pendingPayload!.email);
+    const user = userRepository.getUserByEmail(req.pendingPayload!.email);
+    const namespaces = user ? realmAccess.realmsFor(user.id) : [];
     res.json({ namespaces });
   });
   
@@ -269,8 +271,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
     }
     const { namespaceId } = body;
     const user = userRepository.getUserByEmail(req.pendingPayload!.email);
-    const namespaces = StateService.getUserNamespaces(req.pendingPayload!.email);
-    if (!user || !namespaces.some(n => n.id === namespaceId)) {
+    if (!user || !realmAccess.isMember(user.id, namespaceId)) {
       res.status(403).json({ error: 'Namespace access denied' });
       return;
     }
@@ -284,7 +285,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
   // user removed from their active realm can still list and pick another membership.
   router.get('/auth/session/namespaces', requireFullIdentity, (req, res) => {
     const identity = req.fullIdentity!;
-    const namespaces = StateService.getUserNamespaces(identity.email)
+    const namespaces = realmAccess.realmsFor(identity.userId)
       .map(namespace => ({ ...namespace, isOwner: isNamespaceOwner(identity.userId, namespace.id) }));
     const currentNamespaceId = namespaces.some(n => n.id === identity.namespaceId) ? identity.namespaceId : null;
     const body: SessionNamespacesResponse = {
@@ -302,7 +303,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
     }
     const identity = req.fullIdentity!;
     // Fresh membership lookup: the target must be a membership right now.
-    if (!StateService.getUserNamespaces(identity.email).some(n => n.id === body.namespaceId)) {
+    if (!realmAccess.isMember(identity.userId, body.namespaceId)) {
       res.status(403).json({ error: 'Namespace access denied' });
       return;
     }

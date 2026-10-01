@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { isAuthEnabled } from '../config/env.js';
+import { realmAccess } from '../realms/access.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { authMiddleware, requireFullIdentity } from './auth.js';
 
@@ -19,9 +20,14 @@ vi.mock('../repositories/userRepository.js', () => ({
     getUserByEmail: vi.fn(),
     getUserById: vi.fn(),
     getUserCreatedAt: vi.fn(),
-    getUserNamespaces: vi.fn(),
   },
 }));
+
+vi.mock('../realms/access.js', () => ({
+  realmAccess: { isMember: vi.fn() },
+}));
+
+let memberships = new Set<string>();
 
 const fullPayload = { type: 'full', email: 'hero@example.com', namespaceId: 'ns-primary' };
 const sign = (payload: object) => jwt.sign(payload, 'middleware-auth-test-secret');
@@ -57,10 +63,8 @@ beforeEach(() => {
   vi.mocked(userRepository.getUserById).mockReturnValue({
     id: 'user-1', email: fullPayload.email, namespace_id: 'ns-primary', role: 'member', created_at: '2020-01-01 00:00:00',
   });
-  vi.mocked(userRepository.getUserNamespaces).mockReturnValue([
-    { id: 'ns-primary', name: 'Primary' },
-    { id: 'ns-shared', name: 'Shared' },
-  ]);
+  memberships = new Set(['ns-primary', 'ns-shared']);
+  vi.mocked(realmAccess.isMember).mockImplementation((userId, realmId) => userId === 'user-1' && memberships.has(realmId));
 });
 
 describe('authMiddleware', () => {
@@ -109,7 +113,7 @@ describe('authMiddleware', () => {
   it('rejects a previously working token after namespace membership is removed', () => {
     const token = sign(fullPayload);
     expect(authenticate(token).next).toHaveBeenCalledOnce();
-    vi.mocked(userRepository.getUserNamespaces).mockReturnValue([{ id: 'ns-shared', name: 'Shared' }]);
+    memberships = new Set(['ns-shared']);
     // The primary-namespace column alone is not evidence of current membership.
     expectRejected(authenticate(token));
   });
@@ -125,7 +129,7 @@ describe('authMiddleware', () => {
     expect(result.req.namespaceId).toBe(namespaceId);
     expect(result.req.userEmail).toBe(fullPayload.email);
     expect(userRepository.getUserByEmail).toHaveBeenCalledWith(fullPayload.email);
-    expect(userRepository.getUserNamespaces).toHaveBeenCalledWith(fullPayload.email);
+    expect(realmAccess.isMember).toHaveBeenCalledWith('user-1', namespaceId);
   });
 
   it('allows a full session bound to the current user id', () => {
@@ -177,11 +181,11 @@ describe('authMiddleware', () => {
     expect(result.req.namespaceId).toBe('local');
     expect(result.req.userEmail).toBeNull();
     expect(userRepository.getUserByEmail).not.toHaveBeenCalled();
-    expect(userRepository.getUserNamespaces).not.toHaveBeenCalled();
+    expect(realmAccess.isMember).not.toHaveBeenCalled();
   });
 
   it('marks a lost membership so the client can recover without signing in again', () => {
-    vi.mocked(userRepository.getUserNamespaces).mockReturnValue([{ id: 'ns-shared', name: 'Shared' }]);
+    memberships = new Set(['ns-shared']);
     const result = authenticate(sign(fullPayload));
     expectRejected(result);
     expect(result.json).toHaveBeenCalledWith({ error: 'Invalid or expired session', code: 'namespace_access_lost' });
@@ -203,7 +207,7 @@ describe('authMiddleware', () => {
 
 describe('requireFullIdentity', () => {
   it('accepts a valid sign-in whose namespace membership was removed', () => {
-    vi.mocked(userRepository.getUserNamespaces).mockReturnValue([{ id: 'ns-shared', name: 'Shared' }]);
+    memberships = new Set(['ns-shared']);
     const result = authenticate(sign({ ...fullPayload, userId: 'user-1' }), {}, requireFullIdentity);
     expect(result.next).toHaveBeenCalledOnce();
     expect(result.req.fullIdentity).toMatchObject({ userId: 'user-1', email: fullPayload.email, namespaceId: 'ns-primary' });

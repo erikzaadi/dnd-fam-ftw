@@ -121,10 +121,6 @@ export class StateService {
 
   // --- Multi-namespace user access ---
 
-  public static getUserNamespaces(email: string): { id: string; name: string }[] {
-    return userRepository.getUserNamespaces(email);
-  }
-
   public static addUserToNamespace(email: string, namespaceId: string): { ok: boolean; reason?: string } {
     const user = userRepository.getUserByEmail(email);
     if (!user) {

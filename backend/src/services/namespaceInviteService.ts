@@ -18,6 +18,7 @@ import type {
 import { buildInvitationEmail, enqueueSignupNotice, getAppUrl } from './emailService.js';
 import { LOCAL_NAMESPACE_ID } from './namespaceOwnershipService.js';
 import { isSignupPaused, startOfUtcDay } from './usageLimitService.js';
+import { realmAccess } from '../realms/access.js';
 
 // Member invitations: an owner (or, when the owner allows it, any member) emails a
 // single-use link that adds the recipient to the realm as an ordinary member. The link
@@ -42,7 +43,7 @@ const isOwner = (userId: string, namespaceId: string) => namespaceRepository.get
 
 // Only the owner, or any member when the owner has turned member invitations on.
 export function canInvite(userId: string, namespaceId: string): boolean {
-  if (!isInvitesEnabled() || namespaceId === LOCAL_NAMESPACE_ID || !userRepository.isNamespaceMember(userId, namespaceId)) {
+  if (!isInvitesEnabled() || namespaceId === LOCAL_NAMESPACE_ID || !realmAccess.isMember(userId, namespaceId)) {
     return false;
   }
   return isOwner(userId, namespaceId) || namespaceRepository.getMemberInvitesEnabled(namespaceId);
@@ -50,8 +51,7 @@ export function canInvite(userId: string, namespaceId: string): boolean {
 
 // Paid work needs a valid owner; so do new members.
 function realmReady(namespaceId: string): boolean {
-  const ownerUserId = namespaceRepository.getOwnerUserId(namespaceId);
-  return !!ownerUserId && userRepository.isNamespaceMember(ownerUserId, namespaceId);
+  return realmAccess.ownerOf(namespaceId) !== null;
 }
 
 const toSummary = (row: NamespaceInviteRow, viewerUserId: string, now: number): InvitationSummary => ({
@@ -176,7 +176,7 @@ export async function createInvitation(inviterUserId: string, namespaceId: strin
   }
   // The inviter is a member, so telling them who else is a member reveals nothing new.
   const existingUser = userRepository.getUserByEmail(recipient);
-  if (existingUser && userRepository.isNamespaceMember(existingUser.id, namespaceId)) {
+  if (existingUser && realmAccess.isMember(existingUser.id, namespaceId)) {
     return failure('already_member', 'They are already in this realm.');
   }
   return issueInvitation(inviterUserId, namespaceId, recipient, now);
@@ -199,7 +199,7 @@ export async function resendInvitation(actorUserId: string, namespaceId: string,
 export function revokeInvitation(actorUserId: string, namespaceId: string, inviteId: string, now: number = Date.now()): { ok: true } | InviteFailure {
   const invite = namespaceInviteRepository.getById(inviteId);
   if (!invite || invite.namespace_id !== namespaceId || invite.status !== 'pending'
-    || !userRepository.isNamespaceMember(actorUserId, namespaceId)
+    || !realmAccess.isMember(actorUserId, namespaceId)
     || (invite.inviter_user_id !== actorUserId && !isOwner(actorUserId, namespaceId))) {
     return failure('not_found', 'That invitation is no longer pending.');
   }
@@ -208,7 +208,7 @@ export function revokeInvitation(actorUserId: string, namespaceId: string, invit
 }
 
 export function setMemberInvites(actorUserId: string, namespaceId: string, enabled: boolean): { ok: true } | InviteFailure {
-  if (!isOwner(actorUserId, namespaceId) || !userRepository.isNamespaceMember(actorUserId, namespaceId)) {
+  if (!isOwner(actorUserId, namespaceId) || !realmAccess.isMember(actorUserId, namespaceId)) {
     return failure('forbidden', 'Only the realm owner can change this.');
   }
   namespaceRepository.setMemberInvitesEnabled(namespaceId, enabled);
@@ -242,7 +242,7 @@ function lookupToken(token: unknown, now: number): TokenLookup {
   // Admission conditions that can change after sending: the realm still has a valid
   // owner, the inviter is still allowed to invite, and a bound account still exists.
   if (!realmReady(invite.namespace_id)
-    || !userRepository.isNamespaceMember(invite.inviter_user_id, invite.namespace_id)
+    || !realmAccess.isMember(invite.inviter_user_id, invite.namespace_id)
     || !(isOwner(invite.inviter_user_id, invite.namespace_id) || namespaceRepository.getMemberInvitesEnabled(invite.namespace_id))) {
     return { state: 'revoked', invite };
   }
@@ -278,7 +278,7 @@ export function inspectInvitation(token: unknown, signedInUserId: string | null,
     expiresAt: new Date(invite.expires_at).toISOString(),
     currentAccount: account,
     canOpenRealm: state === 'accepted' && account === 'recipient' && !!signedInUserId
-      && userRepository.isNamespaceMember(signedInUserId, invite.namespace_id),
+      && realmAccess.isMember(signedInUserId, invite.namespace_id),
   };
 }
 

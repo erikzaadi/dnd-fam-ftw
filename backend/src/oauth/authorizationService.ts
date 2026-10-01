@@ -8,6 +8,7 @@ import { oauthClientService, toOAuthClient } from './clientService.js';
 import { findRegisteredRedirectUri } from './redirectUris.js';
 import { CHALLENGE_PATTERN, digestSecret, newSecret } from './secrets.js';
 import { consentPageUrl, oauthIssuer, resolveResource } from './urls.js';
+import { realmAccess } from '../realms/access.js';
 
 // Authorization code flow for MCP clients. /oauth/authorize validates the request and
 // parks it as a pending request; the signed-in player approves or denies it on the
@@ -136,7 +137,7 @@ export const oauthAuthorizationService = {
         redirectHost: new URL(request.redirect_uri).host,
       },
       requestedScopes: request.scopes.split(' ') as AccessTokenScope[],
-      realms: userRepository.getUserNamespaces(user.email).map(realm => ({
+      realms: realmAccess.realmsFor(user.userId).map(realm => ({
         id: realm.id,
         name: realm.name,
         eligible: isMcpEligible(user.userId, realm.id, now),
@@ -167,7 +168,7 @@ export const oauthAuthorizationService = {
         }
         return { ok: true as const, redirectUrl: clientRedirect(request.redirect_uri, { error: 'access_denied', error_description: 'The player said no', state: request.state }) };
       }
-      if (!userRepository.isNamespaceMember(user.userId, decision.namespaceId) || !isMcpEligible(user.userId, decision.namespaceId, now)) {
+      if (!realmAccess.isMember(user.userId, decision.namespaceId) || !isMcpEligible(user.userId, decision.namespaceId, now)) {
         return { ok: false as const, status: 403, error: 'not_eligible' as const };
       }
       if (!oauthAuthorizationRepository.consumeRequest(digest, now)) {
