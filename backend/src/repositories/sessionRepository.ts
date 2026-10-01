@@ -123,6 +123,8 @@ export const sessionRepository = {
     adventureFormat: AdventureFormat = 'one_evening',
     // Overrides the policy implied by savingsMode (e.g. on_demand for MCP adventures).
     imagePolicy?: ImagePolicy,
+    // Runs in the insert transaction, after any naming work; may throw to refuse.
+    insertGuard?: () => void,
   ): Promise<SessionState> {
     const db = getDb();
     const id = initialId ?? createId();
@@ -131,8 +133,11 @@ export const sessionRepository = {
     const displayName = initialDisplayName ?? await generateSessionDisplayName(worldDescription);
     const arc = createInitialArc();
 
-    db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, turn, tone, displayName, difficulty, gameMode, useLocalAI, savingsMode, image_policy, namespace_id, adventure_format, adventure_status, adventure_arc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, "A New Realm", "start-1", worldDescription || null, dmPrep || null, null, 1, "thrilling adventure", displayName, difficulty, gameMode, 0, derivedSavingsMode ? 1 : 0, policy, namespaceId, adventureFormat, 'active', serializeArc(arc));
+    db.transaction(() => {
+      insertGuard?.();
+      db.prepare('INSERT INTO sessions (id, scene, sceneId, worldDescription, dm_prep, dm_prep_image_brief, turn, tone, displayName, difficulty, gameMode, useLocalAI, savingsMode, image_policy, namespace_id, adventure_format, adventure_status, adventure_arc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(id, "A New Realm", "start-1", worldDescription || null, dmPrep || null, null, 1, "thrilling adventure", displayName, difficulty, gameMode, 0, derivedSavingsMode ? 1 : 0, policy, namespaceId, adventureFormat, 'active', serializeArc(arc));
+    })();
 
     return {
       id,

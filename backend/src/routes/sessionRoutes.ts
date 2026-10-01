@@ -26,7 +26,8 @@ import { acceptSessionOperation, respondToAcceptance, runSessionOperation } from
 import { generateAndCommitInitialTurn } from '../services/initialTurnService.js';
 import { attachTurnImage } from '../services/turnSideEffectService.js';
 import { toPublicSession } from '../services/sessionProjection.js';
-import { checkAdventureCap } from '../services/paidWorkAdmission.js';
+import { AdventureCapReached, assertAdventureCap, checkAdventureCap, type AdventureCapRefusal } from '../services/paidWorkAdmission.js';
+import { getDb } from '../persistence/database.js';
 import { requirePaidWork } from '../middleware/usageAdmission.js';
 
 const createSessionBodySchema = z.object({
@@ -56,13 +57,17 @@ const regenerateDmPrepBodySchema = z.object({
 }).optional();
 
 // 403 with the cap refusal (without its limit field, as the route always answered).
+const sendAdventureCapRefusal = (res: Response, refusal: AdventureCapRefusal): void => {
+  res.status(403).json({ error: refusal.error, message: refusal.message });
+};
+
+// Early check, before any naming work. The insert checks again in its transaction.
 const refuseOverAdventureCap = (namespaceId: string, res: Response): boolean => {
   const refusal = checkAdventureCap(namespaceId);
-  if (!refusal) {
-    return false;
+  if (refusal) {
+    sendAdventureCapRefusal(res, refusal);
   }
-  res.status(403).json({ error: refusal.error, message: refusal.message });
-  return true;
+  return refusal !== null;
 };
 
 export const createSessionRouter = () => {
@@ -78,7 +83,19 @@ export const createSessionRouter = () => {
     if (refuseOverAdventureCap(req.namespaceId, res)) {
       return;
     }
-    const id = StateService.cloneOnboardingSession(req.namespaceId);
+    let id: string;
+    try {
+      id = getDb().transaction(() => {
+        assertAdventureCap(req.namespaceId);
+        return StateService.cloneOnboardingSession(req.namespaceId);
+      })();
+    } catch (err) {
+      if (err instanceof AdventureCapReached) {
+        sendAdventureCapRefusal(res, err.refusal);
+        return;
+      }
+      throw err;
+    }
     broadcastSessionChanged(req.namespaceId, id, 'created');
     res.json({ id });
   }));
@@ -94,16 +111,28 @@ export const createSessionRouter = () => {
     const seed = pickWorldSeed();
     const sessionId = createQuickStartId();
 
-    const session = await StateService.createSession(
-      seed.worldDescription,
-      'normal',
-      savingsMode,
-      req.namespaceId,
-      randomPace,
-      undefined,
-      seed.displayName,
-      sessionId,
-    );
+    let session;
+    try {
+      session = await StateService.createSession(
+        seed.worldDescription,
+        'normal',
+        savingsMode,
+        req.namespaceId,
+        randomPace,
+        undefined,
+        seed.displayName,
+        sessionId,
+        undefined,
+        undefined,
+        () => assertAdventureCap(req.namespaceId),
+      );
+    } catch (err) {
+      if (err instanceof AdventureCapReached) {
+        sendAdventureCapRefusal(res, err.refusal);
+        return;
+      }
+      throw err;
+    }
 
     session.party = buildInstantStartParty(session.id);
     session.activeCharacterId = session.party[0].id;
@@ -142,7 +171,7 @@ export const createSessionRouter = () => {
         return;
       }
       const savingsMode = !SettingsService.get(req.namespaceId).imagesEnabled;
-      const session = await StateService.createSession(worldDescription, difficulty, savingsMode, req.namespaceId, gameMode, dmPrep || undefined, undefined, undefined, adventureFormat);
+      const session = await StateService.createSession(worldDescription, difficulty, savingsMode, req.namespaceId, gameMode, dmPrep || undefined, undefined, undefined, adventureFormat, undefined, () => assertAdventureCap(req.namespaceId));
       broadcastSessionChanged(req.namespaceId, session.id, 'created');
       if (dmPrep) {
         refreshDmPrepImageBriefAndPreview(session.id, dmPrep, req.namespaceId);
@@ -166,6 +195,10 @@ export const createSessionRouter = () => {
       }
       res.json(session);
     } catch (error: unknown) {
+      if (error instanceof AdventureCapReached) {
+        sendAdventureCapRefusal(res, error.refusal);
+        return;
+      }
       if (sendRateLimitResponse(res, error)) {
         return;
       }

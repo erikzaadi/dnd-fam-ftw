@@ -9,7 +9,9 @@ import { generateAndCommitInitialTurn } from './initialTurnService.js';
 import { buildDescribedHero, createAdventure, retryOpening } from './adventureCreationService.js';
 import { StateService } from './stateService.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
-import { initializeDatabase } from '../persistence/database.js';
+import { getDb, initializeDatabase } from '../persistence/database.js';
+import { namespaceRepository } from '../repositories/namespaceRepository.js';
+import { generateSessionDisplayName } from './sessionNameService.js';
 
 vi.mock('./sessionNameService.js', () => ({ generateSessionDisplayName: vi.fn(async () => 'Troll Bridge') }));
 vi.mock('./instantStartService.js', async importOriginal => ({
@@ -145,3 +147,61 @@ describe('buildDescribedHero', () => {
     expect(unknown.max_hp).toBe(10);
   });
 });
+
+// Plan 4 B3: the cap is checked again inside the insert transaction.
+describe('createAdventure and the adventure cap', () => {
+  const CAPPED = 'ns-capped';
+  const createIn = (requestId: string) => createAdventure({
+    ownerKey: 'user:u2',
+    namespaceId: CAPPED,
+    requestId,
+    input: { premise: 'A capped realm', heroes: 'auto', partySize: 1, format: 'one_evening' },
+    admit,
+  });
+  const adventuresInRealm = () => (getDb().prepare('SELECT COUNT(*) AS n FROM sessions WHERE namespace_id = ?').get(CAPPED) as { n: number }).n;
+
+  beforeAll(() => {
+    getDb().prepare("INSERT INTO namespaces (id, name, tier) VALUES (?, 'Capped', 'free')").run(CAPPED);
+    namespaceRepository.setNamespaceLimits(CAPPED, 1, null);
+  });
+
+  beforeEach(() => {
+    getDb().prepare('DELETE FROM sessions WHERE namespace_id = ?').run(CAPPED);
+  });
+
+  it('lets only one of two creators take the last slot', async () => {
+    const results = await Promise.all([createIn(nextRequestId()), createIn(nextRequestId())]);
+    expect(results.filter(result => result.ok)).toHaveLength(1);
+    expect(results.find(result => !result.ok)).toMatchObject({ ok: false, status: 403, error: 'session_limit' });
+    expect(adventuresInRealm()).toBe(1);
+  });
+
+  it('counts concurrent duplicates of one request once', async () => {
+    const requestId = nextRequestId();
+    const [first, second] = await Promise.all([createIn(requestId), createIn(requestId)]);
+    expect(first.ok && second.ok).toBe(true);
+    expect(adventuresInRealm()).toBe(1);
+  });
+
+  it('keeps a reservation the realm filled up behind, so the same request can succeed later', async () => {
+    const requestId = nextRequestId();
+    vi.mocked(generateSessionDisplayName).mockImplementationOnce(async () => {
+      // Another adventure takes the slot while this one is being named.
+      await sessionRepository.createSession('Other', 'normal', true, CAPPED, 'balanced', undefined, 'Other Realm', 'capped-other');
+      return 'Troll Bridge';
+    });
+    expect(await createIn(requestId)).toMatchObject({ ok: false, status: 403, error: 'session_limit' });
+    expect(adventureCreateCommandRepository.get('user:u2', requestId)).toBeTruthy();
+
+    getDb().prepare('DELETE FROM sessions WHERE id = ?').run('capped-other');
+    expect(await createIn(requestId)).toMatchObject({ ok: true });
+    expect(adventuresInRealm()).toBe(1);
+  });
+
+  it('never checks the cap again when replaying a created adventure', async () => {
+    const requestId = nextRequestId();
+    expect(await createIn(requestId)).toMatchObject({ ok: true });
+    expect(await createIn(requestId)).toMatchObject({ ok: true, replayed: true });
+  });
+});
+

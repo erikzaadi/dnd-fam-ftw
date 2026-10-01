@@ -92,3 +92,20 @@ export const checkAdventureCap = (namespaceId: string): AdventureCapRefusal | nu
     message: `Your group has reached its limit of ${maxSessions} adventure(s). Delete an old adventure to start a new one.`,
   };
 };
+
+// Thrown from inside an adventure insert when the realm is already at its cap.
+export class AdventureCapReached extends Error {
+  constructor(readonly refusal: AdventureCapRefusal) {
+    super(refusal.message);
+    this.name = 'AdventureCapReached';
+  }
+}
+
+// For the insert transaction: the count and the insert happen together, so two
+// creators can never both take the last slot.
+export const assertAdventureCap = (namespaceId: string): void => {
+  const refusal = checkAdventureCap(namespaceId);
+  if (refusal) {
+    throw new AdventureCapReached(refusal);
+  }
+};

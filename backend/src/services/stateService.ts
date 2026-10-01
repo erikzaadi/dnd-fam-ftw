@@ -11,8 +11,8 @@ import { deleteSessionWithAssets } from './sessionDeletionService.js';
 // Compatibility facade retained for stable callers. Persistence should live in
 // repositories; keep only cross-repository or side-effect orchestration here.
 export class StateService {
-  public static async createSession(worldDescription?: string, difficulty: string = 'normal', savingsMode: boolean = false, namespaceId: string = 'local', gameMode: GameMode = 'balanced', dmPrep?: string, initialDisplayName?: string, initialId?: string, adventureFormat: AdventureFormat = 'one_evening', imagePolicy?: ImagePolicy): Promise<SessionState> {
-    return sessionRepository.createSession(worldDescription, difficulty, savingsMode, namespaceId, gameMode, dmPrep, initialDisplayName, initialId, adventureFormat, imagePolicy);
+  public static async createSession(worldDescription?: string, difficulty: string = 'normal', savingsMode: boolean = false, namespaceId: string = 'local', gameMode: GameMode = 'balanced', dmPrep?: string, initialDisplayName?: string, initialId?: string, adventureFormat: AdventureFormat = 'one_evening', imagePolicy?: ImagePolicy, insertGuard?: () => void): Promise<SessionState> {
+    return sessionRepository.createSession(worldDescription, difficulty, savingsMode, namespaceId, gameMode, dmPrep, initialDisplayName, initialId, adventureFormat, imagePolicy, insertGuard);
   }
 
   public static async setSavingsMode(id: string, enabled: boolean): Promise<void> {

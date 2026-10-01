@@ -13,7 +13,7 @@ import { generateSessionDisplayName } from './sessionNameService.js';
 import { StateService } from './stateService.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
-import { checkAdventureCap, refusalStatus } from './paidWorkAdmission.js';
+import { AdventureCapReached, assertAdventureCap, checkAdventureCap, refusalStatus } from './paidWorkAdmission.js';
 
 // Durable adventure creation for clients without the website's setup screens (MCP
 // create_adventure). The command is recorded before any generation and advances through
@@ -43,6 +43,9 @@ const DEFAULT_AUTO_PARTY_SIZE = 3;
 const BALANCED_STATS = { might: 2, magic: 2, mischief: 3 };
 
 const fail = (status: number, error: string, message: string): CreateAdventureResult => ({ ok: false, status, error, message });
+
+const capRefusal = (limit: number): CreateAdventureResult =>
+  fail(403, 'session_limit', `This realm has reached its limit of ${limit} adventure(s). Delete an old one on the website to start a new one.`);
 
 // Server-derived hero: stats and HP come from the class archetype, never from the caller.
 export const buildDescribedHero = (hero: HeroDescription, sessionId: string): Character => {
@@ -94,7 +97,17 @@ const advance = async (command: CreateCommandRow, input: CreateAdventureInput, r
       const displayName = await generateSessionDisplayName(input.premise);
       // The image policy is set at creation, before any side effect can ask for art.
       // Neither off nor on_demand ever generates pictures by itself.
-      session = await StateService.createSession(input.premise, 'normal', true, namespaceId, 'balanced', undefined, displayName, sessionId, input.format, input.images ?? 'off');
+      // The cap is checked again at the insert: other adventures may have filled the realm
+      // since the reservation. The reservation stays, so the same requestId can succeed
+      // once the player deletes an adventure.
+      try {
+        session = await StateService.createSession(input.premise, 'normal', true, namespaceId, 'balanced', undefined, displayName, sessionId, input.format, input.images ?? 'off', () => assertAdventureCap(namespaceId));
+      } catch (err) {
+        if (err instanceof AdventureCapReached) {
+          return capRefusal(err.refusal.limit);
+        }
+        throw err;
+      }
       broadcastSessionChanged(namespaceId, sessionId, 'created');
     }
     phase = 'session_created';
@@ -165,7 +178,7 @@ export const createAdventure = async (params: {
     }
     const cap = checkAdventureCap(namespaceId);
     if (cap) {
-      return fail(403, cap.error, `This realm has reached its limit of ${cap.limit} adventure(s). Delete an old one on the website to start a new one.`);
+      return capRefusal(cap.limit);
     }
     const admission = params.admit();
     if (!admission.ok) {
