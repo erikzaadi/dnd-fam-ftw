@@ -149,6 +149,10 @@ export type NarrationOutput = {
   narrationFailed?: boolean;
   narrationValidationError?: string;
   narrationRetryValidationError?: string;
+  // Filled by the orchestrator; optional for other providers.
+  choicesFailed?: boolean;
+  choicesEscalated?: boolean;
+  agentDiagnostics?: AgentDiagnostic[];
 };
 
 export type NarrationStreamCallbacks = {

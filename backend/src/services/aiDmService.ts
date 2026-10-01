@@ -1,10 +1,9 @@
 import { AIInput, ServerTurnResult } from '../types.js';
 import { createNarrationProvider } from '../providers/ai/AiProviderFactory.js';
-import type { NarrationInput, NarrationOutput, NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
+import type { NarrationInput, NarrationOutput, NarrationProvider, NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
 import { buildNarrationFallback } from '../providers/ai/narration/narrationFallback.js';
 import { resolveEncounterSeed } from './encounterService.js';
 import { devLog } from '../lib/devLog.js';
-import type { DmTurnOrchestratorResult } from './dmTurnOrchestrator.js';
 import {
   getSessionPromptCache,
   setSessionPromptCache,
@@ -217,7 +216,9 @@ export function toNarrationInput(input: AIInput): NarrationInput {
 }
 
 export class AiDmService {
-  public static async generateTurnResult(input: AIInput, callbacks?: NarrationStreamCallbacks): Promise<ServerTurnResult> {
+  // provider: injected by the turn pipeline; other callers get the default. Created inside
+  // the try below, as before, so a factory failure still yields the narration fallback.
+  public static async generateTurnResult(input: AIInput, callbacks?: NarrationStreamCallbacks, provider?: NarrationProvider): Promise<ServerTurnResult> {
     const totalStart = Date.now();
     const narrationInput = toNarrationInput(input);
     devLog.log([
@@ -235,8 +236,8 @@ export class AiDmService {
       `momentum=${narrationInput.sceneMomentum?.directive ?? 'none'}`,
     ].join(' '));
     try {
-      const provider = createNarrationProvider();
-      const output: NarrationOutput = await provider.generateTurn(narrationInput, callbacks);
+      const narrationProvider = provider ?? createNarrationProvider();
+      const output: NarrationOutput = await narrationProvider.generateTurn(narrationInput, callbacks);
       devLog.log(`[AiDm] provider-done sessionTurn=${input.turn} durationMs=${Date.now() - totalStart}`);
 
       return {
@@ -260,11 +261,11 @@ export class AiDmService {
         narratedRiddle: output.narratedRiddle ?? null,
         narrationRetried: output.narrationRetried ?? false,
         narrationFailed: output.narrationFailed ?? false,
-        choicesFailed: (output as DmTurnOrchestratorResult).choicesFailed ?? false,
-        choicesEscalated: (output as DmTurnOrchestratorResult).choicesEscalated ?? false,
+        choicesFailed: output.choicesFailed ?? false,
+        choicesEscalated: output.choicesEscalated ?? false,
         narrationValidationError: output.narrationValidationError,
         narrationRetryValidationError: output.narrationRetryValidationError,
-        agentDiagnostics: (output as DmTurnOrchestratorResult).agentDiagnostics,
+        agentDiagnostics: output.agentDiagnostics,
         imageUrl: null,
       };
     } catch (error: unknown) {

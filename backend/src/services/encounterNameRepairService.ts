@@ -136,6 +136,9 @@ const renameEncounter = (encounter: EncounterState, oldName: string, newName: st
   }
 };
 
+// The turn pipeline receives this as an injected dependency (tests pass a fake).
+export type EncounterNameRepairer = typeof repairEncounterNameIfNeeded;
+
 export const repairEncounterNameIfNeeded = async (
   previousSession: SessionState,
   newState: SessionState,

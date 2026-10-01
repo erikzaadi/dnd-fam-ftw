@@ -1,8 +1,7 @@
-import { createNarrationProvider } from '../providers/ai/AiProviderFactory.js';
-import type { NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
+import type { NarrationProvider, NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
 import type { ActionAttempt, AIInput, ServerTurnResult, SessionState, TurnResult } from '../types.js';
 import { toNarrationInput } from './aiDmService.js';
-import { repairEncounterNameIfNeeded } from './encounterNameRepairService.js';
+import type { EncounterNameRepairer } from './encounterNameRepairService.js';
 import { GameEngine } from './gameEngine.js';
 import { buildResolvedTurnFacts, type ResolvedTurnFacts } from './resolvedTurn.js';
 import { applyTurnPolicies, type TurnDiagnostics } from './turnDiagnostics.js';
@@ -38,9 +37,10 @@ export const generateResolvedFirstTurn = async (params: {
   // Item turns: the engine already applied the item, so the free-action policies (which
   // read the attempt text, e.g. "healing Pip") must not add their own effect on top.
   itemTurn?: boolean;
+  provider: NarrationProvider;
+  repairName: EncounterNameRepairer;
 }): Promise<ResolvedFirstTurn | null> => {
-  const { session, aiInput, actionAttempt, actingCharId, diagnostics } = params;
-  const provider = createNarrationProvider();
+  const { session, aiInput, actionAttempt, actingCharId, diagnostics, provider } = params;
   if (!provider.proposeMechanics || !provider.narrateResolved) {
     return null;
   }
@@ -64,7 +64,7 @@ export const generateResolvedFirstTurn = async (params: {
   // and with no narration there is no prose-derived encounter inference: only the
   // combat agent's proposal can start a fight.
   const frozen = GameEngine.applyTurnProposal(session, actionAttempt, { ...proposal });
-  await repairEncounterNameIfNeeded(session, frozen, { narration: null, actionAttempt: actionAttempt.actionAttempt });
+  await params.repairName(session, frozen, { narration: null, actionAttempt: actionAttempt.actionAttempt });
   const facts = buildResolvedTurnFacts({ previousSession: params.factsBaseline ?? session, resolvedState: frozen, actionAttempt, actingCharId });
   stepStart = diagnostics.stage('resolve', stepStart);
 
