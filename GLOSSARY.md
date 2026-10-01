@@ -17,3 +17,7 @@ Everything between "the action attempt is known" and "here is the new state and 
 ## Turn decision
 
 What the turn pipeline decides about an action once, before generation: its intent, its target hero, and whether a failure may hurt the actor (`TurnDecision`, `decideTurn` in `freeActionPolicyService.ts`). The early HP preview and the policies after generation read the same decision.
+
+## Paid-work admission
+
+Whether a realm may start work that spends AI budget, decided once where the work enters: a website route, read-aloud, or an assistant tool. Lives in `admitPaidWork` (`backend/src/services/paidWorkAdmission.ts`), which runs each kind's entry checks (an ownerless realm, the daily text budget) and returns a structured refusal for the adapter to render. The adventure cap (`checkAdventureCap`) sits beside it. Not part of it: the provider backstop (looser thresholds, so work under way can finish), picture checks right before generation, the MCP per-grant counter, and the per-adventure turn cap.
