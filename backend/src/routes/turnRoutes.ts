@@ -3,12 +3,11 @@ import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
-import { validateTurnActionRequest } from '../services/turnService.js';
-import { runAcceptedTurnAction } from '../services/turnSubmissionService.js';
+import { isAcceptanceResult, submitTurnCommand } from '../services/turnCommand.js';
 import { parseBody } from './routeValidation.js';
 import { sendRateLimitResponse } from './routeErrors.js';
 import { registerSessionIdParam } from '../middleware/sessionParam.js';
-import { acceptSessionOperation, respondIfKnownRequest, respondToAcceptance } from '../services/sessionOperationService.js';
+import { respondToAcceptance } from '../services/sessionOperationService.js';
 import { operationRepository, toPublicOperation } from '../repositories/operationRepository.js';
 import { toPublicTurn } from '../services/sessionProjection.js';
 import { DIFFICULTY_VALUES, STAT_VALUES } from '../types.js';
@@ -65,31 +64,26 @@ export const createTurnRouter = () => {
     const sessionId = req.params.id as string;
     const { requestId, expectedRevision, ...request } = body;
 
-    if (respondIfKnownRequest(res, { sessionId, namespaceId: req.namespaceId, kind: 'action', requestId, payload: request })) {
-      return;
-    }
-    // Validate before acceptance so obvious rejections never occupy the session guard.
-    const rejection = validateTurnActionRequest(req.session!, req.namespaceId, request);
-    if (rejection) {
-      res.status(rejection.status).json(rejection.body);
-      return;
-    }
-
-    const operation = respondToAcceptance(res, acceptSessionOperation({
-      sessionId,
-      namespaceId: req.namespaceId,
-      kind: 'action',
-      requestId,
-      expectedRevision,
-      payload: request,
-    }));
-    if (!operation) {
-      return;
-    }
-
     // The client receives turn data via turn_complete SSE and errors via turn_error SSE,
     // and can always recover the outcome from /snapshot or the operation endpoint.
-    runAcceptedTurnAction(operation, sessionId, req.namespaceId, request);
+    const result = await submitTurnCommand<never, never>({
+      adventureId: sessionId,
+      realmId: req.namespaceId,
+      requestId,
+      idempotencyPayload: request,
+      expectedRevision,
+      session: req.session!,
+      prepareNewWork: () => ({ ok: true, request }),
+      // The route's requirePaidWork middleware admits the request.
+      admit: () => ({ ok: true }),
+    });
+    if (result.type === 'invalid') {
+      res.status(result.rejection.status).json(result.rejection.body);
+      return;
+    }
+    if (isAcceptanceResult(result)) {
+      respondToAcceptance(res, result);
+    }
   }));
 
   router.get('/session/:id/snapshot', asyncHandler(async (req, res) => {
