@@ -238,8 +238,9 @@ describe('useSessionRuntime', () => {
         await hook.result.current.confirmPreview(preview);
       });
       expect(body()).toMatchObject({ action: 'Pip blesses Bo', previewId: 'p-4' });
-      expect(body()).not.toHaveProperty('actionIntent');
-      expect(body()).not.toHaveProperty('targetCharacterId');
+      // Undefined fields are dropped from the JSON body.
+      expect(body().actionIntent).toBeUndefined();
+      expect(body().targetCharacterId).toBeUndefined();
     });
 
     it('confirms an item preview without a roll', async () => {
