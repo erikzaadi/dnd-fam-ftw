@@ -28,6 +28,7 @@ import { attachTurnImage } from '../services/turnSideEffectService.js';
 import { toPublicSession } from '../services/sessionProjection.js';
 import { AdventureCapReached, assertAdventureCap, checkAdventureCap, type AdventureCapRefusal } from '../services/paidWorkAdmission.js';
 import { getDb } from '../persistence/database.js';
+import { AdventureBusyError } from '../archive/adventureDeletion.js';
 import { requirePaidWork } from '../middleware/usageAdmission.js';
 
 const createSessionBodySchema = z.object({
@@ -154,7 +155,15 @@ export const createSessionRouter = () => {
 
   router.delete('/session/:id', asyncHandler(async (req, res) => {
     const sessionId = req.params.id as string;
-    await StateService.deleteSession(sessionId);
+    try {
+      await StateService.deleteSession(sessionId);
+    } catch (err) {
+      if (err instanceof AdventureBusyError) {
+        res.status(409).json({ error: 'operation_in_progress', message: err.message });
+        return;
+      }
+      throw err;
+    }
     broadcastSessionChanged(req.namespaceId, sessionId, 'deleted');
     res.json({ success: true });
   }));

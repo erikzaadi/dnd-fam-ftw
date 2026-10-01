@@ -42,6 +42,22 @@ export type DeleteAdventureDeps = {
 
 export type DeleteReport = { imagesDeleted: number; imagesShared: number };
 
+// Deleting while a turn (or another operation) is running would pull the adventure out
+// from under it: refused, so the player can retry once it finishes. Image jobs that run
+// outside operations write by id and do nothing once the adventure is gone.
+export class AdventureBusyError extends Error {
+  constructor() {
+    super('An action is still being resolved. Wait for it to finish, then delete the adventure.');
+    this.name = 'AdventureBusyError';
+  }
+}
+
+const refuseIfBusy = (adventureId: string): void => {
+  if (operationRepository.getActive(adventureId)) {
+    throw new AdventureBusyError();
+  }
+};
+
 const urlsInJson = (value: string | null): string[] => {
   if (!value) {
     return [];
@@ -111,6 +127,7 @@ export const deleteAdventure = async (adventureId: string, deps: DeleteAdventure
   const storage = deps.storage ?? getImageStorageProvider();
   const legacyImageDir = deps.legacyImageDir ?? path.resolve(getConfig().LOCAL_IMAGE_STORAGE_PATH);
   const report: DeleteReport = { imagesDeleted: 0, imagesShared: 0 };
+  refuseIfBusy(adventureId);
 
   const seen = new Set<string>();
   for (const ref of adventureImages(adventureId)) {
@@ -142,6 +159,8 @@ export const deleteAdventure = async (adventureId: string, deps: DeleteAdventure
   }
 
   withTransaction(() => {
+    // Again, in case an operation was accepted while the images were being deleted.
+    refuseIfBusy(adventureId);
     const db = getDb();
     db.prepare('DELETE FROM sessions WHERE id = ?').run(adventureId);
     db.prepare('DELETE FROM turn_history WHERE sessionId = ?').run(adventureId);

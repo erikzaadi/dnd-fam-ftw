@@ -6,7 +6,7 @@ import { getDb, initializeDatabase } from '../persistence/database.js';
 import type { ImageStorageProvider } from '../providers/storage/ImageStorageProvider.js';
 import { operationRepository } from '../repositories/operationRepository.js';
 import { adventureArchive } from './adventureArchive.js';
-import { deleteAdventure } from './adventureDeletion.js';
+import { AdventureBusyError, deleteAdventure } from './adventureDeletion.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-deletion-test-${Date.now()}.sqlite`);
 let seq = 0;
@@ -105,5 +105,17 @@ describe('deleteAdventure', () => {
     // The last holder takes the images with it.
     const deletingLast = fakeStorage();
     expect(await deleteAdventure(secondCopy, { storage: deletingLast })).toEqual({ imagesDeleted: 5, imagesShared: 0 });
+  });
+
+  // Behaviour change (plan 3 decision 7). Before: deletion had no guard. After: refused
+  // while an operation runs, deleting nothing.
+  it('refuses while an operation is running, deleting nothing', async () => {
+    const id = seed();
+    operationRepository.accept({ sessionId: id, namespaceId: 'local', kind: 'action', requestId: `busy-${id}`, payloadHash: 'h' });
+    const storage = fakeStorage();
+
+    await expect(deleteAdventure(id, { storage })).rejects.toBeInstanceOf(AdventureBusyError);
+    expect(storage.deleteImage).not.toHaveBeenCalled();
+    expect(count('SELECT COUNT(*) AS n FROM sessions WHERE id = ?', id)).toBe(1);
   });
 });
