@@ -13,7 +13,7 @@ import { generateSessionDisplayName } from './sessionNameService.js';
 import { StateService } from './stateService.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
-import { getEffectiveLimits } from './usageLimitService.js';
+import { checkAdventureCap } from './paidWorkAdmission.js';
 
 // Durable adventure creation for clients without the website's setup screens (MCP
 // create_adventure). The command is recorded before any generation and advances through
@@ -163,9 +163,9 @@ export const createAdventure = async (params: {
       }
       return advance(existing, input, true);
     }
-    const limits = getEffectiveLimits(namespaceId);
-    if (limits.maxSessions !== null && sessionRepository.countSessionsInNamespace(namespaceId) >= limits.maxSessions) {
-      return fail(403, 'session_limit', `This realm has reached its limit of ${limits.maxSessions} adventure(s). Delete an old one on the website to start a new one.`);
+    const cap = checkAdventureCap(namespaceId);
+    if (cap) {
+      return fail(403, cap.error, `This realm has reached its limit of ${cap.limit} adventure(s). Delete an old one on the website to start a new one.`);
     }
     const admission = params.admit();
     if (!admission.ok) {

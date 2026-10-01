@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { broadcastSessionChanged, broadcastSessionListUpdate, broadcastSessionUpdated, broadcastUpdate } from '../realtime/sessionEvents.js';
@@ -26,7 +26,7 @@ import { acceptSessionOperation, respondToAcceptance, runSessionOperation } from
 import { generateAndCommitInitialTurn } from '../services/initialTurnService.js';
 import { attachTurnImage } from '../services/turnSideEffectService.js';
 import { toPublicSession } from '../services/sessionProjection.js';
-import { getEffectiveLimits } from '../services/usageLimitService.js';
+import { checkAdventureCap } from '../services/paidWorkAdmission.js';
 
 const createSessionBodySchema = z.object({
   worldDescription: z.string().optional(),
@@ -54,6 +54,16 @@ const regenerateDmPrepBodySchema = z.object({
   worldDescription: z.string().optional(),
 }).optional();
 
+// 403 with the cap refusal (without its limit field, as the route always answered).
+const refuseOverAdventureCap = (namespaceId: string, res: Response): boolean => {
+  const refusal = checkAdventureCap(namespaceId);
+  if (!refusal) {
+    return false;
+  }
+  res.status(403).json({ error: refusal.error, message: refusal.message });
+  return true;
+};
+
 export const createSessionRouter = () => {
   const router = Router();
   registerSessionIdParam(router);
@@ -64,13 +74,8 @@ export const createSessionRouter = () => {
   }));
 
   router.post('/session/quick-start', asyncHandler(async (req, res) => {
-    const limits = getEffectiveLimits(req.namespaceId);
-    if (limits.maxSessions !== null) {
-      const count = sessionRepository.countSessionsInNamespace(req.namespaceId);
-      if (count >= limits.maxSessions) {
-        res.status(403).json({ error: 'session_limit', message: `Your group has reached its limit of ${limits.maxSessions} adventure(s). Delete an old adventure to start a new one.` });
-        return;
-      }
+    if (refuseOverAdventureCap(req.namespaceId, res)) {
+      return;
     }
     const id = StateService.cloneOnboardingSession(req.namespaceId);
     broadcastSessionChanged(req.namespaceId, id, 'created');
@@ -78,13 +83,8 @@ export const createSessionRouter = () => {
   }));
 
   router.post('/session/instant-start', asyncHandler(async (req, res) => {
-    const limits = getEffectiveLimits(req.namespaceId);
-    if (limits.maxSessions !== null) {
-      const count = sessionRepository.countSessionsInNamespace(req.namespaceId);
-      if (count >= limits.maxSessions) {
-        res.status(403).json({ error: 'session_limit', message: `Your group has reached its limit of ${limits.maxSessions} adventure(s). Delete an old adventure to start a new one.` });
-        return;
-      }
+    if (refuseOverAdventureCap(req.namespaceId, res)) {
+      return;
     }
 
     const settings = SettingsService.get(req.namespaceId);
@@ -137,13 +137,8 @@ export const createSessionRouter = () => {
     const { worldDescription, difficulty, gameMode, dmPrep } = body;
     const adventureFormat = body.adventureFormat ?? 'one_evening';
     try {
-      const limits = getEffectiveLimits(req.namespaceId);
-      if (limits.maxSessions !== null) {
-        const count = sessionRepository.countSessionsInNamespace(req.namespaceId);
-        if (count >= limits.maxSessions) {
-          res.status(403).json({ error: 'session_limit', message: `Your group has reached its limit of ${limits.maxSessions} adventure(s). Delete an old adventure to start a new one.` });
-          return;
-        }
+      if (refuseOverAdventureCap(req.namespaceId, res)) {
+        return;
       }
       const savingsMode = !SettingsService.get(req.namespaceId).imagesEnabled;
       const session = await StateService.createSession(worldDescription, difficulty, savingsMode, req.namespaceId, gameMode, dmPrep || undefined, undefined, undefined, adventureFormat);

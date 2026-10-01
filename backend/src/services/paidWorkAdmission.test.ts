@@ -3,8 +3,9 @@ import path from 'path';
 import fs from 'fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getDb, initializeDatabase } from '../persistence/database.js';
+import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { usageRepository } from '../repositories/usageRepository.js';
-import { admitPaidWork, paidWorkRefusalStatus } from './paidWorkAdmission.js';
+import { admitPaidWork, checkAdventureCap, paidWorkRefusalStatus } from './paidWorkAdmission.js';
 import { getTierLimits } from './usageLimitService.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-paid-work-test-${Date.now()}.sqlite`);
@@ -45,5 +46,15 @@ describe('admitPaidWork', () => {
   it('leaves an ownerless realm to the backstop for read-aloud and assistant tools', () => {
     expect(admitPaidWork('tts', { namespaceId: 'ns-fresh', attribution: 'unresolved' })).toEqual({ ok: true });
     expect(admitPaidWork('assistant', { namespaceId: 'ns-fresh', attribution: 'unresolved' })).toEqual({ ok: true });
+  });
+});
+
+describe('checkAdventureCap', () => {
+  it('refuses once the realm holds its cap of adventures, and never without a cap', () => {
+    expect(checkAdventureCap('ns-fresh')).toBeNull();
+    namespaceRepository.setNamespaceLimits('ns-fresh', 0, null);
+    expect(checkAdventureCap('ns-fresh')).toMatchObject({ error: 'session_limit', limit: 0 });
+    namespaceRepository.setNamespaceLimits('ns-fresh', null, null);
+    expect(checkAdventureCap('local')).toBeNull();
   });
 });

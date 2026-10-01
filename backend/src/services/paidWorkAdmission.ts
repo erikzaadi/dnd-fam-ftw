@@ -1,6 +1,7 @@
 import type { UsageAttribution } from '../lib/usageContext.js';
 import type { LimitReachedResponse } from '../types.js';
-import { checkTextBudget } from './usageLimitService.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
+import { checkTextBudget, getEffectiveLimits } from './usageLimitService.js';
 
 // Paid-work admission: whether a realm may start work that spends AI budget, decided
 // once where the work enters (a website route, read-aloud, an assistant tool). Each
@@ -60,3 +61,20 @@ export const admitPaidWork = (kind: PaidWorkKind, realm: PaidWorkRealm, now: Dat
 // HTTP status for a refusal.
 export const paidWorkRefusalStatus = (refusal: PaidWorkRefusal): number =>
   refusal.error === 'realm_owner_missing' ? 503 : 429;
+
+export type AdventureCapRefusal = { error: 'session_limit'; limit: number; message: string };
+
+// The realm's adventure cap (separate from daily usage). Synchronous, so it can run in
+// the same transaction as the insert. Adventures in the realm count; a pending
+// assistant reservation does not.
+export const checkAdventureCap = (namespaceId: string): AdventureCapRefusal | null => {
+  const { maxSessions } = getEffectiveLimits(namespaceId);
+  if (maxSessions === null || sessionRepository.countSessionsInNamespace(namespaceId) < maxSessions) {
+    return null;
+  }
+  return {
+    error: 'session_limit',
+    limit: maxSessions,
+    message: `Your group has reached its limit of ${maxSessions} adventure(s). Delete an old adventure to start a new one.`,
+  };
+};
