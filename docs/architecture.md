@@ -54,7 +54,7 @@ Narration agent writes the already-resolved outcome, streamed to every view
 SSE turn_complete -> all views update; scene image generated in the background
 ```
 
-This is the default `resolved_first` strategy. The opt-out `parallel` strategy, still used for opening, rescue and chapter-start turns, runs narration beside the mechanics agents. Both are described in [MULTI_AGENT_WORKFLOW.md](../MULTI_AGENT_WORKFLOW.md).
+This is the default `resolved_first` strategy. The opt-out `parallel` strategy, still used for opening, rescue and chapter-start turns, runs narration beside the mechanics agents. Both are described in [MULTI_AGENT_WORKFLOW.md](../MULTI_AGENT_WORKFLOW.md); in code, both sit behind `resolveTurn` (`backend/src/services/turnResolution.ts`).
 
 ## Ideas and Ask the DM
 

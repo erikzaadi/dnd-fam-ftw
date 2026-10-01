@@ -65,6 +65,8 @@ backend/src/
     aiDmService.ts                 # Narration entry point (calls dmTurnOrchestrator.ts)
     imageService.ts                # OpenAI-compatible image generation
     gameEngine.ts                  # Dice, damage, turn mechanics
+    turnService.ts                 # Player turn: validate, prepare context, riddles, commit
+    turnResolution.ts              # resolveTurn: both strategies, policies, repairs (step order table)
     storySummaryService.ts         # Rolling story compression
   middleware/
     auth.ts                        # Attaches req.namespaceId + req.userEmail

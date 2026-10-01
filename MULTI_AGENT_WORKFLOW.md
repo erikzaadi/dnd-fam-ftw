@@ -225,7 +225,7 @@ flowchart TD
     NARRATE --> OUT([Committed TurnResult, no choices])
 ```
 
-The shared finalizer, operation/revision guard and lifecycle are identical for both strategies. Providers without the staged methods fall back to `parallel`. Comparison runner: [docs/ai-evaluation.md](docs/ai-evaluation.md#turn-strategy-comparison-paid).
+The shared finalizer, operation/revision guard and lifecycle are identical for both strategies. Providers without the staged methods fall back to `parallel`. Both strategies live behind `resolveTurn` in `backend/src/services/turnResolution.ts`, which documents the step order of each path (rolled and item turns) in one table; `turnService` prepares the context and handles riddles, persistence and broadcasting around it. Comparison runner: [docs/ai-evaluation.md](docs/ai-evaluation.md#turn-strategy-comparison-paid).
 
 **Repairs per strategy.** The parallel strategy needs repairs because agents generate independently. In resolved-first:
 
