@@ -91,7 +91,9 @@ const callers: PreviewCaller[] = [
       const layer = router.stack.find(l => l.route?.path === '/character/suggest-stats');
       const res = { json: vi.fn(), status: vi.fn().mockReturnThis() } as unknown as Response;
       const req = { body: { name: 'Pip', class: 'Rogue', species: 'Halfling', quirk: 'Hums' } } as Request;
-      await layer?.route?.stack[0].handle(req, res, () => undefined);
+      // The route's own handler is last; admission middleware runs before it.
+      const handlers = layer?.route?.stack ?? [];
+      await handlers[handlers.length - 1]?.handle(req, res, () => undefined);
       return (res.json as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
     },
   },
