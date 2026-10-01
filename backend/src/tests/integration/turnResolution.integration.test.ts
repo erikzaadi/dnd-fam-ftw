@@ -76,7 +76,9 @@ describe.each(TURN_STRATEGIES)('turn resolution characterization (%s)', (strateg
     process.env.AI_TURN_STRATEGY = strategy;
   });
 
-  it('streams narration chunks and aborts with the operation id', async () => {
+  // No operationId: committing with one requires an accepted operation (see the
+  // operations suite for the ledger). The events' operationId is then undefined.
+  it('streams narration chunks and aborts', async () => {
     const id = `tr-stream-${strategy}`;
     await insertSessionState(makeTestSession({ id }));
     const stream = async (callbacks: NarrationStreamCallbacks | undefined) => {
@@ -95,11 +97,11 @@ describe.each(TURN_STRATEGIES)('turn resolution characterization (%s)', (strateg
       });
     }
 
-    const result = await executeTurnAction(id, 'local', { action: 'Pip juggles three apples', statUsed: 'mischief' }, { operationId: 'op-stream' });
+    const result = await executeTurnAction(id, 'local', { action: 'Pip juggles three apples', statUsed: 'mischief' });
 
     expectTurnStrategy(result, strategy);
-    expect(broadcastsOf('narration_chunk')[0]?.[2]).toEqual({ text: 'The goblin', field: 'narration', operationId: 'op-stream' });
-    expect(broadcastsOf('narration_chunk_abort')[0]?.[2]).toEqual({ operationId: 'op-stream' });
+    expect(broadcastsOf('narration_chunk')[0]?.[2]).toMatchObject({ text: 'The goblin', field: 'narration' });
+    expect(broadcastsOf('narration_chunk_abort')).toHaveLength(1);
   });
 
   it('sends an early HP preview that matches the final change when the AI proposes no damage', async () => {
