@@ -58,11 +58,13 @@ describe('image policy', () => {
   });
 });
 
+const admit = () => ({ ok: true as const });
+
 describe('requestSceneImage', () => {
   it('refuses when pictures are off, without generating', async () => {
     const generate = vi.spyOn(ImageService, 'generateImage');
     const { session, turnId } = await newSession('off');
-    expect(requestSceneImage({ session, namespaceId: 'local', turnId, requestId: 'img-req-0001' })).toMatchObject({ status: 'error', code: 'images_off' });
+    expect(requestSceneImage({ session, turnId, admit, requestId: 'img-req-0001' })).toMatchObject({ status: 'error', code: 'images_off' });
     expect(generate).not.toHaveBeenCalled();
   });
 
@@ -70,13 +72,13 @@ describe('requestSceneImage', () => {
     const stored = await getImageStorageProvider().putImage({ key: 'scene-test.png', contentType: 'image/png', body: Buffer.from('png-bytes') });
     const generate = vi.spyOn(ImageService, 'generateImage').mockResolvedValue({ url: stored.publicUrl, storageKey: stored.key, storageProvider: 'local' } as never);
     const { session, turnId } = await newSession('on_demand');
-    const started = requestSceneImage({ session, namespaceId: 'local', turnId, requestId: 'img-req-0002' });
+    const started = requestSceneImage({ session, turnId, admit, requestId: 'img-req-0002' });
     expect(started.status).toBe('pending');
     expect(started.status === 'pending' && await started.done).toBe(true);
     expect(generate).toHaveBeenCalledTimes(1);
 
     // Already painted: a new request returns it without painting again.
-    expect(requestSceneImage({ session, namespaceId: 'local', turnId, requestId: 'img-req-0003' })).toEqual({ status: 'ready' });
+    expect(requestSceneImage({ session, turnId, admit, requestId: 'img-req-0003' })).toEqual({ status: 'ready' });
     expect(generate).toHaveBeenCalledTimes(1);
 
     expect(await readSceneImage(session.id, turnId, 1024)).toEqual({ status: 'image', data: Buffer.from('png-bytes').toString('base64'), mimeType: 'image/png' });
@@ -86,14 +88,32 @@ describe('requestSceneImage', () => {
   it('does not re-pay a failed request with the same id', async () => {
     const generate = vi.spyOn(ImageService, 'generateImage').mockResolvedValue(null);
     const { session, turnId } = await newSession('on_demand');
-    const first = requestSceneImage({ session, namespaceId: 'local', turnId, requestId: 'img-req-0004' });
+    const first = requestSceneImage({ session, turnId, admit, requestId: 'img-req-0004' });
     expect(first.status === 'pending' && await first.done).toBe(false);
-    expect(requestSceneImage({ session, namespaceId: 'local', turnId, requestId: 'img-req-0004' })).toMatchObject({ status: 'error', code: 'image_failed' });
+    expect(requestSceneImage({ session, turnId, admit, requestId: 'img-req-0004' })).toMatchObject({ status: 'error', code: 'image_failed' });
     expect(generate).toHaveBeenCalledTimes(1);
   });
 
   it('reports no picture for a scene without one', async () => {
     const { session, turnId } = await newSession('on_demand');
     expect(await readSceneImage(session.id, turnId, 1024)).toEqual({ status: 'none' });
+  });
+
+  // Behaviour change (plan 4 B5). Before: the assistant tool admitted (and charged a grant
+  // attempt) before knowing whether painting was needed. After: free outcomes come first.
+  it('settles free outcomes without admission', async () => {
+    const refuse = vi.fn(() => ({ ok: false as const, code: 'limit_reached', message: 'spent' }));
+    const { session, turnId } = await newSession('off');
+    expect(requestSceneImage({ session, turnId, requestId: 'img-req-0005', admit: refuse })).toMatchObject({ code: 'images_off' });
+    expect(requestSceneImage({ session, turnId: 9999, requestId: 'img-req-0006', admit: refuse })).toMatchObject({ code: 'turn_not_found' });
+    expect(refuse).not.toHaveBeenCalled();
+  });
+
+  it('refuses through admission before painting', async () => {
+    const generate = vi.spyOn(ImageService, 'generateImage');
+    const { session, turnId } = await newSession('on_demand');
+    const refused = requestSceneImage({ session, turnId, requestId: 'img-req-0007', admit: () => ({ ok: false, code: 'picture_limit', message: "The realm's painters are resting until tomorrow." }) });
+    expect(refused).toMatchObject({ status: 'error', code: 'picture_limit' });
+    expect(generate).not.toHaveBeenCalled();
   });
 });

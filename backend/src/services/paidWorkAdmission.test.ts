@@ -51,6 +51,11 @@ describe('admitPaidWork', () => {
     expect(admitPaidWork('assistant', { namespaceId: 'ns-fresh', attribution: 'unresolved' })).toMatchObject({ ok: false, refusal: { error: 'realm_owner_missing' } });
   });
 
+  it('checks the picture budget for assistant scene pictures', () => {
+    expect(admitPaidWork('assistant_image', { namespaceId: 'ns-spent', attribution: 'verified' })).toMatchObject({ ok: false, refusal: { kind: 'text' } });
+    expect(admitPaidWork('assistant_image', { namespaceId: 'ns-fresh', attribution: 'verified' })).toEqual({ ok: true });
+  });
+
   it('maps every refusal code to one status', () => {
     expect(['limit_reached', 'token_daily_limit', 'session_limit', 'realm_owner_missing', 'paid_tools_disabled'].map(refusalStatus)).toEqual([429, 429, 403, 503, 503]);
   });

@@ -4,7 +4,6 @@ import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js'
 import type { SessionState, TensionLevel } from '../types.js';
 import { ImageService } from './imageService.js';
 import { attachTurnImage } from './turnSideEffectService.js';
-import { checkPictureBudget, currentPictureBudgetExhausted } from './usageLimitService.js';
 
 // Explicit, on-demand scene pictures ("show me this scene"). Separate from automatic
 // turn images: allowed only when the adventure's image policy permits it, bounded by
@@ -54,14 +53,18 @@ const paint = async (session: SessionState, turnId: number, requestId: string): 
   }
 };
 
+// In order: the free outcomes (no such turn, pictures off, already painted, already
+// painting, this requestId already ran), then admission, then painting. Free outcomes
+// spend no budget and use up no assistant attempt.
 export const requestSceneImage = (params: {
   session: SessionState;
-  namespaceId: string;
   turnId: number;
   requestId: string;
+  // Paid-work admission for the text brief and the picture (mcp/admission.ts).
+  admit: () => { ok: true } | { ok: false; code: string; message: string };
   now?: number;
 }): SceneImageStart => {
-  const { session, namespaceId, turnId, requestId } = params;
+  const { session, turnId, requestId } = params;
   const now = params.now ?? Date.now();
   const ref = turnHistoryRepository.getTurnImageRef(session.id, turnId);
   if (!ref) {
@@ -84,9 +87,9 @@ export const requestSceneImage = (params: {
       ? { status: 'error', code: 'image_failed', message: 'Painting this scene did not work. Ask the player before trying again with a new requestId.' }
       : { status: 'ready' };
   }
-  const budget = checkPictureBudget(namespaceId) ?? (currentPictureBudgetExhausted() ? { message: "The realm's painters are resting until tomorrow." } : null);
-  if (budget) {
-    return { status: 'error', code: 'picture_limit', message: budget.message };
+  const admission = params.admit();
+  if (!admission.ok) {
+    return { status: 'error', code: admission.code, message: admission.message };
   }
   sceneImageRequestRepository.start(session.id, turnId, requestId, now);
   const done = paint(session, turnId, requestId).finally(() => inFlight.delete(key));

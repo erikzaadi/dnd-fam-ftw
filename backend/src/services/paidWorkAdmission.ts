@@ -1,7 +1,7 @@
 import type { UsageAttribution } from '../lib/usageContext.js';
 import type { LimitReachedResponse } from '../types.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
-import { checkTextBudget, getEffectiveLimits } from './usageLimitService.js';
+import { checkPictureBudget, checkTextBudget, getEffectiveLimits } from './usageLimitService.js';
 
 // Paid-work admission: whether a realm may start work that spends AI budget, decided
 // once where the work enters (a website route, read-aloud, an assistant tool). Each
@@ -16,7 +16,7 @@ import { checkTextBudget, getEffectiveLimits } from './usageLimitService.js';
 // Admission reads the attribution decided at the entry point (createUsageContext) and
 // never resolves the owner itself.
 
-export type PaidWorkCheck = 'owner' | 'text';
+export type PaidWorkCheck = 'owner' | 'text' | 'picture';
 
 const REALM_OWNER_MISSING_MESSAGE = 'This realm is being set up. Ask the site operator to finish it, then try again.';
 
@@ -30,6 +30,8 @@ const POLICY = {
   tts: ['text'],
   // Assistant (MCP) tools. The per-grant counter runs after these (mcp/admission.ts).
   assistant: ['owner', 'text'],
+  // An assistant scene picture: the image brief spends text, the painting a picture.
+  assistant_image: ['owner', 'text', 'picture'],
 } as const satisfies Record<string, readonly PaidWorkCheck[]>;
 
 export type PaidWorkKind = keyof typeof POLICY;
@@ -48,8 +50,10 @@ export const admitPaidWork = (kind: PaidWorkKind, realm: PaidWorkRealm, now: Dat
     if (check === 'owner' && realm.attribution === 'unresolved') {
       return { ok: false, refusal: { error: 'realm_owner_missing', message: REALM_OWNER_MISSING_MESSAGE } };
     }
-    if (check === 'text') {
-      const budget = checkTextBudget(realm.namespaceId, { now });
+    if (check === 'text' || check === 'picture') {
+      const budget = check === 'text'
+        ? checkTextBudget(realm.namespaceId, { now })
+        : checkPictureBudget(realm.namespaceId, { now });
       if (budget) {
         return { ok: false, refusal: budget };
       }

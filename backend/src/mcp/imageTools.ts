@@ -84,12 +84,7 @@ export const registerImageTools = (server: McpServer, principal: McpPrincipal): 
     if (turnHistoryRepository.getTurnImageRef(adventureId, turnId)?.imageUrl) {
       return imageResult(principal, tool, startedAt, adventureId, turnId);
     }
-    const admission = admitPaidCall(principal);
-    if (!admission.ok) {
-      audit(principal, tool, startedAt, admission.code, adventureId);
-      return toolError(admission.message, admission.code);
-    }
-    const started = requestSceneImage({ session, namespaceId: principal.namespaceId, turnId, requestId });
+    const started = requestSceneImage({ session, turnId, requestId, admit: () => admitPaidCall(principal, Date.now(), 'assistant_image') });
     if (started.status === 'error') {
       audit(principal, tool, startedAt, started.code, adventureId);
       return toolError(started.message, started.code);
