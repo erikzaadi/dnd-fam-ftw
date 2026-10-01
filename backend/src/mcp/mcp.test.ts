@@ -9,10 +9,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { getDb, initializeDatabase } from '../persistence/database.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { accessTokenService } from '../services/accessTokenService.js';
-import { StateService } from '../services/stateService.js';
 import { resetMcpRateLimits } from './auth.js';
 import { createMcpRouter } from './server.js';
 import { accountService } from '../services/accountService.js';
+import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-mcp-test-${Date.now()}.sqlite`);
 const SENTINEL = 'SENTINEL_PRIVATE_DM_MATERIAL';
@@ -58,7 +58,7 @@ beforeAll(async () => {
   userRepository.setMcpAccess(b.userId, 'on');
   insertSession('sess-a', a.namespaceId, 'Troll Bridge');
   insertSession('sess-b', b.namespaceId, 'Other Family');
-  await StateService.addTurnResult('sess-a', {
+  await turnHistoryRepository.addTurnResult('sess-a', {
     narration: 'The troll blocks the bridge and asks a riddle.',
     imagePrompt: `private prompt ${SENTINEL}`,
     imageSuggested: false,

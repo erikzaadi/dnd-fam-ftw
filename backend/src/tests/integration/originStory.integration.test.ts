@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RealmOriginStoryService } from '../../services/realmOriginStoryService.js';
-import { StateService } from '../../services/stateService.js';
 import { sessionRepository } from '../../repositories/sessionRepository.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
 
@@ -59,7 +58,7 @@ describe('RealmOriginStoryService.generate', () => {
     await insertSessionState(makeTestSession({ id: 'origin-race' }));
     create.mockImplementationOnce(async () => {
       // Another server process finishes first while this call is still generating.
-      StateService.setOriginStoryIfMissing('origin-race', 'The other story.', new Date().toISOString());
+      sessionRepository.setOriginStoryIfMissing('origin-race', 'The other story.', new Date().toISOString());
       return { choices: [{ message: { content: 'This story.' } }] };
     });
 

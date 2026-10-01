@@ -2,8 +2,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { getDb, initializeDatabase } from '../../persistence/database.js';
-import { StateService } from '../../services/stateService.js';
 import type { Choice, SessionState } from '../../types.js';
+import { sessionRepository } from '../../repositories/sessionRepository.js';
 
 export type IntegrationTestPaths = {
   dbPath: string;
@@ -111,7 +111,7 @@ export const insertSessionState = async (state: SessionState): Promise<void> => 
     state.storySummary ?? '',
   );
 
-  await StateService.updateSession(state.id, state);
+  await sessionRepository.updateSession(state.id, state);
 };
 
 export const choicesForSession = (): Choice[] => [

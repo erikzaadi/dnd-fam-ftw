@@ -1,6 +1,5 @@
 import { createId } from '../lib/ids.js';
 import { ImageService } from './imageService.js';
-import { StateService } from './stateService.js';
 import { StorySummaryService } from './storySummaryService.js';
 import { broadcastInstantStartReady, broadcastSessionChanged, broadcastUpdate } from '../realtime/sessionEvents.js';
 import { refreshDmPrepImageBriefAndPreview } from './sessionPreviewService.js';
@@ -11,6 +10,7 @@ import { runSessionOperation } from './sessionOperationService.js';
 import { generateAndCommitInitialTurn } from './initialTurnService.js';
 import { attachTurnImage } from './turnSideEffectService.js';
 import { RealmOriginStoryService } from './realmOriginStoryService.js';
+import { characterRepository } from '../repositories/characterRepository.js';
 
 export function buildInstantStartParty(sessionId: string): Character[] {
   const archetypes = pickRandomPartyArchetypes();
@@ -39,7 +39,7 @@ async function generateAvatars(party: Character[], sessionId: string): Promise<v
       const result = await ImageService.generateAvatar(char, sessionId);
       // Narrow per-character write: never rewrite the whole session from a stale copy,
       // which could undo gameplay committed while the avatar was generating.
-      StateService.updateCharacterAvatar(char.id, result.url, result.prompt, result.storageKey, result.storageProvider);
+      characterRepository.updateAvatar(char.id, result.url, result.prompt, result.storageKey, result.storageProvider);
       broadcastUpdate(sessionId, 'image_ready', { target: 'character_avatar', characterId: char.id, imageUrl: result.url });
     } catch (err) {
       console.warn(`[InstantStart] Avatar generation failed for ${char.name}:`, err);

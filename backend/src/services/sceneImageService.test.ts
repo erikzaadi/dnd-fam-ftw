@@ -7,7 +7,6 @@ import { sessionRepository } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { ImageService } from './imageService.js';
 import { readSceneImage, requestSceneImage } from './sceneImageService.js';
-import { StateService } from './stateService.js';
 import { initializeDatabase } from '../persistence/database.js';
 
 vi.mock('../providers/ai/images/imageBriefProvider.js', () => ({ generateImageBrief: vi.fn(async () => 'A troll on a bridge') }));
@@ -17,7 +16,7 @@ const IMAGE_DIR = path.join(os.tmpdir(), `dnd-scene-image-files-${Date.now()}`);
 
 let seq = 0;
 const newSession = async (imagePolicy: 'off' | 'on_demand' | 'automatic') => {
-  const session = await StateService.createSession('A troll bridge', 'normal', true, 'local', 'balanced', undefined, 'Troll Bridge', `scene-${++seq}`, 'one_evening', imagePolicy);
+  const session = await sessionRepository.createSession('A troll bridge', 'normal', true, 'local', 'balanced', undefined, 'Troll Bridge', `scene-${++seq}`, 'one_evening', imagePolicy);
   const turnId = turnHistoryRepository.insertTurnResultSync(session.id, { narration: 'The troll grins.', choices: [], imagePrompt: null, imageSuggested: false }, null);
   return { session: (await sessionRepository.getSession(session.id))!, turnId };
 };
@@ -42,16 +41,16 @@ describe('image policy', () => {
   it('is the one setting, with savingsMode derived from it', async () => {
     const { session } = await newSession('on_demand');
     expect(session).toMatchObject({ imagePolicy: 'on_demand', savingsMode: true });
-    await StateService.setSavingsMode(session.id, false);
+    await sessionRepository.setSavingsMode(session.id, false);
     expect(await sessionRepository.getSession(session.id)).toMatchObject({ imagePolicy: 'automatic', savingsMode: false });
-    await StateService.setSavingsMode(session.id, true);
+    await sessionRepository.setSavingsMode(session.id, true);
     expect(await sessionRepository.getSession(session.id)).toMatchObject({ imagePolicy: 'off', savingsMode: true });
     sessionRepository.setImagePolicy(session.id, 'on_demand');
     expect(await sessionRepository.getSession(session.id)).toMatchObject({ imagePolicy: 'on_demand', savingsMode: true });
   });
 
   it('derives the policy for rows that only have savingsMode', async () => {
-    const created = await StateService.createSession('Old', 'normal', false, 'local', 'balanced', undefined, 'Old', `legacy-${++seq}`);
+    const created = await sessionRepository.createSession('Old', 'normal', false, 'local', 'balanced', undefined, 'Old', `legacy-${++seq}`);
     const { getDb } = await import('../persistence/database.js');
     getDb().prepare('UPDATE sessions SET image_policy = NULL WHERE id = ?').run(created.id);
     expect(await sessionRepository.getSession(created.id)).toMatchObject({ imagePolicy: 'automatic', savingsMode: false });

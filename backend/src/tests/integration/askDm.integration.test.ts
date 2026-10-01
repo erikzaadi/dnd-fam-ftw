@@ -6,7 +6,6 @@ import { createAskRouter } from '../../routes/askRoutes.js';
 import { RIDDLE_SAFE_ANSWER, resetAskDmStateForTests } from '../../services/askDmService.js';
 import { ensureActiveRiddle } from '../../services/riddleService.js';
 import { acceptSessionOperation } from '../../services/sessionOperationService.js';
-import { StateService } from '../../services/stateService.js';
 import { sessionRepository } from '../../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../../repositories/turnHistoryRepository.js';
 import type { AskDmPayload } from '../../types.js';
@@ -33,7 +32,7 @@ const ask = (sessionId: string, body: Record<string, unknown>) => fetch(`${baseU
 
 const seed = async (id: string, overrides: Parameters<typeof makeTestSession>[0] = {}): Promise<{ turnId: number; revision: number }> => {
   await insertSessionState(makeTestSession({ id, ...overrides }));
-  await StateService.addTurnResult(id, { narration: 'A rope bridge sways over the gorge.', choices: [], imagePrompt: null, imageSuggested: false }, null);
+  await turnHistoryRepository.addTurnResult(id, { narration: 'A rope bridge sways over the gorge.', choices: [], imagePrompt: null, imageSuggested: false }, null);
   const history = await turnHistoryRepository.getTurnHistory(id);
   return { turnId: history[history.length - 1].id as number, revision: sessionRepository.getRevision(id) ?? 0 };
 };

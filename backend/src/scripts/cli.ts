@@ -429,7 +429,7 @@ case 'namespaces': {
       console.error(`Namespace not found: ${nsId}`);
       process.exit(1);
     }
-    const ok = StateService.assignSessionToNamespace(sessionId, nsId);
+    const ok = sessionRepository.assignSessionToNamespace(sessionId, nsId);
     if (ok) {
       console.log(`Assigned session ${sessionId} to namespace "${ns.name}" (${nsId})`);
     } else {

@@ -1,10 +1,10 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GameEngine } from '../../services/gameEngine.js';
-import { StateService } from '../../services/stateService.js';
 import { sessionRepository } from '../../repositories/sessionRepository.js';
 import { executeTurnAction } from '../../services/turnService.js';
 import { FIXED_NARRATION_OUTPUT, TURN_STRATEGIES, expectTurnStrategy, narratingMock, narrationInputFor, pinTurnStrategy, scriptTurnOutput } from './mockNarrationProvider.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
+import { turnHistoryRepository } from '../../repositories/turnHistoryRepository.js';
 
 const realtimeMocks = vi.hoisted(() => ({
   broadcastUpdate: vi.fn(),
@@ -91,7 +91,7 @@ describe.each(TURN_STRATEGIES)('executeTurnAction free action integration (%s)',
       activeCharacterId: 'char-pip',
     });
     await insertSessionState(session);
-    await StateService.addTurnResult(`free-action-riddle-session-${strategy}`, {
+    await turnHistoryRepository.addTurnResult(`free-action-riddle-session-${strategy}`, {
       narration: 'Fiddlewick asks, "What runs but never walks?"',
       choices: [
         { label: 'Answer: a river', difficulty: 'normal', stat: 'mischief', difficultyValue: 12, riddleAnswer: 'a river', riddleCorrect: true },
@@ -221,7 +221,7 @@ describe.each(TURN_STRATEGIES)('executeTurnAction free action integration (%s)',
       return;
     }
     stored.activeCharacterId = 'char-pip';
-    await StateService.updateSession(`free-action-edge-session-${strategy}`, stored);
+    await sessionRepository.updateSession(`free-action-edge-session-${strategy}`, stored);
 
     const spotlightResult = await executeTurnAction(`free-action-edge-session-${strategy}`, 'local', {
       action: 'Use Pip the Rogue training to vanish into the shadow',

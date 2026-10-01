@@ -11,13 +11,22 @@ vi.mock('./storySummaryService.js', () => ({
   StorySummaryService: { maybeUpdate: vi.fn().mockResolvedValue(undefined) },
 }));
 
-vi.mock('./stateService.js', () => ({
-  StateService: {
-    updateTurnImage: vi.fn().mockResolvedValue(true),
-    patchEncounterEnemyAvatar: vi.fn().mockResolvedValue(undefined),
-    patchEncounterAreaImage: vi.fn().mockResolvedValue(undefined),
-  },
-}));
+vi.mock('../repositories/turnHistoryRepository.js', async importOriginal => {
+  const original = await importOriginal<typeof import('../repositories/turnHistoryRepository.js')>();
+  return { turnHistoryRepository: { ...original.turnHistoryRepository, updateTurnImage: vi.fn().mockResolvedValue(true) } };
+});
+
+vi.mock('../repositories/sessionRepository.js', async importOriginal => {
+  const original = await importOriginal<typeof import('../repositories/sessionRepository.js')>();
+  return {
+    ...original,
+    sessionRepository: {
+      ...original.sessionRepository,
+      patchEncounterEnemyAvatar: vi.fn().mockResolvedValue(undefined),
+      patchEncounterAreaImage: vi.fn().mockResolvedValue(undefined),
+    },
+  };
+});
 
 const imageServiceMocks = vi.hoisted(() => ({
   generateImage: vi.fn(),

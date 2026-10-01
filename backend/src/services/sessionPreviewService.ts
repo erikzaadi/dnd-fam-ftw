@@ -1,5 +1,4 @@
 import { ImageService } from './imageService.js';
-import { StateService } from './stateService.js';
 import { StorySummaryService } from './storySummaryService.js';
 import { compileDmPrepPremise } from './dmPrepCompilationService.js';
 import { broadcastSessionListUpdate, broadcastUpdate } from '../realtime/sessionEvents.js';
@@ -20,7 +19,7 @@ export const triggerPreviewRegen = (sessionId: string, namespaceId?: string) => 
     console.log(`[Preview] Generating preview for ${sessionId}`);
     const result = await ImageService.generateSessionPreview(session);
     if (result) {
-      StateService.updateSessionPreviewImage(sessionId, result.url);
+      sessionRepository.updateSessionPreviewImage(sessionId, result.url);
       const eventNamespaceId = namespaceId ?? sessionRepository.getSessionNamespaceId(sessionId);
       broadcastUpdate(sessionId, 'image_ready', { target: 'session_preview', imageUrl: result.url });
       broadcastSessionListUpdate(eventNamespaceId, 'preview_image_available', { sessionId, previewImageUrl: result.url });
@@ -46,7 +45,7 @@ export const refreshDmPrepImageBriefAndPreview = (
     if (brief.status === 'rejected') {
       console.warn('[Preview] DM prep visual brief refresh failed:', brief.reason);
     }
-    await StateService.patchSession(sessionId, patch);
+    await sessionRepository.patchSession(sessionId, patch);
     triggerPreviewRegen(sessionId, namespaceId);
   });
 };

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { previewFreeAction, suggestStatForSessionAction } from '../../services/statSuggestionService.js';
-import { StateService } from '../../services/stateService.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
+import { turnHistoryRepository } from '../../repositories/turnHistoryRepository.js';
 
 const { mockCreateCompletion } = vi.hoisted(() => ({
   mockCreateCompletion: vi.fn(),
@@ -168,7 +168,7 @@ describe('suggest-stat integration', () => {
       id: 'preview-action-context-session',
       storySummary: 'The party promised Mira they would recover the moon key.',
     }));
-    await StateService.addTurnResult('preview-action-context-session', {
+    await turnHistoryRepository.addTurnResult('preview-action-context-session', {
       narration: 'Pip found silver claw marks beside the locked pantry door.',
       choices: [],
       imagePrompt: null,

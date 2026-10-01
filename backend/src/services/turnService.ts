@@ -4,7 +4,6 @@ import type { ActionAttempt, AIInput, Choice, NarratedRiddle, ServerTurnResult, 
 import type { NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
 import { createNarrationProvider } from '../providers/ai/AiProviderFactory.js';
 import { GameEngine } from './gameEngine.js';
-import { StateService } from './stateService.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { compileDmPrepPremise } from './dmPrepCompilationService.js';
@@ -57,7 +56,7 @@ const compileDmPrepIfMissing = (sessionId: string, session: SessionState): void 
   compileDmPrepPremise(session.dmPrep).then(compiled => {
     if (compiled) {
       devLog.log(`[DmPrepCompile] compiled premise stored for session=${sessionId} chars=${compiled.length}`);
-      StateService.patchSession(sessionId, { compiledDmPrep: compiled }).catch(err => {
+      sessionRepository.patchSession(sessionId, { compiledDmPrep: compiled }).catch(err => {
         devLog.warn(`[DmPrepCompile] failed to store compiled premise for session=${sessionId}`, err);
       });
     }

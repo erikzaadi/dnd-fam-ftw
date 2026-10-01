@@ -10,7 +10,6 @@ import { acceptSessionOperation, hashOperationPayload, runSessionOperation } fro
 import { generateAndCommitInitialTurn } from './initialTurnService.js';
 import { runBackground } from '../middleware/runBackground.js';
 import { generateSessionDisplayName } from './sessionNameService.js';
-import { StateService } from './stateService.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { AdventureCapReached, assertAdventureCap, checkAdventureCap, refusalStatus } from './paidWorkAdmission.js';
@@ -101,7 +100,7 @@ const advance = async (command: CreateCommandRow, input: CreateAdventureInput, r
       // since the reservation. The reservation stays, so the same requestId can succeed
       // once the player deletes an adventure.
       try {
-        session = await StateService.createSession(input.premise, 'normal', true, namespaceId, 'balanced', undefined, displayName, sessionId, input.format, input.images ?? 'off', () => assertAdventureCap(namespaceId));
+        session = await sessionRepository.createSession(input.premise, 'normal', true, namespaceId, 'balanced', undefined, displayName, sessionId, input.format, input.images ?? 'off', () => assertAdventureCap(namespaceId));
       } catch (err) {
         if (err instanceof AdventureCapReached) {
           return capRefusal(err.refusal.limit);
@@ -121,7 +120,7 @@ const advance = async (command: CreateCommandRow, input: CreateAdventureInput, r
     if (session.party.length === 0) {
       session.party = buildParty(input, sessionId);
       session.activeCharacterId = session.party[0].id;
-      await StateService.updateSession(sessionId, session);
+      await sessionRepository.updateSession(sessionId, session);
     }
     phase = 'party_ready';
     adventureCreateCommandRepository.setPhase(ownerKey, requestId, phase, null, Date.now());

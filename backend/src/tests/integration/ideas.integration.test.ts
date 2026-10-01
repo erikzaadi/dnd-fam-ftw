@@ -7,7 +7,6 @@ import { createIdeasRouter } from '../../routes/ideasRoutes.js';
 import { createTurnRouter } from '../../routes/turnRoutes.js';
 import { resetIdeasStateForTests } from '../../services/ideasService.js';
 import { acceptSessionOperation } from '../../services/sessionOperationService.js';
-import { StateService } from '../../services/stateService.js';
 import { sessionRepository } from '../../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../../repositories/turnHistoryRepository.js';
 import type { Choice, IdeasPayload, SessionSnapshot } from '../../types.js';
@@ -67,7 +66,7 @@ const askIdeas = (sessionId: string, body: Record<string, unknown>) => post(`/se
 // A session whose latest turn has no suggestions yet.
 const seed = async (id: string): Promise<{ turnId: number; revision: number }> => {
   await insertSessionState(makeTestSession({ id }));
-  await StateService.addTurnResult(id, { narration: 'The kitchen bubbles.', choices: [], imagePrompt: null, imageSuggested: false }, null);
+  await turnHistoryRepository.addTurnResult(id, { narration: 'The kitchen bubbles.', choices: [], imagePrompt: null, imageSuggested: false }, null);
   const history = await turnHistoryRepository.getTurnHistory(id);
   return { turnId: history[history.length - 1].id as number, revision: sessionRepository.getRevision(id) ?? 0 };
 };
@@ -137,7 +136,7 @@ describe('POST /session/:id/ideas', () => {
     const key = await seed('ideas-submit');
     const { choices } = await (await askIdeas('ideas-submit', key)).json() as IdeasPayload;
 
-    StateService.bumpRevision('ideas-submit');
+    sessionRepository.bumpRevision('ideas-submit');
     const stale = await post('/session/ideas-submit/action', { action: choices[0].label, statUsed: 'mischief', choiceId: choices[0].id, requestId: 'submit-stale' });
     expect(stale.status).toBe(409);
     expect(await stale.json()).toMatchObject({ error: 'stale_choice' });
@@ -238,7 +237,7 @@ describe('POST /session/:id/ideas', () => {
     const statuses: number[] = [];
     for (let i = 0; i < 7; i++) {
       statuses.push((await askIdeas('ideas-rate', { turnId: key.turnId, revision: sessionRepository.getRevision('ideas-rate') ?? 0 })).status);
-      StateService.bumpRevision('ideas-rate');
+      sessionRepository.bumpRevision('ideas-rate');
     }
     expect(statuses.slice(0, 6)).toEqual([200, 200, 200, 200, 200, 200]);
     expect(statuses[6]).toBe(429);

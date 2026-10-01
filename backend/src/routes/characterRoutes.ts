@@ -5,7 +5,6 @@ import { createId } from '../lib/ids.js';
 import { summarizeHeroHistory } from '../services/playerSummaryService.js';
 import { broadcastSessionChanged, broadcastUpdate } from '../realtime/sessionEvents.js';
 import { ImageService } from '../services/imageService.js';
-import { StateService } from '../services/stateService.js';
 import { characterRepository } from '../repositories/characterRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { getStartingMaxHp } from '../services/characterHpService.js';
@@ -107,7 +106,7 @@ export const createCharacterRouter = () => {
       const capturedNamespaceId = req.namespaceId;
       runBackground(`avatar-create char=${charId} session=${sessionId}`, async () => {
         const result = await ImageService.generateAvatar(characterData, sessionId);
-        StateService.updateCharacterAvatar(charId, result.url, result.prompt, result.storageKey, result.storageProvider);
+        characterRepository.updateAvatar(charId, result.url, result.prompt, result.storageKey, result.storageProvider);
         broadcastUpdate(sessionId, 'image_ready', { target: 'character_avatar', characterId: charId, imageUrl: result.url });
         triggerPreviewRegen(sessionId, capturedNamespaceId);
         broadcastSessionChanged(capturedNamespaceId, sessionId, 'updated');
@@ -167,7 +166,7 @@ export const createCharacterRouter = () => {
       const capturedNamespaceId = req.namespaceId;
       runBackground(`avatar-update char=${capturedCharId} session=${sessionId}`, async () => {
         const result = await ImageService.generateAvatar(characterData, sessionId);
-        StateService.updateCharacterAvatar(capturedCharId, result.url, result.prompt, result.storageKey, result.storageProvider);
+        characterRepository.updateAvatar(capturedCharId, result.url, result.prompt, result.storageKey, result.storageProvider);
         broadcastUpdate(sessionId, 'image_ready', { target: 'character_avatar', characterId: capturedCharId, imageUrl: result.url });
         triggerPreviewRegen(sessionId, capturedNamespaceId);
         broadcastSessionChanged(capturedNamespaceId, sessionId, 'updated');
@@ -200,7 +199,7 @@ export const createCharacterRouter = () => {
       return;
     }
     const mutation = applyGuardedSessionMutation(sessionId as string, undefined, () => {
-      StateService.deleteCharacter(charId as string);
+      characterRepository.deleteCharacter(charId as string);
     });
     if (!mutation.ok) {
       res.status(mutation.status).json(mutation.body);

@@ -1,7 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ActionAttempt, TurnResult } from '../../types.js';
 import { GameEngine } from '../../services/gameEngine.js';
-import { StateService } from '../../services/stateService.js';
 import { sessionRepository } from '../../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../../repositories/turnHistoryRepository.js';
 import { executeTurnAction } from '../../services/turnService.js';
@@ -86,7 +85,7 @@ describe.each(TURN_STRATEGIES)('executeTurnAction predefined action integration 
     });
     await insertSessionState(session);
 
-    await StateService.addTurnResult(`predefined-action-victory-exit-session-${strategy}`, makeHistoryTurn({
+    await turnHistoryRepository.addTurnResult(`predefined-action-victory-exit-session-${strategy}`, makeHistoryTurn({
       narration: 'Pip drove an animated pan into the flour barrel.',
       actionAttempt: 'Strike the animated pan',
       difficultyTarget: 12,

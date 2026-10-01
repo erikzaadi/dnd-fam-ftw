@@ -100,7 +100,7 @@ describe('StateService - Session CRUD', () => {
       }],
       activeCharacterId: 'char-upd',
     };
-    await StateService.updateSession('sess-update', session);
+    await sessionRepository.updateSession('sess-update', session);
     const reloaded = await sessionRepository.getSession('sess-update');
     expect(reloaded!.scene).toBe('Updated Scene');
     expect(reloaded!.turn).toBe(5);
@@ -133,7 +133,7 @@ describe('StateService - Session CRUD', () => {
   it('addTurnResult and getTurnHistory round-trip', async () => {
     insertTestSession('sess-turns', 'local', 'Turn World');
     insertTestCharacter('char-t1', 'sess-turns', 'Archer');
-    const turnId = await StateService.addTurnResult('sess-turns', {
+    const turnId = await turnHistoryRepository.addTurnResult('sess-turns', {
       encounterId: 'enc-turns-1',
       narration: 'The hero attacks!',
       rollNarration: 'A solid blow.',
@@ -174,7 +174,7 @@ describe('StateService - Session CRUD', () => {
 
   it('deleteSession cascades to turn history', async () => {
     insertTestSession('sess-del', 'local', 'Doomed World');
-    await StateService.addTurnResult('sess-del', {
+    await turnHistoryRepository.addTurnResult('sess-del', {
       narration: 'Final turn.', imagePrompt: null, imageSuggested: false, imageUrl: null,
       choices: [], lastAction: null, turnType: 'normal',
     }, null);
@@ -229,16 +229,16 @@ describe('StateService - Session CRUD', () => {
 
   it('updateTurnImage attaches the image to the exact turn, not the latest one', async () => {
     insertTestSession('sess-img-update', 'local', 'Image World');
-    const firstId = await StateService.addTurnResult('sess-img-update', {
+    const firstId = await turnHistoryRepository.addTurnResult('sess-img-update', {
       narration: 'First turn.', imagePrompt: 'a forest', imageSuggested: true, imageUrl: null,
       choices: [], lastAction: null, turnType: 'normal',
     }, null);
-    await StateService.addTurnResult('sess-img-update', {
+    await turnHistoryRepository.addTurnResult('sess-img-update', {
       narration: 'Second turn.', imagePrompt: 'a cave', imageSuggested: true, imageUrl: null,
       choices: [], lastAction: null, turnType: 'normal',
     }, null);
     // A late image for the first turn must not land on the newer second turn.
-    const attached = await StateService.updateTurnImage('sess-img-update', firstId, 'http://example.com/img.png', 'img-key-123', 'local');
+    const attached = await turnHistoryRepository.updateTurnImage('sess-img-update', firstId, 'http://example.com/img.png', 'img-key-123', 'local');
     const history = await turnHistoryRepository.getTurnHistory('sess-img-update');
     expect(attached).toBe(true);
     expect(history[0].imageUrl).toBe('http://example.com/img.png');
@@ -247,14 +247,14 @@ describe('StateService - Session CRUD', () => {
 
   it('updateTurnImage reports a missing turn instead of writing elsewhere', async () => {
     insertTestSession('sess-img-missing', 'local', 'Image World');
-    const attached = await StateService.updateTurnImage('sess-img-missing', 999999, 'http://example.com/img.png', 'img-key-123', 'local');
+    const attached = await turnHistoryRepository.updateTurnImage('sess-img-missing', 999999, 'http://example.com/img.png', 'img-key-123', 'local');
     expect(attached).toBe(false);
   });
 
   it('updateStorySummary ignores a summary built from an older turn', async () => {
     insertTestSession('sess-summary-version', 'local', 'Summary World');
-    expect(await StateService.updateStorySummary('sess-summary-version', 'Summary from turn 10.', 10)).toBe(true);
-    expect(await StateService.updateStorySummary('sess-summary-version', 'Late summary from turn 5.', 5)).toBe(false);
+    expect(await sessionRepository.updateStorySummary('sess-summary-version', 'Summary from turn 10.', 10)).toBe(true);
+    expect(await sessionRepository.updateStorySummary('sess-summary-version', 'Late summary from turn 5.', 5)).toBe(false);
     const session = await sessionRepository.getSession('sess-summary-version');
     expect(session?.storySummary).toBe('Summary from turn 10.');
   });
@@ -283,7 +283,7 @@ describe('StateService - Session CRUD', () => {
 
   it('persists preview image URLs for getSession and listSessions', async () => {
     insertTestSession('sess-preview', 'local', 'Preview World');
-    StateService.updateSessionPreviewImage('sess-preview', '/test-images/preview_sess-preview.png');
+    sessionRepository.updateSessionPreviewImage('sess-preview', '/test-images/preview_sess-preview.png');
 
     const session = await sessionRepository.getSession('sess-preview');
     expect(session!.previewImageUrl).toBe('/test-images/preview_sess-preview.png');
@@ -468,12 +468,12 @@ describe('StateService - Character history', () => {
     insertTestSession('sess-char-hist', 'local', 'History World');
     insertTestCharacter('char-hist-1', 'sess-char-hist', 'Bard');
     insertTestCharacter('char-hist-2', 'sess-char-hist', 'Wizard');
-    await StateService.addTurnResult('sess-char-hist', {
+    await turnHistoryRepository.addTurnResult('sess-char-hist', {
       narration: 'Bard plays a tune.', imagePrompt: null, imageSuggested: false, imageUrl: null,
       choices: [], lastAction: { actionAttempt: 'Play lute', actionResult: { success: true, roll: 14, statUsed: 'magic' } },
       turnType: 'normal',
     }, 'char-hist-1');
-    await StateService.addTurnResult('sess-char-hist', {
+    await turnHistoryRepository.addTurnResult('sess-char-hist', {
       narration: 'Wizard casts fireball.', imagePrompt: null, imageSuggested: false, imageUrl: null,
       choices: [], lastAction: { actionAttempt: 'Cast fireball', actionResult: { success: true, roll: 18, statUsed: 'magic' } },
       turnType: 'normal',
@@ -487,7 +487,7 @@ describe('StateService - Character history', () => {
 
   it('updateStorySummary persists summary', async () => {
     insertTestSession('sess-summary', 'local', 'Summary World');
-    await StateService.updateStorySummary('sess-summary', 'The party defeated the goblin king.');
+    await sessionRepository.updateStorySummary('sess-summary', 'The party defeated the goblin king.');
     const session = await sessionRepository.getSession('sess-summary');
     expect(session!.storySummary).toBe('The party defeated the goblin king.');
   });
@@ -518,7 +518,7 @@ describe('StateService - Encounter state persistence', () => {
         areas: [{ id: 'a1', label: 'Broken Crates', description: 'Splintered wood covering the floor', tags: ['cover'] }],
       },
     };
-    await StateService.updateSession('sess-enc-full', withEncounter);
+    await sessionRepository.updateSession('sess-enc-full', withEncounter);
     const loaded = await sessionRepository.getSession('sess-enc-full');
     expect(loaded!.encounterState?.id).toBe('enc-1');
     expect(loaded!.encounterState?.name).toBe('Goblin Brawl');
@@ -543,16 +543,16 @@ describe('StateService - Encounter state persistence', () => {
         areas: [],
       },
     };
-    await StateService.updateSession('sess-enc-seq', initial);
+    await sessionRepository.updateSession('sess-enc-seq', initial);
 
     const after1 = await sessionRepository.getSession('sess-enc-seq');
-    await StateService.updateSession('sess-enc-seq', {
+    await sessionRepository.updateSession('sess-enc-seq', {
       ...after1!,
       encounterState: { ...after1!.encounterState!, round: 2, enemies: [{ ...after1!.encounterState!.enemies[0], hp: 6 }] },
     });
 
     const after2 = await sessionRepository.getSession('sess-enc-seq');
-    await StateService.updateSession('sess-enc-seq', {
+    await sessionRepository.updateSession('sess-enc-seq', {
       ...after2!,
       encounterState: { ...after2!.encounterState!, round: 3, enemies: [{ ...after2!.encounterState!.enemies[0], hp: 2 }] },
     });
@@ -569,13 +569,13 @@ describe('StateService - Encounter state persistence', () => {
       ...base!,
       encounterState: { id: 'enc-tmp', name: 'Temp Encounter', status: 'active', round: 1, enemies: [], areas: [] },
     };
-    await StateService.updateSession('sess-enc-clr', withEnc);
+    await sessionRepository.updateSession('sess-enc-clr', withEnc);
     const mid = await sessionRepository.getSession('sess-enc-clr');
     expect(mid!.encounterState?.id).toBe('enc-tmp');
 
     const withoutEnc: SessionState = { ...mid! };
     delete withoutEnc.encounterState;
-    await StateService.updateSession('sess-enc-clr', withoutEnc);
+    await sessionRepository.updateSession('sess-enc-clr', withoutEnc);
     const cleared = await sessionRepository.getSession('sess-enc-clr');
     expect(cleared!.encounterState).toBeUndefined();
   });

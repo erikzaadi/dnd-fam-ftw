@@ -5,7 +5,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { getDb } from '../../persistence/database.js';
 import { createStatSuggestionRouter } from '../../routes/statSuggestionRoutes.js';
 import { createTurnRouter } from '../../routes/turnRoutes.js';
-import { StateService } from '../../services/stateService.js';
 import { sessionRepository } from '../../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../../repositories/turnHistoryRepository.js';
 import type { Choice, FreeActionPreview, PreviewClarification, SessionSnapshot } from '../../types.js';
@@ -39,7 +38,7 @@ const DRAFT = 'I play the piano with a flourish';
 
 const seedRiddle = async (id: string): Promise<void> => {
   await insertSessionState(makeTestSession({ id, party: [makeTestSession().party[0]], activeCharacterId: 'char-pip' }));
-  await StateService.addTurnResult(id, { narration: 'The door sings: "I have keys but open no locks."', choices: RIDDLE_CHOICES, imagePrompt: null, imageSuggested: false }, null);
+  await turnHistoryRepository.addTurnResult(id, { narration: 'The door sings: "I have keys but open no locks."', choices: RIDDLE_CHOICES, imagePrompt: null, imageSuggested: false }, null);
 };
 
 const preview = (sessionId: string, body: Record<string, unknown>) => fetch(`${baseUrl}/session/${sessionId}/preview-action`, {

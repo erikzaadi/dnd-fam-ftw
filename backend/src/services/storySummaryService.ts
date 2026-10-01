@@ -1,6 +1,5 @@
 import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
 import { runBackground } from '../middleware/runBackground.js';
-import { StateService } from './stateService.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { ImageService } from './imageService.js';
@@ -176,7 +175,7 @@ export class StorySummaryService {
 
       const summary = await this.callSummarize(prompt);
       if (summary) {
-        const stored = await StateService.updateStorySummary(sessionId, summary, turn);
+        const stored = await sessionRepository.updateStorySummary(sessionId, summary, turn);
         if (stored) {
           console.log(`[Summary] Updated at turn ${turn} for session ${sessionId}`);
         } else {
@@ -201,7 +200,7 @@ CRITICAL: The party has just been rescued or moved to a new location. Explicitly
 Focus only on the current situation and the essential journey, ignoring defeated or bypassed enemies from the past.`;
 
       const summary = await this.callSummarize(prompt);
-      if (summary && await StateService.updateStorySummary(sessionId, summary, sourceTurn ?? session.turn)) {
+      if (summary && await sessionRepository.updateStorySummary(sessionId, summary, sourceTurn ?? session.turn)) {
         console.log(`[Summary] Updated after intervention for session ${sessionId}`);
       }
     } catch (err) {
@@ -277,7 +276,7 @@ The JSON block must be a valid JSON array with no extra text or prose inside it.
       const raw = await this.callSummarize(prompt, 2000, 50_000, `campaign brief session=${sessionId}`);
       if (raw) {
         const { brief, seeds } = parseEncounterSeeds(raw);
-        await StateService.patchSession(sessionId, { dmPrep: brief });
+        await sessionRepository.patchSession(sessionId, { dmPrep: brief });
         if (options.adventureFormat === 'one_evening') {
           const tonight = parseEveningObjectiveFromBrief(brief);
           if (tonight) {
@@ -286,7 +285,7 @@ The JSON block must be a valid JSON array with no extra text or prose inside it.
         }
         const compiled = await compileDmPrepPremise(brief);
         if (compiled) {
-          await StateService.patchSession(sessionId, { compiledDmPrep: compiled });
+          await sessionRepository.patchSession(sessionId, { compiledDmPrep: compiled });
           console.log(`[Campaign] Compiled dmPrep premise for session ${sessionId} chars=${compiled.length}`);
         }
         const generateMedia = async () => {
@@ -294,7 +293,7 @@ The JSON block must be a valid JSON array with no extra text or prose inside it.
             this.generateDmPrepImageBrief(brief, sessionId),
             this.generateSeedMedia(seeds, sessionId),
           ]);
-          await StateService.patchSession(sessionId, { dmPrepImageBrief: imageBrief, dmPrepEncounters: seededWithMedia });
+          await sessionRepository.patchSession(sessionId, { dmPrepImageBrief: imageBrief, dmPrepEncounters: seededWithMedia });
           if (seededWithMedia) {
             console.log(`[Campaign] ${seededWithMedia.length} encounter seed(s) stored for session ${sessionId}`);
           }

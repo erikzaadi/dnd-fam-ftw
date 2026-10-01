@@ -88,7 +88,7 @@ export const createSessionRouter = () => {
     try {
       id = getDb().transaction(() => {
         assertAdventureCap(req.namespaceId);
-        return StateService.cloneOnboardingSession(req.namespaceId);
+        return sessionRepository.cloneOnboardingSession(req.namespaceId);
       })();
     } catch (err) {
       if (err instanceof AdventureCapReached) {
@@ -114,7 +114,7 @@ export const createSessionRouter = () => {
 
     let session;
     try {
-      session = await StateService.createSession(
+      session = await sessionRepository.createSession(
         seed.worldDescription,
         'normal',
         savingsMode,
@@ -137,7 +137,7 @@ export const createSessionRouter = () => {
 
     session.party = buildInstantStartParty(session.id);
     session.activeCharacterId = session.party[0].id;
-    await StateService.updateSession(session.id, session);
+    await sessionRepository.updateSession(session.id, session);
 
     // Accept the opening turn as an operation before responding, so a player who opens
     // the session immediately sees it pending instead of an empty, actionable stage.
@@ -180,7 +180,7 @@ export const createSessionRouter = () => {
         return;
       }
       const savingsMode = !SettingsService.get(req.namespaceId).imagesEnabled;
-      const session = await StateService.createSession(worldDescription, difficulty, savingsMode, req.namespaceId, gameMode, dmPrep || undefined, undefined, undefined, adventureFormat, undefined, () => assertAdventureCap(req.namespaceId));
+      const session = await sessionRepository.createSession(worldDescription, difficulty, savingsMode, req.namespaceId, gameMode, dmPrep || undefined, undefined, undefined, adventureFormat, undefined, () => assertAdventureCap(req.namespaceId));
       broadcastSessionChanged(req.namespaceId, session.id, 'created');
       if (dmPrep) {
         refreshDmPrepImageBriefAndPreview(session.id, dmPrep, req.namespaceId);
@@ -298,7 +298,7 @@ export const createSessionRouter = () => {
     }
     const result = await ImageService.generateSessionPreview(session);
     if (result) {
-      StateService.updateSessionPreviewImage(session.id, result.url);
+      sessionRepository.updateSessionPreviewImage(session.id, result.url);
       broadcastUpdate(session.id, 'image_ready', { target: 'session_preview', imageUrl: result.url });
       broadcastSessionListUpdate(req.namespaceId, 'preview_image_available', { sessionId: session.id, previewImageUrl: result.url });
     }
@@ -430,7 +430,7 @@ export const createSessionRouter = () => {
       return;
     }
     const { enabled } = body;
-    await StateService.setSavingsMode(req.params.id as string, enabled);
+    await sessionRepository.setSavingsMode(req.params.id as string, enabled);
     res.json({ savingsMode: enabled });
   }));
 

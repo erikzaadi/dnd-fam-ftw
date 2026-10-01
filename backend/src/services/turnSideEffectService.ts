@@ -3,11 +3,12 @@ import type { SessionState, TurnResult } from '../types.js';
 import { runBackground } from '../middleware/runBackground.js';
 import { ImageService } from './imageService.js';
 import { getImageStorageProvider } from '../providers/storage/storageProviderFactory.js';
-import { StateService } from './stateService.js';
 import { StorySummaryService } from './storySummaryService.js';
 import { devLog } from '../lib/devLog.js';
 import { generateImageBrief } from '../providers/ai/images/imageBriefProvider.js';
 import { currentPictureBudgetExhausted } from './usageLimitService.js';
+import { sessionRepository } from '../repositories/sessionRepository.js';
+import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 
 interface CompletedTurnSideEffectsInput {
   sessionId: string;
@@ -24,7 +25,7 @@ type GeneratedImage = { url: string; storageKey: string; storageProvider: string
 // Binds a late image to one exact turn. If the turn (or its session) was deleted while
 // the image was generating, the stored file is removed instead of being orphaned.
 export const attachTurnImage = async (sessionId: string, turnId: number, image: GeneratedImage): Promise<void> => {
-  const attached = await StateService.updateTurnImage(sessionId, turnId, image.url, image.storageKey, image.storageProvider);
+  const attached = await turnHistoryRepository.updateTurnImage(sessionId, turnId, image.url, image.storageKey, image.storageProvider);
   if (attached) {
     broadcastUpdate(sessionId, 'image_ready', { target: 'scene', imageUrl: image.url, turnId });
     return;
@@ -137,7 +138,7 @@ const queueEncounterImageGeneration = (
         devLog.warn(`[EncounterImages] Avatar generation returned empty URL for enemy "${enemy.name}"`);
         return;
       }
-      await StateService.patchEncounterEnemyAvatar(sessionId, encounter.id, enemy.id, result.url);
+      await sessionRepository.patchEncounterEnemyAvatar(sessionId, encounter.id, enemy.id, result.url);
       broadcastUpdate(sessionId, 'image_ready', { target: 'encounter_enemy', encounterId: encounter.id, enemyId: enemy.id, imageUrl: result.url });
     }).catch(err => {
       console.error(`[EncounterImages] Avatar generation failed for enemy "${enemy.name}":`, err);
@@ -164,7 +165,7 @@ const queueEncounterImageGeneration = (
         devLog.warn(`[EncounterImages] Area image generation returned empty URL for area "${area.label}"`);
         return;
       }
-      await StateService.patchEncounterAreaImage(sessionId, encounter.id, area.id, result.url);
+      await sessionRepository.patchEncounterAreaImage(sessionId, encounter.id, area.id, result.url);
       broadcastUpdate(sessionId, 'image_ready', { target: 'encounter_area', encounterId: encounter.id, areaId: area.id, imageUrl: result.url });
     }).catch(err => {
       console.error(`[EncounterImages] Area image generation failed for area "${area.label}":`, err);

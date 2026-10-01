@@ -1,5 +1,4 @@
 import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
-import { StateService } from './stateService.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import type { SessionState } from '../types.js';
 
@@ -115,7 +114,7 @@ async function generateOnce(sessionId: string): Promise<string> {
     text = buildFallback(session);
   }
 
-  if (!StateService.setOriginStoryIfMissing(sessionId, text, new Date().toISOString())) {
+  if (!sessionRepository.setOriginStoryIfMissing(sessionId, text, new Date().toISOString())) {
     // Another process stored one first: everyone gets that one.
     const stored = (await sessionRepository.getSession(sessionId))?.originStory;
     console.log(`[OriginStory] Kept existing for session=${sessionId}`);

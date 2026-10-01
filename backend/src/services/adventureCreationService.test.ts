@@ -7,7 +7,6 @@ import { operationRepository } from '../repositories/operationRepository.js';
 import { runInstantStartBackground } from './instantStartService.js';
 import { generateAndCommitInitialTurn } from './initialTurnService.js';
 import { buildDescribedHero, createAdventure, retryOpening } from './adventureCreationService.js';
-import { StateService } from './stateService.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { getDb, initializeDatabase } from '../persistence/database.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
@@ -100,10 +99,10 @@ describe('createAdventure', () => {
 
   it('resumes a command interrupted after the party was saved', async () => {
     const requestId = nextRequestId();
-    const created = await StateService.createSession('Half made', 'normal', true, NAMESPACE, 'balanced', undefined, 'Half Made', `half-${seq}`);
+    const created = await sessionRepository.createSession('Half made', 'normal', true, NAMESPACE, 'balanced', undefined, 'Half Made', `half-${seq}`);
     created.party = [buildDescribedHero({ name: 'Zara', class: 'Rogue', species: 'Elf' }, created.id)];
     created.activeCharacterId = created.party[0].id;
-    await StateService.updateSession(created.id, created);
+    await sessionRepository.updateSession(created.id, created);
     const input = { premise: 'Half made', heroes: 'auto' as const, partySize: 2, format: 'one_evening' as const };
     // Recorded as the service would have before the crash.
     const { hashOperationPayload } = await import('./sessionOperationService.js');

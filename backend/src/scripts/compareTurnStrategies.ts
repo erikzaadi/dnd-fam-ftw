@@ -322,7 +322,6 @@ const main = async (): Promise<void> => {
   process.env.LOCAL_IMAGE_STORAGE_PATH = path.join(tmp, 'images');
   process.env.IMAGE_STORAGE_PROVIDER = 'local';
 
-  const { StateService } = await import('../services/stateService.js');
   const { initializeDatabase } = await import('../persistence/database.js');
   const { executeTurnAction } = await import('../services/turnService.js');
   const { insertSessionState } = await import('../tests/integration/testSessionFixtures.js');
@@ -354,7 +353,7 @@ const main = async (): Promise<void> => {
         }
       }
       if (fixture.compiledDmPrep) {
-        await StateService.patchSession(fixture.id, { compiledDmPrep: fixture.compiledDmPrep });
+        await sessionRepository.patchSession(fixture.id, { compiledDmPrep: fixture.compiledDmPrep });
       }
     }
     const ended: Record<Strategy, boolean> = { parallel: false, resolved_first: false };

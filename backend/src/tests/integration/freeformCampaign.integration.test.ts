@@ -2,7 +2,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { GameEngine } from '../../services/gameEngine.js';
 import { resolvePartyRecovery } from '../../services/partyRecoveryService.js';
 import { acceptSessionOperation } from '../../services/sessionOperationService.js';
-import { StateService } from '../../services/stateService.js';
 import { sessionRepository } from '../../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../../repositories/turnHistoryRepository.js';
 import { executeTurnAction } from '../../services/turnService.js';
@@ -97,7 +96,7 @@ const setPipHp = async (sessionId: string, hp: number) => {
     throw new Error('session missing');
   }
   stored.party = stored.party.map(c => ({ ...c, hp, status: 'active' as const }));
-  await StateService.updateSession(sessionId, stored);
+  await sessionRepository.updateSession(sessionId, stored);
 };
 
 // A failed roll at 1 HP wipes the one-hero party; the rescue runs inside the same

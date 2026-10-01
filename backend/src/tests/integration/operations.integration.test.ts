@@ -11,12 +11,12 @@ import { createTurnRouter } from '../../routes/turnRoutes.js';
 import { createSessionRouter } from '../../routes/sessionRoutes.js';
 import { resolvePartyRecovery } from '../../services/partyRecoveryService.js';
 import { acceptSessionOperation, reconcileInterruptedOperations } from '../../services/sessionOperationService.js';
-import { StateService } from '../../services/stateService.js';
 import { sessionRepository } from '../../repositories/sessionRepository.js';
 import type { NarrationOutput } from '../../providers/ai/narration/NarrationProvider.js';
 import type { SessionOperation, SessionSnapshot, SessionState, TurnResult } from '../../types.js';
 import { FIXED_NARRATION_OUTPUT, mockGenerateTurn, pinTurnStrategy, resetMockNarrationProvider } from './mockNarrationProvider.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from './testSessionFixtures.js';
+import { characterRepository } from '../../repositories/characterRepository.js';
 
 vi.mock('../../providers/ai/AiProviderFactory.js', async () => {
   const { createMockNarrationProvider } = await import('./mockNarrationProvider.js');
@@ -155,7 +155,7 @@ describe('operation ledger (R1)', () => {
 
   it('rejects a stale expected revision', async () => {
     await insertSessionState(makeTestSession({ id: 'ops-stale' }));
-    StateService.bumpRevision('ops-stale');
+    sessionRepository.bumpRevision('ops-stale');
     expect(acceptSessionOperation({ sessionId: 'ops-stale', namespaceId: 'local', kind: 'action', requestId: 'r', expectedRevision: 0, payload: {} }))
       .toMatchObject({ type: 'conflict', code: 'stale_revision', currentRevision: 1 });
   });
@@ -223,9 +223,9 @@ describe('commitTurn (R1/R2)', () => {
     const session = makeTestSession({ id: 'commit-media', encounterState: encounter });
     await insertSessionState(session);
     // Background jobs finish after the gameplay snapshot was read.
-    StateService.updateCharacterAvatar('char-pip', '/avatars/pip.png', 'prompt', 'pip-key', 'local');
-    await StateService.patchEncounterEnemyAvatar('commit-media', 'enc-media', 'pan', '/enemies/pan.png');
-    await StateService.patchEncounterAreaImage('commit-media', 'enc-media', 'stove', '/areas/stove.png');
+    characterRepository.updateAvatar('char-pip', '/avatars/pip.png', 'prompt', 'pip-key', 'local');
+    await sessionRepository.patchEncounterEnemyAvatar('commit-media', 'enc-media', 'pan', '/enemies/pan.png');
+    await sessionRepository.patchEncounterAreaImage('commit-media', 'enc-media', 'stove', '/areas/stove.png');
 
     const staleSnapshot: SessionState = {
       ...session,
@@ -393,7 +393,7 @@ describe('action route lifecycle (R1/R3)', () => {
       { label: 'Search the door frame', difficulty: 'easy' as const, stat: 'mischief' as const, difficultyValue: 8 },
     ];
     await insertSessionState(makeTestSession({ id: 'route-riddle-private' }));
-    await StateService.addTurnResult('route-riddle-private', { ...makeTurn('The door sings a riddle.'), choices: riddleChoices }, null);
+    await turnHistoryRepository.addTurnResult('route-riddle-private', { ...makeTurn('The door sings a riddle.'), choices: riddleChoices }, null);
     resetMockNarrationProvider({ ...FIXED_NARRATION_OUTPUT, choices: riddleChoices } as typeof FIXED_NARRATION_OUTPUT);
 
     const events = await waitForConnected('route-riddle-private', async () => {
@@ -420,7 +420,7 @@ describe('action route lifecycle (R1/R3)', () => {
     await insertSessionState(makeTestSession({ id: 'route-preview' }));
     const { storeActionPreview } = await import('../../services/actionPreviewStore.js');
     const previewId = storeActionPreview({ sessionId: 'route-preview', revision: 0, actingCharacterId: 'char-pip', kind: 'free_text', originalAction: 'Juggle knives', interpretedAction: 'Juggle knives', stat: 'mischief', difficulty: 'hard', difficultyValue: 16 });
-    StateService.bumpRevision('route-preview');
+    sessionRepository.bumpRevision('route-preview');
     const res = await postAction('route-preview', { action: 'Juggle knives', statUsed: 'might', difficulty: 'easy', previewId });
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ error: 'stale_preview' });
@@ -451,7 +451,7 @@ describe('action route lifecycle (R1/R3)', () => {
 
   it('resolves a suggestion by stable id with server-owned mechanics and rejects stale ids', async () => {
     await insertSessionState(makeTestSession({ id: 'route-choice-id' }));
-    await StateService.addTurnResult('route-choice-id', {
+    await turnHistoryRepository.addTurnResult('route-choice-id', {
       ...makeTurn('A locked door.'),
       choices: [
         { label: 'Kick the door', stat: 'might', difficulty: 'normal', difficultyValue: 12 },

@@ -1,9 +1,5 @@
-import { SessionState, TurnResult, type AdventureFormat, type GameMode, type ImagePolicy } from '../types.js';
-import { characterRepository } from '../repositories/characterRepository.js';
 import { inviteRequestRepository } from '../repositories/inviteRequestRepository.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
-import { sessionRepository, type SessionPatch } from '../repositories/sessionRepository.js';
-import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { usageRepository } from '../repositories/usageRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { deleteAdventure } from '../archive/adventureDeletion.js';
@@ -11,65 +7,23 @@ import { deleteAdventure } from '../archive/adventureDeletion.js';
 // Compatibility facade retained for stable callers. Persistence should live in
 // repositories; keep only cross-repository or side-effect orchestration here.
 export class StateService {
-  public static async createSession(worldDescription?: string, difficulty: string = 'normal', savingsMode: boolean = false, namespaceId: string = 'local', gameMode: GameMode = 'balanced', dmPrep?: string, initialDisplayName?: string, initialId?: string, adventureFormat: AdventureFormat = 'one_evening', imagePolicy?: ImagePolicy, insertGuard?: () => void): Promise<SessionState> {
-    return sessionRepository.createSession(worldDescription, difficulty, savingsMode, namespaceId, gameMode, dmPrep, initialDisplayName, initialId, adventureFormat, imagePolicy, insertGuard);
-  }
 
-  public static async setSavingsMode(id: string, enabled: boolean): Promise<void> {
-    return sessionRepository.setSavingsMode(id, enabled);
-  }
 
   public static async deleteSession(id: string): Promise<void> {
     await deleteAdventure(id);
   }
 
-  public static async updateSession(id: string, state: SessionState): Promise<void> {
-    return sessionRepository.updateSession(id, state);
-  }
 
-  public static updateSessionPreviewImage(id: string, url: string): void {
-    sessionRepository.updateSessionPreviewImage(id, url);
-  }
 
-  public static async patchSession(id: string, fields: SessionPatch): Promise<void> {
-    return sessionRepository.patchSession(id, fields);
-  }
 
-  public static async patchEncounterEnemyAvatar(sessionId: string, encounterId: string, enemyId: string, imageUrl: string): Promise<void> {
-    return sessionRepository.patchEncounterEnemyAvatar(sessionId, encounterId, enemyId, imageUrl);
-  }
 
-  public static async patchEncounterAreaImage(sessionId: string, encounterId: string, areaId: string, imageUrl: string): Promise<void> {
-    return sessionRepository.patchEncounterAreaImage(sessionId, encounterId, areaId, imageUrl);
-  }
 
-  public static async updateStorySummary(sessionId: string, summary: string, sourceTurn?: number): Promise<boolean> {
-    return sessionRepository.updateStorySummary(sessionId, summary, sourceTurn);
-  }
 
-  public static async updateTurnImage(sessionId: string, turnId: number, imageUrl: string, storageKey: string, storageProvider: string): Promise<boolean> {
-    return turnHistoryRepository.updateTurnImage(sessionId, turnId, imageUrl, storageKey, storageProvider);
-  }
 
-  public static setOriginStoryIfMissing(id: string, originStory: string, generatedAt: string): boolean {
-    return sessionRepository.setOriginStoryIfMissing(id, originStory, generatedAt);
-  }
 
-  public static bumpRevision(id: string): number {
-    return sessionRepository.bumpRevision(id);
-  }
 
-  public static async addTurnResult(id: string, turn: TurnResult, characterId: string | null): Promise<number> {
-    return turnHistoryRepository.addTurnResult(id, turn, characterId);
-  }
 
-  public static updateCharacterAvatar(characterId: string, avatarUrl: string, avatarPrompt: string, avatarStorageKey: string, avatarStorageProvider: string): void {
-    characterRepository.updateAvatar(characterId, avatarUrl, avatarPrompt, avatarStorageKey, avatarStorageProvider);
-  }
 
-  public static deleteCharacter(charId: string): void {
-    characterRepository.deleteCharacter(charId);
-  }
 
   // --- Namespace / User management ---
 
@@ -81,9 +35,6 @@ export class StateService {
     return namespaceRepository.renameNamespace(id, newName);
   }
 
-  public static assignSessionToNamespace(sessionId: string, namespaceId: string): boolean {
-    return sessionRepository.assignSessionToNamespace(sessionId, namespaceId);
-  }
 
   // --- Namespace limits ---
 
@@ -99,9 +50,6 @@ export class StateService {
     return namespaceRepository.setNamespaceLimits(namespaceId, maxSessions, maxTurns);
   }
 
-  public static cloneOnboardingSession(namespaceId: string): string {
-    return sessionRepository.cloneOnboardingSession(namespaceId);
-  }
 
   public static recordTtsUsage(namespaceId: string, voice: string, characterCount: number, provider: string = 'openai'): void {
     usageRepository.recordTtsUsage(namespaceId, voice, characterCount, provider);

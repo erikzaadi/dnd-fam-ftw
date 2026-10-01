@@ -5,7 +5,6 @@ import { operationRepository } from '../../repositories/operationRepository.js';
 import { RIDDLE_ABANDONED_NARRATION, recoverRiddle } from '../../services/riddleRecoveryService.js';
 import { ensureActiveRiddle } from '../../services/riddleService.js';
 import { acceptSessionOperation } from '../../services/sessionOperationService.js';
-import { StateService } from '../../services/stateService.js';
 import { sessionRepository } from '../../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../../repositories/turnHistoryRepository.js';
 import { executeTurnAction } from '../../services/turnService.js';
@@ -54,7 +53,7 @@ const FLAGGED: NarrationChoice[] = [
 
 const seedRiddleSession = async (id: string, choices: Choice[] = FLAGGED): Promise<void> => {
   await insertSessionState(makeTestSession({ id, party: [makeTestSession().party[0]], activeCharacterId: 'char-pip' }));
-  await StateService.addTurnResult(id, {
+  await turnHistoryRepository.addTurnResult(id, {
     narration: 'Fiddlewick asks, "What runs but never walks?"',
     choices,
     imagePrompt: null,

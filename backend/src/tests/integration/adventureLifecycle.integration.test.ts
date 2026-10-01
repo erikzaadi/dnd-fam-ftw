@@ -7,7 +7,6 @@ import { createAdventureRouter } from '../../routes/adventureRoutes.js';
 import { createTurnRouter } from '../../routes/turnRoutes.js';
 import { createSessionRouter } from '../../routes/sessionRoutes.js';
 import { GameEngine } from '../../services/gameEngine.js';
-import { StateService } from '../../services/stateService.js';
 import { sessionRepository } from '../../repositories/sessionRepository.js';
 import { createInitialArc, serializeArc } from '../../services/adventureLifecycleService.js';
 import type { AdventureArcState, SessionSnapshot } from '../../types.js';
@@ -192,7 +191,7 @@ describe('one-evening lifecycle (E1/E2)', () => {
   });
 
   it('new sessions default to one evening while migrated rows stay long-lived', async () => {
-    const created = await StateService.createSession('A realm', 'normal', true, 'local', 'balanced', undefined, 'New Realm');
+    const created = await sessionRepository.createSession('A realm', 'normal', true, 'local', 'balanced', undefined, 'New Realm');
     expect(created.adventure?.format).toBe('one_evening');
     await insertSessionState(makeTestSession({ id: 'legacy-row' }));
     expect((await sessionRepository.getSession('legacy-row'))?.adventure?.format).toBe('long_lived');

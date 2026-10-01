@@ -7,7 +7,6 @@ import {
 } from './storySummaryService.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
-import { StateService } from './stateService.js';
 import * as dmPrepCompilationService from './dmPrepCompilationService.js';
 import type { SessionState, TurnResult } from '../types.js';
 
@@ -187,7 +186,7 @@ describe('StorySummaryService.maybeUpdate candidate derivation', () => {
     vi.restoreAllMocks();
     getSessionSpy = vi.spyOn(sessionRepository, 'getSession');
     getTurnHistorySpy = vi.spyOn(turnHistoryRepository, 'getTurnHistory');
-    updateSummarySpy = vi.spyOn(StateService, 'updateStorySummary').mockResolvedValue(true);
+    updateSummarySpy = vi.spyOn(sessionRepository, 'updateStorySummary').mockResolvedValue(true);
     callSummarizeSpy = vi.spyOn(
       StorySummaryService as unknown as {
         callSummarize: (prompt: string, maxTokens?: number, timeoutMs?: number, label?: string) => Promise<string>;
@@ -298,7 +297,7 @@ describe('StorySummaryService.generateCampaignBrief - compiledDmPrep', () => {
       'callSummarize'
     ).mockResolvedValue('PREMISE: A dark forest threatens the realm.\nENCOUNTER_SEEDS:\n[]');
 
-    patchSessionSpy = vi.spyOn(StateService, 'patchSession').mockResolvedValue(undefined);
+    patchSessionSpy = vi.spyOn(sessionRepository, 'patchSession').mockResolvedValue(undefined);
     compileSpy = vi.spyOn(dmPrepCompilationService, 'compileDmPrepPremise').mockResolvedValue('compiled-dm-prep');
   });
 
