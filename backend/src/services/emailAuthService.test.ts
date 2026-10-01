@@ -8,6 +8,7 @@ import { setEmailProviderForTests } from '../providers/email/emailProviderFactor
 import { userRepository } from '../repositories/userRepository.js';
 import { resendEmailCode, startEmailSignIn, verifyEmailCode } from './emailAuthService.js';
 import { resolveVerifiedSignIn } from './signupService.js';
+import { accountService } from '../services/accountService.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-email-auth-test-${Date.now()}.sqlite`);
 let mail: CaptureEmailProvider;
@@ -71,7 +72,7 @@ describe('email sign-in', () => {
   });
 
   it('signs an existing user in without creating a namespace or notice', async () => {
-    userRepository.createUser('returning@example.com');
+    accountService.createUser('returning@example.com');
     const namespacesBefore = (getDb().prepare('SELECT COUNT(*) AS c FROM namespaces').get() as { c: number }).c;
     const outboxBefore = (getDb().prepare('SELECT COUNT(*) AS c FROM email_outbox').get() as { c: number }).c;
     const { challengeId, browserToken, code, ip } = await start('returning@example.com');

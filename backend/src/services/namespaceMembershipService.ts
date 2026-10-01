@@ -3,6 +3,7 @@ import { accessTokenRepository } from '../repositories/accessTokenRepository.js'
 import { namespaceInviteRepository } from '../repositories/namespaceInviteRepository.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
+import { realmAccess } from '../realms/access.js';
 
 export type RemoveMemberResult =
   | { ok: true; primaryNamespaceId: string; hasMemberships: boolean }
@@ -18,7 +19,7 @@ export function removeMember(email: string, namespaceId: string, now: number = D
   if (!user) {
     return { ok: false, reason: `User not found: ${email}` };
   }
-  if (!userRepository.isNamespaceMember(user.id, namespaceId)) {
+  if (!realmAccess.isMember(user.id, namespaceId)) {
     return { ok: false, reason: `User ${email} did not have access to namespace ${namespaceId}` };
   }
   if (namespaceRepository.getOwnerUserId(namespaceId) === user.id) {

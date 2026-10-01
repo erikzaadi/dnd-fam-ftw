@@ -135,6 +135,14 @@ export const namespaceRepository = {
     return getDb().prepare('UPDATE namespaces SET owner_user_id = ? WHERE id = ? AND owner_user_id IS NULL').run(userId, namespaceId).changes > 0;
   },
 
+  listOwnedNamespaces(userId: string): { id: string; name: string }[] {
+    return getDb().prepare('SELECT id, name FROM namespaces WHERE owner_user_id = ?').all(userId) as { id: string; name: string }[];
+  },
+
+  countOtherMembers(namespaceId: string, userId: string): number {
+    return (getDb().prepare('SELECT COUNT(*) AS count FROM user_namespaces WHERE namespace_id = ? AND user_id != ?').get(namespaceId, userId) as { count: number }).count;
+  },
+
   countMembers(namespaceId: string): number {
     return (getDb().prepare('SELECT COUNT(*) AS count FROM user_namespaces WHERE namespace_id = ?').get(namespaceId) as { count: number }).count;
   },

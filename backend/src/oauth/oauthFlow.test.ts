@@ -6,11 +6,11 @@ import type { Server } from 'http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { resetConfigForTests } from '../config/env.js';
 import { getDb, initializeDatabase } from '../persistence/database.js';
-import { userRepository } from '../repositories/userRepository.js';
 import { createPilot, makeCallTool, setMcpTestEnv, startMcpServer } from '../mcp/testHarness.js';
 import { resetMcpRateLimits } from '../mcp/auth.js';
 import { oauthAuthorizationService } from './authorizationService.js';
 import type { AccessTokenScope } from '../types.js';
+import { accountService } from '../services/accountService.js';
 
 // End to end over HTTP: register, authorize, consent (service call, the website side is
 // cookie-authenticated), token, then /mcp with the access token. Plus the kill switch.
@@ -37,7 +37,7 @@ const form = (path: string, fields: Record<string, string | undefined>) => fetch
 });
 
 const signIn = async (scopes: AccessTokenScope[] = ['adventures:play']) => {
-  const user = userRepository.createUser(`oauth-flow-${++seq}@example.com`);
+  const user = accountService.createUser(`oauth-flow-${++seq}@example.com`);
   const verifier = crypto.randomBytes(32).toString('base64url');
   const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
   const authorize = await fetch(`${baseUrl}/oauth/authorize?${new URLSearchParams({

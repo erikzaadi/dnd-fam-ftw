@@ -7,6 +7,7 @@ import { userRepository } from '../repositories/userRepository.js';
 import { accessTokenService } from '../services/accessTokenService.js';
 import type { AccessTokenScope } from '../types.js';
 import { createMcpRouter } from './server.js';
+import { accountService } from '../services/accountService.js';
 
 // Test-only helpers for MCP HTTP tests: a pilot user with a token, a seeded session,
 // and JSON-RPC calls against a real /mcp router.
@@ -38,7 +39,7 @@ export const setMcpTestEnv = (dbPath?: string): void => {
 };
 
 export const createPilot = (email: string, scopes: AccessTokenScope[] = ['adventures:play', 'adventures:create']) => {
-  const { userId, namespaceId } = userRepository.createUser(email);
+  const { userId, namespaceId } = accountService.createUser(email);
   userRepository.setMcpAccess(userId, 'on');
   const minted = accessTokenService.create({ userId, namespaceId, label: email, scopes });
   if (!minted.ok) {

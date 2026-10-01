@@ -7,6 +7,8 @@ import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { removeMember } from './namespaceMembershipService.js';
 import { buildOwnershipReport, setNamespaceOwner } from './namespaceOwnershipService.js';
+import { accountService } from '../services/accountService.js';
+import { realmAccess } from '../realms/access.js';
 
 // Characterization of realm membership and ownership rules before the realm access
 // extraction (architecture-deepening plan 2). Gaps only: see the plan's coverage notes
@@ -47,13 +49,13 @@ const insertStrandedUser = (namespaceId: string): string => {
 
 describe('setPrimaryNamespace', () => {
   it('grants membership and claims an ownerless realm', () => {
-    const user = userRepository.createUser(email('primary'));
+    const user = accountService.createUser(email('primary'));
     const { namespaceId } = namespaceRepository.createNamespace('Ownerless');
     expect(namespaceRepository.getOwnerUserId(namespaceId)).toBeNull();
 
-    userRepository.setPrimaryNamespace(user.userId, namespaceId);
+    realmAccess.setPrimary(user.userId, namespaceId);
 
-    expect(userRepository.isNamespaceMember(user.userId, namespaceId)).toBe(true);
+    expect(realmAccess.isMember(user.userId, namespaceId)).toBe(true);
     expect(namespaceRepository.getOwnerUserId(namespaceId)).toBe(user.userId);
     expect(userRepository.getUserById(user.userId)?.namespace_id).toBe(namespaceId);
   });
@@ -61,14 +63,14 @@ describe('setPrimaryNamespace', () => {
 
 describe('the local realm', () => {
   it('accepts members and primaries but never gets an owner', () => {
-    const member = userRepository.createUser(email('local-member'));
-    const primary = userRepository.createUser(email('local-primary'));
+    const member = accountService.createUser(email('local-member'));
+    const primary = accountService.createUser(email('local-primary'));
 
-    userRepository.addUserToNamespace(member.userId, 'local');
-    userRepository.setPrimaryNamespace(primary.userId, 'local');
+    realmAccess.addMember(member.userId, 'local');
+    realmAccess.setPrimary(primary.userId, 'local');
 
-    expect(userRepository.isNamespaceMember(member.userId, 'local')).toBe(true);
-    expect(userRepository.isNamespaceMember(primary.userId, 'local')).toBe(true);
+    expect(realmAccess.isMember(member.userId, 'local')).toBe(true);
+    expect(realmAccess.isMember(primary.userId, 'local')).toBe(true);
     expect(userRepository.getUserById(primary.userId)?.namespace_id).toBe('local');
     expect(namespaceRepository.getOwnerUserId('local')).toBeNull();
   });
@@ -76,13 +78,13 @@ describe('the local realm', () => {
 
 describe('replacement primary realm', () => {
   it('falls back to the oldest remaining realm when the user owns none of them', () => {
-    const olderHost = userRepository.createUser(email('older-host'));
-    const newerHost = userRepository.createUser(email('newer-host'));
-    const currentHost = userRepository.createUser(email('current-host'));
+    const olderHost = accountService.createUser(email('older-host'));
+    const newerHost = accountService.createUser(email('newer-host'));
+    const currentHost = accountService.createUser(email('current-host'));
     const guestEmail = email('guest');
-    const guest = userRepository.createUserInExistingNamespace(guestEmail, currentHost.namespaceId);
-    userRepository.addUserToNamespace(guest.userId, newerHost.namespaceId);
-    userRepository.addUserToNamespace(guest.userId, olderHost.namespaceId);
+    const guest = accountService.createUserInExistingNamespace(guestEmail, currentHost.namespaceId);
+    realmAccess.addMember(guest.userId, newerHost.namespaceId);
+    realmAccess.addMember(guest.userId, olderHost.namespaceId);
     // created_at has second granularity: make the order explicit.
     getDb().prepare("UPDATE namespaces SET created_at = '2020-01-01 00:00:00' WHERE id = ?").run(olderHost.namespaceId);
     getDb().prepare("UPDATE namespaces SET created_at = '2021-01-01 00:00:00' WHERE id = ?").run(newerHost.namespaceId);
@@ -110,7 +112,7 @@ describe('deleteNamespace', () => {
 
   it('moves a user who still points at it to their next membership', () => {
     const { namespaceId } = namespaceRepository.createNamespace('Leaving');
-    const other = userRepository.createUser(email('moved'));
+    const other = accountService.createUser(email('moved'));
     getDb().prepare('UPDATE users SET namespace_id = ? WHERE id = ?').run(namespaceId, other.userId);
 
     expect(namespaceRepository.deleteNamespace(namespaceId)).toEqual({ ok: true });
@@ -122,7 +124,7 @@ describe('deleteNamespace', () => {
 describe('setNamespaceOwner', () => {
   it('is a no-op for the current owner and keeps pending invitations', () => {
     const ownerEmail = email('same-owner');
-    const owner = userRepository.createUser(ownerEmail);
+    const owner = accountService.createUser(ownerEmail);
     const invite = insertPendingInvite(owner.namespaceId, owner.userId);
 
     expect(setNamespaceOwner(owner.namespaceId, ownerEmail)).toEqual({ ok: true, previousOwnerUserId: owner.userId, userId: owner.userId });
@@ -132,7 +134,7 @@ describe('setNamespaceOwner', () => {
   it('assigns a first owner without revoking pending invitations', () => {
     const { namespaceId } = namespaceRepository.createNamespace('First owner');
     const memberEmail = email('first-owner');
-    const member = userRepository.createUser(memberEmail);
+    const member = accountService.createUser(memberEmail);
     // A membership without the first-member owner claim, as in realms backfilled by hand.
     getDb().prepare('INSERT INTO user_namespaces (user_id, namespace_id) VALUES (?, ?)').run(member.userId, namespaceId);
     const invite = insertPendingInvite(namespaceId, member.userId);
@@ -145,8 +147,8 @@ describe('setNamespaceOwner', () => {
 
 describe('buildOwnershipReport', () => {
   it('keeps the recorded owner id of an owner who left', () => {
-    const owner = userRepository.createUser(email('left-owner'));
-    userRepository.createUserInExistingNamespace(email('remaining'), owner.namespaceId);
+    const owner = accountService.createUser(email('left-owner'));
+    accountService.createUserInExistingNamespace(email('remaining'), owner.namespaceId);
     userRepository.removeUserFromNamespace(owner.userId, owner.namespaceId);
 
     expect(buildOwnershipReport().find(row => row.namespaceId === owner.namespaceId)).toMatchObject({

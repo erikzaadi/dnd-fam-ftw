@@ -13,6 +13,7 @@ import { oauthAuthorizationService } from './authorizationService.js';
 import { oauthClientService } from './clientService.js';
 import { digestSecret } from './secrets.js';
 import { OAuthTokenError, oauthTokenService, type OAuthTokenResponse } from './tokenService.js';
+import { accountService } from '../services/accountService.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-oauth-token-test-${Date.now()}.sqlite`);
 const REDIRECT = 'http://127.0.0.1/callback';
@@ -37,7 +38,7 @@ const pkce = () => {
 
 // Runs authorize + consent for a fresh user and returns everything needed to exchange.
 const authorize = async (options: { scopes?: AccessTokenScope[]; tier?: string } = {}) => {
-  const user = userRepository.createUser(`token-user-${++seq}@example.com`, undefined, 'member', options.tier ?? 'unlimited');
+  const user = accountService.createUser(`token-user-${++seq}@example.com`, undefined, 'member', options.tier ?? 'unlimited');
   const { verifier, challenge } = pkce();
   const outcome = await oauthAuthorizationService.startAuthorization({
     client_id: clientId, redirect_uri: REDIRECT, response_type: 'code', code_challenge: challenge,
@@ -234,7 +235,7 @@ describe('revocation', () => {
 describe('connected assistants', () => {
   it('lists a player\'s grants and lets only that player disconnect them', async () => {
     const { user, tokens } = await connect();
-    const other = userRepository.createUser(`token-other-${++seq}@example.com`);
+    const other = accountService.createUser(`token-other-${++seq}@example.com`);
     const [listed] = oauthTokenService.listGrants(user.userId);
     expect(listed).toMatchObject({ clientName: 'Assistant', verifiedHost: null, namespaceId: user.namespaceId, revokedAt: null });
     expect(oauthTokenService.revokeGrant(other.userId, listed.id)).toBe(false);
@@ -249,7 +250,7 @@ describe('connected assistants', () => {
     expect(principal).toMatchObject({ grantId: grantOf(tokens).id, userId: user.userId, namespaceId: user.namespaceId, credential: { kind: 'oauth' } });
     expect(oauthTokenService.authenticate(tokens.refresh_token)).toBeNull();
     const grantId = grantOf(tokens).id;
-    userRepository.deleteUser(`token-user-${seq}@example.com`);
+    accountService.deleteUser(`token-user-${seq}@example.com`);
     expect(oauthGrantRepository.getGrant(grantId)).toBeNull();
     expect(oauthGrantRepository.getToken(digestSecret(tokens.access_token))).toBeNull();
   });

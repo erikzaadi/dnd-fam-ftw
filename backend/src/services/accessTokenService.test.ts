@@ -6,12 +6,13 @@ import { getDb, initializeDatabase } from '../persistence/database.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { accessTokenService, isMcpEligible, MAX_ACTIVE_TOKENS_PER_USER, TOKEN_LIFETIME_MS } from './accessTokenService.js';
+import { accountService } from '../services/accountService.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-access-tokens-test-${Date.now()}.sqlite`);
 
 let seq = 0;
 const pilotUser = (email = `hero${++seq}@example.com`) => {
-  const { userId, namespaceId } = userRepository.createUser(email);
+  const { userId, namespaceId } = accountService.createUser(email);
   userRepository.setMcpAccess(userId, 'on');
   return { userId, namespaceId, email };
 };
@@ -38,14 +39,14 @@ afterAll(() => {
 
 describe('accessTokenService', () => {
   it('refuses users in a realm tier without MCP by default', () => {
-    const { userId, namespaceId } = userRepository.createUser('outsider@example.com', undefined, 'member', 'free');
+    const { userId, namespaceId } = accountService.createUser('outsider@example.com', undefined, 'member', 'free');
     expect(accessTokenService.create({ userId, namespaceId, label: 'x', scopes: [] })).toEqual({ ok: false, error: 'not_eligible' });
     userRepository.setMcpAccess(userId, 'on');
     expect(accessTokenService.create({ userId, namespaceId, label: 'x', scopes: [] }).ok).toBe(true);
   });
 
   it('grants MCP_DEFAULT_TIERS realms (unlimited when unset) unless the user is turned off', () => {
-    const { userId, namespaceId } = userRepository.createUser('founder@example.com', undefined, 'member', 'unlimited');
+    const { userId, namespaceId } = accountService.createUser('founder@example.com', undefined, 'member', 'unlimited');
     expect(userRepository.getMcpAccess(userId)).toBe('default');
     expect(isMcpEligible(userId, namespaceId)).toBe(true);
     userRepository.setMcpAccess(userId, 'off');
@@ -54,7 +55,7 @@ describe('accessTokenService', () => {
   });
 
   it('stops authenticating a tier-granted token when the realm drops to another tier', () => {
-    const { userId, namespaceId } = userRepository.createUser('patron@example.com', undefined, 'member', 'unlimited');
+    const { userId, namespaceId } = accountService.createUser('patron@example.com', undefined, 'member', 'unlimited');
     const { secret } = mint(userId, namespaceId);
     expect(accessTokenService.authenticate(secret)).not.toBeNull();
     namespaceRepository.setNamespaceTier(namespaceId, 'free');
@@ -136,7 +137,7 @@ describe('accessTokenService', () => {
     const email = 'replaced@example.com';
     const first = pilotUser(email);
     const { secret } = mint(first.userId, first.namespaceId);
-    userRepository.deleteUser(email);
+    accountService.deleteUser(email);
     expect(getDb().prepare('SELECT COUNT(*) AS count FROM access_tokens WHERE user_id = ?').get(first.userId)).toMatchObject({ count: 0 });
     pilotUser(email);
     expect(accessTokenService.authenticate(secret)).toBeNull();

@@ -7,6 +7,7 @@ import { initializeDatabase } from '../persistence/database.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { oauthClientService } from './clientService.js';
 import { oauthAuthorizationService, type AuthorizeOutcome } from './authorizationService.js';
+import { accountService } from '../services/accountService.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-oauth-authorize-test-${Date.now()}.sqlite`);
 const REDIRECT = 'http://127.0.0.1/callback';
@@ -100,7 +101,7 @@ describe('startAuthorization', () => {
 
 describe('consent', () => {
   it('lists the player\'s realms with their eligibility', async () => {
-    const founder = userRepository.createUser('consent-founder@example.com', 'Founders', 'member', 'unlimited');
+    const founder = accountService.createUser('consent-founder@example.com', 'Founders', 'member', 'unlimited');
     const requestId = await startRequest();
     const details = oauthAuthorizationService.getConsentDetails(requestId, { userId: founder.userId, email: 'consent-founder@example.com', currentNamespaceId: founder.namespaceId });
     expect(details).toMatchObject({
@@ -112,7 +113,7 @@ describe('consent', () => {
   });
 
   it('denial redirects with access_denied, state, and iss, once', async () => {
-    const user = userRepository.createUser('consent-deny@example.com');
+    const user = accountService.createUser('consent-deny@example.com');
     const requestId = await startRequest();
     const result = oauthAuthorizationService.decide(requestId, user, { approve: false });
     if (!result.ok) {
@@ -126,8 +127,8 @@ describe('consent', () => {
   });
 
   it('refuses a realm without assistant access or membership, without using up the request', async () => {
-    const player = userRepository.createUser('consent-free@example.com', undefined, 'member', 'free');
-    const stranger = userRepository.createUser('consent-stranger@example.com');
+    const player = accountService.createUser('consent-free@example.com', undefined, 'member', 'free');
+    const stranger = accountService.createUser('consent-stranger@example.com');
     const requestId = await startRequest();
     const approve = (namespaceId: string) => oauthAuthorizationService.decide(requestId, player, { approve: true, namespaceId, scopes: ['adventures:play'] });
     expect(approve(player.namespaceId)).toMatchObject({ ok: false, status: 403, error: 'not_eligible' });
@@ -145,7 +146,7 @@ describe('consent', () => {
   });
 
   it('answers a request exactly once under concurrent approvals', async () => {
-    const user = userRepository.createUser('consent-race@example.com');
+    const user = accountService.createUser('consent-race@example.com');
     const requestId = await startRequest();
     const results = await Promise.all(Array.from({ length: 20 }, () => Promise.resolve().then(() =>
       oauthAuthorizationService.decide(requestId, user, { approve: true, namespaceId: user.namespaceId, scopes: ['adventures:play'] }))));

@@ -6,9 +6,9 @@ import { initializeDatabase } from '../persistence/database.js';
 import { kofiPaymentRepository } from '../repositories/kofiPaymentRepository.js';
 import { limitRequestRepository } from '../repositories/limitRequestRepository.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
-import { userRepository } from '../repositories/userRepository.js';
 import { handleKofiWebhook, KOFI_SUPPORTER_DAYS } from './kofiWebhookService.js';
 import { getEffectiveLimits, getNamespaceTier } from './usageLimitService.js';
+import { accountService } from '../services/accountService.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-kofi-test-${Date.now()}.sqlite`);
 const TOKEN = 'test-kofi-token';
@@ -38,7 +38,7 @@ beforeAll(() => {
   process.env.SQLITE_DB_PATH = DB_PATH;
   process.env.KOFI_VERIFICATION_TOKEN = TOKEN;
   initializeDatabase();
-  freeNs = userRepository.createUser('Donor@Example.com', 'Donors', 'member', 'free').namespaceId;
+  freeNs = accountService.createUser('Donor@Example.com', 'Donors', 'member', 'free').namespaceId;
 });
 
 afterAll(() => {
@@ -80,11 +80,11 @@ describe('handleKofiWebhook', () => {
   });
 
   it('never touches tiers that do not expire', () => {
-    const unlimitedNs = userRepository.createUser('founder@example.com', 'Founders').namespaceId;
+    const unlimitedNs = accountService.createUser('founder@example.com', 'Founders').namespaceId;
     expect(handleKofiWebhook(kofiBody({ email: 'founder@example.com' }), NOW)).toMatchObject({ outcome: 'already_upgraded' });
     expect(getEffectiveLimits(unlimitedNs)).toMatchObject({ tier: 'unlimited', tierExpiresAt: null });
 
-    const patronNs = userRepository.createUser('patron@example.com', 'Patrons', 'member', 'free').namespaceId;
+    const patronNs = accountService.createUser('patron@example.com', 'Patrons', 'member', 'free').namespaceId;
     namespaceRepository.setNamespaceTier(patronNs, 'supporter');
     expect(handleKofiWebhook(kofiBody({ email: 'patron@example.com' }), NOW)).toMatchObject({ outcome: 'already_upgraded' });
     expect(namespaceRepository.getNamespaceTier(patronNs)?.expiresAt).toBeNull();
@@ -98,9 +98,9 @@ describe('handleKofiWebhook', () => {
   });
 
   it('never upgrades the realm an invited donor plays in, and sends the payment to review', () => {
-    const hostNs = userRepository.createUser('host-kofi@example.com', 'Hosts', 'member', 'free').namespaceId;
+    const hostNs = accountService.createUser('host-kofi@example.com', 'Hosts', 'member', 'free').namespaceId;
     // Invite-created shape: the host's realm is the donor's primary, and they own none.
-    userRepository.createUserInExistingNamespace('guest-kofi@example.com', hostNs);
+    accountService.createUserInExistingNamespace('guest-kofi@example.com', hostNs);
     expect(handleKofiWebhook(kofiBody({ email: 'guest-kofi@example.com' }), NOW)).toMatchObject({ status: 200, outcome: 'needs_review', namespaceId: null });
     expect(namespaceRepository.getNamespaceTier(hostNs)).toMatchObject({ tier: 'free' });
     expect(kofiPaymentRepository.list({ outcome: 'needs_review' }).map(row => row.email_canonical)).toContain('guest-kofi@example.com');

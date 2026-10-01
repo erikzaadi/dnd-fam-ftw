@@ -8,10 +8,11 @@ import cookieParser from 'cookie-parser';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { resetConfigForTests } from '../config/env.js';
 import { initializeDatabase } from '../persistence/database.js';
-import { userRepository } from '../repositories/userRepository.js';
 import { signJwt } from '../services/authService.js';
 import { removeMember } from '../services/namespaceMembershipService.js';
 import { createAuthRouter } from './authRoutes.js';
+import { accountService } from '../services/accountService.js';
+import { realmAccess } from '../realms/access.js';
 
 // Realm switching after losing access (architecture-deepening plan 2): a full sign-in
 // whose cookie names a realm the user was removed from can still list and switch to
@@ -56,10 +57,10 @@ const switchTo = (cookie: string, namespaceId: string) => fetch(`${baseUrl}/auth
 
 describe('realm switching after losing access', () => {
   it('lists and switches to remaining realms, never back into the lost one', async () => {
-    const host = userRepository.createUser('switch-host@example.com');
+    const host = accountService.createUser('switch-host@example.com');
     const memberEmail = 'switch-member@example.com';
-    const member = userRepository.createUser(memberEmail);
-    userRepository.addUserToNamespace(member.userId, host.namespaceId);
+    const member = accountService.createUser(memberEmail);
+    realmAccess.addMember(member.userId, host.namespaceId);
     const cookie = `jwt=${signJwt({ email: memberEmail, namespaceId: host.namespaceId, type: 'full', userId: member.userId })}`;
 
     expect(removeMember(memberEmail, host.namespaceId)).toMatchObject({ ok: true });

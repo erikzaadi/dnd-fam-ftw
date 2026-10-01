@@ -12,6 +12,7 @@ import { accessTokenService } from '../services/accessTokenService.js';
 import { StateService } from '../services/stateService.js';
 import { resetMcpRateLimits } from './auth.js';
 import { createMcpRouter } from './server.js';
+import { accountService } from '../services/accountService.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-mcp-test-${Date.now()}.sqlite`);
 const SENTINEL = 'SENTINEL_PRIVATE_DM_MATERIAL';
@@ -51,8 +52,8 @@ beforeAll(async () => {
   process.env.IMAGE_STORAGE_PROVIDER = 'local';
   initializeDatabase();
 
-  const a = userRepository.createUser('pilot-a@example.com');
-  const b = userRepository.createUser('pilot-b@example.com');
+  const a = accountService.createUser('pilot-a@example.com');
+  const b = accountService.createUser('pilot-b@example.com');
   userRepository.setMcpAccess(a.userId, 'on');
   userRepository.setMcpAccess(b.userId, 'on');
   insertSession('sess-a', a.namespaceId, 'Troll Bridge');
@@ -103,7 +104,7 @@ describe('/mcp authentication', () => {
 
   it('rejects unknown and revoked tokens', async () => {
     expect((await callTool('dndmcp_unknown', 'list_adventures', {})).status).toBe(401);
-    const user = userRepository.createUser('pilot-revoked@example.com');
+    const user = accountService.createUser('pilot-revoked@example.com');
     userRepository.setMcpAccess(user.userId, 'on');
     const minted = accessTokenService.create({ userId: user.userId, namespaceId: user.namespaceId, label: 'R', scopes: [] });
     if (!minted.ok) {

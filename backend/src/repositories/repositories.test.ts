@@ -12,6 +12,8 @@ import { usageRepository } from './usageRepository.js';
 import { userRepository } from './userRepository.js';
 import { seedOnboarding, ONBOARDING_TEMPLATE_SESSION_ID } from '../scripts/seedOnboarding.js';
 import type { SessionState } from '../types.js';
+import { accountService } from '../services/accountService.js';
+import { realmAccess } from '../realms/access.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-repository-test-${Date.now()}.sqlite`);
 const IMAGE_PATH = path.join(os.tmpdir(), `dnd-repository-images-${Date.now()}`);
@@ -164,22 +166,22 @@ describe('characterRepository', () => {
 
 describe('userRepository and namespaceRepository', () => {
   it('preserves namespace membership when changing primary namespace', () => {
-    const { namespaceId: primaryNamespaceId } = userRepository.createUser('repo-member@example.com');
+    const { namespaceId: primaryNamespaceId } = accountService.createUser('repo-member@example.com');
     const { namespaceId: secondaryNamespaceId } = namespaceRepository.createNamespace('Repository Secondary');
     const user = userRepository.getUserByEmail('repo-member@example.com');
     expect(user).not.toBeNull();
 
-    userRepository.addUserToNamespace(user!.id, secondaryNamespaceId);
-    userRepository.setPrimaryNamespace(user!.id, secondaryNamespaceId);
+    realmAccess.addMember(user!.id, secondaryNamespaceId);
+    realmAccess.setPrimary(user!.id, secondaryNamespaceId);
 
     expect(userRepository.getUserByEmail('repo-member@example.com')?.namespace_id).toBe(secondaryNamespaceId);
-    const namespaces = userRepository.getUserNamespaces('repo-member@example.com').map(ns => ns.id);
+    const namespaces = realmAccess.realmsFor(userRepository.getUserByEmail('repo-member@example.com')!.id).map(ns => ns.id);
     expect(namespaces).toContain(primaryNamespaceId);
     expect(namespaces).toContain(secondaryNamespaceId);
   });
 
   it('refuses to delete namespaces with users or sessions', () => {
-    const { namespaceId: userNamespaceId } = userRepository.createUser('repo-namespace-user@example.com');
+    const { namespaceId: userNamespaceId } = accountService.createUser('repo-namespace-user@example.com');
     expect(namespaceRepository.deleteNamespace(userNamespaceId)).toMatchObject({ ok: false });
 
     const { namespaceId: sessionNamespaceId } = namespaceRepository.createNamespace('Repository Session Namespace');

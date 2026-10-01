@@ -8,6 +8,8 @@ import { usageRepository } from '../repositories/usageRepository.js';
 import { userRepository, type DeleteUserResult } from '../repositories/userRepository.js';
 import { deleteSessionWithAssets } from './sessionDeletionService.js';
 import { removeMember } from './namespaceMembershipService.js';
+import { accountService } from '../services/accountService.js';
+import { realmAccess } from '../realms/access.js';
 
 // Compatibility facade retained for stable callers. Persistence should live in
 // repositories; keep only cross-repository or side-effect orchestration here.
@@ -75,15 +77,15 @@ export class StateService {
   // --- Namespace / User management ---
 
   public static createUser(email: string, namespaceName?: string, role: string = 'member'): { userId: string; namespaceId: string } {
-    return userRepository.createUser(email, namespaceName, role);
+    return accountService.createUser(email, namespaceName, role);
   }
 
   public static ensureAdminUser(email: string): void {
-    userRepository.ensureAdminUser(email);
+    accountService.ensureAdminUser(email);
   }
 
   public static deleteUser(email: string): DeleteUserResult {
-    return userRepository.deleteUser(email);
+    return accountService.deleteUser(email);
   }
 
   public static recordLogin(email: string): void {
@@ -99,7 +101,7 @@ export class StateService {
     if (!ns) {
       return { ok: false, reason: `Namespace not found: ${namespaceId}` };
     }
-    userRepository.setPrimaryNamespace(user.id, namespaceId);
+    realmAccess.setPrimary(user.id, namespaceId);
     return { ok: true };
   }
 
@@ -130,7 +132,7 @@ export class StateService {
     if (!ns) {
       return { ok: false, reason: `Namespace not found: ${namespaceId}` };
     }
-    userRepository.addUserToNamespace(user.id, namespaceId);
+    realmAccess.addMember(user.id, namespaceId);
     return { ok: true };
   }
 
@@ -175,6 +177,6 @@ export class StateService {
   }
 
   public static createUserInExistingNamespace(email: string, namespaceId: string, role?: string): { userId: string; namespaceId: string } {
-    return userRepository.createUserInExistingNamespace(email, namespaceId, role);
+    return accountService.createUserInExistingNamespace(email, namespaceId, role);
   }
 }

@@ -5,6 +5,8 @@ import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { claimIfFirstMember, deleteRealmCascade, LOCAL_REALM_ID, refuse, replacementPrimaries, type RealmRefusal } from './rules.js';
 
+export { LOCAL_REALM_ID };
+
 // Realm access: who belongs to a realm, who owns it, and which realm is a user's
 // primary. Membership (user_namespaces) is the only source of access; the primary
 // pointer is just the default at sign-in. Keyed by user id: callers that only have an

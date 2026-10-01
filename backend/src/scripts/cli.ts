@@ -56,6 +56,7 @@ import { applyProposedOwners, buildOwnershipReport, setNamespaceOwner } from '..
 import { removeMember } from '../services/namespaceMembershipService.js';
 import { namespaceInviteRepository } from '../repositories/namespaceInviteRepository.js';
 import { realmAccess } from '../realms/access.js';
+import { accountService } from '../services/accountService.js';
 
 const [, , resource, subcommand, ...rest] = process.argv;
 const allArgs = [subcommand, ...rest].filter(Boolean);
@@ -136,14 +137,14 @@ case 'users': {
     if (namespaceName) {
       const existingNs = namespaceRepository.getNamespaceByName(namespaceName);
       if (existingNs) {
-        addResult = StateService.createUserInExistingNamespace(email, existingNs.id);
+        addResult = accountService.createUserInExistingNamespace(email, existingNs.id);
         console.log(`Created user: ${email} (added to existing namespace: ${existingNs.name})`);
       } else {
-        addResult = StateService.createUser(email, namespaceName);
+        addResult = accountService.createUser(email, namespaceName);
         console.log(`Created user: ${email} (created new namespace: ${namespaceName})`);
       }
     } else {
-      addResult = StateService.createUser(email);
+      addResult = accountService.createUser(email);
       console.log(`Created user: ${email}`);
     }
     console.log(`  userId:      ${addResult.userId}`);
@@ -157,7 +158,7 @@ case 'users': {
     }
     // Realms the user owns alone go with the account. Their adventures (and images)
     // are only deleted with --with-adventures; shared realms need a new owner first.
-    const plan = userRepository.planAccountDeletion(email);
+    const plan = accountService.planAccountDeletion(email);
     if (!plan.ok) {
       fail(plan.reason);
     }
@@ -171,7 +172,7 @@ case 'users': {
       }
       console.log(`Deleted ${doomedSessions.length} adventure(s)`);
     }
-    const deleted = StateService.deleteUser(email);
+    const deleted = accountService.deleteUser(email);
     if (!deleted.ok) {
       fail(deleted.reason);
     }
@@ -1271,10 +1272,10 @@ case 'invite-requests': {
         console.error(`Namespace not found: ${approveNsName}`);
         process.exit(1);
       }
-      approveResult = StateService.createUserInExistingNamespace(approveEmail, approveNs.id);
+      approveResult = accountService.createUserInExistingNamespace(approveEmail, approveNs.id);
       console.log(`Approved invite for: ${approveEmail} (namespace: ${approveNs.name})`);
     } else {
-      approveResult = StateService.createUser(approveEmail);
+      approveResult = accountService.createUser(approveEmail);
       console.log(`Approved invite for: ${approveEmail}`);
     }
     StateService.removeInviteRequest(approveEmail);

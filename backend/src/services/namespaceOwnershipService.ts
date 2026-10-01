@@ -2,6 +2,7 @@ import { runInTransaction } from '../persistence/database.js';
 import { namespaceInviteRepository } from '../repositories/namespaceInviteRepository.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
+import { realmAccess } from '../realms/access.js';
 
 // Every real (authenticated) namespace has exactly one owner, who exists and is a
 // member. The users FK covers "exists" and blocks deleting an owner; the rest is
@@ -115,7 +116,7 @@ export function setNamespaceOwner(namespaceId: string, email: string, now: numbe
   if (!user) {
     return { ok: false, reason: `User not found: ${email}` };
   }
-  if (!userRepository.isNamespaceMember(user.id, namespaceId)) {
+  if (!realmAccess.isMember(user.id, namespaceId)) {
     return { ok: false, reason: `${email} is not a member of ${namespaceId}; add them first (namespaces add-user)` };
   }
   const previousOwnerUserId = namespaceRepository.getOwnerUserId(namespaceId);

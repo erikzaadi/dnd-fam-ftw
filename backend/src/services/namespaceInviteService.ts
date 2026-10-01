@@ -19,6 +19,7 @@ import { buildInvitationEmail, enqueueSignupNotice, getAppUrl } from './emailSer
 import { LOCAL_NAMESPACE_ID } from './namespaceOwnershipService.js';
 import { isSignupPaused, startOfUtcDay } from './usageLimitService.js';
 import { realmAccess } from '../realms/access.js';
+import { accountService } from '../services/accountService.js';
 
 // Member invitations: an owner (or, when the owner allows it, any member) emails a
 // single-use link that adds the recipient to the realm as an ordinary member. The link
@@ -315,11 +316,11 @@ export function acceptInvitation(token: unknown, signedInUserId: string | null, 
       }
       // Invite-created accounts are ordinary members whose primary realm is the one
       // they joined; they get no private realm of their own.
-      userRepository.createUserInExistingNamespace(invite.recipient_email_canonical, invite.namespace_id);
+      accountService.createUserInExistingNamespace(invite.recipient_email_canonical, invite.namespace_id);
       user = userRepository.getUserByEmail(invite.recipient_email_canonical)!;
       created = true;
     } else {
-      userRepository.addUserToNamespace(user.id, invite.namespace_id);
+      realmAccess.addMember(user.id, invite.namespace_id);
     }
     if (!namespaceInviteRepository.resolve(invite.id, 'accepted', now, { userId: user.id, createdAccount: created })) {
       throw new Error('Invitation was consumed concurrently');

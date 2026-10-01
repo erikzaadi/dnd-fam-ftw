@@ -16,7 +16,6 @@ import { startEmailAuthMaintenance } from './services/emailAuthService.js';
 import { startOutboxDispatcher } from './services/emailService.js';
 import { getImageStorageProvider } from './providers/storage/storageProviderFactory.js';
 import { getOpenAIMaxRetries, getPreviewReasoningEffort } from './providers/ai/openAiClient.js';
-import { StateService } from './services/stateService.js';
 import { reconcileInterruptedOperations } from './services/sessionOperationService.js';
 import { createAuthRouter } from './routes/authRoutes.js';
 import { createInvitationAuthRouter, createNamespaceInviteRouter } from './routes/namespaceInviteRoutes.js';
@@ -30,6 +29,7 @@ import { createWebhookRouter } from './routes/webhookRoutes.js';
 import { createAccessTokenRouter } from './routes/accessTokenRoutes.js';
 import { createOAuthConsentRouter } from './routes/oauthConsentRoutes.js';
 import { createMcpRouter } from './mcp/server.js';
+import { accountService } from './services/accountService.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -117,7 +117,7 @@ reconcileInterruptedOperations();
 if (isAuthEnabled()) {
   console.log(`[Auth] Enabled (signup: ${config.SIGNUP_MODE}, google: ${isGoogleAuthConfigured() ? 'on' : 'off'}, email: ${config.EMAIL_PROVIDER})`);
   if (config.ADMIN_EMAIL) {
-    StateService.ensureAdminUser(config.ADMIN_EMAIL);
+    accountService.ensureAdminUser(config.ADMIN_EMAIL);
   }
   const invitesOff = memberInvitesUnavailableReason();
   console.log(`[Invites] Member invitations ${invitesOff ? `off (${invitesOff})` : 'on'}`);

@@ -6,6 +6,7 @@ import { userRepository } from '../repositories/userRepository.js';
 import { enqueueSignupNotice } from './emailService.js';
 import { isSignupPaused, startOfUtcDay } from './usageLimitService.js';
 import { realmAccess } from '../realms/access.js';
+import { accountService } from '../services/accountService.js';
 
 export type SignInMethod = 'email' | 'google';
 
@@ -55,7 +56,7 @@ export function resolveVerifiedSignIn(email: string, method: SignInMethod, now: 
     return { kind: 'invite', email: canonical, alreadyRequested: inviteRequestRepository.hasInviteRequest(canonical) };
   }
 
-  const { userId, namespaceId } = userRepository.createUser(canonical, undefined, 'member', 'free');
+  const { userId, namespaceId } = accountService.createUser(canonical, undefined, 'member', 'free');
   inviteRequestRepository.removeInviteRequest(canonical);
   enqueueSignupNotice({ userId, namespaceId, email: canonical, method, signedUpAt: now });
   console.log(`[Auth] New self-service account userId=${userId} namespaceId=${namespaceId} method=${method}`);

@@ -7,6 +7,8 @@ import { migrate } from '../persistence/migrations.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { applyProposedOwners, buildOwnershipReport, isNamespaceOwner, setNamespaceOwner } from './namespaceOwnershipService.js';
+import { accountService } from '../services/accountService.js';
+import { realmAccess } from '../realms/access.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-ownership-test-${Date.now()}.sqlite`);
 
@@ -30,26 +32,26 @@ const reportFor = (namespaceId: string) => buildOwnershipReport().find(row => ro
 
 describe('namespace ownership', () => {
   it('makes a new account the owner of its own namespace, but not of one it joins', () => {
-    const owner = userRepository.createUser('owner-a@example.com');
+    const owner = accountService.createUser('owner-a@example.com');
     expect(isNamespaceOwner(owner.userId, owner.namespaceId)).toBe(true);
-    const joined = userRepository.createUserInExistingNamespace('joiner-a@example.com', owner.namespaceId);
+    const joined = accountService.createUserInExistingNamespace('joiner-a@example.com', owner.namespaceId);
     expect(isNamespaceOwner(joined.userId, owner.namespaceId)).toBe(false);
     expect(reportFor(owner.namespaceId)?.status).toBe('ok');
   });
 
   it('keeps foreign keys on and refuses deleting an owner account row', () => {
     expect((getDb().prepare('PRAGMA foreign_keys').get() as { foreign_keys: number }).foreign_keys).toBe(1);
-    const owner = userRepository.createUser('owner-fk@example.com');
+    const owner = accountService.createUser('owner-fk@example.com');
     expect(() => getDb().prepare('DELETE FROM users WHERE id = ?').run(owner.userId)).toThrow(/FOREIGN KEY/);
   });
 
   it('proposes only a sole member who has the namespace as primary', () => {
-    const solo = userRepository.createUser('solo@example.com');
+    const solo = accountService.createUser('solo@example.com');
     clearOwner(solo.namespaceId);
     expect(reportFor(solo.namespaceId)).toMatchObject({ status: 'proposed', proposedOwner: { userId: solo.userId } });
 
-    const shared = userRepository.createUser('shared-1@example.com');
-    userRepository.createUserInExistingNamespace('shared-2@example.com', shared.namespaceId);
+    const shared = accountService.createUser('shared-1@example.com');
+    accountService.createUserInExistingNamespace('shared-2@example.com', shared.namespaceId);
     clearOwner(shared.namespaceId);
     expect(reportFor(shared.namespaceId)).toMatchObject({ status: 'unresolved', proposedOwner: null });
 
@@ -57,9 +59,9 @@ describe('namespace ownership', () => {
     expect(reportFor(empty)).toMatchObject({ status: 'unresolved', reason: 'no members' });
 
     // A sole member whose primary namespace is elsewhere is not a safe guess.
-    const guest = userRepository.createUser('guest@example.com');
+    const guest = accountService.createUser('guest@example.com');
     const { namespaceId: visited } = namespaceRepository.createNamespace('Visited realm');
-    userRepository.addUserToNamespace(guest.userId, visited);
+    realmAccess.addMember(guest.userId, visited);
     clearOwner(visited);
     expect(reportFor(visited)).toMatchObject({ status: 'unresolved', reason: 'sole member has a different primary namespace' });
 
@@ -71,22 +73,22 @@ describe('namespace ownership', () => {
 
   it('makes the first member of an empty realm its owner, and never replaces an owner', () => {
     const { namespaceId } = namespaceRepository.createNamespace('Fresh realm');
-    const first = userRepository.createUser('first-member@example.com');
-    const second = userRepository.createUser('second-member@example.com');
-    userRepository.addUserToNamespace(first.userId, namespaceId);
-    userRepository.addUserToNamespace(second.userId, namespaceId);
+    const first = accountService.createUser('first-member@example.com');
+    const second = accountService.createUser('second-member@example.com');
+    realmAccess.addMember(first.userId, namespaceId);
+    realmAccess.addMember(second.userId, namespaceId);
     expect(namespaceRepository.getOwnerUserId(namespaceId)).toBe(first.userId);
   });
 
   it('backfills owners for existing realms once: the primary member first, then the oldest member', () => {
     const db = getDb();
-    const host = userRepository.createUser('legacy-host@example.com');
-    userRepository.createUserInExistingNamespace('legacy-guest@example.com', host.namespaceId);
+    const host = accountService.createUser('legacy-host@example.com');
+    accountService.createUserInExistingNamespace('legacy-guest@example.com', host.namespaceId);
     // Timestamps have one-second resolution; make the guest clearly newer.
     db.prepare("UPDATE users SET created_at = '2030-01-01 00:00:00' WHERE email = 'legacy-guest@example.com'").run();
-    const visitor = userRepository.createUser('legacy-visitor@example.com');
+    const visitor = accountService.createUser('legacy-visitor@example.com');
     const { namespaceId: shared } = namespaceRepository.createNamespace('Legacy shared');
-    userRepository.addUserToNamespace(visitor.userId, shared);
+    realmAccess.addMember(visitor.userId, shared);
     const { namespaceId: empty } = namespaceRepository.createNamespace('Legacy empty');
     for (const id of [host.namespaceId, shared]) {
       clearOwner(id);
@@ -113,9 +115,9 @@ describe('namespace ownership', () => {
   });
 
   it('sets or transfers the owner only to a current member', () => {
-    const first = userRepository.createUser('transfer-1@example.com');
-    const second = userRepository.createUserInExistingNamespace('transfer-2@example.com', first.namespaceId);
-    const outsider = userRepository.createUser('outsider@example.com');
+    const first = accountService.createUser('transfer-1@example.com');
+    const second = accountService.createUserInExistingNamespace('transfer-2@example.com', first.namespaceId);
+    const outsider = accountService.createUser('outsider@example.com');
 
     expect(setNamespaceOwner(first.namespaceId, 'outsider@example.com')).toMatchObject({ ok: false });
     expect(namespaceRepository.getOwnerUserId(first.namespaceId)).toBe(first.userId);
@@ -133,15 +135,15 @@ describe('namespace ownership', () => {
   });
 
   it('reports an owner who is no longer a member', () => {
-    const owner = userRepository.createUser('left@example.com');
-    const member = userRepository.createUserInExistingNamespace('stayed@example.com', owner.namespaceId);
+    const owner = accountService.createUser('left@example.com');
+    const member = accountService.createUserInExistingNamespace('stayed@example.com', owner.namespaceId);
     userRepository.removeUserFromNamespace(owner.userId, owner.namespaceId);
     expect(reportFor(owner.namespaceId)).toMatchObject({ status: 'invalid_owner', ownerEmail: 'left@example.com' });
     expect(member.namespaceId).toBe(owner.namespaceId);
   });
 
   it('keeps member invitations off by default', () => {
-    const owner = userRepository.createUser('invites@example.com');
+    const owner = accountService.createUser('invites@example.com');
     expect(namespaceRepository.getMemberInvitesEnabled(owner.namespaceId)).toBe(false);
     namespaceRepository.setMemberInvitesEnabled(owner.namespaceId, true);
     expect(namespaceRepository.getMemberInvitesEnabled(owner.namespaceId)).toBe(true);

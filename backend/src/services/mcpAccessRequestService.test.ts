@@ -8,13 +8,14 @@ import { mcpAccessRequestRepository } from '../repositories/mcpAccessRequestRepo
 import { userRepository } from '../repositories/userRepository.js';
 import { isMcpEligible } from './accessTokenService.js';
 import { MAX_REQUESTS_PER_WINDOW, mcpAccessRequestService } from './mcpAccessRequestService.js';
+import { accountService } from '../services/accountService.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-mcp-access-requests-test-${Date.now()}.sqlite`);
 
 let seq = 0;
 const freeUser = () => {
   const email = `free${++seq}@example.com`;
-  const { userId, namespaceId } = userRepository.createUser(email, undefined, 'member', 'free');
+  const { userId, namespaceId } = accountService.createUser(email, undefined, 'member', 'free');
   return { userId, namespaceId, email };
 };
 
@@ -86,14 +87,14 @@ describe('mcpAccessRequestService', () => {
     expect(mcpAccessRequestService.request({ ...blocked, note: null })).toEqual({ ok: false, error: 'not_available' });
     expect(mcpAccessRequestService.getState(blocked.userId, blocked.namespaceId).canRequestAccess).toBe(false);
 
-    const founder = userRepository.createUser('founder-request@example.com', undefined, 'member', 'unlimited');
+    const founder = accountService.createUser('founder-request@example.com', undefined, 'member', 'unlimited');
     expect(mcpAccessRequestService.request({ ...founder, email: 'founder-request@example.com', note: null })).toEqual({ ok: false, error: 'not_needed' });
   });
 
   it('removes requests with the user', () => {
     const user = freeUser();
     mcpAccessRequestService.request({ ...user, note: null });
-    userRepository.deleteUser(user.email);
+    accountService.deleteUser(user.email);
     expect(mcpAccessRequestRepository.getLatestForUser(user.userId)).toBeNull();
   });
 });

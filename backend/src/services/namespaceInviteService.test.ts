@@ -21,6 +21,8 @@ import {
   INVITE_TTL_MS,
   setMemberInvites,
 } from './namespaceInviteService.js';
+import { accountService } from '../services/accountService.js';
+import { realmAccess } from '../realms/access.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-invite-test-${Date.now()}.sqlite`);
 let mail: CaptureEmailProvider;
@@ -66,7 +68,7 @@ const lastToken = (): string => {
 let seq = 0;
 const realm = () => {
   const email = `owner-${++seq}@example.com`;
-  return { email, ...userRepository.createUser(email, `Realm ${seq}`) };
+  return { email, ...accountService.createUser(email, `Realm ${seq}`) };
 };
 
 describe('member invitations', () => {
@@ -88,7 +90,7 @@ describe('member invitations', () => {
     const user = userRepository.getUserByEmail('new.friend@example.com')!;
     expect(user.namespace_id).toBe(owner.namespaceId);
     expect(user.role).toBe('member');
-    expect(userRepository.getUserNamespaces(user.email).map(n => n.id)).toEqual([owner.namespaceId]);
+    expect(realmAccess.realmsFor(user.id).map(n => n.id)).toEqual([owner.namespaceId]);
     expect(namespaceRepository.getOwnerUserId(owner.namespaceId)).toBe(owner.userId);
 
     // Single use: replay gets a typed state and no access.
@@ -103,7 +105,7 @@ describe('member invitations', () => {
     expect(acceptInvitation(lastToken(), friend.userId, false, clock)).toMatchObject({ ok: true, created: false, userId: friend.userId });
     const user = userRepository.getUserByEmail(friend.email)!;
     expect(user.namespace_id).toBe(friend.namespaceId);
-    expect(userRepository.getUserNamespaces(friend.email).map(n => n.id).sort()).toEqual([owner.namespaceId, friend.namespaceId].sort());
+    expect(realmAccess.realmsFor(friend.userId).map(n => n.id).sort()).toEqual([owner.namespaceId, friend.namespaceId].sort());
   });
 
   it('never attaches the invitation to a different signed-in account without confirmation', async () => {
@@ -113,10 +115,10 @@ describe('member invitations', () => {
     const token = lastToken();
     expect(inspectInvitation(token, other.userId, clock)).toMatchObject({ currentAccount: 'other' });
     expect(acceptInvitation(token, other.userId, false, clock)).toEqual({ ok: false, error: 'signed_in_as_other' });
-    expect(userRepository.isNamespaceMember(other.userId, owner.namespaceId)).toBe(false);
+    expect(realmAccess.isMember(other.userId, owner.namespaceId)).toBe(false);
     // Confirmed: the invited account joins, the signed-in one still does not.
     expect(acceptInvitation(token, other.userId, true, clock)).toMatchObject({ ok: true, email: 'someone-else@example.com' });
-    expect(userRepository.isNamespaceMember(other.userId, owner.namespaceId)).toBe(false);
+    expect(realmAccess.isMember(other.userId, owner.namespaceId)).toBe(false);
   });
 
   it('gives random tokens a generic invalid state', () => {
@@ -151,7 +153,7 @@ describe('member invitations', () => {
 
   it('is owner-only by default; members invite only when the owner allows it', async () => {
     const owner = realm();
-    const member = userRepository.createUserInExistingNamespace(`member-${seq}@example.com`, owner.namespaceId);
+    const member = accountService.createUserInExistingNamespace(`member-${seq}@example.com`, owner.namespaceId);
     expect(await createInvitation(member.userId, owner.namespaceId, 'x@example.com', clock)).toMatchObject({ ok: false, error: 'forbidden' });
     expect(setMemberInvites(member.userId, owner.namespaceId, true)).toMatchObject({ ok: false, error: 'forbidden' });
 
@@ -170,7 +172,7 @@ describe('member invitations', () => {
 
   it('revokes a removed member\'s pending invitations', async () => {
     const owner = realm();
-    const member = userRepository.createUserInExistingNamespace(`leaving-${seq}@example.com`, owner.namespaceId);
+    const member = accountService.createUserInExistingNamespace(`leaving-${seq}@example.com`, owner.namespaceId);
     setMemberInvites(owner.userId, owner.namespaceId, true);
     await createInvitation(member.userId, owner.namespaceId, 'friend-of-leaver@example.com', clock);
     const token = lastToken();
@@ -185,8 +187,8 @@ describe('member invitations', () => {
     const token = lastToken();
     // The account is deleted and a new one with the same email appears.
     getDb().prepare('DELETE FROM sessions WHERE namespace_id = ?').run(friend.namespaceId);
-    expect(userRepository.deleteUser(friend.email).ok).toBe(true);
-    userRepository.createUser(friend.email);
+    expect(accountService.deleteUser(friend.email).ok).toBe(true);
+    accountService.createUser(friend.email);
     expect(acceptInvitation(token, null, false, clock)).toEqual({ ok: false, error: 'invalid' });
   });
 
@@ -246,7 +248,7 @@ describe('member invitation rollback', () => {
 
   it('leaves no membership behind for an existing account', async () => {
     const owner = realm();
-    const existing = userRepository.createUser('rollback.existing@example.com');
+    const existing = accountService.createUser('rollback.existing@example.com');
     await createInvitation(owner.userId, owner.namespaceId, 'rollback.existing@example.com', clock);
     const token = lastToken();
     const resolve = vi.spyOn(namespaceInviteRepository, 'resolve').mockReturnValueOnce(false);
@@ -254,6 +256,6 @@ describe('member invitation rollback', () => {
     expect(() => acceptInvitation(token, existing.userId, false, clock)).toThrow('Invitation was consumed concurrently');
     resolve.mockRestore();
 
-    expect(userRepository.isNamespaceMember(existing.userId, owner.namespaceId)).toBe(false);
+    expect(realmAccess.isMember(existing.userId, owner.namespaceId)).toBe(false);
   });
 });

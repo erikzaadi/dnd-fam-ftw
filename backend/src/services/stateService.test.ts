@@ -12,6 +12,7 @@ import { usageRepository } from '../repositories/usageRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { realmAccess } from '../realms/access.js';
 import type { SessionState } from '../types.js';
+import { accountService } from '../services/accountService.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-test-${Date.now()}.sqlite`);
 const IMAGE_STORAGE_PATH = path.join(os.tmpdir(), `dnd-test-imgs-state-${Date.now()}`);
@@ -118,7 +119,7 @@ describe('StateService - Session CRUD', () => {
 
   it('listSessions is scoped to namespace', async () => {
     insertTestSession('sess-ns-a', 'local', 'Local World');
-    const { namespaceId: otherNs } = StateService.createUser('list-ns-test@test.com');
+    const { namespaceId: otherNs } = accountService.createUser('list-ns-test@test.com');
     insertTestSession('sess-ns-b', otherNs, 'Other Namespace World');
     const localSessions = await sessionRepository.listSessions('local');
     const ids = localSessions.map(s => s.id);
@@ -258,7 +259,7 @@ describe('StateService - Session CRUD', () => {
   });
 
   it('listSessions orders by last played, falling back to creation time', async () => {
-    const { namespaceId: ns } = StateService.createUser('list-order-test@test.com');
+    const { namespaceId: ns } = accountService.createUser('list-order-test@test.com');
     const db = getTestDb();
     insertTestSession('sess-order-old', ns, 'Old But Played');
     insertTestSession('sess-order-new', ns, 'New Never Played');
@@ -293,7 +294,7 @@ describe('StateService - Session CRUD', () => {
 
 describe('StateService - User / Namespace management', () => {
   it('createUser + getUserByEmail round-trip', () => {
-    const { userId, namespaceId } = StateService.createUser('hero@example.com');
+    const { userId, namespaceId } = accountService.createUser('hero@example.com');
     expect(userId).toBeTruthy();
     expect(namespaceId).toBeTruthy();
     const user = userRepository.getUserByEmail('hero@example.com');
@@ -307,26 +308,26 @@ describe('StateService - User / Namespace management', () => {
   });
 
   it('deleteUser removes user', () => {
-    StateService.createUser('todelete@example.com');
-    expect(StateService.deleteUser('todelete@example.com').ok).toBe(true);
+    accountService.createUser('todelete@example.com');
+    expect(accountService.deleteUser('todelete@example.com').ok).toBe(true);
     expect(userRepository.getUserByEmail('todelete@example.com')).toBeNull();
   });
 
   it('deleteUser returns false for unknown email', () => {
-    expect(StateService.deleteUser('ghost@example.com')).toMatchObject({ ok: false, notFound: true });
+    expect(accountService.deleteUser('ghost@example.com')).toMatchObject({ ok: false, notFound: true });
   });
 
   it('ensureAdminUser creates admin with role=admin and is idempotent', () => {
-    StateService.ensureAdminUser('admin@example.com');
+    accountService.ensureAdminUser('admin@example.com');
     const admin = userRepository.getUserByEmail('admin@example.com');
     expect(admin).not.toBeNull();
     expect(admin!.role).toBe('admin');
-    StateService.ensureAdminUser('admin@example.com');
+    accountService.ensureAdminUser('admin@example.com');
     expect(userRepository.getUserByEmail('admin@example.com')!.id).toBe(admin!.id);
   });
 
   it('listUsers returns user with namespace info', () => {
-    StateService.createUser('list-test@example.com');
+    accountService.createUser('list-test@example.com');
     const users = userRepository.listUsers();
     const found = users.find(u => u.email === 'list-test@example.com');
     expect(found).toBeDefined();
@@ -336,7 +337,7 @@ describe('StateService - User / Namespace management', () => {
   });
 
   it('recordLogin sets lastLogin for the user', () => {
-    StateService.createUser('login-test@example.com');
+    accountService.createUser('login-test@example.com');
     StateService.recordLogin('login-test@example.com');
     const users = userRepository.listUsers();
     const found = users.find(u => u.email === 'login-test@example.com');
@@ -365,17 +366,17 @@ describe('StateService - User / Namespace management', () => {
   });
 
   it('deleteNamespace rejects namespace with members', () => {
-    const { namespaceId } = StateService.createUser('has-users@example.com');
+    const { namespaceId } = accountService.createUser('has-users@example.com');
     const result = StateService.deleteNamespace(namespaceId);
     expect(result.ok).toBe(false);
     expect(result.reason).toMatch(/member/);
   });
 
   it('addUserToNamespace + getUserNamespaces + removeUserFromNamespace', () => {
-    const { namespaceId: primaryNs } = StateService.createUser('multi-ns@example.com');
+    const { namespaceId: primaryNs } = accountService.createUser('multi-ns@example.com');
     const { namespaceId: secondNs } = StateService.createNamespace('Second Realm');
     // The first member of an empty realm becomes its owner; add one before our user.
-    StateService.createUser('second-realm-owner@example.com');
+    accountService.createUser('second-realm-owner@example.com');
     expect(StateService.addUserToNamespace('second-realm-owner@example.com', secondNs).ok).toBe(true);
     expect(StateService.addUserToNamespace('multi-ns@example.com', secondNs).ok).toBe(true);
     const realmsOf = (email: string) => realmAccess.realmsFor(userRepository.getUserByEmail(email)!.id);
@@ -387,14 +388,14 @@ describe('StateService - User / Namespace management', () => {
   });
 
   it('removeUserFromNamespace rejects the owner', () => {
-    const { namespaceId } = StateService.createUser('primary-ns@example.com');
+    const { namespaceId } = accountService.createUser('primary-ns@example.com');
     const result = StateService.removeUserFromNamespace('primary-ns@example.com', namespaceId);
     expect(result.ok).toBe(false);
     expect(result.reason).toMatch(/owns/);
   });
 
   it('setPrimaryNamespace changes primary namespace', () => {
-    const { namespaceId: primaryNs } = StateService.createUser('switch-ns@example.com');
+    const { namespaceId: primaryNs } = accountService.createUser('switch-ns@example.com');
     const { namespaceId: newPrimaryNs } = StateService.createNamespace('New Primary');
     StateService.addUserToNamespace('switch-ns@example.com', newPrimaryNs);
     expect(StateService.setPrimaryNamespace('switch-ns@example.com', newPrimaryNs).ok).toBe(true);
