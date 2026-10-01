@@ -5,10 +5,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getDb, initializeDatabase } from '../persistence/database.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
-import { buildOwnershipReport } from '../realms/ownershipReport.js';
-import { deleteRealm, removeMember, setNamespaceOwner } from './realmAdmin.js';
-import { accountService } from './accountService.js';
-import { realmAccess } from '../realms/access.js';
+import { buildOwnershipReport } from './ownershipReport.js';
+import { deleteRealm, removeMember, setNamespaceOwner } from '../services/realmAdmin.js';
+import { accountService } from '../services/accountService.js';
+import { realmAccess } from './access.js';
 
 // Characterization of realm membership and ownership rules before the realm access
 // extraction (architecture-deepening plan 2). Gaps only: see the plan's coverage notes

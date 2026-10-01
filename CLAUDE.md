@@ -68,6 +68,10 @@ backend/src/
     turnService.ts                 # Player turn: validate, prepare context, riddles, commit
     turnResolution.ts              # resolveTurn: both strategies, policies, repairs (step order table)
     storySummaryService.ts         # Rolling story compression
+  realms/
+    access.ts                      # realmAccess: membership, ownership, primary realm (keyed by user id)
+    composition.ts                 # Internal building blocks for services/accountService.ts only
+    ownershipReport.ts             # cli namespaces owners report
   middleware/
     auth.ts                        # Attaches req.namespaceId + req.userEmail
     sessionParam.ts                # Loads namespace-scoped req.session for session id routes
@@ -137,7 +141,7 @@ When enabled:
 
 Every session belongs to a namespace. Users have a primary namespace (1:1) but can be granted access to additional namespaces via `namespaces add-user` or an invitation. Membership (`user_namespaces`) is the only source of access; the primary pointer is just the default at sign-in. All session queries scoped to `req.namespaceId`. Default: `local` when auth disabled.
 
-Each real namespace has one owner (`namespaces.owner_user_id`, FK with `ON DELETE RESTRICT`), who must be a member; enforced by `services/namespaceOwnershipService.ts` / `namespaceMembershipService.ts` and reported by `cli namespaces owners`. Foreign keys are on (`PRAGMA foreign_keys = ON` in `database.ts`). User deletion (`userRepository.deleteUser`) refuses owners of shared realms and deletes realms the user owns alone. One-time migrations go through `runOnce` (`applied_migrations` table) in `migrations.ts`.
+Membership, ownership and the primary pointer live in `realms/access.ts` (`realmAccess`, keyed by user id; every write in one transaction that joins the caller's). Each real namespace has one owner (`namespaces.owner_user_id`, FK with `ON DELETE RESTRICT`), who must be a member; `realmAccess.ownerOf` returns only a valid owner, and `realms/ownershipReport.ts` reports drift (`cli namespaces owners`). Account creation and deletion live in `services/accountService.ts`, the only user of `realms/composition.ts` (ESLint-enforced); the CLI's email-keyed admin goes through `services/realmAdmin.ts`. Foreign keys are on (`PRAGMA foreign_keys = ON` in `database.ts`). User deletion (`accountService.deleteUser`) refuses owners of shared realms and deletes realms the user owns alone. One-time migrations go through `runOnce` (`applied_migrations` table) in `migrations.ts`.
 
 Routes with a session id should use `registerSessionIdParam()` so missing sessions and sessions outside `req.namespaceId` return 404 before route handlers run, with the loaded session available as `req.session`.
 

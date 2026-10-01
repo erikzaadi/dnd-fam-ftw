@@ -6,10 +6,10 @@ import { getDb, initializeDatabase } from '../persistence/database.js';
 import { migrate } from '../persistence/migrations.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
-import { applyProposedOwners, buildOwnershipReport } from '../realms/ownershipReport.js';
-import { setNamespaceOwner } from './realmAdmin.js';
-import { accountService } from './accountService.js';
-import { realmAccess } from '../realms/access.js';
+import { applyProposedOwners, buildOwnershipReport } from './ownershipReport.js';
+import { setNamespaceOwner } from '../services/realmAdmin.js';
+import { accountService } from '../services/accountService.js';
+import { realmAccess } from './access.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-ownership-test-${Date.now()}.sqlite`);
 

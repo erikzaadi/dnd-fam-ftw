@@ -1,7 +1,6 @@
 import { withTransaction } from '../persistence/transaction.js';
 import { oauthAuthorizationRepository } from '../repositories/oauthAuthorizationRepository.js';
 import { oauthClientRepository } from '../repositories/oauthClientRepository.js';
-import { userRepository } from '../repositories/userRepository.js';
 import { isMcpEligible, normalizeScopes } from '../services/accessTokenService.js';
 import { ACCESS_TOKEN_SCOPE_VALUES, type AccessTokenScope, type OAuthConsentDetailsResponse } from '../types.js';
 import { oauthClientService, toOAuthClient } from './clientService.js';

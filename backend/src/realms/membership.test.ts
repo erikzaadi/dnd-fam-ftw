@@ -6,10 +6,10 @@ import { getDb, initializeDatabase } from '../persistence/database.js';
 import { migrate } from '../persistence/migrations.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
-import { resolveVerifiedSignIn } from './signupService.js';
-import { accountService } from './accountService.js';
-import { realmAccess } from '../realms/access.js';
-import { deleteRealm, removeMember } from './realmAdmin.js';
+import { resolveVerifiedSignIn } from '../services/signupService.js';
+import { accountService } from '../services/accountService.js';
+import { realmAccess } from './access.js';
+import { deleteRealm, removeMember } from '../services/realmAdmin.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-membership-test-${Date.now()}.sqlite`);
 
