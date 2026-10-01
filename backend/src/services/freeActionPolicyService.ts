@@ -288,12 +288,26 @@ export function isNoFailureDamageAction(action: string, actionIntent?: string): 
   return (!!actionIntent && SUPPORT_BUFF_INTENTS.has(actionIntent)) || isHealingFreeAction(action);
 }
 
+// What the turn pipeline decides about an action before generation, once: the early
+// HP preview and the policies after generation both read this, so they cannot disagree.
+export type TurnDecision = {
+  intent?: string;
+  targetCharName?: string;
+  noFailureDamage: boolean;
+};
+
+export const decideTurn = (actionText: string, intent: string | undefined, targetCharName: string | undefined): TurnDecision => ({
+  ...(intent !== undefined && { intent }),
+  ...(targetCharName !== undefined && { targetCharName }),
+  noFailureDamage: isNoFailureDamageAction(actionText, intent),
+});
+
 export function suppressFailedSupportDamage(
   actionAttempt: ActionAttempt,
   turnResult: TurnResult,
-  actionIntent?: string,
+  noFailureDamage: boolean,
 ): TurnResult {
-  if (actionAttempt.actionResult.success || !isNoFailureDamageAction(actionAttempt.actionAttempt, actionIntent)) {
+  if (actionAttempt.actionResult.success || !noFailureDamage) {
     return turnResult;
   }
   if (turnResult.suggestedDamage === 0) {

@@ -19,7 +19,7 @@ import {
   toFreeActionBonusPreview,
 } from './freeActionInferenceService.js';
 import { buildSceneMomentum, buildScenePressure } from './sceneMomentumService.js';
-import { inferActionIntent, isNoFailureDamageAction } from './freeActionPolicyService.js';
+import { decideTurn, inferActionIntent } from './freeActionPolicyService.js';
 import { getTurnStrategy } from '../config/env.js';
 import { applyTurnPolicies, createTurnDiagnostics, type TurnDiagnostics } from './turnDiagnostics.js';
 import { generateResolvedFirstTurn } from './resolvedFirstTurnService.js';
@@ -118,8 +118,8 @@ const resolveItemTurn = async (
       aiInput,
       actionAttempt: itemAttempt,
       actingCharId,
-      actionIntent: undefined,
-      targetCharName: undefined,
+      // Policies are skipped on item turns (itemTurn), so this decision is never read.
+      decision: decideTurn(itemAttempt.actionAttempt, undefined, undefined),
       diagnostics,
       factsBaseline: session,
       itemTurn: true,
@@ -278,6 +278,8 @@ const resolveRolledTurn = async (
   const adventureDirective = buildAdventureDirective(session);
   const aiInput: AIInput = { ...(adventureDirective && { adventureDirective }), ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId, scenePressure, sceneMomentum, ...(effectiveActionIntent && { actionIntent: effectiveActionIntent }), lastChoices: latestChoices, ...(recentChoiceLabels.length > 0 && { recentChoiceLabels }) };
   const targetCharName = action.targetCharacterId ? session.party.find(c => c.id === action.targetCharacterId)?.name : undefined;
+  // One decision for the early HP preview below and the policies after generation.
+  const decision = decideTurn(actionText, effectiveActionIntent, targetCharName);
   stepStart = logTurnStep(
     sessionId,
     'build-ai-input',
@@ -285,7 +287,7 @@ const resolveRolledTurn = async (
     `scenePressure=${scenePressure.kind} momentum=${sceneMomentum.directive}`,
   );
 
-  const earlyHpChange = isNoFailureDamageAction(actionText, effectiveActionIntent)
+  const earlyHpChange = decision.noFailureDamage
     ? null
     : GameEngine.computeDeterministicHpChange(session, actingCharId, actionAttempt);
   if (actionAttempt.actionResult.statUsed !== 'none') {
@@ -318,8 +320,7 @@ const resolveRolledTurn = async (
       aiInput,
       actionAttempt,
       actingCharId,
-      actionIntent: effectiveActionIntent,
-      targetCharName,
+      decision,
       streamCallbacks,
       diagnostics,
       provider: deps.narration,
@@ -340,7 +341,7 @@ const resolveRolledTurn = async (
     stepStart = logTurnStep(sessionId, 'llm', stepStart, `retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
     diagnostics.stage('generation', llmStart);
     devLog.log(`[Turn] llm-done session=${sessionId} retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
-    turnResult = applyTurnPolicies(session, actionAttempt, turnResult, effectiveActionIntent, targetCharName, diagnostics);
+    turnResult = applyTurnPolicies(session, actionAttempt, turnResult, decision, diagnostics);
     checkTurnResultConsistency(turnResult, session, actionAttempt);
     stepStart = logTurnStep(sessionId, 'post-llm-guards', stepStart);
     newState = GameEngine.applyTurnProposal(session, actionAttempt, turnResult);

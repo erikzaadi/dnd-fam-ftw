@@ -4,6 +4,7 @@ import { toNarrationInput } from './aiDmService.js';
 import type { EncounterNameRepairer } from './encounterNameRepairService.js';
 import { GameEngine } from './gameEngine.js';
 import { buildResolvedTurnFacts, type ResolvedTurnFacts } from './resolvedTurn.js';
+import type { TurnDecision } from './freeActionPolicyService.js';
 import { applyTurnPolicies, type TurnDiagnostics } from './turnDiagnostics.js';
 import { checkTurnResultConsistency } from './turnResultConsistencyService.js';
 import { stripChoicesTargetingDefeatedEnemies } from './turnRepairs.js';
@@ -27,8 +28,7 @@ export const generateResolvedFirstTurn = async (params: {
   aiInput: AIInput;
   actionAttempt: ActionAttempt;
   actingCharId: string;
-  actionIntent: string | undefined;
-  targetCharName: string | undefined;
+  decision: TurnDecision;
   streamCallbacks?: NarrationStreamCallbacks;
   diagnostics: TurnDiagnostics;
   // Facts are reported against this state. Item turns apply the item's own effect before
@@ -57,7 +57,7 @@ export const generateResolvedFirstTurn = async (params: {
     ...mechanics,
   };
   if (!params.itemTurn) {
-    proposal = applyTurnPolicies(session, actionAttempt, proposal, params.actionIntent, params.targetCharName, diagnostics);
+    proposal = applyTurnPolicies(session, actionAttempt, proposal, params.decision, diagnostics);
   }
 
   // Apply exactly once. A throwaway copy absorbs engine narration hooks (loot claims),

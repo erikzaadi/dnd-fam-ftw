@@ -8,6 +8,7 @@ import {
   ensureSuccessfulHealingSuggestion,
   getFreeActionDifficulty,
   inferActionIntent,
+  isNoFailureDamageAction,
   suppressFailedSupportDamage,
 } from './freeActionPolicyService.js';
 
@@ -278,7 +279,7 @@ describe('suppressFailedSupportDamage', () => {
     const turnResult = suppressFailedSupportDamage(
       failedAttempt('Eytrig raises his shield, bracing the party for the peril ahead.'),
       makeTurnResult({ suggestedDamage: null }),
-      'party_boost',
+      isNoFailureDamageAction('Eytrig raises his shield, bracing the party for the peril ahead.', 'party_boost'),
     );
 
     expect(turnResult.suggestedDamage).toBe(0);
@@ -288,6 +289,7 @@ describe('suppressFailedSupportDamage', () => {
     const turnResult = suppressFailedSupportDamage(
       failedAttempt('Heal the wounded warrior'),
       makeTurnResult({ suggestedDamage: 2 }),
+      isNoFailureDamageAction('Heal the wounded warrior'),
     );
 
     expect(turnResult.suggestedDamage).toBe(0);
@@ -297,6 +299,7 @@ describe('suppressFailedSupportDamage', () => {
     const turnResult = suppressFailedSupportDamage(
       failedAttempt('Strike the goblin with my axe'),
       makeTurnResult({ suggestedDamage: null }),
+      isNoFailureDamageAction('Strike the goblin with my axe'),
     );
 
     expect(turnResult.suggestedDamage).toBeNull();
@@ -306,7 +309,7 @@ describe('suppressFailedSupportDamage', () => {
     const turnResult = suppressFailedSupportDamage(
       makeAttempt(),
       makeTurnResult({ suggestedDamage: null }),
-      'party_boost',
+      true,
     );
 
     expect(turnResult.suggestedDamage).toBeNull();

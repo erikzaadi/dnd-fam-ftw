@@ -7,6 +7,7 @@ import {
   ensureSuccessfulHealingSuggestion,
   ensureSuccessfulSupportSuggestion,
   suppressFailedSupportDamage,
+  type TurnDecision,
 } from './freeActionPolicyService.js';
 
 // One structured record per committed turn, comparable across strategies (plan 4).
@@ -46,17 +47,17 @@ export const applyTurnPolicies = (
   session: SessionState,
   actionAttempt: ActionAttempt,
   turnResult: TurnResult,
-  actionIntent: string | undefined,
-  targetCharName: string | undefined,
+  decision: TurnDecision,
   diagnostics: TurnDiagnostics,
 ): TurnResult => {
+  const { intent: actionIntent, targetCharName } = decision;
   const steps: Array<[string, (t: TurnResult) => TurnResult]> = [
     ['ensure_healing', t => ensureSuccessfulHealingSuggestion(session, actionAttempt, t)],
     ['ensure_enchantment', t => ensureSuccessfulEnchantmentSuggestion(session, actionAttempt, t)],
     ['ensure_support', t => ensureSuccessfulSupportSuggestion(session, actionAttempt, t, actionIntent, targetCharName)],
     ['drop_redundant_buffs', t => dropRedundantBuffAdds(session, t, actionIntent)],
     ['drop_unearned_buffs', t => dropUnearnedBuffAdds(actionAttempt, t, actionIntent)],
-    ['suppress_failed_support_damage', t => suppressFailedSupportDamage(actionAttempt, t, actionIntent)],
+    ['suppress_failed_support_damage', t => suppressFailedSupportDamage(actionAttempt, t, decision.noFailureDamage)],
   ];
   let current = turnResult;
   for (const [name, apply] of steps) {
