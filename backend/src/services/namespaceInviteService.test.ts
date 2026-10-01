@@ -1,11 +1,12 @@
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetConfigForTests } from '../config/env.js';
 import { getDb, initializeDatabase } from '../persistence/database.js';
 import { CaptureEmailProvider } from '../providers/email/CaptureEmailProvider.js';
 import { setEmailProviderForTests } from '../providers/email/emailProviderFactory.js';
+import { namespaceInviteRepository } from '../repositories/namespaceInviteRepository.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { removeMember } from './namespaceMembershipService.js';
@@ -224,5 +225,35 @@ describe('member invitations', () => {
       resetConfigForTests();
     }
     expect(acceptInvitation(token, null, false, clock)).toMatchObject({ ok: true });
+  });
+});
+
+// Acceptance is one transaction: if consuming the invitation fails after the account
+// or membership was written, nothing of it remains and the link still works.
+describe('member invitation rollback', () => {
+  it('leaves no account behind when the invitation cannot be consumed', async () => {
+    const owner = realm();
+    await createInvitation(owner.userId, owner.namespaceId, 'rollback.new@example.com', clock);
+    const token = lastToken();
+    const resolve = vi.spyOn(namespaceInviteRepository, 'resolve').mockReturnValueOnce(false);
+
+    expect(() => acceptInvitation(token, null, false, clock)).toThrow('Invitation was consumed concurrently');
+    resolve.mockRestore();
+
+    expect(userRepository.getUserByEmail('rollback.new@example.com')).toBeNull();
+    expect(inspectInvitation(token, null, clock)).toMatchObject({ state: 'valid' });
+  });
+
+  it('leaves no membership behind for an existing account', async () => {
+    const owner = realm();
+    const existing = userRepository.createUser('rollback.existing@example.com');
+    await createInvitation(owner.userId, owner.namespaceId, 'rollback.existing@example.com', clock);
+    const token = lastToken();
+    const resolve = vi.spyOn(namespaceInviteRepository, 'resolve').mockReturnValueOnce(false);
+
+    expect(() => acceptInvitation(token, existing.userId, false, clock)).toThrow('Invitation was consumed concurrently');
+    resolve.mockRestore();
+
+    expect(userRepository.isNamespaceMember(existing.userId, owner.namespaceId)).toBe(false);
   });
 });

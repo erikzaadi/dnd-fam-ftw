@@ -2,11 +2,12 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { getDb, initializeDatabase } from '../persistence/database.js';
+import { getDb, initializeDatabase, runInTransaction } from '../persistence/database.js';
 import { CaptureEmailProvider } from '../providers/email/CaptureEmailProvider.js';
 import { setEmailProviderForTests } from '../providers/email/emailProviderFactory.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { resendEmailCode, startEmailSignIn, verifyEmailCode } from './emailAuthService.js';
+import { resolveVerifiedSignIn } from './signupService.js';
 
 const DB_PATH = path.join(os.tmpdir(), `dnd-email-auth-test-${Date.now()}.sqlite`);
 let mail: CaptureEmailProvider;
@@ -141,5 +142,23 @@ describe('email sign-in', () => {
       },
     });
     expect(await startEmailSignIn('outage@example.com', nextIp())).toEqual({ status: 'unavailable' });
+  });
+});
+
+// Account creation joins the caller's transaction: if anything after it in the same
+// transaction fails, no account, realm or signup notice remains.
+describe('signup rollback', () => {
+  it('leaves nothing behind when the surrounding transaction fails', () => {
+    const namespacesBefore = (getDb().prepare('SELECT COUNT(*) AS c FROM namespaces').get() as { c: number }).c;
+    const outboxBefore = (getDb().prepare('SELECT COUNT(*) AS c FROM email_outbox').get() as { c: number }).c;
+
+    expect(() => runInTransaction(() => {
+      expect(resolveVerifiedSignIn('rollback.signup@example.com', 'email')).toMatchObject({ kind: 'full', created: true });
+      throw new Error('challenge consumption failed');
+    })).toThrow('challenge consumption failed');
+
+    expect(userRepository.getUserByEmail('rollback.signup@example.com')).toBeNull();
+    expect((getDb().prepare('SELECT COUNT(*) AS c FROM namespaces').get() as { c: number }).c).toBe(namespacesBefore);
+    expect((getDb().prepare('SELECT COUNT(*) AS c FROM email_outbox').get() as { c: number }).c).toBe(outboxBefore);
   });
 });

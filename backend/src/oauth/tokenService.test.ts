@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { resetConfigForTests } from '../config/env.js';
-import { initializeDatabase } from '../persistence/database.js';
+import { getDb, initializeDatabase } from '../persistence/database.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { oauthGrantRepository } from '../repositories/oauthGrantRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
@@ -194,6 +194,17 @@ describe('refresh', () => {
     namespaceRepository.setNamespaceTier(dropped.user.namespaceId, 'free');
     expectOAuthError(() => refresh(dropped.tokens.refresh_token), 'invalid_grant');
     expect(grantOf(dropped.tokens).revoked_at).not.toBeNull();
+  });
+
+  // Grants are not revoked when a member leaves a realm; they are refused at use,
+  // because every refresh checks current membership.
+  it('ends the grant once the user is no longer a member of its realm', async () => {
+    const { user, tokens } = await connect();
+    getDb().prepare('DELETE FROM user_namespaces WHERE user_id = ? AND namespace_id = ?').run(user.userId, user.namespaceId);
+    expect(grantOf(tokens).revoked_at).toBeNull();
+
+    expectOAuthError(() => refresh(tokens.refresh_token), 'invalid_grant');
+    expect(grantOf(tokens).revoked_at).not.toBeNull();
   });
 
   it('lets exactly one of 20 concurrent refreshes win', async () => {
