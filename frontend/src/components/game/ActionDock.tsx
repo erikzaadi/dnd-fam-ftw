@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import type { TurnResult, Character, FreeActionPreview, IdeasPayload, AskDmPayload } from '../../types';
+import type { TurnResult, Character, Choice, FreeActionPreview, IdeasPayload, AskDmPayload } from '../../types';
 import { imgSrc, pulseSyncDelay } from '../../lib/api';
 import { currentIdeas, fetchIdeas } from '../../lib/ideas';
 import { askDm } from '../../lib/askDm';
@@ -32,7 +32,8 @@ interface ActionDockProps {
   customAction: string;
   setCustomAction: (v: string) => void;
   error: string | null;
-  onSubmit: (label: string, stat: string, diff: string, difficultyValue?: number, ownerCharId?: string | null, itemId?: string | null, targetCharId?: string | null, preview?: ActionPreviewBonuses) => Promise<void> | void;
+  // Sends a suggested choice; the bonuses are what the roll panel shows for it.
+  onSubmitChoice: (choice: Choice, bonuses: ChoiceBonuses) => Promise<void> | void;
   // Confirms a preview by its server handle (session runtime confirmPreview).
   onConfirmPreview: (preview: FreeActionPreview, options: ConfirmPreviewOptions) => Promise<SubmitTurnResult | void> | void;
   onShowPartyGear: () => void;
@@ -52,9 +53,7 @@ interface ActionDockProps {
   onRally?: () => void;
 }
 
-interface ActionPreviewBonuses {
-  // Stable id of the suggested choice; the server resolves mechanics from its stored descriptor.
-  choiceId?: number;
+export interface ChoiceBonuses {
   helperBonus?: number;
   helperCharacterName?: string;
   choiceItemBonus?: number;
@@ -159,7 +158,7 @@ export const ActionDock = ({
   customAction,
   setCustomAction,
   error,
-  onSubmit,
+  onSubmitChoice,
   onConfirmPreview,
   onShowPartyGear,
   onCharacterClick,
@@ -252,15 +251,14 @@ export const ActionDock = ({
     const choiceItem = choiceItemOwner && choice.itemName
       ? choiceItemOwner.inventory.find(item => item.name === choice.itemName)
       : null;
-    const preview: ActionPreviewBonuses = {
-      ...(choice.id !== undefined && { choiceId: choice.id }),
+    const bonuses: ChoiceBonuses = {
       ...(hasActiveHelper && { helperBonus: COMBO_HELPER_BONUS, helperCharacterName: choice.helperCharacterName }),
       ...(choiceItem && choiceItemOwner && { choiceItemBonus: CHOICE_ITEM_BONUS, choiceItemName: choiceItem.name, choiceItemOwnerName: choiceItemOwner.name }),
       ...(choice.flavor === 'spotlight' && { characterBonus: CHARACTER_EDGE_BONUS, characterBonusLabel: 'spotlight', flavor: 'spotlight' }),
       ...(choice.flavor === 'social' && { characterBonus: CHARACTER_EDGE_BONUS, characterBonusLabel: 'social edge', flavor: 'social' }),
     };
-    await onSubmit(choice.label, choice.stat, choice.difficulty, choice.difficultyValue, undefined, undefined, undefined, preview);
-  }, [activeCharacter, choices, loading, onSubmit, party]);
+    await onSubmitChoice(choice, bonuses);
+  }, [activeCharacter, choices, loading, onSubmitChoice, party]);
 
   // The request behind each preview shown here, so confirmPreview can ask again.
   const previewRequestsRef = useRef(new WeakMap<FreeActionPreview, { text: string; thread: ClarificationThread | null; attachment: DraftAttachment | null }>());

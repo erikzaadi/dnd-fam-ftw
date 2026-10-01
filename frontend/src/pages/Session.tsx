@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import type { ActionAttempt, Character, FreeActionPreview, HpChange, TurnResult } from '../types';
+import type { ActionAttempt, Character, Choice, FreeActionPreview, HpChange, TurnResult } from '../types';
 import { apiFetch, imgSrc } from '../lib/api';
 import { useSessionRuntime, type ConfirmPreviewOptions, type SubmitTurnResult } from '../session/useSessionRuntime';
 import { playRollSfx } from '../session/sessionAudio';
@@ -11,7 +11,7 @@ import { FullscreenImage } from '../components/FullscreenImage';
 import { Inventory } from '../components/game/Inventory';
 import { SessionHud, GearPopover } from '../components/game/SessionHud';
 import { StoryStage } from '../components/game/StoryStage';
-import { ActionDock } from '../components/game/ActionDock';
+import { ActionDock, type ChoiceBonuses } from '../components/game/ActionDock';
 import { FreeActionConfirmDialog } from '../components/game/FreeActionConfirmDialog';
 import { DmDecisionRecapPanel } from '../components/game/DmDecisionRecapPanel';
 import type { RollResult } from '../components/game/DmDecisionRecapPanel';
@@ -38,7 +38,6 @@ import { findConclusionTurn, isAdventureCompleted, isAdventureConcluding, reques
 import { RealmUsageNotice } from '../components/game/RealmUsageNotice';
 
 interface LastSubmittedAction {
-  choiceId?: number;
   label: string;
   stat: string;
   char: Character | null;
@@ -312,7 +311,7 @@ export const SessionPage = () => {
     connectionState,
     revisionRef,
     updateSession,
-    submitTurn,
+    submitChoice,
     confirmPreview,
     submitOperation,
     previewSceneAction,
@@ -503,34 +502,17 @@ export const SessionPage = () => {
     updateSession({ savingsMode: enabled });
   };
 
-  const submitAction = async (action: string, statUsed: string = 'none', difficulty: string = 'normal', difficultyValue: number | null = null, ownerCharId: string | null = null, itemId: string | null = null, targetCharId: string | null = null, preview: Partial<LastSubmittedAction> = {}, actionIntent?: string) => {
+  // Sends a suggested choice by its id. The roll panel shows the bonuses ActionDock
+  // worked out for it.
+  const submitSuggestedChoice = async (choice: Choice, bonuses: ChoiceBonuses) => {
     if (!session) {
       return;
     }
-    const itemOwner = ownerCharId ? session.party.find(c => c.id === ownerCharId) ?? null : activeChar;
-    const itemTarget = targetCharId ? session.party.find(c => c.id === targetCharId) ?? null : null;
-    const item = itemOwner && itemId ? itemOwner.inventory.find(i => i.id === itemId) ?? null : null;
-    const actionType = itemId ? (action === 'use item' ? 'use_item' : 'give_item') : undefined;
-    const displayAction = actionType === 'give_item' && item && itemTarget
-      ? `${itemOwner?.name ?? 'Someone'} gave ${item.name} to ${itemTarget.name}`
-      : actionType === 'use_item' && item && itemTarget
-        ? `${itemOwner?.name ?? 'Someone'} used ${item.name} on ${itemTarget.name}`
-        : action;
-    setLastSubmittedAction({ label: displayAction, stat: statUsed, char: itemOwner, difficulty, difficultyValue: difficultyValue ?? undefined, ...preview });
+    setLastSubmittedAction({ label: choice.label, stat: choice.stat, char: activeChar, difficulty: choice.difficulty, difficultyValue: choice.difficultyValue, ...bonuses });
     leaveForTurn();
-    const result = await submitTurn({
-      action,
-      statUsed,
-      difficulty,
-      difficultyValue,
-      characterId: ownerCharId,
-      itemId,
-      targetCharacterId: targetCharId,
-      actionIntent,
-      choiceId: preview.choiceId,
-    });
+    const result = await submitChoice(choice);
     if (!result.ok) {
-      // A 409 refreshes the snapshot in the runtime; the typed draft stays in the action box.
+      // A 409 refreshes the snapshot in the runtime.
       setLastSubmittedAction(null);
     }
   };
@@ -1035,7 +1017,7 @@ export const SessionPage = () => {
                 setCustomAction={setCustomAction}
                 revision={session.revision}
                 error={actionError}
-                onSubmit={submitAction}
+                onSubmitChoice={submitSuggestedChoice}
                 onConfirmPreview={confirmSessionPreview}
                 onShowPartyGear={() => setShowFullInventory(true)}
                 onCharacterClick={setSelectedCharacter}
@@ -1172,7 +1154,7 @@ export const SessionPage = () => {
                   setCustomAction={setCustomAction}
                   revision={session.revision}
                   error={actionError}
-                  onSubmit={submitAction}
+                  onSubmitChoice={submitSuggestedChoice}
                   onConfirmPreview={confirmSessionPreview}
                   onShowPartyGear={() => setShowFullInventory(true)}
                   onCharacterClick={setSelectedCharacter}

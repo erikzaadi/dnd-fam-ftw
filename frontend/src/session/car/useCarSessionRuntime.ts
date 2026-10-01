@@ -82,15 +82,7 @@ export function useCarSessionRuntime({
       onPreviewNotice,
     },
   });
-  const { submitTurn, submitOperation, updateSession, revisionRef } = runtime;
-
-  const send = useCallback(async (input: Parameters<typeof submitTurn>[0]): Promise<SubmitTurnResult> => {
-    const result = await submitTurn(input);
-    if (!result.ok) {
-      onTurnError(result.error, result.message);
-    }
-    return result;
-  }, [submitTurn, onTurnError]);
+  const { submitOperation, updateSession, revisionRef } = runtime;
 
   // A refreshed preview is not an error: the fresh one arrives through onPreviewReady.
   const runtimeConfirmPreview = runtime.confirmPreview;
@@ -102,21 +94,14 @@ export function useCarSessionRuntime({
     return result;
   }, [runtimeConfirmPreview, onTurnError]);
 
-  const submitAction = useCallback((
-    action: string,
-    statUsed?: string,
-    difficulty?: string,
-    difficultyValue?: number | null,
-    ownerCharId?: string | null,
-    itemId?: string | null,
-    targetCharId?: string | null,
-    actionIntent?: string,
-  ) => send({ action, statUsed, difficulty, difficultyValue, characterId: ownerCharId, itemId, targetCharacterId: targetCharId, actionIntent }), [send]);
-
-  // A suggestion is selected explicitly, never by text that happens to equal its label.
-  const submitChoice = useCallback((choice: Choice) => (
-    send({ action: choice.label, statUsed: choice.stat, difficulty: choice.difficulty, difficultyValue: choice.difficultyValue ?? null, choiceId: choice.id })
-  ), [send]);
+  const runtimeSubmitChoice = runtime.submitChoice;
+  const submitChoice = useCallback(async (choice: Choice): Promise<SubmitTurnResult> => {
+    const result = await runtimeSubmitChoice(choice);
+    if (!result.ok) {
+      onTurnError(result.error, result.message);
+    }
+    return result;
+  }, [runtimeSubmitChoice, onTurnError]);
 
   // Session-management commands (spoken in car mode, typed in the terminal).
   const wrapUpAdventure = useCallback(async (): Promise<string | null> => {
@@ -156,7 +141,6 @@ export function useCarSessionRuntime({
     setActionError: runtime.setActionError,
     connectionState: runtime.connectionState,
     prevEncounterStatus: encounterTrack.before,
-    submitAction,
     submitChoice,
     confirmPreview,
     previewAction: runtime.previewAction,

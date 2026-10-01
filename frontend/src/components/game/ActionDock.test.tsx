@@ -87,7 +87,7 @@ const renderDock = (overrides: Partial<ComponentProps<typeof ActionDock>> = {}) 
     customAction: '',
     setCustomAction: vi.fn(),
     error: null,
-    onSubmit: vi.fn(),
+    onSubmitChoice: vi.fn(),
     onConfirmPreview: vi.fn(),
     onShowPartyGear: vi.fn(),
     ...overrides,
@@ -255,6 +255,21 @@ describe('ActionDock speech input', () => {
     expect(screen.getByLabelText('What do you try?')).not.toHaveFocus();
   });
 
+  it('sends a suggested choice as the choice itself, with the bonuses it shows', async () => {
+    const onSubmitChoice = vi.fn();
+    renderDock({
+      onSubmitChoice,
+      turn: { ...TURN, choices: [{ id: 3, label: 'Wink at the guard', stat: 'mischief', difficulty: 'easy', flavor: 'social' }] },
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /Wink at the guard/i }));
+
+    expect(onSubmitChoice).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 3, label: 'Wink at the guard' }),
+      { characterBonus: 2, characterBonusLabel: 'social edge', flavor: 'social' },
+    );
+  });
+
   it('moves the custom action shortcut after the suggested actions', () => {
     renderDock({
       turn: {
@@ -328,7 +343,7 @@ describe('ActionDock clarification', () => {
         customAction={text}
         setCustomAction={setText}
         error={null}
-        onSubmit={vi.fn()}
+        onSubmitChoice={vi.fn()}
         onConfirmPreview={onConfirmPreview}
         onShowPartyGear={vi.fn()}
       />
@@ -629,8 +644,8 @@ describe('ActionDock Ask the DM', () => {
       json: async () => ({ turnId: 7, revision: 3, question: 'Can I climb the wall?', answer: 'The wall is slick, but Alice could try her rope.' }),
     });
     const setCustomAction = vi.fn();
-    const onSubmit = vi.fn();
-    renderDock({ turn: ASK_TURN, customAction: 'Can I climb the wall?', setCustomAction, onSubmit, revision: 3 });
+    const onSubmitChoice = vi.fn();
+    renderDock({ turn: ASK_TURN, customAction: 'Can I climb the wall?', setCustomAction, onSubmitChoice, revision: 3 });
 
     await userEvent.click(screen.getByRole('button', { name: 'Ask the DM' }));
 
@@ -638,7 +653,7 @@ describe('ActionDock Ask the DM', () => {
     expect(mocks.apiFetch.mock.calls[0][0]).toBe('/session/session-1/ask');
     expect(JSON.parse(mocks.apiFetch.mock.calls[0][1].body as string)).toEqual({ question: 'Can I climb the wall?', turnId: 7, revision: 3 });
     expect(setCustomAction).toHaveBeenCalledWith('');
-    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onSubmitChoice).not.toHaveBeenCalled();
   });
 
   it('keeps the question in the box when the DM cannot answer', async () => {

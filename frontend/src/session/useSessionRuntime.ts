@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { ActionAttempt, FreeActionPreview, HpChange, IdeasPayload, ImageReadyEvent, Session, SessionOperation, SessionSnapshot, TurnResult } from '../types';
+import type { ActionAttempt, Choice, FreeActionPreview, HpChange, IdeasPayload, ImageReadyEvent, Session, SessionOperation, SessionSnapshot, TurnResult } from '../types';
 import { apiFetch } from '../lib/api';
 import { patchEncounterAreaImage, patchEncounterEnemyAvatar } from '../lib/encounters';
 import { applyIdeasPayload, currentIdeas, fetchIdeas, type IdeasRequestResult } from '../lib/ideas';
@@ -411,6 +411,16 @@ export function useSessionRuntime({ sessionId, presenter = {}, onboardingIdeas =
     }
   }, [sessionId, ops]);
 
+  // A suggestion is selected explicitly by its stable id, never by text that happens to
+  // equal its label, and never with a preview id.
+  const submitChoice = useCallback((choice: Choice) => submitTurn({
+    action: choice.label,
+    statUsed: choice.stat,
+    difficulty: choice.difficulty,
+    difficultyValue: choice.difficultyValue ?? null,
+    choiceId: choice.id,
+  }), [submitTurn]);
+
   // Session-level operations (end here, continue the world). Returns the refusal
   // message, or null once accepted.
   const submitOperation = useCallback(async (path: string, body: Record<string, unknown> = {}, options: { expectsFollowUp?: boolean } = {}): Promise<string | null> => {
@@ -662,6 +672,7 @@ export function useSessionRuntime({ sessionId, presenter = {}, onboardingIdeas =
     updateSession,
     submitTurn,
     confirmPreview,
+    submitChoice,
     submitOperation,
     previewAction,
     previewSceneAction,
