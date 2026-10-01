@@ -117,8 +117,16 @@ Dev tools for inspecting and resetting session data.
 ./dnd-fam-ftw-cli sessions nuke                                              # delete all sessions and their data
 ./dnd-fam-ftw-cli sessions seed                                              # seed 10 example sessions (idempotent; session 10 is paused mid-riddle)
 ./dnd-fam-ftw-cli sessions export [--session <id>] [--namespace <id>] [--output <file.json>]   # export sessions to JSON
-./dnd-fam-ftw-cli sessions import <file.json> [--namespace-id <id>]         # import sessions from JSON
+./dnd-fam-ftw-cli sessions import <file.json> [--namespace-id <id>] [--allow-drop]   # import sessions from JSON
 ```
+
+Export and import (`backend/src/archive/adventureArchive.ts`):
+
+- **What travels:** every column of the adventure, its heroes, their items, its turns, their suggestions and its riddles. Export reads one consistent snapshot and writes `version: 2`; import also reads `version: 1` files (no riddles) and reports the columns it filled with database defaults.
+- **Images are references only.** Picture URLs and storage keys are copied, not the files. On another machine an imported adventure has no pictures. Deleting an adventure keeps any picture another adventure still uses, so an imported copy and its original never delete each other's pictures.
+- **Ids:** adventure, hero and riddle ids are kept, and replaced when they already exist (importing into the same database). Every reference follows: the active hero, bound items, turns, ideas, riddles, and hero ids inside hit point, buff, encounter and lifecycle data. Turn, item and suggestion ids are always new. Operation ids on turns are cleared.
+- **Realm:** `--namespace-id` imports into that realm; otherwise the archived realm must exist on this server.
+- **Refused:** other export versions, references to heroes or turns missing from the adventure, and fields this server does not know. `--allow-drop` imports anyway and lists the dropped fields. A failed import writes nothing.
 
 ### metrics
 

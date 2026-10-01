@@ -25,3 +25,7 @@ Whether a realm may start work that spends AI budget, decided once where the wor
 ## Turn command
 
 Submitting a player's action turn, for the website and assistants alike (`submitTurnCommand` in `backend/src/services/turnCommand.ts`). It owns the order: replay a known request id, let the caller prepare new work, validate, wait (the assistant Undo window), admit, accept atomically, and start the run only for a newly accepted operation. Each caller builds its own idempotency payload and renders the result (HTTP status codes, MCP tool errors and audit records).
+
+## Adventure archive
+
+Adventures as database data, moved between databases or copied within one: export (one consistent snapshot, `version: 2`) and import (validated, then written in one transaction) in `backend/src/archive/adventureArchive.ts`. An archive carries every column and remaps every reference, but holds image references, never image files. Deletion lives beside it (`adventureDeletion.ts`): an image goes only when no other adventure references it.

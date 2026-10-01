@@ -70,6 +70,9 @@ backend/src/
     turnCommand.ts                 # submitTurnCommand: replay, validate, admit, accept, run (website + MCP)
     paidWorkAdmission.ts           # admitPaidWork, adventure cap: may a realm start paid work
     storySummaryService.ts         # Rolling story compression
+  archive/
+    adventureArchive.ts            # Adventure export/import (CLI): every column, references remapped
+    adventureDeletion.ts           # Deleting an adventure: shared images kept, rows in one transaction
   realms/
     access.ts                      # realmAccess: membership, ownership, primary realm (keyed by user id)
     composition.ts                 # Internal building blocks for services/accountService.ts only
@@ -147,7 +150,7 @@ Membership, ownership and the primary pointer live in `realms/access.ts` (`realm
 
 Routes with a session id should use `registerSessionIdParam()` so missing sessions and sessions outside `req.namespaceId` return 404 before route handlers run, with the loaded session available as `req.session`.
 
-`StateService.deleteSession()` deletes all S3/local turn images and character avatars before deleting DB rows.
+`StateService.deleteSession()` (`archive/adventureDeletion.ts`) deletes the adventure's images (turns, heroes, origin story, encounter enemies and areas) that no other adventure references, then its rows in one transaction; it refuses (409 on `DELETE /session/:id`) while an operation is running. CLI export/import live in `archive/adventureArchive.ts` (see `MANAGE.md`).
 
 Usage tiers (`free` | `supporter` | `unlimited`) and daily text/picture budgets live in `services/usageLimitService.ts`; per-namespace session/turn overrides (NULL = tier default): see `MANAGE.md`. Every AI provider request is recorded in `provider_usage` by the SDK fetch in `providers/ai/usageRecordingFetch.ts`, attributed via `lib/usageContext.ts`: `user_id` is the actor, `owner_user_id` the realm owner when the request began. Build usage contexts only with `createUsageContext` (`services/usageAttribution.ts`); a real realm without a valid owner is refused paid work. Whether a realm may start paid work is decided at entry by paid-work admission (`services/paidWorkAdmission.ts`: `admitPaidWork`, `checkAdventureCap`); HTTP routes that start AI work carry `requirePaidWork(kind)` (`middleware/usageAdmission.ts`, listed in `routes/paidRoutes.test.ts`; the action route admits inside the turn command, after replay), MCP tools go through `admitPaidCall` (`mcp/admission.ts`, which adds the per-grant daily counter). The provider-level backstop in `usageRecordingFetch.ts` stays separate, with looser thresholds.
 
