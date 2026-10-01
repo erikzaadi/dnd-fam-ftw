@@ -32,7 +32,7 @@ The app deploys to AWS via GitHub Actions (`.github/workflows/deploy.yml`). Infr
 3. Fill in SSM parameters: `./scripts/fill-ssm-params.sh`.
 4. Provision the TLS cert: `./scripts/provision-cert.sh`.
 5. Bootstrap the instance: `./scripts/deploy/setup-service.sh`.
-6. Push a `v*` tag (`./scripts/bump-version.sh`) to trigger a full deploy.
+6. Create a `v*` tag (`./scripts/bump-version.sh`) and push it to trigger a full deploy.
 
 ## Legacy: laptop / home server at a subpath
 
@@ -143,7 +143,7 @@ These run once during initial infrastructure setup. Not needed for day-to-day op
 | `./scripts/create-terraform-user.sh [aws-profile]` | Before first `terraform apply` - creates the IAM user and policy Terraform needs |
 | `./scripts/fill-ssm-params.sh [aws-profile] [ssm-prefix]` | After `terraform apply` - fills SSM parameters with actual secret values |
 | `./scripts/provision-cert.sh` | After `terraform apply` - obtains a Let's Encrypt TLS cert via DNS-01 / Route 53 |
-| `./scripts/bump-version.sh` | Create and push a new version tag (reads latest tag, increments patch, pushes) |
+| `./scripts/bump-version.sh [patch\|minor\|major]` | Create a new version tag (reads latest tag, increments patch by default, or minor/major with the rest reset to 0, opens the tag message in your editor prefilled with the commits since the last tag; push it yourself) |
 | `./scripts/install-ubuntu.sh` | Legacy local laptop deploy - installs deps and systemd service on an Ubuntu server |
 | `./scripts/re-deploy.sh` | Legacy local laptop deploy - pushes local changes and restarts the service |
 | `./scripts/sync-to-server.sh` | Legacy local laptop deploy - rsync only, no restart |
