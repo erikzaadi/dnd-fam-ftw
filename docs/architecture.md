@@ -24,7 +24,7 @@ A short map of how the app fits together. Details live in [MULTI_AGENT_WORKFLOW.
 | Path | Role |
 |---|---|
 | `backend/src/index.ts`, `backend/src/routes/` | Express app and routes |
-| `backend/src/services/turnService.ts`, `resolvedFirstTurnService.ts`, `turnFinalizer.ts` | Player turns from request to commit |
+| `backend/src/services/turnService.ts`, `turnResolution.ts`, `turnFinalizer.ts` | Player turns from request to commit |
 | `backend/src/services/dmTurnOrchestrator.ts` | AI agents per turn, and ideas |
 | `backend/src/services/gameEngine.ts` | Dice, damage, items, rotation, party wipes |
 | `backend/src/services/stateService.ts`, `backend/src/repositories/` | SQLite access ([repository rules](../backend/src/repositories/README.md)) |

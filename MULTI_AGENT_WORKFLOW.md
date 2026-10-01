@@ -239,7 +239,7 @@ The shared finalizer, operation/revision guard and lifecycle are identical for b
 | File | Role |
 |---|---|
 | `backend/src/services/dmTurnOrchestrator.ts` | Orchestrator: gate functions, `withDeadline`, `callStructuredAgent`, parallel fan-out, merge, resolved-first stages, `runChoicesWithRetry` |
-| `backend/src/services/resolvedFirstTurnService.ts` | Resolved-first turn flow: propose, apply policies, build facts, narrate |
+| `backend/src/services/turnResolution.ts` | Turn resolution for both strategies: resolved-first (propose, apply policies, build facts, narrate) and the parallel comparator |
 | `backend/src/services/ideasService.ts` | Ideas on request: staleness guard, rate limit, riddle sync |
 | `backend/src/providers/ai/narration/agentPrompts.ts` | System prompt builders for each agent |
 | `backend/src/providers/ai/narration/narrationPromptSections.ts` | Reusable prompt section constants (imported by prompt builders) |

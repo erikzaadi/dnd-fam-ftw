@@ -1,8 +1,7 @@
 import { broadcastUpdate } from '../realtime/sessionEvents.js';
 import { devLog } from '../lib/devLog.js';
 import type { ActionAttempt, AIInput, Choice, NarratedRiddle, ServerTurnResult, SessionState, Stat, TurnResult } from '../types.js';
-import { AiDmService } from './aiDmService.js';
-import type { NarrationProvider, NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
+import type { NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
 import { createNarrationProvider } from '../providers/ai/AiProviderFactory.js';
 import { GameEngine } from './gameEngine.js';
 import { StateService } from './stateService.js';
@@ -21,15 +20,13 @@ import {
 import { buildSceneMomentum, buildScenePressure } from './sceneMomentumService.js';
 import { decideTurn, inferActionIntent } from './freeActionPolicyService.js';
 import { getTurnStrategy } from '../config/env.js';
-import { applyTurnPolicies, createTurnDiagnostics, type TurnDiagnostics } from './turnDiagnostics.js';
-import { generateResolvedFirstTurn } from './resolvedFirstTurnService.js';
-import { repairEncounterNameIfNeeded, type EncounterNameRepairer } from './encounterNameRepairService.js';
-import { checkTurnResultConsistency } from './turnResultConsistencyService.js';
+import { createTurnDiagnostics, type TurnDiagnostics } from './turnDiagnostics.js';
+import { repairEncounterNameIfNeeded } from './encounterNameRepairService.js';
 import { buildRollNarration } from './rollNarrationService.js';
 import { buildAdventureDirective } from './adventureLifecycleService.js';
 import { isRejection, normalizeTurnAction, rejectTurnAction, toRiddleActionInput, validateTurnAction, type TurnAction, type TurnActionRequest } from './turnActionInput.js';
 import { finalizeTurn, type TurnActionResult } from './turnFinalizer.js';
-import { alignTurnWithResolvedEncounter, stripChoicesTargetingDefeatedEnemies } from './turnRepairs.js';
+import { resolveTurn, type TurnAiDeps } from './turnResolution.js';
 
 // Stable entry points for routes and tests.
 export type { TurnActionRequest, TurnActionRejection } from './turnActionInput.js';
@@ -42,7 +39,6 @@ export type TurnActionOptions = {
 
 // AI dependencies of one turn, built once per turn here and passed down so the
 // resolution steps never create their own.
-type TurnAiDeps = { narration: NarrationProvider; nameRepair: EncounterNameRepairer };
 const createTurnAiDeps = (): TurnAiDeps => ({ narration: createNarrationProvider(), nameRepair: repairEncounterNameIfNeeded });
 
 const logTurnStep = (sessionId: string, step: string, start: number, details = ''): number => {
@@ -109,52 +105,22 @@ const resolveItemTurn = async (
   const itemLlmStart = Date.now();
   const deps = createTurnAiDeps();
 
-  // The item's effect is already applied (itemState). resolved_first then settles the
+  // The item's effect is already applied (itemState). resolved_first settles the
   // mechanics agents' proposals and narrates from facts measured against the session
   // before the item, so the story tells both the item and what followed.
-  const resolvedFirst = diagnostics.record.strategy === 'resolved_first'
-    ? await generateResolvedFirstTurn({
-      session: itemState,
-      aiInput,
-      actionAttempt: itemAttempt,
-      actingCharId,
-      // Policies are skipped on item turns (itemTurn), so this decision is never read.
-      decision: decideTurn(itemAttempt.actionAttempt, undefined, undefined),
-      diagnostics,
-      factsBaseline: session,
-      itemTurn: true,
-      provider: deps.narration,
-      repairName: deps.nameRepair,
-    })
-    : null;
-  if (diagnostics.record.strategy === 'resolved_first' && !resolvedFirst) {
-    diagnostics.record.strategy = 'parallel';
-  }
-
-  let turnResult: ServerTurnResult;
-  let newState: SessionState;
-  if (resolvedFirst) {
-    ({ turnResult, newState } = resolvedFirst);
-    logTurnStep(sessionId, 'item-resolved-first', stepStart, `failed=${turnResult.narrationFailed ?? false}`);
-  } else {
-    turnResult = await AiDmService.generateTurnResult(aiInput, undefined, deps.narration);
-    logTurnStep(sessionId, 'item-llm', stepStart, `retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
-    diagnostics.stage('generation', itemLlmStart);
-    checkTurnResultConsistency(turnResult, itemState, itemAttempt);
-    newState = GameEngine.applyTurnProposal(itemState, itemAttempt, turnResult);
-    await deps.nameRepair(itemState, newState, {
-      narration: turnResult.narration,
-      actionAttempt: itemAttempt.actionAttempt,
-    });
-    const itemNarrationBeforeAlign = turnResult.narration;
-    alignTurnWithResolvedEncounter(itemState, newState, turnResult);
-    if (turnResult.narration !== itemNarrationBeforeAlign) {
-      diagnostics.repair('align_resolved_encounter_narration');
-    }
-    if (stripChoicesTargetingDefeatedEnemies(newState, turnResult)) {
-      diagnostics.repair('strip_defeated_enemy_choices');
-    }
-  }
+  const { turnResult, newState, strategyUsed } = await resolveTurn({
+    kind: 'item',
+    session: itemState,
+    factsBaseline: session,
+    attempt: itemAttempt,
+    actingCharId,
+    aiInput,
+    // Policies never run on item turns, so this decision is never read.
+    decision: decideTurn(itemAttempt.actionAttempt, undefined, undefined),
+    deps,
+    diagnostics,
+  });
+  logTurnStep(sessionId, strategyUsed === 'resolved_first' ? 'item-resolved-first' : 'item-llm', stepStart, `retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
   const itemLlmMs = Date.now() - itemLlmStart;
   // Diffs are computed against the pre-item session so the item's own effect is reported.
   return finalizeTurn({
@@ -312,52 +278,20 @@ const resolveRolledTurn = async (
   };
 
   // resolved_first (default) freezes mechanics before narration; parallel is the opt-out
-  // comparator. Both share policies and the finalizer.
+  // comparator. See turnResolution.ts for the step order of each.
   const deps = createTurnAiDeps();
-  const resolvedFirst = diagnostics.record.strategy === 'resolved_first'
-    ? await generateResolvedFirstTurn({
-      session,
-      aiInput,
-      actionAttempt,
-      actingCharId,
-      decision,
-      streamCallbacks,
-      diagnostics,
-      provider: deps.narration,
-      repairName: deps.nameRepair,
-    })
-    : null;
-  if (diagnostics.record.strategy === 'resolved_first' && !resolvedFirst) {
-    diagnostics.record.strategy = 'parallel';
-  }
-
-  let turnResult: ServerTurnResult;
-  let newState: SessionState;
-  if (resolvedFirst) {
-    ({ turnResult, newState } = resolvedFirst);
-    stepStart = logTurnStep(sessionId, 'resolved-first', stepStart, `failed=${turnResult.narrationFailed ?? false}`);
-  } else {
-    turnResult = await AiDmService.generateTurnResult(aiInput, streamCallbacks, deps.narration);
-    stepStart = logTurnStep(sessionId, 'llm', stepStart, `retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
-    diagnostics.stage('generation', llmStart);
-    devLog.log(`[Turn] llm-done session=${sessionId} retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
-    turnResult = applyTurnPolicies(session, actionAttempt, turnResult, decision, diagnostics);
-    checkTurnResultConsistency(turnResult, session, actionAttempt);
-    stepStart = logTurnStep(sessionId, 'post-llm-guards', stepStart);
-    newState = GameEngine.applyTurnProposal(session, actionAttempt, turnResult);
-    await deps.nameRepair(session, newState, {
-      narration: turnResult.narration,
-      actionAttempt: actionAttempt.actionAttempt,
-    });
-    const narrationBeforeAlign = turnResult.narration;
-    alignTurnWithResolvedEncounter(session, newState, turnResult);
-    if (turnResult.narration !== narrationBeforeAlign) {
-      diagnostics.repair('align_resolved_encounter_narration');
-    }
-    if (stripChoicesTargetingDefeatedEnemies(newState, turnResult)) {
-      diagnostics.repair('strip_defeated_enemy_choices');
-    }
-  }
+  const { turnResult, newState, strategyUsed } = await resolveTurn({
+    kind: 'rolled',
+    session,
+    attempt: actionAttempt,
+    actingCharId,
+    aiInput,
+    decision,
+    deps,
+    stream: streamCallbacks,
+    diagnostics,
+  });
+  stepStart = logTurnStep(sessionId, strategyUsed === 'resolved_first' ? 'resolved-first' : 'llm', stepStart, `retried=${turnResult.narrationRetried ?? false} failed=${turnResult.narrationFailed ?? false}`);
   // Riddles: the narration that posed one owns its answer. Answer choices are rebuilt
   // to match whichever riddle is open after this turn, or turned into plain actions.
   const narratedRiddle = await completeNarratedRiddle(turnResult, diagnostics);
