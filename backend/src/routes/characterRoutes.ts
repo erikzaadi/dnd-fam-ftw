@@ -16,7 +16,7 @@ import { registerSessionIdParam } from '../middleware/sessionParam.js';
 import { runBackground } from '../middleware/runBackground.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { applyGuardedSessionMutation } from '../services/sessionMutationService.js';
-import { requirePaidWork } from '../middleware/usageAdmission.js';
+import { requirePaidWork, respondIfPaidWorkRefused } from '../middleware/usageAdmission.js';
 
 const characterDataSchema = z.object({
   name: z.string().min(1),
@@ -180,6 +180,10 @@ export const createCharacterRouter = () => {
     const turns = turnHistoryRepository.getCharacterTurnHistory(charId);
     if (turns.length === 0) {
       res.json({ summary: null });
+      return;
+    }
+    // After the free answer: a hero with no turns is never refused.
+    if (respondIfPaidWorkRefused('history_summary', req, res)) {
       return;
     }
     const session = await sessionRepository.listSessions(req.namespaceId);

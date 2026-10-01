@@ -10,6 +10,7 @@ import { accountService } from '../services/accountService.js';
 import { createUsageContext } from '../services/usageAttribution.js';
 import { getTierLimits } from '../services/usageLimitService.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from '../tests/integration/testSessionFixtures.js';
+import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { createGameRouter } from './gameRoutes.js';
 
 // Which HTTP routes start paid work (architecture-deepening plan 4). Once a realm's
@@ -94,6 +95,22 @@ describe('paid HTTP routes', () => {
     const res = await post(route, ownerlessRealm);
     expect(res.status).toBe(503);
     expect(await res.json()).toMatchObject({ error: 'realm_owner_missing' });
+  });
+
+  // Behaviour change (plan 4 B4). Before: the GET summary routes were limited only by the
+  // provider backstop. After: explicit admission, with the free answer first.
+  it('refuses the adventure summary once the budget is spent', async () => {
+    const res = await fetch(`${baseUrl}/session/${SESSION_ID}/summary`);
+    expect(res.status).toBe(429);
+  });
+
+  it('answers a hero with no turns without admission, and refuses one with turns', async () => {
+    const empty = await fetch(`${baseUrl}/character/char-zara/history-summary`);
+    expect(empty.status).toBe(200);
+    expect(await empty.json()).toEqual({ summary: null });
+
+    turnHistoryRepository.insertTurnResultSync(SESSION_ID, { narration: 'Pip stole a pie.', choices: [], imagePrompt: null, imageSuggested: false }, 'char-pip');
+    expect((await fetch(`${baseUrl}/character/char-pip/history-summary`)).status).toBe(429);
   });
 
   it('still answers reads on a spent budget', async () => {

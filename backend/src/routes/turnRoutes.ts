@@ -43,7 +43,7 @@ export const createTurnRouter = () => {
   const router = Router();
   registerSessionIdParam(router);
 
-  router.get('/session/:id/summary', asyncHandler(async (req, res) => {
+  router.get('/session/:id/summary', requirePaidWork('summary'), asyncHandler(async (req, res) => {
     const [history, session] = await Promise.all([
       turnHistoryRepository.getTurnHistory(req.params.id as string),
       sessionRepository.getSession(req.params.id as string),

@@ -26,6 +26,10 @@ const POLICY = {
   // Website routes that start AI work. A realm without a valid owner gets a clear
   // refusal before the provider backstop would refuse mid-request.
   website: ['owner', 'text'],
+  // Player summaries, asked for over GET: the adventure so far, and a hero's past
+  // adventure (admitted only once there are turns to summarize).
+  summary: ['owner', 'text'],
+  history_summary: ['owner', 'text'],
   // Read-aloud: no early owner refusal (the backstop refuses).
   tts: ['text'],
   // Assistant (MCP) tools. The per-grant counter runs after these (mcp/admission.ts).
