@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { isAcceptanceResult, submitTurnCommand } from '../services/turnCommand.js';
+import { admitPaidWork, paidWorkRefusalStatus, type PaidWorkRefusal } from '../services/paidWorkAdmission.js';
+import { getUsageContext } from '../lib/usageContext.js';
 import { parseBody } from './routeValidation.js';
 import { sendRateLimitResponse } from './routeErrors.js';
 import { registerSessionIdParam } from '../middleware/sessionParam.js';
@@ -56,7 +58,7 @@ export const createTurnRouter = () => {
     }
   }));
 
-  router.post('/session/:id/action', requirePaidWork('website'), asyncHandler(async (req, res) => {
+  router.post('/session/:id/action', asyncHandler(async (req, res) => {
     const body = parseBody(req, res, actionBodySchema);
     if (!body) {
       return;
@@ -66,7 +68,7 @@ export const createTurnRouter = () => {
 
     // The client receives turn data via turn_complete SSE and errors via turn_error SSE,
     // and can always recover the outcome from /snapshot or the operation endpoint.
-    const result = await submitTurnCommand<never, never>({
+    const result = await submitTurnCommand<never, PaidWorkRefusal>({
       adventureId: sessionId,
       realmId: req.namespaceId,
       requestId,
@@ -74,9 +76,14 @@ export const createTurnRouter = () => {
       expectedRevision,
       session: req.session!,
       prepareNewWork: () => ({ ok: true, request }),
-      // The route's requirePaidWork middleware admits the request.
-      admit: () => ({ ok: true }),
+      // After replay: a retry of an accepted action gets its operation even once the
+      // budget is spent.
+      admit: () => admitPaidWork('website', { namespaceId: req.namespaceId, attribution: getUsageContext()?.attribution }),
     });
+    if (result.type === 'refused') {
+      res.status(paidWorkRefusalStatus(result.refusal)).json(result.refusal);
+      return;
+    }
     if (result.type === 'invalid') {
       res.status(result.rejection.status).json(result.rejection.body);
       return;

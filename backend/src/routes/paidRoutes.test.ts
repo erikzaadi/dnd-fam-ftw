@@ -11,6 +11,7 @@ import { createUsageContext } from '../services/usageAttribution.js';
 import { getTierLimits } from '../services/usageLimitService.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from '../tests/integration/testSessionFixtures.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
+import { acceptSessionOperation } from '../services/sessionOperationService.js';
 import { createGameRouter } from './gameRoutes.js';
 
 // Which HTTP routes start paid work (architecture-deepening plan 4). Once a realm's
@@ -78,10 +79,13 @@ afterAll(() => {
   resetConfigForTests();
 });
 
-const post = (route: string, realm?: string) => fetch(`${baseUrl}${route}`, {
+// The action route admits after parsing, replay and validation (plan 5 B1), so it
+// needs a valid body to reach admission.
+const ACTION_BODY = { action: 'Pip sneaks past the cook', statUsed: 'mischief' };
+const post = (route: string, realm?: string, body: unknown = route.endsWith('/action') ? ACTION_BODY : {}) => fetch(`${baseUrl}${route}`, {
   method: 'POST',
   headers: { 'content-type': 'application/json', ...(realm && { 'x-test-realm': realm }) },
-  body: '{}',
+  body: JSON.stringify(body),
 });
 
 describe('paid HTTP routes', () => {
@@ -111,6 +115,17 @@ describe('paid HTTP routes', () => {
 
     turnHistoryRepository.insertTurnResultSync(SESSION_ID, { narration: 'Pip stole a pie.', choices: [], imagePrompt: null, imageSuggested: false }, 'char-pip');
     expect((await fetch(`${baseUrl}/character/char-pip/history-summary`)).status).toBe(429);
+  });
+
+  // Behaviour change (plan 5 B1). Before: a retried action whose original was accepted
+  // got 429 once the budget ran out. After: it gets its original operation.
+  it('replays an accepted action on a spent budget', async () => {
+    const accepted = acceptSessionOperation({ sessionId: SESSION_ID, namespaceId: spentRealm, kind: 'action', requestId: 'paid-replay-1', payload: ACTION_BODY });
+    expect(accepted.type).toBe('accepted');
+
+    const res = await post(`/session/${SESSION_ID}/action`, undefined, { ...ACTION_BODY, requestId: 'paid-replay-1' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ replayed: true, operation: { id: accepted.type === 'accepted' ? accepted.operation.id : '' } });
   });
 
   it('still answers reads on a spent budget', async () => {
