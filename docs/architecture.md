@@ -56,6 +56,8 @@ SSE turn_complete -> all views update; scene image generated in the background
 
 This is the default `resolved_first` strategy. The opt-out `parallel` strategy, still used for opening, rescue and chapter-start turns, runs narration beside the mechanics agents. Both are described in [MULTI_AGENT_WORKFLOW.md](../MULTI_AGENT_WORKFLOW.md); in code, both sit behind `resolveTurn` (`backend/src/services/turnResolution.ts`).
 
+Submitting the action is the turn command (`submitTurnCommand`, `backend/src/services/turnCommand.ts`), shared by the website (`POST /session/:id/action`) and assistants (`confirm_action`). A known request id replays its original operation first, before anything else runs. New work is then prepared by the caller (assistants: the stored preview and the revision), validated, held for the assistant Undo window if asked, admitted (paid-work admission), and accepted atomically (one operation at a time, expected revision checked). Only a newly accepted operation starts the background run (`runAcceptedTurnAction`); the request returns without waiting for narration.
+
 ## Ideas and Ask the DM
 
 Turns never pre-generate suggested choices, in either turn pipeline (or the opening, rescue, and chapter-start turns): no choices agent, retry, rerun, or deterministic fallback runs per turn, and narration ends with an open question to the next hero. Players type what they try, or press **Give me ideas**, which calls `POST /session/:id/ideas` (same choices path, run on request, shared by every viewer, never advancing the story; 6 generations per session per minute).

@@ -21,3 +21,7 @@ What the turn pipeline decides about an action once, before generation: its inte
 ## Paid-work admission
 
 Whether a realm may start work that spends AI budget, decided once where the work enters: a website route, read-aloud, or an assistant tool. Lives in `admitPaidWork` (`backend/src/services/paidWorkAdmission.ts`), which runs each kind's entry checks (an ownerless realm, the daily text budget) and returns a structured refusal for the adapter to render. The adventure cap (`checkAdventureCap`) sits beside it. Not part of it: the provider backstop (looser thresholds, so work under way can finish), picture checks right before generation, the MCP per-grant counter, and the per-adventure turn cap.
+
+## Turn command
+
+Submitting a player's action turn, for the website and assistants alike (`submitTurnCommand` in `backend/src/services/turnCommand.ts`). It owns the order: replay a known request id, let the caller prepare new work, validate, wait (the assistant Undo window), admit, accept atomically, and start the run only for a newly accepted operation. Each caller builds its own idempotency payload and renders the result (HTTP status codes, MCP tool errors and audit records).
