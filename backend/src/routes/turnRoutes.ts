@@ -14,6 +14,7 @@ import { toPublicTurn } from '../services/sessionProjection.js';
 import { DIFFICULTY_VALUES, STAT_VALUES } from '../types.js';
 import { readCoherentSnapshot } from '../services/sessionSnapshotService.js';
 import { summarizeAdventure } from '../services/playerSummaryService.js';
+import { requirePaidWork } from '../middleware/usageAdmission.js';
 
 const MAX_ACTION_LENGTH = 600;
 
@@ -56,7 +57,7 @@ export const createTurnRouter = () => {
     }
   }));
 
-  router.post('/session/:id/action', asyncHandler(async (req, res) => {
+  router.post('/session/:id/action', requirePaidWork('website'), asyncHandler(async (req, res) => {
     const body = parseBody(req, res, actionBodySchema);
     if (!body) {
       return;

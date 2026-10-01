@@ -7,6 +7,7 @@ import { parseSuggestedStats, STAT_FALLBACK, suggestStatForSessionAction } from 
 import { parseBody } from './routeValidation.js';
 import { registerSessionIdParam } from '../middleware/sessionParam.js';
 import { MAX_CLARIFICATION_ROUNDS, previewAction } from '../services/actionPreviewService.js';
+import { requirePaidWork } from '../middleware/usageAdmission.js';
 
 const supportsClarificationRequest = (supports: string[] | undefined): boolean => supports?.includes('clarification') ?? false;
 
@@ -50,7 +51,7 @@ export const createStatSuggestionRouter = () => {
   const router = Router();
   registerSessionIdParam(router);
 
-  router.post('/session/:id/suggest-stat', asyncHandler(async (req, res) => {
+  router.post('/session/:id/suggest-stat', requirePaidWork('website'), asyncHandler(async (req, res) => {
     const body = parseBody(req, res, suggestStatBodySchema);
     if (!body) {
       return;
@@ -59,7 +60,7 @@ export const createStatSuggestionRouter = () => {
     res.json(suggestion);
   }));
 
-  router.post('/session/:id/preview-action', asyncHandler(async (req, res) => {
+  router.post('/session/:id/preview-action', requirePaidWork('website'), asyncHandler(async (req, res) => {
     const body = parseBody(req, res, previewActionBodySchema);
     if (!body) {
       return;
@@ -75,7 +76,7 @@ export const createStatSuggestionRouter = () => {
     res.json(outcome.type === 'clarification' ? outcome.clarification : outcome.preview);
   }));
 
-  router.post('/character/suggest-stats', asyncHandler(async (req, res) => {
+  router.post('/character/suggest-stats', requirePaidWork('website'), asyncHandler(async (req, res) => {
     const body = parseBody(req, res, suggestCharacterStatsBodySchema);
     if (!body) {
       return;

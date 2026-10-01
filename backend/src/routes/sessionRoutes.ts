@@ -27,6 +27,7 @@ import { generateAndCommitInitialTurn } from '../services/initialTurnService.js'
 import { attachTurnImage } from '../services/turnSideEffectService.js';
 import { toPublicSession } from '../services/sessionProjection.js';
 import { checkAdventureCap } from '../services/paidWorkAdmission.js';
+import { requirePaidWork } from '../middleware/usageAdmission.js';
 
 const createSessionBodySchema = z.object({
   worldDescription: z.string().optional(),
@@ -73,7 +74,7 @@ export const createSessionRouter = () => {
     res.json(sessions);
   }));
 
-  router.post('/session/quick-start', asyncHandler(async (req, res) => {
+  router.post('/session/quick-start', requirePaidWork('website'), asyncHandler(async (req, res) => {
     if (refuseOverAdventureCap(req.namespaceId, res)) {
       return;
     }
@@ -82,7 +83,7 @@ export const createSessionRouter = () => {
     res.json({ id });
   }));
 
-  router.post('/session/instant-start', asyncHandler(async (req, res) => {
+  router.post('/session/instant-start', requirePaidWork('website'), asyncHandler(async (req, res) => {
     if (refuseOverAdventureCap(req.namespaceId, res)) {
       return;
     }
@@ -129,7 +130,7 @@ export const createSessionRouter = () => {
     res.json({ success: true });
   }));
 
-  router.post('/session/create', asyncHandler(async (req, res) => {
+  router.post('/session/create', requirePaidWork('website'), asyncHandler(async (req, res) => {
     const body = parseBody(req, res, createSessionBodySchema);
     if (!body) {
       return;
@@ -247,7 +248,7 @@ export const createSessionRouter = () => {
     });
   }));
 
-  router.post('/session/:id/preview-image', asyncHandler(async (req, res) => {
+  router.post('/session/:id/preview-image', requirePaidWork('website'), asyncHandler(async (req, res) => {
     const session = req.session!;
     if (session.savingsMode) {
       res.json({ previewImageUrl: null });
@@ -262,7 +263,7 @@ export const createSessionRouter = () => {
     res.json({ previewImageUrl: result?.url ?? null });
   }));
 
-  router.post('/session/:id/regenerate-dm-prep', asyncHandler(async (req, res) => {
+  router.post('/session/:id/regenerate-dm-prep', requirePaidWork('website'), asyncHandler(async (req, res) => {
     const session = req.session!;
     const body = parseBody(req, res, regenerateDmPrepBodySchema);
     if (body === undefined && req.body !== undefined && Object.keys(req.body as Record<string, unknown>).length > 0) {
@@ -287,7 +288,7 @@ export const createSessionRouter = () => {
     res.json({ dmPrep: brief, dmPrepEncounters: updated?.dmPrepEncounters ?? null });
   }));
 
-  router.post('/session/:id/start', asyncHandler(async (req, res) => {
+  router.post('/session/:id/start', requirePaidWork('website'), asyncHandler(async (req, res) => {
     const sessionId = req.params.id as string;
     const session = req.session!;
 
@@ -367,7 +368,7 @@ export const createSessionRouter = () => {
     });
   }));
 
-  router.post('/session/:id/origin-story', asyncHandler(async (req, res) => {
+  router.post('/session/:id/origin-story', requirePaidWork('website'), asyncHandler(async (req, res) => {
     const session = req.session!;
     if (!session.party.length) {
       res.status(400).json({ error: 'No party members' });

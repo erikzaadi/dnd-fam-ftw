@@ -11,7 +11,6 @@ import { authMiddleware } from './middleware/auth.js';
 import { getDb, runInTransaction, initializeDatabase } from './persistence/database.js';
 import { seedOnboarding } from './scripts/seedOnboarding.js';
 import { countUnresolvedOwners } from './realms/ownershipReport.js';
-import { usageAdmissionMiddleware } from './middleware/usageAdmission.js';
 import { startEmailAuthMaintenance } from './services/emailAuthService.js';
 import { startOutboxDispatcher } from './services/emailService.js';
 import { getImageStorageProvider } from './providers/storage/storageProviderFactory.js';
@@ -148,7 +147,6 @@ app.use((req, res, next) => {
   }
   authMiddleware(req, res, next);
 });
-app.use(usageAdmissionMiddleware);
 
 app.use(createNamespaceRouter());
 app.use(createNamespaceInviteRouter());

@@ -5,6 +5,7 @@ import { registerSessionIdParam } from '../middleware/sessionParam.js';
 import { continueAdventureWorld, endAdventureHere, wrapUpAdventure } from '../services/adventureLifecycleCommands.js';
 import { ADVENTURE_FORMAT_VALUES } from '../types.js';
 import { parseBody } from './routeValidation.js';
+import { requirePaidWork } from '../middleware/usageAdmission.js';
 
 const operationBodySchema = z.object({
   requestId: z.string().min(1).max(100).optional(),
@@ -21,7 +22,7 @@ export const createAdventureRouter = () => {
   const router = Router();
   registerSessionIdParam(router);
 
-  router.post('/session/:id/adventure/wrap-up', asyncHandler(async (req, res) => {
+  router.post('/session/:id/adventure/wrap-up', requirePaidWork('website'), asyncHandler(async (req, res) => {
     const body = parseBody(req, res, operationBodySchema);
     if (!body) {
       return;
@@ -43,7 +44,7 @@ export const createAdventureRouter = () => {
     res.status(outcome.status).json(outcome.body);
   }));
 
-  router.post('/session/:id/adventure/continue', asyncHandler(async (req, res) => {
+  router.post('/session/:id/adventure/continue', requirePaidWork('website'), asyncHandler(async (req, res) => {
     const body = parseBody(req, res, continueBodySchema);
     if (!body) {
       return;

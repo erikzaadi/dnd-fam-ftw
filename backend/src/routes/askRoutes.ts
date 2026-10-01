@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { registerSessionIdParam } from '../middleware/sessionParam.js';
 import { askDm } from '../services/askDmService.js';
 import { parseBody } from './routeValidation.js';
+import { requirePaidWork } from '../middleware/usageAdmission.js';
 
 const askBodySchema = z.object({
   question: z.string().trim().min(1).max(300),
@@ -16,7 +17,7 @@ export const createAskRouter = () => {
   registerSessionIdParam(router);
 
   // "Ask the DM": a short answer about the current scene. Never advances the story.
-  router.post('/session/:id/ask', asyncHandler(async (req, res) => {
+  router.post('/session/:id/ask', requirePaidWork('website'), asyncHandler(async (req, res) => {
     const body = parseBody(req, res, askBodySchema);
     if (!body) {
       return;

@@ -4,7 +4,6 @@ import express from 'express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { resetConfigForTests } from '../config/env.js';
 import { runWithUsageContext } from '../lib/usageContext.js';
-import { usageAdmissionMiddleware } from '../middleware/usageAdmission.js';
 import { getDb } from '../persistence/database.js';
 import { usageRepository } from '../repositories/usageRepository.js';
 import { accountService } from '../services/accountService.js';
@@ -65,7 +64,6 @@ beforeAll(async () => {
     req.namespaceId = req.header('x-test-realm') ?? spentRealm;
     runWithUsageContext(createUsageContext(req.namespaceId, spentUser), next);
   });
-  app.use(usageAdmissionMiddleware);
   app.use(createGameRouter());
   await new Promise<void>(resolve => {
     server = app.listen(0, () => resolve());

@@ -16,6 +16,7 @@ import { registerSessionIdParam } from '../middleware/sessionParam.js';
 import { runBackground } from '../middleware/runBackground.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { applyGuardedSessionMutation } from '../services/sessionMutationService.js';
+import { requirePaidWork } from '../middleware/usageAdmission.js';
 
 const characterDataSchema = z.object({
   name: z.string().min(1),
@@ -52,7 +53,7 @@ export const createCharacterRouter = () => {
     res.json(enhancedCharacters);
   }));
 
-  router.post('/character/create', asyncHandler(async (req, res) => {
+  router.post('/character/create', requirePaidWork('website'), asyncHandler(async (req, res) => {
     const body = parseBody(req, res, characterBodySchema);
     if (!body) {
       return;
