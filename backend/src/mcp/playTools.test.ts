@@ -204,6 +204,47 @@ describe('confirm_action', () => {
     expect(runAcceptedTurnAction).not.toHaveBeenCalled();
   });
 
+  // Characterization (architecture-deepening plan 5).
+  it('replays after the story moved on, without the undo wait', async () => {
+    setUndoWindowMsForTests(5_000);
+    const sessionId = newSession();
+    const { previewId } = structured<{ previewId: string }>(await preview(sessionId));
+    const args = { adventureId: sessionId, previewId, expectedRevision: 0, requestId: 'confirm-moved-1' };
+    const first = structured<{ operation: { id: string } }>(await callTool(pilotA.secret, 'confirm_action', args));
+    getDb().prepare('UPDATE sessions SET revision = revision + 1 WHERE id = ?').run(sessionId);
+
+    const startedAt = Date.now();
+    const replay = structured<{ operation: { id: string }; replayed: boolean }>(await callTool(pilotA.secret, 'confirm_action', { ...args, undoWindow: true }));
+    expect(Date.now() - startedAt).toBeLessThan(2_000);
+    expect(replay).toMatchObject({ operation: { id: first.operation.id }, replayed: true });
+    expect(runAcceptedTurnAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats a reused request id with another preview or another token as a conflict', async () => {
+    const sessionId = newSession();
+    const { previewId } = structured<{ previewId: string }>(await preview(sessionId));
+    await callTool(pilotA.secret, 'confirm_action', { adventureId: sessionId, previewId, expectedRevision: 0, requestId: 'confirm-conflict-1' });
+
+    const otherPreview = await callTool(pilotA.secret, 'confirm_action', { adventureId: sessionId, previewId: 'another-preview', expectedRevision: 0, requestId: 'confirm-conflict-1' });
+    expect(errorText(otherPreview)).toContain('request_id_conflict');
+    const otherToken = await callTool(sharedRealmSecretB, 'confirm_action', { adventureId: sessionId, previewId, expectedRevision: 0, requestId: 'confirm-conflict-1' });
+    expect(errorText(otherToken)).toContain('request_id_conflict');
+    expect(runAcceptedTurnAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses at acceptance when the story moves on during the undo window', async () => {
+    setUndoWindowMsForTests(300);
+    const sessionId = newSession();
+    const { previewId } = structured<{ previewId: string }>(await preview(sessionId));
+    const call = callTool(pilotA.secret, 'confirm_action', { adventureId: sessionId, previewId, expectedRevision: 0, requestId: 'confirm-window-1', undoWindow: true });
+    await new Promise(resolve => setTimeout(resolve, 100));
+    getDb().prepare('UPDATE sessions SET revision = revision + 1 WHERE id = ?').run(sessionId);
+    const res = await call;
+    expect(isError(res)).toBe(true);
+    expect(errorText(res)).toContain('stale_revision');
+    expect(runAcceptedTurnAction).not.toHaveBeenCalled();
+  });
+
   it('refuses an unknown preview', async () => {
     const res = await callTool(pilotA.secret, 'confirm_action', { adventureId: newSession(), previewId: 'nope', expectedRevision: 0, requestId: 'confirm-unknown-1' });
     expect(errorText(res)).toContain('stale_preview');
