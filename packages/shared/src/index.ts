@@ -6,7 +6,9 @@ export {
   OPENAI_TTS_VOICES,
   OPENAI_TTS_VOICE_LABELS,
   OPENAI_TTS_VOICES_GPT4O_ONLY,
+  OPENAI_TTS_VOICES_SPEECH_ONLY,
   OPENAI_TTS_DEFAULT_VOICE,
+  resolveTtsVoice,
 } from './types.js';
 
 export type {

@@ -2,6 +2,7 @@ import { publicAssetUrl } from '../lib/api';
 import type { OpenAiTtsVoice } from './ttsTypes';
 
 const SAMPLE_BY_VOICE: Record<OpenAiTtsVoice, string> = {
+  ash:     '/sound/tts/ash-sample.mp3',
   cedar:   '/sound/tts/cedar-sample.mp3',
   marin:   '/sound/tts/marin-sample.mp3',
   fable:   '/sound/tts/fable-sample.mp3',

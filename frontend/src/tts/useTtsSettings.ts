@@ -18,20 +18,35 @@ const DEFAULT_SETTINGS: TtsSettings = {
   preferredStyle: 'neutral',
   browserGenderHint: 'any',
   openAiVoice: OPENAI_TTS_DEFAULT_VOICE,
+  openAiVoiceChosen: false,
 };
+
+// Reads settings saved by any earlier version. Exported for tests.
+export function migrateStoredTtsSettings(parsed: Record<string, unknown>): TtsSettings {
+  const stored = { ...parsed };
+  // Migrate: rename preferredGenderHint -> browserGenderHint
+  if (stored.preferredGenderHint !== undefined && stored.browserGenderHint === undefined) {
+    stored.browserGenderHint = stored.preferredGenderHint;
+    delete stored.preferredGenderHint;
+  }
+  // The default narrator changed from cedar to ash. Settings saved before the
+  // "chosen" flag always carried a voice, so a pick cannot be told from the old
+  // default: an unflagged cedar follows the new default, any other voice was a pick.
+  if (stored.openAiVoiceChosen === undefined) {
+    stored.openAiVoiceChosen = stored.openAiVoice !== undefined && stored.openAiVoice !== 'cedar';
+    if (!stored.openAiVoiceChosen) {
+      stored.openAiVoice = OPENAI_TTS_DEFAULT_VOICE;
+    }
+  }
+  return { ...DEFAULT_SETTINGS, ...stored };
+}
 
 export function useTtsSettings() {
   const [settings, setSettings] = useState<TtsSettings>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       try {
-        const parsed = JSON.parse(stored);
-        // Migrate: rename preferredGenderHint -> browserGenderHint
-        if (parsed.preferredGenderHint !== undefined && parsed.browserGenderHint === undefined) {
-          parsed.browserGenderHint = parsed.preferredGenderHint;
-          delete parsed.preferredGenderHint;
-        }
-        return { ...DEFAULT_SETTINGS, ...parsed };
+        return migrateStoredTtsSettings(JSON.parse(stored));
       } catch (e) {
         console.error('Failed to parse TTS settings', e);
       }
@@ -83,7 +98,7 @@ export function useTtsSettings() {
   }, []);
 
   const setOpenAiVoice = useCallback((value: TtsSettings['openAiVoice']) => {
-    setSettings(prev => ({ ...prev, openAiVoice: value }));
+    setSettings(prev => ({ ...prev, openAiVoice: value, openAiVoiceChosen: true }));
   }, []);
 
   return {

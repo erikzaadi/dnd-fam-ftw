@@ -772,25 +772,41 @@ export interface Capabilities {
   hasCloudAI: boolean;
   hasTts: boolean;
   ttsLegacyModel: boolean;
+  // Voices the server's narrator can speak. Absent on older servers: treat as all voices.
+  ttsVoices?: OpenAiTtsVoice[];
 }
 
-export const OPENAI_TTS_VOICES = ['cedar', 'marin', 'fable', 'onyx', 'nova', 'sage', 'shimmer'] as const;
+// Saved voice ids must stay readable forever: never remove an id, only stop offering it.
+export const OPENAI_TTS_VOICES = ['ash', 'cedar', 'marin', 'sage', 'shimmer', 'fable', 'onyx', 'nova'] as const;
 export type OpenAiTtsVoice = typeof OPENAI_TTS_VOICES[number];
 
 export const OPENAI_TTS_VOICE_LABELS: Record<OpenAiTtsVoice, string> = {
+  ash:     'Ash (epic storyteller)',
   cedar:   'Cedar (warm narrator)',
   marin:   'Marin (clear narrator)',
+  sage:    'Sage (calm)',
+  shimmer: 'Shimmer (light)',
   fable:   'Fable (storybook)',
   onyx:    'Onyx (deep)',
   nova:    'Nova (bright)',
-  sage:    'Sage (calm)',
-  shimmer: 'Shimmer (light)',
 };
 
 // cedar and marin require gpt-4o-mini-tts; not available on tts-1 / tts-1-hd
 export const OPENAI_TTS_VOICES_GPT4O_ONLY = new Set<OpenAiTtsVoice>(['cedar', 'marin']);
 
-export const OPENAI_TTS_DEFAULT_VOICE: OpenAiTtsVoice = 'cedar';
+// fable, onyx and nova exist only on the /audio/speech models; the Realtime narrator cannot speak them.
+export const OPENAI_TTS_VOICES_SPEECH_ONLY = new Set<OpenAiTtsVoice>(['fable', 'onyx', 'nova']);
+
+export const OPENAI_TTS_DEFAULT_VOICE: OpenAiTtsVoice = 'ash';
+
+// The voice that will actually speak: the requested one when the narrator supports it,
+// else the default, else the first supported voice. Never changes the saved preference.
+export function resolveTtsVoice(requested: OpenAiTtsVoice, supported: readonly OpenAiTtsVoice[]): OpenAiTtsVoice {
+  if (supported.length === 0 || supported.includes(requested)) {
+    return requested;
+  }
+  return supported.includes(OPENAI_TTS_DEFAULT_VOICE) ? OPENAI_TTS_DEFAULT_VOICE : supported[0];
+}
 
 export type SessionListEventType = 'connected' | 'heartbeat' | 'session_changed' | 'preview_image_available' | 'instant_start_ready';
 

@@ -2,6 +2,7 @@ import { browserTtsService } from './browserTtsService';
 import { openAiTtsService } from './openaiTtsService';
 import type { TtsSettings, OpenAiTtsVoice } from './ttsTypes';
 import { devLog } from '../lib/devLog';
+import { effectiveTtsVoice } from './ttsVoiceSupport';
 
 type SpeakNarrationInput = {
   text: string;
@@ -14,7 +15,7 @@ type SpeakNarrationInput = {
 };
 
 function voiceFromSettings(settings: TtsSettings): OpenAiTtsVoice {
-  return settings.openAiVoice;
+  return effectiveTtsVoice(settings.openAiVoice);
 }
 
 class NarrationTtsService {

@@ -40,7 +40,7 @@ import { TEST_VOICE_SAMPLE } from '../tts/ttsVoiceCatalog';
 import { useSttSettings } from '../stt/useSttSettings';
 import { getSpeechRecognitionCtor } from '../stt/browserSpeechRecognitionService';
 import { useCapabilities } from '../hooks/useCapabilities';
-import { OPENAI_TTS_VOICES, OPENAI_TTS_VOICE_LABELS, OPENAI_TTS_VOICES_GPT4O_ONLY } from '../types';
+import { OPENAI_TTS_VOICES, OPENAI_TTS_VOICE_LABELS, resolveTtsVoice } from '../types';
 import type { OpenAiTtsVoice } from '../types';
 
 type Tab = 'game' | 'music' | 'sfx' | 'narration';
@@ -103,6 +103,10 @@ export const Settings = () => {
   const ttsSupported = browserTtsService.isSupported();
   const ttsAvailable = ttsSupported || capabilities.hasTts;
   const activeTtsProvider = ttsSettings.provider === 'openai' && !capabilities.hasTts ? 'browser' : ttsSettings.provider;
+  // Only voices the server's narrator can speak are offered. A saved voice that
+  // is no longer offered stays saved; the closest available one speaks instead.
+  const offeredAiVoices = capabilities.ttsVoices ?? OPENAI_TTS_VOICES;
+  const activeAiVoice = resolveTtsVoice(ttsSettings.openAiVoice, offeredAiVoices);
   const sttSupported = getSpeechRecognitionCtor() !== null;
 
   const savedVoiceUnavailable =
@@ -359,7 +363,7 @@ export const Settings = () => {
                                 narrationTtsService.stopNarration();
                                 staticTtsSampleService.stop();
                               } else if (activeTtsProvider === 'openai') {
-                                void staticTtsSampleService.play(ttsSettings.openAiVoice, ttsSettings.volume);
+                                void staticTtsSampleService.play(activeAiVoice, ttsSettings.volume);
                               } else {
                                 narrationTtsService.speakNarration({
                                   text: TEST_VOICE_SAMPLE,
@@ -435,30 +439,24 @@ export const Settings = () => {
                               {activeTtsProvider === 'openai' && (
                                 <div className="flex flex-col gap-3 p-5 bg-amber-950/20 rounded-[20px] border-2 border-slate-800">
                                   <span className="font-black uppercase tracking-tighter text-white">AI Narrator Voice</span>
-                                  {capabilities.ttsLegacyModel && (
-                                    <p className="text-xs text-amber-400">Cedar and Marin require gpt-4o-mini-tts. Your server is using a legacy TTS model.</p>
+                                  {activeAiVoice !== ttsSettings.openAiVoice && (
+                                    <p className="text-xs text-amber-400">{OPENAI_TTS_VOICE_LABELS[ttsSettings.openAiVoice]} is no longer available, so {OPENAI_TTS_VOICE_LABELS[activeAiVoice]} narrates instead.</p>
                                   )}
                                   <div className="flex flex-col gap-1.5">
-                                    {OPENAI_TTS_VOICES.map(voice => {
-                                      const isUnavailable = capabilities.ttsLegacyModel && OPENAI_TTS_VOICES_GPT4O_ONLY.has(voice);
-                                      const isSelected = ttsSettings.openAiVoice === voice;
+                                    {offeredAiVoices.map(voice => {
+                                      const isSelected = activeAiVoice === voice;
                                       const isSamplePlaying = samplePlayingVoice === voice && ttsPlaying;
                                       return (
                                         <div
                                           key={voice}
-                                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors ${isUnavailable ? 'opacity-40 cursor-not-allowed border-slate-700 bg-slate-800/30' : isSelected ? 'border-amber-600 bg-amber-600/10 cursor-pointer' : 'border-slate-700 bg-slate-800/50 hover:border-slate-600 cursor-pointer'}`}
-                                          onClick={() => {
-                                            if (!isUnavailable) {
-                                              setOpenAiVoice(voice); 
-                                            } 
-                                          }}
+                                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors ${isSelected ? 'border-amber-600 bg-amber-600/10 cursor-pointer' : 'border-slate-700 bg-slate-800/50 hover:border-slate-600 cursor-pointer'}`}
+                                          onClick={() => setOpenAiVoice(voice)}
                                         >
                                           <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 transition-colors ${isSelected ? 'border-amber-500 bg-amber-500' : 'border-slate-500'}`} />
                                           <span className={`flex-1 text-sm ${isSelected ? 'text-white font-bold' : 'text-slate-300'}`}>
                                             {OPENAI_TTS_VOICE_LABELS[voice]}
                                           </span>
                                           <button
-                                            disabled={isUnavailable}
                                             onClick={e => {
                                               e.stopPropagation();
                                               if (isSamplePlaying) {

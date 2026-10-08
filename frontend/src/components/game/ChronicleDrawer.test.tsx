@@ -36,6 +36,7 @@ const TTS_SETTINGS: TtsSettings = {
   preferredStyle: 'neutral',
   browserGenderHint: 'any',
   openAiVoice: 'cedar',
+  openAiVoiceChosen: true,
 };
 
 const renderDrawer = (

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../lib/api';
 import type { Capabilities } from '../types';
+import { getSupportedTtsVoices, setSupportedTtsVoices } from '../tts/ttsVoiceSupport';
 
 export type { Capabilities };
 
@@ -8,6 +9,7 @@ const DEFAULT_CAPABILITIES: Capabilities = {
   hasCloudAI: false,
   hasTts: false,
   ttsLegacyModel: false,
+  ttsVoices: [...getSupportedTtsVoices()],
 };
 
 export function useCapabilities() {
@@ -27,6 +29,7 @@ export function useCapabilities() {
           hasCloudAI: !!data.hasCloudAI,
           hasTts: !!data.hasTts,
           ttsLegacyModel: !!data.ttsLegacyModel,
+          ttsVoices: [...setSupportedTtsVoices(data.ttsVoices)],
         });
       })
       .catch(() => {

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { getConfig } from '../config/env.js';
+import { resolveTtsTarget } from '../services/ttsTarget.js';
 
 interface SystemRoutesOptions {
   config: ReturnType<typeof getConfig>;
@@ -14,11 +15,13 @@ export const createSystemRouter = ({ config, hasCloudAI }: SystemRoutesOptions) 
   });
 
   router.get('/capabilities', (_req, res) => {
-    const ttsModel = process.env.OPENAI_MODEL_TTS ?? 'gpt-4o-mini-tts';
+    const ttsTarget = resolveTtsTarget();
     res.json({
       hasCloudAI,
+      // Key presence only: this never proves the provider or model is reachable.
       hasTts: !!process.env.OPENAI_API_KEY,
-      ttsLegacyModel: ttsModel === 'tts-1' || ttsModel === 'tts-1-hd',
+      ttsLegacyModel: ttsTarget.legacyModel,
+      ttsVoices: ttsTarget.voices,
     });
   });
 

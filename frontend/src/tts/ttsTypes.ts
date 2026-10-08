@@ -18,6 +18,8 @@ export type TtsSettings = {
   preferredStyle: TtsStyle;
   browserGenderHint: TtsGenderHint;
   openAiVoice: OpenAiTtsVoice;
+  // True once the player picked a narrator voice themselves; false means "follow the default".
+  openAiVoiceChosen: boolean;
 };
 
 export { OPENAI_TTS_DEFAULT_VOICE };

@@ -71,6 +71,7 @@ describe('useCarConductor', () => {
     preferredStyle: 'neutral',
     browserGenderHint: 'any',
     openAiVoice: 'cedar',
+    openAiVoiceChosen: true,
   };
 
   const mockStartListening = vi.fn();

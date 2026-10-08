@@ -34,6 +34,7 @@ beforeEach(() => {
 afterEach(() => {
   delete process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_BASE_URL;
+  delete process.env.OPENAI_MODEL_TTS;
 });
 
 describe('normalizeTextForSpeech', () => {
@@ -55,9 +56,9 @@ describe('generateSpeech', () => {
     expect(mocks.OpenAI).toHaveBeenCalledWith({ apiKey: 'test-openai-key' });
     expect(mocks.speechCreate).toHaveBeenCalledWith(expect.objectContaining({
       model: 'gpt-4o-mini-tts',
-      voice: 'cedar',
+      voice: 'ash',
       input: 'The door opens.',
-      instructions: expect.stringContaining('British fantasy audiobook narrator'),
+      instructions: expect.stringContaining('epic fantasy saga'),
       response_format: 'mp3',
     }));
   });
@@ -76,6 +77,17 @@ describe('generateSpeech', () => {
 
     expect(mocks.speechCreate).toHaveBeenCalledWith(expect.objectContaining({
       voice: 'fable',
+    }));
+  });
+
+  it('speaks with the default voice when a legacy model cannot speak the requested one', async () => {
+    process.env.OPENAI_MODEL_TTS = 'tts-1';
+
+    await generateSpeech('The lantern glows.', 'cedar');
+
+    expect(mocks.speechCreate).toHaveBeenCalledWith(expect.objectContaining({
+      model: 'tts-1',
+      voice: 'ash',
     }));
   });
 

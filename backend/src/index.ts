@@ -29,6 +29,7 @@ import { createAccessTokenRouter } from './routes/accessTokenRoutes.js';
 import { createOAuthConsentRouter } from './routes/oauthConsentRoutes.js';
 import { createMcpRouter } from './mcp/server.js';
 import { accountService } from './services/accountService.js';
+import { retiringTtsModelWarning } from './services/ttsTarget.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -87,6 +88,12 @@ const hasCloudAI = !!process.env.OPENAI_API_KEY;
 if (!hasCloudAI && process.env.NODE_ENV !== 'test' && process.env.TEST_AI_MOCK !== 'true') {
   console.error('FATAL: OpenAI-compatible AI is not configured. Set OPENAI_API_KEY.');
   process.exit(1);
+}
+
+// Narration is optional, so a retiring TTS override warns instead of failing startup.
+const ttsWarning = retiringTtsModelWarning();
+if (ttsWarning) {
+  console.warn(ttsWarning);
 }
 
 // Preview callers catch request errors and fall back, so an invalid request
