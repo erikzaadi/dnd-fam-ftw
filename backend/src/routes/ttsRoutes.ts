@@ -39,7 +39,14 @@ export const createTtsRouter = () => {
     }
 
     const effectiveVoice = resolveEffectiveTtsVoice(requestedVoice ?? OPENAI_TTS_DEFAULT_VOICE);
-    const audio = await generateSpeech(normalized, effectiveVoice);
+    // The player stopped narration or left the page: stop generating too.
+    const abandoned = new AbortController();
+    res.on('close', () => {
+      if (!res.writableEnded) {
+        abandoned.abort();
+      }
+    });
+    const audio = await generateSpeech(normalized, effectiveVoice, { signal: abandoned.signal });
     const namespaceId = req.namespaceId;
     setImmediate(() => {
       try {

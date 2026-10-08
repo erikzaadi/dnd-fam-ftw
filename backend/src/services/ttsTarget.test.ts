@@ -1,15 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { OPENAI_TTS_VOICES } from '@dnd-fam-ftw/shared';
 import { resolveEffectiveTtsVoice, resolveTtsTarget, retiringTtsModelWarning } from './ttsTarget.js';
 
 describe('resolveTtsTarget', () => {
-  it('uses the built-in speech model and every voice by default', () => {
+  it('uses the Realtime narrator and only the voices it can speak by default', () => {
     expect(resolveTtsTarget({})).toEqual({
-      strategy: 'speech',
-      model: 'gpt-4o-mini-tts',
-      voices: OPENAI_TTS_VOICES,
+      strategy: 'realtime',
+      model: 'gpt-realtime-2.1-mini',
+      voices: ['ash', 'cedar', 'marin', 'sage', 'shimmer'],
       legacyModel: false,
     });
+  });
+
+  it('lets the operator pick another Realtime model', () => {
+    expect(resolveTtsTarget({ OPENAI_MODEL_TTS: 'gpt-realtime-2.1' })).toMatchObject({ strategy: 'realtime', model: 'gpt-realtime-2.1' });
+  });
+
+  it('uses the speech endpoint and every voice for an operator-named speech model', () => {
+    const target = resolveTtsTarget({ OPENAI_MODEL_TTS: 'gpt-4o-mini-tts' });
+
+    expect(target.strategy).toBe('speech');
+    expect(target.voices).toContain('fable');
+  });
+
+  it('uses the speech endpoint for a custom endpoint, even without a model override', () => {
+    expect(resolveTtsTarget({ OPENAI_BASE_URL: 'http://localhost:8080/v1' })).toMatchObject({ strategy: 'speech', model: 'gpt-4o-mini-tts' });
   });
 
   it('keeps an operator override on the speech endpoint', () => {
@@ -33,6 +47,10 @@ describe('resolveTtsTarget', () => {
 describe('resolveEffectiveTtsVoice', () => {
   it('keeps a supported voice', () => {
     expect(resolveEffectiveTtsVoice('sage', resolveTtsTarget({}))).toBe('sage');
+  });
+
+  it('falls back to the default voice for the voices Realtime does not have', () => {
+    expect(resolveEffectiveTtsVoice('fable', resolveTtsTarget({}))).toBe('ash');
   });
 
   it('falls back to the default voice when the target cannot speak the requested one', () => {

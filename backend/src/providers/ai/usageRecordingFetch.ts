@@ -1,6 +1,7 @@
 import { getUsageContext, type UsageContext } from '../../lib/usageContext.js';
 import { usageRepository } from '../../repositories/usageRepository.js';
-import { estimateCostUsd, type UsageKind } from '../../services/usagePricing.js';
+import { estimateCostUsd, estimateRealtimeSpeechCostUsd, type UsageKind } from '../../services/usagePricing.js';
+import type { RealtimeSpeechUsage } from './realtimeSpeech.js';
 import { checkProviderAdmission } from '../../services/usageLimitService.js';
 import type { LimitReachedResponse } from '../../types.js';
 
@@ -81,6 +82,65 @@ export function createUsageRecordingFetch(baseFetch: Fetch = fetch, admit: Admis
       record(info, attribution, true, { inputTokens: null, outputTokens: null });
     }
     return response;
+  };
+}
+
+export interface RealtimeSpeechAttempt {
+  // Call once when the attempt ends, successfully or not.
+  record(success: boolean, usage: RealtimeSpeechUsage | null): void;
+}
+
+export class ProviderCallRefusedError extends Error {
+  constructor(message: string, public readonly code: string) {
+    super(message);
+    this.name = 'ProviderCallRefusedError';
+  }
+}
+
+// Realtime speech runs over a WebSocket, which the SDK fetch above never sees.
+// This gives each attempt the same treatment: the same refusals before anything
+// reaches the provider, attribution fixed at dispatch, and one provider_usage row.
+export function beginRealtimeSpeechAttempt(model: string, ttsCharacters: number, admit: Admission = checkProviderAdmission): RealtimeSpeechAttempt {
+  const context = getUsageContext();
+  if (context?.attribution === 'unresolved') {
+    throw new ProviderCallRefusedError('This realm has no owner yet. Ask the site operator to fix it.', 'realm_owner_missing');
+  }
+  const refusal = admit('tts');
+  if (refusal) {
+    throw new ProviderCallRefusedError(refusal.message, refusal.kind);
+  }
+  const attribution = snapshotAttribution(context);
+  let recorded = false;
+  return {
+    record(success, usage) {
+      if (recorded) {
+        return;
+      }
+      recorded = true;
+      try {
+        usageRepository.recordProviderUsage({
+          ...attribution,
+          kind: 'tts',
+          endpoint: '/realtime',
+          model,
+          inputTokens: usage?.inputTokens ?? null,
+          outputTokens: usage?.outputTokens ?? null,
+          ttsCharacters,
+          imageCount: null,
+          success,
+          // A failed attempt is billed only for what the provider reported before failing.
+          estimatedCostUsd: !success && !usage ? 0 : estimateRealtimeSpeechCostUsd({
+            model,
+            textInputTokens: usage?.textInputTokens ?? null,
+            textOutputTokens: usage?.textOutputTokens ?? null,
+            audioOutputTokens: usage?.audioOutputTokens ?? null,
+            ttsCharacters,
+          }),
+        });
+      } catch (err) {
+        console.warn(`[Usage] Failed to record provider usage: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    },
   };
 }
 

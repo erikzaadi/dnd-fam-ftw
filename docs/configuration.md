@@ -22,12 +22,28 @@ The backend uses the OpenAI SDK for narration, helper calls, images and TTS. `OP
 | `OPENAI_MODEL_PREVIEW` | `gpt-5.6-luna` | Latency-critical helpers: action previews, stat suggestions, ideas, session naming, image briefs, DM Prep compilation |
 | `OPENAI_REASONING_EFFORT_PREVIEW` | `none` | See [Preview-tier request settings](#preview-tier-request-settings) |
 | `OPENAI_MODEL_ASYNC` | `gpt-4.1` | Background work: campaign brief, story summaries |
-| `OPENAI_MODEL_TTS` | `gpt-4o-mini-tts` | Narration voice |
+| `OPENAI_MODEL_TTS` | `gpt-realtime-2.1-mini` | Narration voice. See [Narration voice](#narration-voice) |
 | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | Scene images, adventure previews, hero portraits |
 | `OPENAI_MAX_RETRIES` | SDK default (2) | Client-wide retry count; evaluation scripts require `0` |
 | `AI_TURN_STRATEGY` | `resolved_first` | See [Turn strategy](#turn-strategy) |
 
 Which call uses which model, and when, is listed in [architecture.md](architecture.md#ai-calls).
+
+### Narration voice
+
+AI narration is optional and has two ways of producing audio. Clients always receive MP3.
+
+| Setup | How audio is produced |
+| --- | --- |
+| `OPENAI_MODEL_TTS` unset, no `OPENAI_BASE_URL` | OpenAI Realtime API with `gpt-realtime-2.1-mini`, one short session per narration |
+| `OPENAI_MODEL_TTS=gpt-realtime-...`, no `OPENAI_BASE_URL` | OpenAI Realtime API with that model |
+| `OPENAI_MODEL_TTS` set to any other model, or `OPENAI_BASE_URL` set | The `/audio/speech` endpoint with that model (`gpt-4o-mini-tts` when unset) |
+
+OpenAI retires `tts-1`, `tts-1-hd` and `gpt-4o-mini-tts` on 2027-01-06, which is why Realtime is the default. Pinning one of them against OpenAI logs a warning at startup and stops working on that date.
+
+The Realtime narrator speaks the voices `ash` (default), `cedar`, `marin`, `sage` and `shimmer`. `fable`, `onyx` and `nova` exist only on `/audio/speech` models; a player who saved one of them hears the default voice. `/capabilities` reports the voices the server can speak and Settings offers only those.
+
+Realtime audio is checked against the text before it is sent: if the model added or dropped words, the audio is discarded and generated once more, then the request fails. When an AI narration request fails for any reason, the player's browser voice speaks that utterance instead.
 
 Provider-specific `AI_NARRATION_PROVIDER`, `AI_IMAGE_PROVIDER`, `LOCALAI_*` and `GEMINI_*` variables are no longer supported.
 

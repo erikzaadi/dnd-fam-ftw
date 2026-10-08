@@ -27,6 +27,21 @@ const FALLBACK_IMAGE_COST_USD = 0.02;
 // Roughly 1000 characters per minute of speech at about $0.015/minute.
 const TTS_COST_PER_MILLION_CHARACTERS = 15;
 
+// Realtime speech is billed per token, with audio output far above text.
+// List prices on 2026-10-08, USD per 1M tokens.
+interface RealtimeSpeechPrice {
+  textInput: number;
+  textOutput: number;
+  audioOutput: number;
+}
+
+const REALTIME_SPEECH_PRICES: Record<string, RealtimeSpeechPrice> = {
+  'gpt-realtime-2.1-mini': { textInput: 0.6, textOutput: 2.4, audioOutput: 20 },
+  'gpt-realtime-2.1': { textInput: 4, textOutput: 24, audioOutput: 64 },
+};
+// A probe on 2026-10-04 cost about $34 per 1M characters on gpt-realtime-2.1-mini.
+const REALTIME_SPEECH_COST_PER_MILLION_CHARACTERS = 35;
+
 let parsedOverrides: Record<string, TokenPrice> | null = null;
 
 function priceOverrides(): Record<string, TokenPrice> {
@@ -87,4 +102,25 @@ export function estimateCostUsd(input: CostInput): number {
   }
   const price = priceFor(input.model, input.kind);
   return ((input.inputTokens ?? 0) * price.input + (input.outputTokens ?? 0) * price.output) / 1_000_000;
+}
+
+export interface RealtimeSpeechCostInput {
+  model: string;
+  textInputTokens: number | null;
+  textOutputTokens: number | null;
+  audioOutputTokens: number | null;
+  ttsCharacters: number;
+}
+
+// Falls back to a per-character estimate for an unknown model or a response without token details.
+export function estimateRealtimeSpeechCostUsd(input: RealtimeSpeechCostInput): number {
+  const price = REALTIME_SPEECH_PRICES[input.model];
+  if (!price || input.audioOutputTokens === null) {
+    return (input.ttsCharacters / 1_000_000) * REALTIME_SPEECH_COST_PER_MILLION_CHARACTERS;
+  }
+  return (
+    (input.textInputTokens ?? 0) * price.textInput +
+    (input.textOutputTokens ?? 0) * price.textOutput +
+    input.audioOutputTokens * price.audioOutput
+  ) / 1_000_000;
 }
