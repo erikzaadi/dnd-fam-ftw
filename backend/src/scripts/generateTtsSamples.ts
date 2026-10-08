@@ -1,4 +1,7 @@
 /**
+ * HISTORICAL: uses OpenAI TTS models retired on 2027-01-06. Refuses to run unless
+ * ALLOW_RETIRING_TTS_MODELS=1. Current assets come from generateStaticTtsAssets.ts.
+ *
  * Script to compare OpenAI TTS voices for game narration.
  *
  * Run from backend/:
@@ -62,6 +65,13 @@ const VOICE_CONFIGS: Array<{
 ];
 
 async function main() {
+  // Historical script: it calls OpenAI speech models that are retired on 2027-01-06
+  // and is kept only as a record of how earlier voices were compared and generated.
+  if (process.env.ALLOW_RETIRING_TTS_MODELS !== '1') {
+    console.error('This script uses OpenAI TTS models retired on 2027-01-06 and is kept for reference only.');
+    console.error('Current narration assets come from generateStaticTtsAssets.ts. Set ALLOW_RETIRING_TTS_MODELS=1 to run it anyway.');
+    process.exit(1);
+  }
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     console.error('OPENAI_API_KEY not set in environment.');

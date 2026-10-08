@@ -29,6 +29,8 @@ export function normalizeTextForSpeech(text: string): string {
 export interface GenerateSpeechOptions {
   // Aborting stops generation, so narration the listener walked away from is not paid for in full.
   signal?: AbortSignal;
+  // Asset scripts run without a database; they turn usage recording off.
+  recordUsage?: boolean;
 }
 
 // Always returns MP3, whichever way the audio was produced.
@@ -49,7 +51,7 @@ export async function generateSpeech(text: string, voice: OpenAiTtsVoice = OPENA
   const target = resolveTtsTarget();
   const effectiveVoice = resolveEffectiveTtsVoice(voice, target);
   if (target.strategy === 'realtime') {
-    return generateRealtimeSpeech(apiKey, input, effectiveVoice, target, options.signal);
+    return generateRealtimeSpeech(apiKey, input, effectiveVoice, target, options);
   }
 
   const response = await createOpenAIClient().audio.speech.create({
@@ -63,10 +65,10 @@ export async function generateSpeech(text: string, voice: OpenAiTtsVoice = OPENA
   return Buffer.from(await response.arrayBuffer());
 }
 
-async function generateRealtimeSpeech(apiKey: string, input: string, voice: OpenAiTtsVoice, target: TtsTarget, signal?: AbortSignal): Promise<Buffer> {
+async function generateRealtimeSpeech(apiKey: string, input: string, voice: OpenAiTtsVoice, target: TtsTarget, { signal, recordUsage = true }: GenerateSpeechOptions): Promise<Buffer> {
   for (let attempt = 1; attempt <= REALTIME_SPEECH_ATTEMPTS; attempt++) {
     // Every attempt reaches the provider and is billed, so each gets its own usage row.
-    const usage = beginRealtimeSpeechAttempt(target.model, input.length);
+    const usage = recordUsage ? beginRealtimeSpeechAttempt(target.model, input.length) : null;
     const encoder = createPcmToMp3Encoder();
     let result;
     try {
@@ -80,10 +82,10 @@ async function generateRealtimeSpeech(apiKey: string, input: string, voice: Open
         signal,
       });
     } catch (err) {
-      usage.record(false, err instanceof RealtimeSpeechError ? err.usage : null);
+      usage?.record(false, err instanceof RealtimeSpeechError ? err.usage : null);
       throw err;
     }
-    usage.record(true, result.usage);
+    usage?.record(true, result.usage);
 
     const verdict = checkSpokenTranscript(input, result.transcript);
     if (verdict.ok) {

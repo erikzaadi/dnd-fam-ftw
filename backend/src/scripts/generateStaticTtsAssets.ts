@@ -1,29 +1,31 @@
 /**
- * One-time script to generate static TTS audio assets for car mode and settings.
+ * Generates the static narrator audio bundled with the frontend: car-mode phrases
+ * and one Settings sample per voice.
  * Run from backend/: npx tsx --env-file=../.env src/scripts/generateStaticTtsAssets.ts
  *
- * Generates:
- *   frontend/public/sound/tts-phrases/{voice}/{slug}.mp3  (49 files: 7 voices x 7 phrases)
- *   frontend/public/sound/tts/{voice}-sample.mp3          (7 files: 1 per voice)
+ * Generates, for every voice the configured narrator can speak:
+ *   frontend/public/sound/tts-phrases/{voice}/{slug}.mp3
+ *   frontend/public/sound/tts/{voice}-sample.mp3
  *
- * Skips files that already exist (idempotent). Commit the generated MP3s.
+ * Uses the same model, narrator instruction and wording check as live narration
+ * (services/ttsService.ts), so bundled phrases match what players hear in play.
+ *
+ * Skips files that already exist (idempotent), so a new voice only costs its own
+ * files. Pass --force to regenerate everything, e.g. after the narrator changes.
+ * Paid: each file is one narration request. Commit the generated MP3s.
  */
 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import OpenAI from 'openai';
-import { OPENAI_TTS_VOICES } from '@dnd-fam-ftw/shared';
+import type { OpenAiTtsVoice } from '@dnd-fam-ftw/shared';
+import { generateSpeech } from '../services/ttsService.js';
+import { resolveTtsTarget } from '../services/ttsTarget.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND_PUBLIC = path.join(__dirname, '..', '..', '..', 'frontend', 'public');
 const PHRASES_OUT_DIR = path.join(FRONTEND_PUBLIC, 'sound', 'tts-phrases');
 const SAMPLES_OUT_DIR = path.join(FRONTEND_PUBLIC, 'sound', 'tts');
-
-const TTS_MODEL = 'gpt-4o-mini-tts';
-const NARRATOR_INSTRUCTIONS =
-  'Speak as a refined British fantasy audiobook narrator. Calm, immersive, measured, and elegant. ' +
-  'Use clear pronunciation, restrained drama, and natural pauses. Do not sound like an assistant or announcer.';
 
 const STATIC_PHRASES: Array<{ slug: string; text: string }> = [
   {
@@ -51,65 +53,40 @@ const STATIC_PHRASES: Array<{ slug: string; text: string }> = [
 const SAMPLE_TEXT =
   'The lantern flickers as the party descends into the crypt. Stone gives way to shadow, and somewhere below, something ancient stirs.';
 
-async function generateMp3(client: OpenAI, text: string, voice: string): Promise<Buffer> {
-  const response = await client.audio.speech.create({
-    model: TTS_MODEL,
-    voice: voice as OpenAI.Audio.Speech.SpeechCreateParams['voice'],
-    input: text,
-    instructions: NARRATOR_INSTRUCTIONS,
-    response_format: 'mp3',
-  });
-  return Buffer.from(await response.arrayBuffer());
-}
-
 async function main() {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
+  if (!process.env.OPENAI_API_KEY) {
     console.error('OPENAI_API_KEY not set in environment.');
     process.exit(1);
   }
 
-  const client = new OpenAI({ apiKey });
+  const force = process.argv.includes('--force');
+  const target = resolveTtsTarget();
+  console.log(`Narrator: ${target.model} (${target.strategy}), voices: ${target.voices.join(', ')}${force ? ', regenerating existing files' : ''}`);
+
   let generated = 0;
   let skipped = 0;
 
-  // Car mode static phrases: 7 voices x 7 phrases = 49 files
-  for (const voice of OPENAI_TTS_VOICES) {
-    const voiceDir = path.join(PHRASES_OUT_DIR, voice);
-    if (!fs.existsSync(voiceDir)) {
-      fs.mkdirSync(voiceDir, { recursive: true });
-    }
-    for (const phrase of STATIC_PHRASES) {
-      const outPath = path.join(voiceDir, `${phrase.slug}.mp3`);
-      if (fs.existsSync(outPath)) {
-        console.log(`Skipping: tts-phrases/${voice}/${phrase.slug}.mp3`);
-        skipped++;
-        continue;
-      }
-      console.log(`Generating: tts-phrases/${voice}/${phrase.slug}.mp3 ...`);
-      const buffer = await generateMp3(client, phrase.text, voice);
-      fs.writeFileSync(outPath, buffer);
-      console.log(`  -> saved (${(buffer.length / 1024).toFixed(1)} KB)`);
-      generated++;
-    }
-  }
-
-  // Settings preview samples: 1 text x 7 voices = 7 files
-  if (!fs.existsSync(SAMPLES_OUT_DIR)) {
-    fs.mkdirSync(SAMPLES_OUT_DIR, { recursive: true });
-  }
-  for (const voice of OPENAI_TTS_VOICES) {
-    const outPath = path.join(SAMPLES_OUT_DIR, `${voice}-sample.mp3`);
-    if (fs.existsSync(outPath)) {
-      console.log(`Skipping: tts/${voice}-sample.mp3`);
+  const writeAsset = async (outPath: string, label: string, text: string, voice: OpenAiTtsVoice) => {
+    if (!force && fs.existsSync(outPath)) {
+      console.log(`Skipping: ${label}`);
       skipped++;
-      continue;
+      return;
     }
-    console.log(`Generating: tts/${voice}-sample.mp3 ...`);
-    const buffer = await generateMp3(client, SAMPLE_TEXT, voice);
+    console.log(`Generating: ${label} ...`);
+    const buffer = await generateSpeech(text, voice, { recordUsage: false });
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
     fs.writeFileSync(outPath, buffer);
     console.log(`  -> saved (${(buffer.length / 1024).toFixed(1)} KB)`);
     generated++;
+  };
+
+  for (const voice of target.voices) {
+    for (const phrase of STATIC_PHRASES) {
+      await writeAsset(path.join(PHRASES_OUT_DIR, voice, `${phrase.slug}.mp3`), `tts-phrases/${voice}/${phrase.slug}.mp3`, phrase.text, voice);
+    }
+  }
+  for (const voice of target.voices) {
+    await writeAsset(path.join(SAMPLES_OUT_DIR, `${voice}-sample.mp3`), `tts/${voice}-sample.mp3`, SAMPLE_TEXT, voice);
   }
 
   console.log(`\nDone. Generated ${generated}, skipped ${skipped}.`);

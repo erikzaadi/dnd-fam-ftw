@@ -210,3 +210,17 @@ describe('generateSpeech with the built-in Realtime narrator', () => {
     expect(mocks.speakWithRealtime).not.toHaveBeenCalled();
   });
 });
+
+describe('generateSpeech for asset scripts', () => {
+  it('skips usage recording when asked', async () => {
+    delete process.env.OPENAI_MODEL_TTS;
+    mocks.speakWithRealtime.mockImplementation(async (request: RealtimeSpeechRequest) => {
+      request.onAudio(Buffer.alloc(4800));
+      return { transcript: 'Reconnecting.', usage: null };
+    });
+
+    await generateSpeech('Reconnecting.', 'ash', { recordUsage: false });
+
+    expect(mocks.beginRealtimeSpeechAttempt).not.toHaveBeenCalled();
+  });
+});
