@@ -6,6 +6,15 @@ import { getStaticPhrasePath } from './staticTtsPhrasesService';
 const TTS_CACHE_MAX_BYTES = 10 * 1024 * 1024;
 const TTS_REQUEST_TIMEOUT_MS = 15000;
 
+// A request that ran out of time is a failure the caller may recover from.
+// A request aborted by stop() is the player's choice and stays an AbortError.
+export class TtsRequestTimeoutError extends Error {
+  constructor() {
+    super('AI narration request timed out');
+    this.name = 'TtsRequestTimeoutError';
+  }
+}
+
 type OpenAiTtsInput = {
   text: string;
   voice?: OpenAiTtsVoice;
@@ -70,7 +79,11 @@ class OpenAiTtsService {
 
     const controller = new AbortController();
     this.currentAbortController = controller;
-    const timeout = window.setTimeout(() => controller.abort(), TTS_REQUEST_TIMEOUT_MS);
+    let timedOut = false;
+    const timeout = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, TTS_REQUEST_TIMEOUT_MS);
     try {
       const response = await apiFetch('/tts', {
         method: 'POST',
@@ -99,6 +112,11 @@ class OpenAiTtsService {
       } else {
         URL.revokeObjectURL(url);
       }
+    } catch (error) {
+      if (timedOut) {
+        throw new TtsRequestTimeoutError();
+      }
+      throw error;
     } finally {
       window.clearTimeout(timeout);
       if (this.currentAbortController === controller) {
