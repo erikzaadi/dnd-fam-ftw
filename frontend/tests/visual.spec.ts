@@ -476,6 +476,8 @@ test('session mechanics showcase visual asserts', async ({ page, request }) => {
   }).toBe(true);
   await screenshotViewports(page, 'session-mechanics-showcase-short-narration');
 
+  // screenshotViewports leaves the page at the widest viewport, where the long narration fits.
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.keyboard.press('c');
   await page.getByRole('button', { name: new RegExp(longNarration.slice(0, 40)) }).click();
   await expect(narrationText).toHaveText(longNarration);
