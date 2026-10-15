@@ -14,7 +14,8 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "cli": "tsx --conditions=source src/scripts/cli.ts",
     "generate-static-assets": "tsx --conditions=source --env-file=../.env src/scripts/generateStaticAssets.ts",
-    "generate-image-samples": "tsx --conditions=source --env-file=../.env src/scripts/generateImageServiceSamples.ts"
+    "generate-image-samples": "tsx --conditions=source --env-file=../.env src/scripts/generateImageServiceSamples.ts",
+    "generate-tts-assets": "tsx --conditions=source --env-file=../.env src/scripts/generateStaticTtsAssets.ts"
   },
   "keywords": [],
   "author": "",

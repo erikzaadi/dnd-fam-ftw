@@ -1,7 +1,8 @@
 /**
  * Generates the static narrator audio bundled with the frontend: car-mode phrases
  * and one Settings sample per voice.
- * Run from backend/: npx tsx --env-file=../.env src/scripts/generateStaticTtsAssets.ts
+ * Run from backend/: npm run generate-tts-assets  (add "-- --force" to regenerate existing files)
+ * (--conditions=source reads the shared package from src; without it a stale shared build is used.)
  *
  * Generates, for every voice the configured narrator can speak:
  *   frontend/public/sound/tts-phrases/{voice}/{slug}.mp3
