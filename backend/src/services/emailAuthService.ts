@@ -7,6 +7,7 @@ import { getEmailProvider } from '../providers/email/emailProviderFactory.js';
 import { buildSignInCodeEmail } from './emailService.js';
 import { resolveVerifiedSignIn, type SignInOutcome } from './signupService.js';
 import { safeEqual } from './authService.js';
+import { hitRateLimit } from './authRateLimit.js';
 
 const CODE_DIGITS = 8;
 const CODE_TTL_MS = 10 * 60 * 1000;
@@ -68,12 +69,6 @@ const normalizeCode = (code: unknown): string | null => {
   const digits = code.replace(/[\s-]/g, '');
   return new RegExp(`^\\d{${CODE_DIGITS}}$`).test(digits) ? digits : null;
 };
-
-function hitRateLimit(bucket: string, windowMs: number, limit: number, now: number): number | null {
-  const windowStart = Math.floor(now / windowMs) * windowMs;
-  const count = authChallengeRepository.incrementRateLimit(bucket, windowStart);
-  return count > limit ? Math.ceil((windowStart + windowMs - now) / 1000) : null;
-}
 
 async function sendCode(email: string, code: string): Promise<boolean> {
   const provider = getEmailProvider();

@@ -54,6 +54,9 @@ export type AppConfig = {
   // FRONTEND_URL are set). Disabled blocks sending, resending and accepting,
   // including links already sent.
   MEMBER_INVITES_DISABLED: boolean;
+  // Kill switch for TV sign-in (device pairing). On by default with auth. Disabled
+  // hides pairing and also rejects TVs that are already signed in.
+  DEVICE_SIGN_IN_DISABLED: boolean;
   // Invitation emails per UTC day across the deployment.
   INVITE_DAILY_SEND_CAP: number;
   // New accounts created by accepting invitations per UTC day. Joining with an
@@ -95,6 +98,11 @@ export function isEmailConfigured(): boolean {
 // Email sign-in needs auth enabled and a working email provider.
 export function isEmailAuthEnabled(): boolean {
   return isAuthEnabled() && isEmailConfigured();
+}
+
+// Checked on every request that carries a TV sign-in, never cached (the kill switch).
+export function isDeviceSignInEnabled(): boolean {
+  return isAuthEnabled() && !getConfig().DEVICE_SIGN_IN_DISABLED;
 }
 
 // MCP never inherits the anonymous 'local' namespace: assertAuthConfig refuses
@@ -386,6 +394,7 @@ function parse(): AppConfig {
     MCP_DEFAULT_TIERS: parseMcpDefaultTiers(),
     MCP_OAUTH_ENABLED: parseBooleanFlag('MCP_OAUTH_ENABLED'),
     MEMBER_INVITES_DISABLED: parseBooleanFlag('MEMBER_INVITES_DISABLED'),
+    DEVICE_SIGN_IN_DISABLED: parseBooleanFlag('DEVICE_SIGN_IN_DISABLED'),
     INVITE_DAILY_SEND_CAP: parseNonNegativeInt('INVITE_DAILY_SEND_CAP', 200),
     INVITE_DAILY_ACCOUNT_CAP: parseNonNegativeInt('INVITE_DAILY_ACCOUNT_CAP', 25),
   };

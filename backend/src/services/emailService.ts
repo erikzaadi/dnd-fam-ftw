@@ -41,13 +41,15 @@ ${appUrl.startsWith('http') ? `<p><a href="${escapeHtml(appUrl)}">${escapeHtml(a
   return { to, subject: 'Your sign-in code', text, html };
 }
 
-// Realm names are player-chosen and end up in mail: one line, no control characters,
+// Player-chosen names (realms, TVs) end up in mail: one line, no control characters,
 // bounded length. HTML escaping happens where they are rendered.
-export function safeRealmName(name: string): string {
+export function safeSingleLine(value: string, fallback: string): string {
   // eslint-disable-next-line no-control-regex
-  const clean = name.replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ' ').replace(/\s+/g, ' ').trim();
-  return clean.length > 60 ? `${clean.slice(0, 59)}…` : clean || 'a realm';
+  const clean = value.replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ' ').replace(/\s+/g, ' ').trim();
+  return clean.length > 60 ? `${clean.slice(0, 59)}…` : clean || fallback;
 }
+
+export const safeRealmName = (name: string): string => safeSingleLine(name, 'a realm');
 
 export interface InvitationEmail {
   to: string;
@@ -317,4 +319,36 @@ export function startOutboxDispatcher(): void {
     void dispatchOutbox();
   }, OUTBOX_SWEEP_INTERVAL_MS);
   sweepTimer.unref();
+}
+
+export interface DeviceSignInNotice {
+  grantId: string;
+  to: string;
+  realmName: string;
+  deviceLabel: string;
+  signedOutLabel: string | null;
+  approvedAt: Date;
+}
+
+// Sent after every TV approval, so a sign-in someone was tricked into approving is noticed.
+// Contains no credential, so it goes through the outbox like other notices.
+export function enqueueDeviceSignInNotice(notice: DeviceSignInNotice): void {
+  if (!getEmailProvider()) {
+    return;
+  }
+  const realm = safeRealmName(notice.realmName);
+  const settingsUrl = `${getAppUrl()}settings`;
+  const lines = [
+    `A TV ("${notice.deviceLabel}") was signed in to the realm "${realm}" as you.`,
+    ...(notice.signedOutLabel ? [`To stay within 5 TVs, "${notice.signedOutLabel}" was signed out.`] : []),
+    '',
+    `If this wasn't you, sign it out in Settings: ${settingsUrl}`,
+  ];
+  emailOutboxRepository.enqueue({
+    eventKey: `device-signin:${notice.grantId}`,
+    recipient: notice.to,
+    subject: `A TV was signed in to ${realm}`,
+    textBody: `${lines.join('\n')}\n`,
+    htmlBody: `<!doctype html><html><body style="font-family:sans-serif;color:#0f172a">${lines.filter(Boolean).map(line => `<p>${escapeHtml(line)}</p>`).join('')}</body></html>`,
+  }, notice.approvedAt.getTime());
 }

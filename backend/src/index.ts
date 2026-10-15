@@ -12,6 +12,7 @@ import { getDb, runInTransaction, initializeDatabase } from './persistence/datab
 import { seedOnboarding } from './scripts/seedOnboarding.js';
 import { countUnresolvedOwners } from './realms/ownershipReport.js';
 import { startEmailAuthMaintenance } from './services/emailAuthService.js';
+import { startDeviceMaintenance } from './services/devicePairingService.js';
 import { startOutboxDispatcher } from './services/emailService.js';
 import { getImageStorageProvider } from './providers/storage/storageProviderFactory.js';
 import { assertTierRequestSettings, getOpenAIMaxRetries } from './providers/ai/openAiClient.js';
@@ -132,6 +133,7 @@ if (isAuthEnabled()) {
     console.warn(`[Auth] ${unresolvedOwners} namespace(s) without a valid owner; see npm run cli -- namespaces owners`);
   }
   startEmailAuthMaintenance();
+  startDeviceMaintenance();
   startOutboxDispatcher();
 } else {
   console.log('[Auth] Disabled (AUTH_MODE=disabled) - all requests use the local namespace');

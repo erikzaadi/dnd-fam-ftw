@@ -116,6 +116,8 @@ export const userRepository = {
     db.prepare('DELETE FROM oauth_tokens WHERE grant_id IN (SELECT id FROM oauth_grants WHERE user_id = ?)').run(userId);
     db.prepare('DELETE FROM oauth_grants WHERE user_id = ?').run(userId);
     db.prepare('DELETE FROM oauth_codes WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM device_grants WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM device_pairings WHERE approved_user_id = ?').run(userId);
     db.prepare("UPDATE namespace_invites SET status = 'revoked', resolved_at = ? WHERE inviter_user_id = ? AND status = 'pending'").run(now, userId);
     db.prepare('DELETE FROM users WHERE id = ?').run(userId);
     db.prepare('DELETE FROM auth_email_challenges WHERE email_canonical = ?').run(emailCanonical);

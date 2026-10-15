@@ -915,4 +915,41 @@ export const migrate = (db: DB): void => {
     );
     CREATE INDEX IF NOT EXISTS idx_oauth_tokens_grant ON oauth_tokens(grant_id);
   `);
+  // TV sign-in (device pairing). The TV holds a random device token whose hash is
+  // stored; the short code it shows is stored only as a keyed HMAC. Approval creates
+  // the grant; TV sessions are checked against their grant on every request.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS device_pairings (
+      id TEXT PRIMARY KEY,
+      device_hash TEXT NOT NULL,
+      user_code_hmac TEXT NOT NULL UNIQUE,
+      user_agent TEXT,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      last_polled_at INTEGER,
+      status TEXT NOT NULL DEFAULT 'pending',
+      approved_user_id TEXT,
+      approved_namespace_id TEXT,
+      approved_at INTEGER,
+      denied_at INTEGER,
+      claimed_at INTEGER,
+      grant_id TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_device_pairings_device ON device_pairings(device_hash);
+    CREATE INDEX IF NOT EXISTS idx_device_pairings_created ON device_pairings(created_at);
+    CREATE TABLE IF NOT EXISTS device_grants (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      namespace_id TEXT NOT NULL,
+      label TEXT NOT NULL,
+      user_agent TEXT,
+      created_at INTEGER NOT NULL,
+      last_seen_at INTEGER NOT NULL,
+      max_expires_at INTEGER NOT NULL,
+      revoked_at INTEGER,
+      revoked_reason TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_device_grants_user ON device_grants(user_id);
+    CREATE INDEX IF NOT EXISTS idx_device_grants_created ON device_grants(created_at);
+  `);
 };
