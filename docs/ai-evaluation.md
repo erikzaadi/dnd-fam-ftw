@@ -50,11 +50,20 @@ OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/checkPreviewHelpers.
 OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/smokePreviewTurns.ts --model gpt-5.6-luna
 ```
 
+## Narration and async tier probe (paid)
+
+`backend/src/scripts/probeTierCompatibility.ts` checks a candidate model for the narration and async tiers (built for the `gpt-4.1` / `gpt-4.1-mini` retirement on 2027-01-14). It sets both tiers to `--model` with `--effort` (default `none`) and sends every request shape through its production code: three full turns through `DmTurnOrchestrator` (streamed narration and choices plus the combat, inventory and recovery agents), TLDR, hero history, epilogue, and the DM prep image brief (async tier, tightest token cap). One extra raw request records whether the model still accepts `max_tokens`, for information only. About 17 requests, ceiling 30, exit code 2 on any failure; results are appended to `backend/data/model-refresh/tier-probe.jsonl`.
+
+```bash
+OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/probeTierCompatibility.ts --model gpt-6-luna --dry-run
+OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/probeTierCompatibility.ts --model gpt-6-luna
+```
+
 Outputs, in `backend/data/model-refresh/`: `probes.jsonl`, `helpers.jsonl`, and `smoke.jsonl`. The helper check uses a temporary SQLite database and deletes it afterwards. Both check scripts record every physical request, including its token cap, reasoning setting, and finish reason.
 
-## Turn strategy comparison (paid)
+## Turn strategy and model comparison (paid)
 
-`backend/src/scripts/compareTurnStrategies.ts` plays the same scripted actions through both turn strategies ([Turn strategy](configuration.md#turn-strategy)). Run from `backend/`:
+`backend/src/scripts/compareTurnStrategies.ts` plays the same scripted actions through two arms, interleaved turn by turn. By default the arms are the two turn strategies ([Turn strategy](configuration.md#turn-strategy)). Run from `backend/`:
 
 ```bash
 # Free: check the harness and output with the mock provider
@@ -66,4 +75,12 @@ npx tsx --env-file=../.env src/scripts/compareTurnStrategies.ts --label first --
 OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/compareTurnStrategies.ts --label first --cost-per-request 0.004
 ```
 
-Results go to `backend/data/strategy-comparison/<run>/`: `turns.jsonl`, a blinded `scorecard.csv` for human scoring, `blind-key.json` (open only after scoring), and `summary.json` (p50/p95 end-to-end and first-narration latency, fallbacks, repairs, requests, estimated cost). A run stopped by a cap is marked incomplete and cannot pass the release gate.
+To compare models instead, give exactly two `--arm <name>:<KEY=VALUE,...>` options. Each arm's overrides are applied before each of its turns; keys an arm leaves out keep their startup values. Allowed keys: `AI_TURN_STRATEGY`, `OPENAI_MODEL_*`, `OPENAI_REASONING_EFFORT_*`. The cost estimate uses one `--cost-per-request` for both arms, so set it from the more expensive model.
+
+```bash
+OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/compareTurnStrategies.ts --label luna --cost-per-request 0.004 \
+  --arm current:OPENAI_MODEL_NARRATION=gpt-4.1-mini \
+  --arm luna:OPENAI_MODEL_NARRATION=gpt-6-luna,OPENAI_REASONING_EFFORT_NARRATION=none
+```
+
+Results go to `backend/data/strategy-comparison/<run>/`: `turns.jsonl`, a blinded `scorecard.csv` for human scoring, `blind-key.json` (open only after scoring), and `summary.json` (per arm: overrides, p50/p95 end-to-end and first-narration latency, fallbacks, non-ok agent outcomes, repairs, requests, estimated cost). A run stopped by a cap is marked incomplete and cannot pass the release gate.

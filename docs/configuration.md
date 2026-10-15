@@ -101,7 +101,7 @@ OpenAI retires `gpt-4.1` and `gpt-4.1-mini` on 2027-01-14. When the built-in def
 
 ### Turn strategy
 
-`AI_TURN_STRATEGY` selects the turn pipeline. Unset or `resolved_first` is the default (since 2026-09-25): the combat, inventory and recovery agents run first, the engine applies their proposals once, and narration is generated from those settled facts (see [MULTI_AGENT_WORKFLOW.md](../MULTI_AGENT_WORKFLOW.md)), so the story always matches what happened. Item turns apply the item first and then follow the same flow. `parallel` is the earlier pipeline, where narration runs beside the mechanics agents and repairs fix disagreements afterwards; keep it as an opt-out. Any other value stops the backend at startup. The [comparison runner](ai-evaluation.md#turn-strategy-comparison-paid) still measures the two against each other.
+`AI_TURN_STRATEGY` selects the turn pipeline. Unset or `resolved_first` is the default (since 2026-09-25): the combat, inventory and recovery agents run first, the engine applies their proposals once, and narration is generated from those settled facts (see [MULTI_AGENT_WORKFLOW.md](../MULTI_AGENT_WORKFLOW.md)), so the story always matches what happened. Item turns apply the item first and then follow the same flow. `parallel` is the earlier pipeline, where narration runs beside the mechanics agents and repairs fix disagreements afterwards; keep it as an opt-out. Any other value stops the backend at startup. The [comparison runner](ai-evaluation.md#turn-strategy-and-model-comparison-paid) still measures the two against each other.
 
 Every committed turn logs one `[TurnDiag] {json}` line (strategy, stage timings, first narration chunk, agent outcomes, repairs that fired, revisions). It contains no narration or player text.
 

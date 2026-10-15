@@ -265,7 +265,7 @@ Moved to [docs/architecture.md](docs/architecture.md#ideas-and-ask-the-dm).
 
 ### Turn strategy
 
-Moved to [docs/configuration.md](docs/configuration.md#turn-strategy); the comparison runner is in [docs/ai-evaluation.md](docs/ai-evaluation.md#turn-strategy-comparison-paid).
+Moved to [docs/configuration.md](docs/configuration.md#turn-strategy); the comparison runner is in [docs/ai-evaluation.md](docs/ai-evaluation.md#turn-strategy-and-model-comparison-paid).
 
 ### Production management (AWS)
 

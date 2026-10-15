@@ -1,6 +1,14 @@
 /**
- * Plan 4 comparison: parallel (production) vs resolved_first turn strategies.
- * next-up-instructions/family-first-04-ai-flow.md
+ * Side-by-side comparison of two turn configurations ("arms") on the same
+ * scripted actions. By default the arms are the two turn strategies, parallel
+ * vs resolved_first (next-up-instructions/family-first-04-ai-flow.md). With
+ * --arm, each arm is a set of environment overrides instead, for example a
+ * narration model comparison for the GPT-4 series retirement:
+ *
+ *   OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/compareTurnStrategies.ts \
+ *     --label luna --cost-per-request 0.004 \
+ *     --arm current:OPENAI_MODEL_NARRATION=gpt-4.1-mini \
+ *     --arm luna:OPENAI_MODEL_NARRATION=gpt-6-luna,OPENAI_REASONING_EFFORT_NARRATION=none
  *
  * Makes PAID provider requests unless --provider mock. Never run from unit tests.
  * Run from backend/ (retries must be 0 so every physical request is counted):
@@ -15,6 +23,9 @@
  *
  * Options:
  *   --label <name>              Run label (required)
+ *   --arm <name>:<K=V,K=V>      Arm with per-turn env overrides; give exactly two. Allowed keys:
+ *                               AI_TURN_STRATEGY, OPENAI_MODEL_*, OPENAI_REASONING_EFFORT_*.
+ *                               Default: parallel and resolved_first (AI_TURN_STRATEGY only)
  *   --provider live|mock        live = OpenAI via the real orchestrator (default); mock = MockNarrationProvider
  *   --scenarios <id,id>         Restrict scenarios (default: all 8)
  *   --actions <n>               Player actions per trajectory (default 6)
@@ -24,7 +35,7 @@
  *   --out-dir <path>            Results directory (default backend/data/strategy-comparison)
  *   --dry-run                   Print the plan and worst-case request count, make no calls
  *
- * Each scenario runs as two independent trajectories (one per strategy) from the same
+ * Each scenario runs as two independent trajectories (one per arm) from the same
  * starting fixture and the same scripted player actions, interleaved turn by turn.
  * Trajectories branch naturally, so compare continuity and outcomes, not identical prose.
  * Images, speech and summaries are never generated (side effects are not queued).
@@ -32,14 +43,14 @@
  * cannot pass the release gate.
  *
  * Outputs (per run directory):
- *   turns.jsonl      one record per committed turn: strategy, timings, agents, repairs,
+ *   turns.jsonl      one record per committed turn: arm, timings, agents, repairs,
  *                    resolved facts (resolved_first), narration, choices, state diffs
  *   scorecard.csv    blinded rows (A/B) for human scoring of actor correctness, invented
  *                    possessions, resolved-enemy references, matching consequences,
  *                    continuity, clarity and closure
- *   blind-key.json   which strategy is A/B per scenario (open only after scoring)
- *   summary.json     per-strategy totals: p50/p95 end-to-end, first narration, fallbacks,
- *                    repairs, requests, estimated cost
+ *   blind-key.json   which arm is A/B per scenario (open only after scoring)
+ *   summary.json     per-arm totals: p50/p95 end-to-end, first narration, fallbacks,
+ *                    agent failures, repairs, requests, estimated cost
  */
 
 import fs from 'fs';
@@ -50,14 +61,19 @@ import type { Character, SessionState, Stat } from '../types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_OUT_DIR = path.join(__dirname, '..', '..', 'data', 'strategy-comparison');
-const STRATEGIES = ['parallel', 'resolved_first'] as const;
-type Strategy = typeof STRATEGIES[number];
+type Arm = { name: string; env: Record<string, string> };
+const DEFAULT_ARMS: Arm[] = [
+  { name: 'parallel', env: { AI_TURN_STRATEGY: 'parallel' } },
+  { name: 'resolved_first', env: { AI_TURN_STRATEGY: 'resolved_first' } },
+];
+const ARM_KEY_RE = /^(AI_TURN_STRATEGY|OPENAI_MODEL_[A-Z]+|OPENAI_REASONING_EFFORT_[A-Z]+)$/;
 // Worst case per turn: narration + choices + retry + combat + inventory + recovery
 // (+ one schema retry each for the mechanics agents) + encounter-name repair.
 const WORST_CASE_REQUESTS_PER_TURN = 10;
 
 type Args = {
   label: string;
+  arms: Arm[];
   provider: 'live' | 'mock';
   scenarios: string[] | null;
   actions: number;
@@ -77,12 +93,21 @@ const parseArgs = (argv: string[]): Args => {
   if (!label) {
     throw new Error('--label is required');
   }
+  const armSpecs = argv.flatMap((flag, index) => (flag === '--arm' ? [argv[index + 1] ?? ''] : []));
+  if (armSpecs.length !== 0 && armSpecs.length !== 2) {
+    throw new Error('Give exactly two --arm options, or none for the default strategy comparison');
+  }
+  const arms = armSpecs.length ? armSpecs.map(parseArm) : DEFAULT_ARMS;
+  if (arms[0].name === arms[1].name) {
+    throw new Error('--arm names must differ');
+  }
   const provider = (get('--provider') ?? 'live') as Args['provider'];
   if (provider !== 'live' && provider !== 'mock') {
     throw new Error('--provider must be live or mock');
   }
   return {
     label,
+    arms,
     provider,
     scenarios: get('--scenarios')?.split(',').map(s => s.trim()).filter(Boolean) ?? null,
     actions: Number(get('--actions') ?? 6),
@@ -92,6 +117,21 @@ const parseArgs = (argv: string[]): Args => {
     outDir: get('--out-dir') ?? DEFAULT_OUT_DIR,
     dryRun: argv.includes('--dry-run'),
   };
+};
+
+const parseArm = (spec: string): Arm => {
+  const [name, overrides] = spec.split(/:(.*)/s);
+  if (!name || !/^[a-z0-9_-]+$/i.test(name) || !overrides) {
+    throw new Error(`Invalid --arm "${spec}". Expected <name>:<KEY=VALUE,KEY=VALUE>`);
+  }
+  const env = Object.fromEntries(overrides.split(',').map(pair => {
+    const [key, value] = pair.split('=');
+    if (!key || !ARM_KEY_RE.test(key) || value === undefined || value === '') {
+      throw new Error(`Invalid --arm override "${pair}". Allowed keys: AI_TURN_STRATEGY, OPENAI_MODEL_*, OPENAI_REASONING_EFFORT_*`);
+    }
+    return [key, value];
+  }));
+  return { name, env };
 };
 
 // ── Scenarios ──────────────────────────────────────────────────────────────────
@@ -278,7 +318,7 @@ const SCENARIOS: Scenario[] = [
 
 // ── Run ────────────────────────────────────────────────────────────────────────
 
-type TurnRecord = Record<string, unknown> & { strategy: Strategy; scenario: string; turnIndex: number; totalMs: number; requests: number };
+type TurnRecord = Record<string, unknown> & { arm: string; scenario: string; turnIndex: number; totalMs: number; requests: number };
 
 const percentile = (values: number[], p: number): number | null => {
   if (values.length === 0) {
@@ -293,10 +333,14 @@ const csvCell = (value: unknown): string => `"${String(value ?? '').replace(/"/g
 const main = async (): Promise<void> => {
   const args = parseArgs(process.argv.slice(2));
   const scenarios = SCENARIOS.filter(s => !args.scenarios || args.scenarios.includes(s.id));
-  const turns = scenarios.length * Math.min(args.actions, 6) * STRATEGIES.length;
+  const armNames = args.arms.map(arm => arm.name);
+  const turns = scenarios.length * Math.min(args.actions, 6) * args.arms.length;
   const worstCase = turns * WORST_CASE_REQUESTS_PER_TURN;
   console.log(`[Compare] label=${args.label} provider=${args.provider} scenarios=${scenarios.map(s => s.id).join(',')}`);
-  console.log(`[Compare] ${turns} turn executions (${scenarios.length} scenarios x ${Math.min(args.actions, 6)} actions x ${STRATEGIES.length} strategies)`);
+  for (const arm of args.arms) {
+    console.log(`[Compare] arm ${arm.name}: ${Object.entries(arm.env).map(([k, v]) => `${k}=${v}`).join(', ')}`);
+  }
+  console.log(`[Compare] ${turns} turn executions (${scenarios.length} scenarios x ${Math.min(args.actions, 6)} actions x ${args.arms.length} arms)`);
   console.log(`[Compare] worst case ${worstCase} requests; caps: ${args.maxRequests} requests, $${args.maxCost}`);
   if (args.dryRun) {
     for (const scenario of scenarios) {
@@ -332,18 +376,32 @@ const main = async (): Promise<void> => {
   fs.mkdirSync(outDir, { recursive: true });
   const turnsFile = fs.createWriteStream(path.join(outDir, 'turns.jsonl'));
   const records: TurnRecord[] = [];
-  const blindKey: Record<string, Record<'A' | 'B', Strategy>> = {};
+  const blindKey: Record<string, Record<'A' | 'B', string>> = {};
+  // Arms override env per turn; keys an arm leaves out return to their startup values.
+  const armKeys = [...new Set(args.arms.flatMap(arm => Object.keys(arm.env)))];
+  const startupEnv = Object.fromEntries(armKeys.map(key => [key, process.env[key]]));
+  const applyArm = (arm: Arm) => {
+    for (const key of armKeys) {
+      const value = arm.env[key] ?? startupEnv[key];
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  };
   let requests = 0;
   let stopReason: string | null = null;
   const estimatedCost = () => requests * (args.costPerRequest ?? 0);
 
   for (const [scenarioIndex, scenario] of scenarios.entries()) {
-    // Alternate which strategy goes first so provider warm-up does not favor one.
-    const order: Strategy[] = scenarioIndex % 2 === 0 ? ['parallel', 'resolved_first'] : ['resolved_first', 'parallel'];
-    blindKey[scenario.id] = scenarioIndex % 3 === 0 ? { A: 'parallel', B: 'resolved_first' } : { A: 'resolved_first', B: 'parallel' };
-    const sessionIds: Record<Strategy, string> = { parallel: `${scenario.id}-parallel`, resolved_first: `${scenario.id}-resolved` };
-    for (const strategy of STRATEGIES) {
-      const fixture = scenario.build(sessionIds[strategy]);
+    // Alternate which arm goes first so provider warm-up does not favor one.
+    const [first, second] = args.arms;
+    const order: Arm[] = scenarioIndex % 2 === 0 ? [first, second] : [second, first];
+    blindKey[scenario.id] = scenarioIndex % 3 === 0 ? { A: first.name, B: second.name } : { A: second.name, B: first.name };
+    const sessionIds: Record<string, string> = Object.fromEntries(armNames.map(name => [name, `${scenario.id}-${name}`]));
+    for (const name of armNames) {
+      const fixture = scenario.build(sessionIds[name]);
       await insertSessionState(fixture);
       // insertSessionState covers the core row; lifecycle and compiled prep need their own writers.
       if (fixture.adventure) {
@@ -356,11 +414,11 @@ const main = async (): Promise<void> => {
         await sessionRepository.patchSession(fixture.id, { compiledDmPrep: fixture.compiledDmPrep });
       }
     }
-    const ended: Record<Strategy, boolean> = { parallel: false, resolved_first: false };
+    const ended: Record<string, boolean> = Object.fromEntries(armNames.map(name => [name, false]));
 
     for (let turnIndex = 0; turnIndex < Math.min(args.actions, scenario.actions.length); turnIndex++) {
-      for (const strategy of order) {
-        if (ended[strategy]) {
+      for (const arm of order) {
+        if (ended[arm.name]) {
           continue;
         }
         if (requests + WORST_CASE_REQUESTS_PER_TURN > args.maxRequests) {
@@ -371,15 +429,15 @@ const main = async (): Promise<void> => {
         if (stopReason) {
           break;
         }
-        const sessionId = sessionIds[strategy];
+        const sessionId = sessionIds[arm.name];
         const scripted = scenario.actions[turnIndex];
         const before = await sessionRepository.getSession(sessionId);
         if (!before || before.gameOver || before.adventure?.status !== undefined && before.adventure.status !== 'active') {
           // Ended trajectories stop: record early completion instead of padding turns.
-          ended[strategy] = true;
+          ended[arm.name] = true;
           continue;
         }
-        process.env.AI_TURN_STRATEGY = strategy;
+        applyArm(arm);
         const request = scripted.itemId
           // Fixtures name items `<sessionId>-<itemId>` so each trajectory uses its own copy.
           ? { action: scripted.action, statUsed: scripted.statUsed, actionType: scripted.actionType, itemId: `${sessionId}-${scripted.itemId}` }
@@ -388,17 +446,17 @@ const main = async (): Promise<void> => {
         const result = await executeTurnAction(sessionId, 'local', request);
         const totalMs = Date.now() - start;
         if (!result.ok) {
-          const record: TurnRecord = { strategy, scenario: scenario.id, turnIndex, totalMs, requests: 0, rejected: result.body };
+          const record: TurnRecord = { arm: arm.name, scenario: scenario.id, turnIndex, totalMs, requests: 0, rejected: result.body };
           records.push(record);
           turnsFile.write(`${JSON.stringify(record)}\n`);
-          ended[strategy] = true;
+          ended[arm.name] = true;
           continue;
         }
         const turn = result.body.turnResult;
         const agentCount = turn.agentDiagnostics?.length ?? 0;
         requests += args.provider === 'live' ? agentCount : 0;
         const record: TurnRecord = {
-          strategy,
+          arm: arm.name,
           scenario: scenario.id,
           turnIndex,
           action: scripted.action,
@@ -407,7 +465,7 @@ const main = async (): Promise<void> => {
           requests: agentCount,
           stages: result.diagnostics?.stages ?? [],
           repairs: result.diagnostics?.repairs ?? [],
-          agents: (turn.agentDiagnostics ?? []).map(a => ({ agent: a.agent, status: a.status, durationMs: a.durationMs })),
+          agents: (turn.agentDiagnostics ?? []).map(a => ({ agent: a.agent, status: a.status, durationMs: a.durationMs, errorKind: a.errorKind ?? null })),
           narrationFailed: turn.narrationFailed ?? false,
           choicesFailed: turn.choicesFailed ?? false,
           roll: turn.lastAction?.actionResult ?? null,
@@ -425,9 +483,9 @@ const main = async (): Promise<void> => {
         turnsFile.write(`${JSON.stringify(record)}\n`);
         if (result.pendingConclusion || result.pendingRecovery) {
           // The follow-up (ending or rescue) is outside this comparison; stop the trajectory.
-          ended[strategy] = true;
+          ended[arm.name] = true;
         }
-        console.log(`[Compare] ${scenario.id} #${turnIndex + 1} ${strategy} ${totalMs}ms requests=${agentCount} repairs=${record.repairs}`);
+        console.log(`[Compare] ${scenario.id} #${turnIndex + 1} ${arm.name} ${totalMs}ms requests=${agentCount} repairs=${record.repairs}`);
       }
       if (stopReason) {
         break;
@@ -439,30 +497,37 @@ const main = async (): Promise<void> => {
   }
   turnsFile.end();
 
-  // Blinded scorecard: reviewers see A/B, never strategy names.
+  // Blinded scorecard: reviewers see A/B, never arm names.
   const scoreHeader = ['scenario', 'turn', 'variant', 'action', 'roll_success', 'mechanical_changes', 'narration', 'choices',
     'actor_correct(0-2)', 'invented_possessions(count)', 'resolved_enemy_refs(count)', 'consequences_match(0-2)', 'continuity(0-2)', 'clarity_for_kids(0-2)', 'closure(0-2|na)', 'notes'];
   const rows = records.filter(r => r.narration !== undefined).map(r => {
-    const variant = blindKey[r.scenario].A === r.strategy ? 'A' : 'B';
+    const variant = blindKey[r.scenario].A === r.arm ? 'A' : 'B';
     const changes = JSON.stringify({ hp: r.hpChanges, items: r.inventoryChanges, enemies: r.encounterEnemyChanges });
     return [r.scenario, r.turnIndex + 1, variant, r.action, (r.roll as { success?: boolean } | null)?.success ?? 'no roll', changes, r.narration, (r.choices as string[]).join(' | '), '', '', '', '', '', '', '', ''].map(csvCell).join(',');
   });
   fs.writeFileSync(path.join(outDir, 'scorecard.csv'), [scoreHeader.map(csvCell).join(','), ...rows].join('\n'));
   fs.writeFileSync(path.join(outDir, 'blind-key.json'), JSON.stringify(blindKey, null, 2));
 
-  const summary = Object.fromEntries(STRATEGIES.map(strategy => {
-    const ok = records.filter(r => r.strategy === strategy && r.narration !== undefined);
+  const summary = Object.fromEntries(args.arms.map(arm => {
+    const ok = records.filter(r => r.arm === arm.name && r.narration !== undefined);
+    const agents = ok.flatMap(r => r.agents as Array<{ agent: string; status: string; errorKind: string | null }>);
     const totals = ok.map(r => r.totalMs);
     const firsts = ok.map(r => r.firstNarrationMs as number | null).filter((v): v is number => typeof v === 'number');
-    return [strategy, {
+    return [arm.name, {
+      env: arm.env,
       turns: ok.length,
-      rejected: records.filter(r => r.strategy === strategy && r.narration === undefined).length,
+      rejected: records.filter(r => r.arm === arm.name && r.narration === undefined).length,
       p50TotalMs: percentile(totals, 50),
       p95TotalMs: percentile(totals, 95),
       p50FirstNarrationMs: percentile(firsts, 50),
       p95FirstNarrationMs: percentile(firsts, 95),
       narrationFallbacks: ok.filter(r => r.narrationFailed).length,
       choicesFallbacks: ok.filter(r => r.choicesFailed).length,
+      // Non-ok agent outcomes by agent and status (timeouts, schema errors, truncation).
+      agentFailures: agents.filter(a => a.status !== 'ok').reduce<Record<string, number>>((acc, a) => {
+        const key = `${a.agent}:${a.status}${a.errorKind ? `:${a.errorKind}` : ''}`;
+        return { ...acc, [key]: (acc[key] ?? 0) + 1 };
+      }, {}),
       repairs: ok.flatMap(r => r.repairs as string[]).reduce<Record<string, number>>((acc, name) => ({ ...acc, [name]: (acc[name] ?? 0) + 1 }), {}),
       requests: ok.reduce((sum, r) => sum + r.requests, 0),
     }];
@@ -474,8 +539,8 @@ const main = async (): Promise<void> => {
     stopReason,
     requests,
     estimatedCostUsd: args.provider === 'live' ? Number(estimatedCost().toFixed(4)) : 0,
-    strategies: summary,
-    note: 'Q gates: compare p95 total (<= comparator +20%) and p95 first narration (<= comparator +2s); count contradictions from the scorecard, including streamed text. An incomplete run cannot pass the release gate.',
+    arms: summary,
+    note: 'Arms with different models have different real costs; the estimate uses one --cost-per-request for both. Strategy Q gates: compare p95 total (<= comparator +20%) and p95 first narration (<= comparator +2s); count contradictions from the scorecard, including streamed text. An incomplete run cannot pass the release gate.',
   };
   fs.writeFileSync(path.join(outDir, 'summary.json'), JSON.stringify(report, null, 2));
   console.log(`[Compare] ${report.complete ? 'complete' : `STOPPED (${stopReason})`} requests=${requests} estimatedCost=$${report.estimatedCostUsd}`);
