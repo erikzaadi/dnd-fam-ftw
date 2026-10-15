@@ -1,4 +1,5 @@
 import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
+import { getTierRequestSettings, warnIfEmptyTruncation } from '../providers/ai/openAiClient.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import type { SessionState } from '../types.js';
 
@@ -101,8 +102,10 @@ async function generateOnce(sessionId: string): Promise<string> {
     const response = await client.chat.completions.create({
       model,
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: maxTokens,
+      max_completion_tokens: maxTokens,
+      ...getTierRequestSettings('async'),
     }, { signal: AbortSignal.timeout(30_000) });
+    warnIfEmptyTruncation('Origin story', model, response.choices[0]);
     const msg = response.choices[0].message;
     const raw = msg.content || (msg as unknown as Record<string, string>)['reasoning_content'] || '';
     text = raw.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/[—]/g, '-').trim();

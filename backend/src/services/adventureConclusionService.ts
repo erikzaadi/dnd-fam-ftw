@@ -1,4 +1,5 @@
 import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
+import { getTierRequestSettings, warnIfEmptyTruncation } from '../providers/ai/openAiClient.js';
 import { broadcastSessionChanged, broadcastUpdate } from '../realtime/sessionEvents.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { commitTurn } from '../repositories/turnCommitRepository.js';
@@ -79,7 +80,9 @@ Rules:
       model,
       messages: [{ role: 'user', content: prompt }],
       max_completion_tokens: 500,
+      ...getTierRequestSettings('narration'),
     }, { signal: AbortSignal.timeout(CONCLUSION_TIMEOUT_MS) });
+    warnIfEmptyTruncation('Epilogue', model, response.choices[0]);
     const text = (response.choices[0]?.message?.content ?? '').replace(/—/g, '-').trim();
     if (text) {
       return { text, failed: false };

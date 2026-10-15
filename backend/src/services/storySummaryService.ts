@@ -1,4 +1,5 @@
 import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
+import { getTierRequestSettings, warnIfEmptyTruncation } from '../providers/ai/openAiClient.js';
 import { runBackground } from '../middleware/runBackground.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
@@ -390,9 +391,11 @@ ${dmPrep}`;
       const response = await client.chat.completions.create({
         model,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: maxTokens,
+        max_completion_tokens: maxTokens,
+        ...getTierRequestSettings('async'),
       }, { signal: AbortSignal.timeout(timeoutMs) });
       console.log(`[Summary] Finished ${label} in ${Date.now() - start}ms`);
+      warnIfEmptyTruncation(`Summary ${label}`, model, response.choices[0]);
       const msg = response.choices[0].message;
       const raw = msg.content || (msg as unknown as Record<string, string>)['reasoning_content'] || '';
       return raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();

@@ -21,7 +21,9 @@ The backend uses the OpenAI SDK for narration, helper calls, images and TTS. `OP
 | `OPENAI_MODEL_NARRATION` | `gpt-4.1-mini` | Turn narration and mechanics agents, TLDR, character history, ideas retries |
 | `OPENAI_MODEL_PREVIEW` | `gpt-5.6-luna` | Latency-critical helpers: action previews, stat suggestions, ideas, session naming, image briefs, DM Prep compilation |
 | `OPENAI_REASONING_EFFORT_PREVIEW` | `none` | See [Preview-tier request settings](#preview-tier-request-settings) |
+| `OPENAI_REASONING_EFFORT_NARRATION` | not sent | See [Narration and async request settings](#narration-and-async-request-settings) |
 | `OPENAI_MODEL_ASYNC` | `gpt-4.1` | Background work: campaign brief, story summaries |
+| `OPENAI_REASONING_EFFORT_ASYNC` | not sent | See [Narration and async request settings](#narration-and-async-request-settings) |
 | `OPENAI_MODEL_TTS` | `gpt-realtime-2.1-mini` | Narration voice. See [Narration voice](#narration-voice) |
 | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | Scene images, adventure previews, hero portraits |
 | `OPENAI_MAX_RETRIES` | SDK default (2) | Client-wide retry count; evaluation scripts require `0` |
@@ -88,6 +90,12 @@ Every preview-tier caller (ideas, action previews, stat suggestions, session nam
 Narration-tier ideas retries and all narration/async requests never receive preview settings. Reasoning-capable preview models default to medium reasoning on the provider side, which can spend a small helper's whole token budget, so the app sends `none` unless told otherwise.
 
 The built-in preview model (`gpt-5.6-luna`) and its reasoning default (`none`) are defined together in `PREVIEW_DEFAULTS` (`backend/src/providers/ai/openAiClient.ts`) and roll back together. `gpt-4.1-nano` retires on 2026-10-23 and must not be restored as a default. Production does not pin either value: `deploy-backend.sh` leaves both unset, so the code defaults apply. It was selected on 2026-09-24 with this evaluation: in an interleaved same-session comparison against `gpt-4.1-nano` (60 samples each), it had fewer deadline misses (5 vs 8), escalations (6 vs 12) and final fallbacks (3 vs 6), with no schema failures or empty replies. A preview reply that is empty with `finish_reason=length` logs a `console.warn` (`[AI] <caller> truncated: ...`) even though the caller falls back.
+
+### Narration and async request settings
+
+Every narration-tier request (narration and mechanics agents, ideas retries, TLDR, hero history, epilogue) and async-tier request (campaign brief, story summaries, realm origin story) sends `max_completion_tokens` and no `temperature`. `OPENAI_REASONING_EFFORT_NARRATION` and `OPENAI_REASONING_EFFORT_ASYNC` control the optional `reasoning_effort` field for their tier, with the same values as the preview setting. Unset sends nothing, because the built-in `gpt-4.1-mini` and `gpt-4.1` are not reasoning models and reject the field; an invalid value stops the backend at startup.
+
+OpenAI retires `gpt-4.1` and `gpt-4.1-mini` on 2027-01-14. When the built-in defaults move to a reasoning model, the model and its reasoning default change together, as `NARRATION_DEFAULTS` and `ASYNC_DEFAULTS` in `openAiClient.ts`. If you pin a reasoning model for these tiers yourself, also set its effort (usually `none`): the provider default is `medium`, which can spend the small token budgets before any text is written.
 
 `[Metrics] turn_complete` log lines still include `choicesFailed=` and `choicesEscalated=`; both are always false now that turns carry no suggestions.
 

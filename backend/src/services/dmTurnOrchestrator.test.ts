@@ -1105,4 +1105,22 @@ describe('choices request settings by tier', () => {
     expect(narrationRequest.model).toBe('gpt-4.1-mini');
     expect(narrationRequest).not.toHaveProperty('reasoning_effort');
   });
+
+  it('sends the narration reasoning setting on narration agent and narration-tier retry requests', async () => {
+    process.env.OPENAI_REASONING_EFFORT_NARRATION = 'none';
+    try {
+      mockStreamOnce(makeNarrationCompletion('Onward.'));
+      await new DmTurnOrchestrator().orchestrate(baseInput());
+      expect(mocks.stream.mock.calls[0][0]).toMatchObject({ model: 'gpt-4.1-mini', reasoning_effort: 'none' });
+
+      mocks.stream.mockClear();
+      mockStreamOnce(makeChoicesCompletion());
+      mockStreamOnce(makeChoicesCompletion());
+      await runChoicesWithRetry({ ...baseInput(), nextCharacterName: 'Pip' });
+      const retryRequest = mocks.stream.mock.calls[1][0];
+      expect(retryRequest).toMatchObject({ model: 'gpt-4.1-mini', reasoning_effort: 'none' });
+    } finally {
+      delete process.env.OPENAI_REASONING_EFFORT_NARRATION;
+    }
+  });
 });

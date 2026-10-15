@@ -216,6 +216,7 @@ async function callNarrationAgent(
     ],
     response_format: zodResponseFormat(narrationAgentOutputSchema, 'narration_agent_output'),
     max_completion_tokens: maxCompletionTokens,
+    ...getTierRequestSettings('narration'),
     stream: true as const,
     stream_options: { include_usage: true },
   };
@@ -559,6 +560,7 @@ async function callCombatAgent(input: NarrationInput, signal: AbortSignal): Prom
     userContent: combatUserContent(input),
     maxCompletionTokens: 400,
     signal,
+    requestSettings: getTierRequestSettings('narration'),
   });
 }
 
@@ -572,6 +574,7 @@ async function callInventoryAgent(input: NarrationInput, signal: AbortSignal): P
     userContent: inventoryUserContent(input),
     maxCompletionTokens: 350,
     signal,
+    requestSettings: getTierRequestSettings('narration'),
   });
 }
 
@@ -585,6 +588,7 @@ async function callRecoveryAgent(input: NarrationInput, signal: AbortSignal): Pr
     userContent: recoveryUserContent(input),
     maxCompletionTokens: 350,
     signal,
+    requestSettings: getTierRequestSettings('narration'),
   });
 }
 

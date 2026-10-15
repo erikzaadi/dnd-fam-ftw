@@ -58,50 +58,62 @@ export function createOpenAIClient(): OpenAI {
   return _client;
 }
 
-// Built-in preview model and reasoning defaults are one rollback unit and
-// change together: gpt-5.6-luna defaults to medium reasoning, which can spend
-// a small helper's whole token budget, so it ships with reasoning "none".
-// gpt-4.1-nano retires on 2026-10-23 and must never return as a default.
-export const PREVIEW_DEFAULTS = { model: 'gpt-5.6-luna', reasoningEffort: 'none' } as const;
+export type TextTier = 'narration' | 'preview' | 'async';
 
-export function getModelForTier(tier: 'narration' | 'preview' | 'async'): string {
-  switch (tier) {
-  case 'narration':
-    return process.env.OPENAI_MODEL_NARRATION ?? 'gpt-4.1-mini';
-  case 'preview':
-    return process.env.OPENAI_MODEL_PREVIEW ?? PREVIEW_DEFAULTS.model;
-  case 'async':
-    return process.env.OPENAI_MODEL_ASYNC ?? 'gpt-4.1';
-  }
+type TierDefaults = { readonly model: string; readonly reasoningEffort?: OpenAIReasoningEffort };
+
+// Each tier's built-in model and reasoning default are one rollback unit and
+// change together: reasoning models such as gpt-5.6-luna and gpt-6-luna default
+// to medium reasoning, which can spend a small request's whole token budget, so
+// they ship with reasoning "none". Non-reasoning models (gpt-4.1*) reject the
+// field, so their defaults send none. gpt-4.1-nano retired on 2026-10-23, and
+// gpt-4.1 / gpt-4.1-mini retire on 2027-01-14.
+export const PREVIEW_DEFAULTS = { model: 'gpt-5.6-luna', reasoningEffort: 'none' } as const satisfies TierDefaults;
+export const NARRATION_DEFAULTS = { model: 'gpt-4.1-mini' } as const satisfies TierDefaults;
+export const ASYNC_DEFAULTS = { model: 'gpt-4.1' } as const satisfies TierDefaults;
+
+const TIER_DEFAULTS: Record<TextTier, TierDefaults> = {
+  narration: NARRATION_DEFAULTS,
+  preview: PREVIEW_DEFAULTS,
+  async: ASYNC_DEFAULTS,
+};
+
+const TIER_ENV_SUFFIX: Record<TextTier, string> = {
+  narration: 'NARRATION',
+  preview: 'PREVIEW',
+  async: 'ASYNC',
+};
+
+export function getModelForTier(tier: TextTier): string {
+  return process.env[`OPENAI_MODEL_${TIER_ENV_SUFFIX[tier]}`] ?? TIER_DEFAULTS[tier].model;
 }
 
-export function getNarrationReasoningEffort(): OpenAIReasoningEffort | undefined {
-  return optionalEnum('OPENAI_REASONING_EFFORT_NARRATION', REASONING_EFFORTS);
-}
-
-// Unset uses the built-in default ("none"). "omit" is the explicit escape
-// hatch for endpoints that reject the field and is never sent. Invalid values
-// throw: ignoring them would silently enable provider-default reasoning,
-// which can consume a helper's whole token budget.
-export function getPreviewReasoningEffort(): OpenAIReasoningEffort | undefined {
-  const effort = optionalEnum('OPENAI_REASONING_EFFORT_PREVIEW', [...REASONING_EFFORTS, 'omit'] as const, true);
+// OPENAI_REASONING_EFFORT_<TIER>. Unset uses the tier's built-in default.
+// "omit" is the explicit escape hatch for endpoints or models that reject the
+// field and is never sent. Invalid values throw: ignoring them would silently
+// enable provider-default reasoning, which can consume a whole token budget.
+export function getTierReasoningEffort(tier: TextTier): OpenAIReasoningEffort | undefined {
+  const effort = optionalEnum(`OPENAI_REASONING_EFFORT_${TIER_ENV_SUFFIX[tier]}`, [...REASONING_EFFORTS, 'omit'] as const, true);
   if (effort === 'omit') {
     return undefined;
   }
-  return effort ?? PREVIEW_DEFAULTS.reasoningEffort;
+  return effort ?? TIER_DEFAULTS[tier].reasoningEffort;
+}
+
+// Startup check: throws on the first invalid OPENAI_REASONING_EFFORT_<TIER>.
+export function assertTierReasoningEfforts(): void {
+  for (const tier of Object.keys(TIER_DEFAULTS) as TextTier[]) {
+    getTierReasoningEffort(tier);
+  }
 }
 
 export type TierRequestSettings = { reasoning_effort?: OpenAIReasoningEffort };
 
 // Optional per-tier request fields, spread into chat completion requests.
-// Preview requests send reasoning_effort unless it is set to "omit", which
-// custom endpoints that reject the field need. Resolve with the tier that
-// actually serves the request (a narration-tier retry gets narration settings).
-export function getTierRequestSettings(tier: 'narration' | 'preview' | 'async'): TierRequestSettings {
-  if (tier !== 'preview') {
-    return {};
-  }
-  const effort = getPreviewReasoningEffort();
+// Resolve with the tier that actually serves the request (a narration-tier
+// retry gets narration settings, never preview ones).
+export function getTierRequestSettings(tier: TextTier): TierRequestSettings {
+  const effort = getTierReasoningEffort(tier);
   return effort ? { reasoning_effort: effort } : {};
 }
 

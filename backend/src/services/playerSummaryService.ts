@@ -1,4 +1,5 @@
 import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
+import { getTierRequestSettings, warnIfEmptyTruncation } from '../providers/ai/openAiClient.js';
 import type { SessionState, TurnResult } from '../types.js';
 
 // Short summaries shown to players on request: the adventure so far (session page) and
@@ -56,8 +57,10 @@ export const summarizeAdventure = async (
     const response = await client.chat.completions.create({
       model,
       messages: [{ role: 'user', content: buildAdventureSummaryPrompt(session, history) }],
-      max_tokens: 200,
+      max_completion_tokens: 200,
+      ...getTierRequestSettings('narration'),
     }, { signal: AbortSignal.timeout(20_000) });
+    warnIfEmptyTruncation('Adventure summary', model, response.choices[0]);
     const msg = response.choices[0].message;
     return msg.content || (msg as unknown as Record<string, string>)['reasoning_content'] || '';
   } catch (err: unknown) {
@@ -84,8 +87,10 @@ export const summarizeHeroHistory = async (
     const response = await client.chat.completions.create({
       model,
       messages: [{ role: 'user', content: buildHeroHistoryPrompt(turns.slice(-10).map(t => t.narration), adventureName) }],
-      max_tokens: 80,
+      max_completion_tokens: 80,
+      ...getTierRequestSettings('narration'),
     }, { signal: AbortSignal.timeout(15_000) });
+    warnIfEmptyTruncation('Hero history', model, response.choices[0]);
     return (response.choices[0].message.content ?? '').trim();
   } catch {
     return null;

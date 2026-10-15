@@ -14,7 +14,7 @@ import { countUnresolvedOwners } from './realms/ownershipReport.js';
 import { startEmailAuthMaintenance } from './services/emailAuthService.js';
 import { startOutboxDispatcher } from './services/emailService.js';
 import { getImageStorageProvider } from './providers/storage/storageProviderFactory.js';
-import { getOpenAIMaxRetries, getPreviewReasoningEffort } from './providers/ai/openAiClient.js';
+import { assertTierReasoningEfforts, getOpenAIMaxRetries } from './providers/ai/openAiClient.js';
 import { reconcileInterruptedOperations } from './services/sessionOperationService.js';
 import { createAuthRouter } from './routes/authRoutes.js';
 import { createInvitationAuthRouter, createNamespaceInviteRouter } from './routes/namespaceInviteRoutes.js';
@@ -96,11 +96,11 @@ if (ttsWarning) {
   console.warn(ttsWarning);
 }
 
-// Preview callers catch request errors and fall back, so an invalid request
+// AI callers catch request errors and fall back, so an invalid request
 // setting would otherwise degrade quietly on every call. Fail at startup.
 try {
   assertAuthConfig(isProduction);
-  getPreviewReasoningEffort();
+  assertTierReasoningEfforts();
   getOpenAIMaxRetries();
   console.log(`[Config] Turn strategy: ${getTurnStrategy()}`);
 } catch (err) {

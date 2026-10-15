@@ -337,7 +337,7 @@ jobs:
             --arg message "$MESSAGE" \
             '{
               model: "gpt-4.1",
-              max_tokens: 160,
+              max_completion_tokens: 160,
               messages: [{
                 role: "user",
                 content: $message

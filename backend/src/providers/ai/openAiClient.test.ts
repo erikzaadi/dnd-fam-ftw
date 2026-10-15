@@ -23,6 +23,7 @@ afterEach(() => {
   delete process.env.OPENAI_MODEL_ASYNC;
   delete process.env.OPENAI_REASONING_EFFORT_PREVIEW;
   delete process.env.OPENAI_REASONING_EFFORT_NARRATION;
+  delete process.env.OPENAI_REASONING_EFFORT_ASYNC;
   delete process.env.OPENAI_TEXT_VERBOSITY_NARRATION;
   delete process.env.OPENAI_SERVICE_TIER_NARRATION;
 });
@@ -83,51 +84,65 @@ describe('openAiClient', () => {
     expect(getOpenAIImageModel()).toBe('custom-image-model');
   });
 
-  it('returns undefined for unset narration eval parameters', async () => {
-    const {
-      getNarrationReasoningEffort,
-      getNarrationTextVerbosity,
-      getNarrationServiceTier,
-    } = await import('./openAiClient.js');
+  it('sends no reasoning_effort for the built-in gpt-4.1 narration and async defaults', async () => {
+    const { getModelForTier, getTierRequestSettings, NARRATION_DEFAULTS, ASYNC_DEFAULTS } = await import('./openAiClient.js');
 
-    expect(getNarrationReasoningEffort()).toBeUndefined();
+    expect(getModelForTier('narration')).toBe(NARRATION_DEFAULTS.model);
+    expect(getModelForTier('async')).toBe(ASYNC_DEFAULTS.model);
+    expect(getTierRequestSettings('narration')).toEqual({});
+    expect(getTierRequestSettings('async')).toEqual({});
+  });
+
+  it.each([
+    ['narration', 'OPENAI_REASONING_EFFORT_NARRATION'],
+    ['async', 'OPENAI_REASONING_EFFORT_ASYNC'],
+  ] as const)('sends a configured %s reasoning_effort and drops it for omit', async (tier, envName) => {
+    const { getTierRequestSettings } = await import('./openAiClient.js');
+
+    process.env[envName] = 'low';
+    expect(getTierRequestSettings(tier)).toEqual({ reasoning_effort: 'low' });
+    expect(getTierRequestSettings('preview')).toEqual({ reasoning_effort: 'none' });
+
+    process.env[envName] = 'omit';
+    expect(getTierRequestSettings(tier)).toEqual({});
+  });
+
+  it.each(['NARRATION', 'PREVIEW', 'ASYNC'])('refuses an invalid OPENAI_REASONING_EFFORT_%s at the startup check', async (suffix) => {
+    process.env[`OPENAI_REASONING_EFFORT_${suffix}`] = 'turbo';
+
+    const { assertTierReasoningEfforts } = await import('./openAiClient.js');
+
+    expect(() => assertTierReasoningEfforts()).toThrow(new RegExp(`Invalid OPENAI_REASONING_EFFORT_${suffix}="turbo"`));
+  });
+
+  it('returns undefined for unset narration eval parameters', async () => {
+    const { getNarrationTextVerbosity, getNarrationServiceTier } = await import('./openAiClient.js');
+
     expect(getNarrationTextVerbosity()).toBeUndefined();
     expect(getNarrationServiceTier()).toBeUndefined();
   });
 
   it('returns configured narration eval parameters', async () => {
-    process.env.OPENAI_REASONING_EFFORT_NARRATION = 'low';
     process.env.OPENAI_TEXT_VERBOSITY_NARRATION = 'low';
     process.env.OPENAI_SERVICE_TIER_NARRATION = 'priority';
 
-    const {
-      getNarrationReasoningEffort,
-      getNarrationTextVerbosity,
-      getNarrationServiceTier,
-    } = await import('./openAiClient.js');
+    const { getNarrationTextVerbosity, getNarrationServiceTier } = await import('./openAiClient.js');
 
-    expect(getNarrationReasoningEffort()).toBe('low');
     expect(getNarrationTextVerbosity()).toBe('low');
     expect(getNarrationServiceTier()).toBe('priority');
   });
 
   it('ignores invalid narration eval parameters', async () => {
-    process.env.OPENAI_REASONING_EFFORT_NARRATION = 'turbo';
     process.env.OPENAI_TEXT_VERBOSITY_NARRATION = 'tiny';
     process.env.OPENAI_SERVICE_TIER_NARRATION = 'vip';
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const {
-      getNarrationReasoningEffort,
-      getNarrationTextVerbosity,
-      getNarrationServiceTier,
-    } = await import('./openAiClient.js');
+    const { getNarrationTextVerbosity, getNarrationServiceTier } = await import('./openAiClient.js');
 
     try {
-      expect(getNarrationReasoningEffort()).toBeUndefined();
       expect(getNarrationTextVerbosity()).toBeUndefined();
       expect(getNarrationServiceTier()).toBeUndefined();
-      expect(warn).toHaveBeenCalledTimes(3);
+      expect(warn).toHaveBeenCalledTimes(2);
     } finally {
       warn.mockRestore();
     }
