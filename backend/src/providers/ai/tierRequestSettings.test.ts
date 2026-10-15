@@ -74,6 +74,8 @@ afterEach(() => {
   delete process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_REASONING_EFFORT_NARRATION;
   delete process.env.OPENAI_REASONING_EFFORT_ASYNC;
+  delete process.env.OPENAI_SERVICE_TIER_NARRATION;
+  delete process.env.OPENAI_SERVICE_TIER_ASYNC;
 });
 
 describe.each(callers)('tier request settings: $name', (caller) => {
@@ -88,6 +90,7 @@ describe.each(callers)('tier request settings: $name', (caller) => {
     expect(request).not.toHaveProperty('max_tokens');
     expect(request).not.toHaveProperty('temperature');
     expect(request).not.toHaveProperty('reasoning_effort');
+    expect(request).not.toHaveProperty('service_tier');
   });
 
   it('sends the configured reasoning effort for its own tier', async () => {
@@ -97,6 +100,15 @@ describe.each(callers)('tier request settings: $name', (caller) => {
     await caller.run();
 
     expect(lastRequest().reasoning_effort).toBe('none');
+  });
+
+  it('sends the configured service tier for its own tier', async () => {
+    process.env[caller.tier === 'narration' ? 'OPENAI_SERVICE_TIER_NARRATION' : 'OPENAI_SERVICE_TIER_ASYNC'] = 'priority';
+    mocks.create.mockResolvedValueOnce(completion('A short reply.'));
+
+    await caller.run();
+
+    expect(lastRequest().service_tier).toBe('priority');
   });
 
   it('warns when a reply is empty and truncated by the token cap', async () => {

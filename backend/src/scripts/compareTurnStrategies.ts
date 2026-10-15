@@ -24,7 +24,8 @@
  * Options:
  *   --label <name>              Run label (required)
  *   --arm <name>:<K=V,K=V>      Arm with per-turn env overrides; give exactly two. Allowed keys:
- *                               AI_TURN_STRATEGY, OPENAI_MODEL_*, OPENAI_REASONING_EFFORT_*.
+ *                               AI_TURN_STRATEGY, OPENAI_MODEL_*, OPENAI_REASONING_EFFORT_*,
+ *                               OPENAI_SERVICE_TIER_*.
  *                               Default: parallel and resolved_first (AI_TURN_STRATEGY only)
  *   --provider live|mock        live = OpenAI via the real orchestrator (default); mock = MockNarrationProvider
  *   --scenarios <id,id>         Restrict scenarios (default: all 8)
@@ -66,7 +67,7 @@ const DEFAULT_ARMS: Arm[] = [
   { name: 'parallel', env: { AI_TURN_STRATEGY: 'parallel' } },
   { name: 'resolved_first', env: { AI_TURN_STRATEGY: 'resolved_first' } },
 ];
-const ARM_KEY_RE = /^(AI_TURN_STRATEGY|OPENAI_MODEL_[A-Z]+|OPENAI_REASONING_EFFORT_[A-Z]+)$/;
+const ARM_KEY_RE = /^(AI_TURN_STRATEGY|OPENAI_(MODEL|REASONING_EFFORT|SERVICE_TIER)_[A-Z]+)$/;
 // Worst case per turn: narration + choices + retry + combat + inventory + recovery
 // (+ one schema retry each for the mechanics agents) + encounter-name repair.
 const WORST_CASE_REQUESTS_PER_TURN = 10;
@@ -127,7 +128,7 @@ const parseArm = (spec: string): Arm => {
   const env = Object.fromEntries(overrides.split(',').map(pair => {
     const [key, value] = pair.split('=');
     if (!key || !ARM_KEY_RE.test(key) || value === undefined || value === '') {
-      throw new Error(`Invalid --arm override "${pair}". Allowed keys: AI_TURN_STRATEGY, OPENAI_MODEL_*, OPENAI_REASONING_EFFORT_*`);
+      throw new Error(`Invalid --arm override "${pair}". Allowed keys: AI_TURN_STRATEGY, OPENAI_MODEL_*, OPENAI_REASONING_EFFORT_*, OPENAI_SERVICE_TIER_*`);
     }
     return [key, value];
   }));

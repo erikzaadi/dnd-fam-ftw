@@ -25,6 +25,7 @@ The backend uses the OpenAI SDK for narration, helper calls, images and TTS. `OP
 | `OPENAI_MODEL_ASYNC` | `gpt-4.1` | Background work: campaign brief, story summaries |
 | `OPENAI_REASONING_EFFORT_ASYNC` | not sent | See [Narration and async request settings](#narration-and-async-request-settings) |
 | `OPENAI_MODEL_TTS` | `gpt-realtime-2.1-mini` | Narration voice. See [Narration voice](#narration-voice) |
+| `OPENAI_SERVICE_TIER_NARRATION`, `_PREVIEW`, `_ASYNC` | not sent | OpenAI processing tier per tier: `auto`, `default`, `flex`, `scale`, `priority` (Fast mode). Invalid values stop startup |
 | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | Scene images, adventure previews, hero portraits |
 | `OPENAI_MAX_RETRIES` | SDK default (2) | Client-wide retry count; evaluation scripts require `0` |
 | `AI_TURN_STRATEGY` | `resolved_first` | See [Turn strategy](#turn-strategy) |
@@ -96,6 +97,8 @@ The built-in preview model (`gpt-5.6-luna`) and its reasoning default (`none`) a
 Every narration-tier request (narration and mechanics agents, ideas retries, TLDR, hero history, epilogue) and async-tier request (campaign brief, story summaries, realm origin story) sends `max_completion_tokens` and no `temperature`. `OPENAI_REASONING_EFFORT_NARRATION` and `OPENAI_REASONING_EFFORT_ASYNC` control the optional `reasoning_effort` field for their tier, with the same values as the preview setting. Unset sends nothing, because the built-in `gpt-4.1-mini` and `gpt-4.1` are not reasoning models and reject the field; an invalid value stops the backend at startup.
 
 OpenAI retires `gpt-4.1` and `gpt-4.1-mini` on 2027-01-14. When the built-in defaults move to a reasoning model, the model and its reasoning default change together, as `NARRATION_DEFAULTS` and `ASYNC_DEFAULTS` in `openAiClient.ts`. If you pin a reasoning model for these tiers yourself, also set its effort (usually `none`): the provider default is `medium`, which can spend the small token budgets before any text is written.
+
+`OPENAI_SERVICE_TIER_<TIER>` (`NARRATION`, `PREVIEW`, `ASYNC`) sends `service_tier` on that tier's requests; unset leaves it to the OpenAI project default. `priority` is OpenAI's Fast mode: lower latency at a higher per-token price. Usage estimates (`usagePricing.ts`) do not account for the tier, so Fast mode spend is underestimated in the app's limits and reports.
 
 `[Metrics] turn_complete` log lines still include `choicesFailed=` and `choicesEscalated=`; both are always false now that turns carry no suggestions.
 

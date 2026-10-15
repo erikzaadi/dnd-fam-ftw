@@ -26,6 +26,8 @@ afterEach(() => {
   delete process.env.OPENAI_REASONING_EFFORT_ASYNC;
   delete process.env.OPENAI_TEXT_VERBOSITY_NARRATION;
   delete process.env.OPENAI_SERVICE_TIER_NARRATION;
+  delete process.env.OPENAI_SERVICE_TIER_PREVIEW;
+  delete process.env.OPENAI_SERVICE_TIER_ASYNC;
 });
 
 describe('openAiClient', () => {
@@ -107,42 +109,49 @@ describe('openAiClient', () => {
     expect(getTierRequestSettings(tier)).toEqual({});
   });
 
-  it.each(['NARRATION', 'PREVIEW', 'ASYNC'])('refuses an invalid OPENAI_REASONING_EFFORT_%s at the startup check', async (suffix) => {
-    process.env[`OPENAI_REASONING_EFFORT_${suffix}`] = 'turbo';
+  it.each(['REASONING_EFFORT', 'SERVICE_TIER'])('refuses an invalid OPENAI_%s_<tier> at the startup check', async (setting) => {
+    const { assertTierRequestSettings } = await import('./openAiClient.js');
 
-    const { assertTierReasoningEfforts } = await import('./openAiClient.js');
-
-    expect(() => assertTierReasoningEfforts()).toThrow(new RegExp(`Invalid OPENAI_REASONING_EFFORT_${suffix}="turbo"`));
+    for (const suffix of ['NARRATION', 'PREVIEW', 'ASYNC']) {
+      process.env[`OPENAI_${setting}_${suffix}`] = 'turbo';
+      expect(() => assertTierRequestSettings()).toThrow(new RegExp(`Invalid OPENAI_${setting}_${suffix}="turbo"`));
+      delete process.env[`OPENAI_${setting}_${suffix}`];
+    }
   });
 
-  it('returns undefined for unset narration eval parameters', async () => {
-    const { getNarrationTextVerbosity, getNarrationServiceTier } = await import('./openAiClient.js');
-
-    expect(getNarrationTextVerbosity()).toBeUndefined();
-    expect(getNarrationServiceTier()).toBeUndefined();
-  });
-
-  it('returns configured narration eval parameters', async () => {
-    process.env.OPENAI_TEXT_VERBOSITY_NARRATION = 'low';
+  it('sends a configured service tier only on its own tier', async () => {
     process.env.OPENAI_SERVICE_TIER_NARRATION = 'priority';
 
-    const { getNarrationTextVerbosity, getNarrationServiceTier } = await import('./openAiClient.js');
+    const { getTierRequestSettings } = await import('./openAiClient.js');
 
-    expect(getNarrationTextVerbosity()).toBe('low');
-    expect(getNarrationServiceTier()).toBe('priority');
+    expect(getTierRequestSettings('narration')).toEqual({ service_tier: 'priority' });
+    expect(getTierRequestSettings('preview')).toEqual({ reasoning_effort: 'none' });
+    expect(getTierRequestSettings('async')).toEqual({});
   });
 
-  it('ignores invalid narration eval parameters', async () => {
+  it('returns undefined for an unset narration text verbosity', async () => {
+    const { getNarrationTextVerbosity } = await import('./openAiClient.js');
+
+    expect(getNarrationTextVerbosity()).toBeUndefined();
+  });
+
+  it('returns a configured narration text verbosity', async () => {
+    process.env.OPENAI_TEXT_VERBOSITY_NARRATION = 'low';
+
+    const { getNarrationTextVerbosity } = await import('./openAiClient.js');
+
+    expect(getNarrationTextVerbosity()).toBe('low');
+  });
+
+  it('ignores an invalid narration text verbosity', async () => {
     process.env.OPENAI_TEXT_VERBOSITY_NARRATION = 'tiny';
-    process.env.OPENAI_SERVICE_TIER_NARRATION = 'vip';
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const { getNarrationTextVerbosity, getNarrationServiceTier } = await import('./openAiClient.js');
+    const { getNarrationTextVerbosity } = await import('./openAiClient.js');
 
     try {
       expect(getNarrationTextVerbosity()).toBeUndefined();
-      expect(getNarrationServiceTier()).toBeUndefined();
-      expect(warn).toHaveBeenCalledTimes(2);
+      expect(warn).toHaveBeenCalledTimes(1);
     } finally {
       warn.mockRestore();
     }

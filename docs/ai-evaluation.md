@@ -75,7 +75,7 @@ npx tsx --env-file=../.env src/scripts/compareTurnStrategies.ts --label first --
 OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/compareTurnStrategies.ts --label first --cost-per-request 0.004
 ```
 
-To compare models instead, give exactly two `--arm <name>:<KEY=VALUE,...>` options. Each arm's overrides are applied before each of its turns; keys an arm leaves out keep their startup values. Allowed keys: `AI_TURN_STRATEGY`, `OPENAI_MODEL_*`, `OPENAI_REASONING_EFFORT_*`. The cost estimate uses one `--cost-per-request` for both arms, so set it from the more expensive model.
+To compare models instead, give exactly two `--arm <name>:<KEY=VALUE,...>` options. Each arm's overrides are applied before each of its turns; keys an arm leaves out keep their startup values. Allowed keys: `AI_TURN_STRATEGY`, `OPENAI_MODEL_*`, `OPENAI_REASONING_EFFORT_*`, `OPENAI_SERVICE_TIER_*`. The cost estimate uses one `--cost-per-request` for both arms, so set it from the more expensive model.
 
 ```bash
 OPENAI_MAX_RETRIES=0 npx tsx --env-file=../.env src/scripts/compareTurnStrategies.ts --label luna --cost-per-request 0.004 \

@@ -9,6 +9,8 @@ export type OpenAITextVerbosity = 'low' | 'medium' | 'high';
 export type OpenAIServiceTier = 'auto' | 'default' | 'flex' | 'scale' | 'priority';
 
 const REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const;
+// "priority" is OpenAI's Fast mode (renamed 2026-07-30; the SDK type predates "fast").
+const SERVICE_TIERS = ['auto', 'default', 'flex', 'scale', 'priority'] as const;
 
 // strict: throw on invalid values instead of warning and ignoring them, for
 // settings where "ignored" would silently fall back to provider defaults.
@@ -100,21 +102,31 @@ export function getTierReasoningEffort(tier: TextTier): OpenAIReasoningEffort | 
   return effort ?? TIER_DEFAULTS[tier].reasoningEffort;
 }
 
-// Startup check: throws on the first invalid OPENAI_REASONING_EFFORT_<TIER>.
-export function assertTierReasoningEfforts(): void {
+// OPENAI_SERVICE_TIER_<TIER>. Unset sends nothing (the project's default
+// tier). Invalid values throw, like reasoning effort.
+export function getTierServiceTier(tier: TextTier): OpenAIServiceTier | undefined {
+  return optionalEnum(`OPENAI_SERVICE_TIER_${TIER_ENV_SUFFIX[tier]}`, SERVICE_TIERS, true);
+}
+
+// Startup check: throws on the first invalid per-tier request setting.
+export function assertTierRequestSettings(): void {
   for (const tier of Object.keys(TIER_DEFAULTS) as TextTier[]) {
-    getTierReasoningEffort(tier);
+    getTierRequestSettings(tier);
   }
 }
 
-export type TierRequestSettings = { reasoning_effort?: OpenAIReasoningEffort };
+export type TierRequestSettings = { reasoning_effort?: OpenAIReasoningEffort; service_tier?: OpenAIServiceTier };
 
 // Optional per-tier request fields, spread into chat completion requests.
 // Resolve with the tier that actually serves the request (a narration-tier
 // retry gets narration settings, never preview ones).
 export function getTierRequestSettings(tier: TextTier): TierRequestSettings {
   const effort = getTierReasoningEffort(tier);
-  return effort ? { reasoning_effort: effort } : {};
+  const serviceTier = getTierServiceTier(tier);
+  return {
+    ...(effort && { reasoning_effort: effort }),
+    ...(serviceTier && { service_tier: serviceTier }),
+  };
 }
 
 type CompletionChoiceLike = { finish_reason?: string | null; message?: { content?: string | null } } | undefined;
@@ -132,10 +144,6 @@ export function warnIfEmptyTruncation(caller: string, model: string, choice: Com
 
 export function getNarrationTextVerbosity(): OpenAITextVerbosity | undefined {
   return optionalEnum('OPENAI_TEXT_VERBOSITY_NARRATION', ['low', 'medium', 'high'] as const);
-}
-
-export function getNarrationServiceTier(): OpenAIServiceTier | undefined {
-  return optionalEnum('OPENAI_SERVICE_TIER_NARRATION', ['auto', 'default', 'flex', 'scale', 'priority'] as const);
 }
 
 export function getOpenAIImageModel(): string {
