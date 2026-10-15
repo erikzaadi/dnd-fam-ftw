@@ -3,7 +3,7 @@ import type { SessionState } from '../../types.js';
 
 // Captures the outgoing request for every non-streamed narration and async
 // tier caller and asserts the tier settings reach the wire (GPT-4 series
-// retirement, phase 2 step 7). Streamed orchestrator agents share
+// retirement). Streamed orchestrator agents share
 // callStructuredAgent, which already spreads its requestSettings.
 const mocks = vi.hoisted(() => {
   const create = vi.fn();
@@ -79,36 +79,41 @@ afterEach(() => {
 });
 
 describe.each(callers)('tier request settings: $name', (caller) => {
-  it('sends max_completion_tokens, no max_tokens or temperature, and no reasoning field for the gpt-4.1 defaults', async () => {
+  it('sends the built-in model with reasoning none, max_completion_tokens, and no max_tokens or temperature', async () => {
     mocks.create.mockResolvedValueOnce(completion('A short reply.'));
 
     await caller.run();
 
     const request = lastRequest();
-    expect(request.model).toBe(caller.tier === 'narration' ? 'gpt-4.1-mini' : 'gpt-4.1');
+    expect(request.model).toBe('gpt-6-luna');
+    expect(request.reasoning_effort).toBe('none');
     expect(request.max_completion_tokens).toEqual(expect.any(Number));
     expect(request).not.toHaveProperty('max_tokens');
     expect(request).not.toHaveProperty('temperature');
-    expect(request).not.toHaveProperty('reasoning_effort');
-    expect(request).not.toHaveProperty('service_tier');
+    // Fast mode is a narration-tier default only; background work runs at Standard.
+    if (caller.tier === 'narration') {
+      expect(request.service_tier).toBe('priority');
+    } else {
+      expect(request).not.toHaveProperty('service_tier');
+    }
   });
 
   it('sends the configured reasoning effort for its own tier', async () => {
-    process.env[envName(caller.tier)] = 'none';
+    process.env[envName(caller.tier)] = 'low';
     mocks.create.mockResolvedValueOnce(completion('A short reply.'));
 
     await caller.run();
 
-    expect(lastRequest().reasoning_effort).toBe('none');
+    expect(lastRequest().reasoning_effort).toBe('low');
   });
 
   it('sends the configured service tier for its own tier', async () => {
-    process.env[caller.tier === 'narration' ? 'OPENAI_SERVICE_TIER_NARRATION' : 'OPENAI_SERVICE_TIER_ASYNC'] = 'priority';
+    process.env[caller.tier === 'narration' ? 'OPENAI_SERVICE_TIER_NARRATION' : 'OPENAI_SERVICE_TIER_ASYNC'] = 'flex';
     mocks.create.mockResolvedValueOnce(completion('A short reply.'));
 
     await caller.run();
 
-    expect(lastRequest().service_tier).toBe('priority');
+    expect(lastRequest().service_tier).toBe('flex');
   });
 
   it('warns when a reply is empty and truncated by the token cap', async () => {

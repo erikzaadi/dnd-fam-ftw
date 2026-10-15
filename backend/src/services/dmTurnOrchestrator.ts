@@ -522,8 +522,9 @@ async function callStructuredAgent<T>(config: {
 async function callChoicesAgent(
   input: NarrationInput,
   signal: AbortSignal,
-  // First attempt uses nano to reduce gpt-4.1-mini contention; retries escalate
-  // to the narration tier, which has proven more reliable under the deadline.
+  // First attempt uses the preview tier to keep load off the narration tier;
+  // retries escalate to the narration tier, which has proven more reliable
+  // under the deadline.
   tier: 'preview' | 'narration' = 'preview',
   extraInstruction?: string,
   observe?: { agent: string; observer: ChoicesFlowObserver },

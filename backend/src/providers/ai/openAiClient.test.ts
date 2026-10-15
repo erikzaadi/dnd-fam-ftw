@@ -47,9 +47,9 @@ describe('openAiClient', () => {
   it('getModelForTier returns hardcoded defaults when env vars are unset', async () => {
     const { getModelForTier } = await import('./openAiClient.js');
 
-    expect(getModelForTier('narration')).toBe('gpt-4.1-mini');
+    expect(getModelForTier('narration')).toBe('gpt-6-luna');
     expect(getModelForTier('preview')).toBe('gpt-5.6-luna');
-    expect(getModelForTier('async')).toBe('gpt-4.1');
+    expect(getModelForTier('async')).toBe('gpt-6-luna');
   });
 
   it('pairs the built-in preview model with reasoning none so they roll back together', async () => {
@@ -60,10 +60,12 @@ describe('openAiClient', () => {
     expect(getTierRequestSettings('preview')).toEqual({ reasoning_effort: PREVIEW_DEFAULTS.reasoningEffort });
   });
 
-  it('never defaults the preview tier to the retired gpt-4.1-nano', async () => {
+  it('never defaults any tier to a retired gpt-4 series model', async () => {
     const { getModelForTier } = await import('./openAiClient.js');
 
-    expect(getModelForTier('preview')).not.toMatch(/gpt-4\.1-nano/);
+    for (const tier of ['narration', 'preview', 'async'] as const) {
+      expect(getModelForTier(tier)).not.toMatch(/^gpt-4/);
+    }
   });
 
   it('getModelForTier respects per-tier env var overrides', async () => {
@@ -86,13 +88,15 @@ describe('openAiClient', () => {
     expect(getOpenAIImageModel()).toBe('custom-image-model');
   });
 
-  it('sends no reasoning_effort for the built-in gpt-4.1 narration and async defaults', async () => {
+  it('pairs the built-in narration and async models with their reasoning and service tier defaults', async () => {
     const { getModelForTier, getTierRequestSettings, NARRATION_DEFAULTS, ASYNC_DEFAULTS } = await import('./openAiClient.js');
 
+    expect(NARRATION_DEFAULTS).toEqual({ model: 'gpt-6-luna', reasoningEffort: 'none', serviceTier: 'priority' });
+    expect(ASYNC_DEFAULTS).toEqual({ model: 'gpt-6-luna', reasoningEffort: 'none' });
     expect(getModelForTier('narration')).toBe(NARRATION_DEFAULTS.model);
     expect(getModelForTier('async')).toBe(ASYNC_DEFAULTS.model);
-    expect(getTierRequestSettings('narration')).toEqual({});
-    expect(getTierRequestSettings('async')).toEqual({});
+    expect(getTierRequestSettings('narration')).toEqual({ reasoning_effort: 'none', service_tier: 'priority' });
+    expect(getTierRequestSettings('async')).toEqual({ reasoning_effort: 'none' });
   });
 
   it.each([
@@ -102,11 +106,11 @@ describe('openAiClient', () => {
     const { getTierRequestSettings } = await import('./openAiClient.js');
 
     process.env[envName] = 'low';
-    expect(getTierRequestSettings(tier)).toEqual({ reasoning_effort: 'low' });
+    expect(getTierRequestSettings(tier).reasoning_effort).toBe('low');
     expect(getTierRequestSettings('preview')).toEqual({ reasoning_effort: 'none' });
 
     process.env[envName] = 'omit';
-    expect(getTierRequestSettings(tier)).toEqual({});
+    expect(getTierRequestSettings(tier)).not.toHaveProperty('reasoning_effort');
   });
 
   it.each(['REASONING_EFFORT', 'SERVICE_TIER'])('refuses an invalid OPENAI_%s_<tier> at the startup check', async (setting) => {
@@ -119,14 +123,17 @@ describe('openAiClient', () => {
     }
   });
 
-  it('sends a configured service tier only on its own tier', async () => {
-    process.env.OPENAI_SERVICE_TIER_NARRATION = 'priority';
+  it('sends a configured service tier only on its own tier and drops it for omit', async () => {
+    process.env.OPENAI_SERVICE_TIER_ASYNC = 'flex';
 
     const { getTierRequestSettings } = await import('./openAiClient.js');
 
-    expect(getTierRequestSettings('narration')).toEqual({ service_tier: 'priority' });
+    expect(getTierRequestSettings('async')).toEqual({ reasoning_effort: 'none', service_tier: 'flex' });
     expect(getTierRequestSettings('preview')).toEqual({ reasoning_effort: 'none' });
-    expect(getTierRequestSettings('async')).toEqual({});
+    expect(getTierRequestSettings('narration').service_tier).toBe('priority');
+
+    process.env.OPENAI_SERVICE_TIER_NARRATION = 'omit';
+    expect(getTierRequestSettings('narration')).toEqual({ reasoning_effort: 'none' });
   });
 
   it('returns undefined for an unset narration text verbosity', async () => {

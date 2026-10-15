@@ -62,17 +62,23 @@ export function createOpenAIClient(): OpenAI {
 
 export type TextTier = 'narration' | 'preview' | 'async';
 
-type TierDefaults = { readonly model: string; readonly reasoningEffort?: OpenAIReasoningEffort };
+type TierDefaults = {
+  readonly model: string;
+  readonly reasoningEffort?: OpenAIReasoningEffort;
+  readonly serviceTier?: OpenAIServiceTier;
+};
 
-// Each tier's built-in model and reasoning default are one rollback unit and
-// change together: reasoning models such as gpt-5.6-luna and gpt-6-luna default
-// to medium reasoning, which can spend a small request's whole token budget, so
-// they ship with reasoning "none". Non-reasoning models (gpt-4.1*) reject the
-// field, so their defaults send none. gpt-4.1-nano retired on 2026-10-23, and
-// gpt-4.1 / gpt-4.1-mini retire on 2027-01-14.
+// Each tier's built-in model, reasoning and service tier defaults are one
+// rollback unit and change together: reasoning models such as gpt-5.6-luna and
+// gpt-6-luna default to medium reasoning, which can spend a small request's
+// whole token budget, so they ship with reasoning "none". Narration adds Fast
+// mode ("priority"): gpt-6-luna at Standard was about 33% slower at p95 than
+// gpt-4.1-mini, and Fast mode closed the gap (2026-10-15 comparison). Retired
+// models must never return as defaults: gpt-4.1-nano (2026-10-23), gpt-4.1 and
+// gpt-4.1-mini (2027-01-14).
 export const PREVIEW_DEFAULTS = { model: 'gpt-5.6-luna', reasoningEffort: 'none' } as const satisfies TierDefaults;
-export const NARRATION_DEFAULTS = { model: 'gpt-4.1-mini' } as const satisfies TierDefaults;
-export const ASYNC_DEFAULTS = { model: 'gpt-4.1' } as const satisfies TierDefaults;
+export const NARRATION_DEFAULTS = { model: 'gpt-6-luna', reasoningEffort: 'none', serviceTier: 'priority' } as const satisfies TierDefaults;
+export const ASYNC_DEFAULTS = { model: 'gpt-6-luna', reasoningEffort: 'none' } as const satisfies TierDefaults;
 
 const TIER_DEFAULTS: Record<TextTier, TierDefaults> = {
   narration: NARRATION_DEFAULTS,
@@ -102,10 +108,15 @@ export function getTierReasoningEffort(tier: TextTier): OpenAIReasoningEffort | 
   return effort ?? TIER_DEFAULTS[tier].reasoningEffort;
 }
 
-// OPENAI_SERVICE_TIER_<TIER>. Unset sends nothing (the project's default
-// tier). Invalid values throw, like reasoning effort.
+// OPENAI_SERVICE_TIER_<TIER>. Unset uses the tier's built-in default; "omit"
+// never sends the field (for endpoints that reject it). Invalid values throw,
+// like reasoning effort.
 export function getTierServiceTier(tier: TextTier): OpenAIServiceTier | undefined {
-  return optionalEnum(`OPENAI_SERVICE_TIER_${TIER_ENV_SUFFIX[tier]}`, SERVICE_TIERS, true);
+  const serviceTier = optionalEnum(`OPENAI_SERVICE_TIER_${TIER_ENV_SUFFIX[tier]}`, [...SERVICE_TIERS, 'omit'] as const, true);
+  if (serviceTier === 'omit') {
+    return undefined;
+  }
+  return serviceTier ?? TIER_DEFAULTS[tier].serviceTier;
 }
 
 // Startup check: throws on the first invalid per-tier request setting.

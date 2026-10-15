@@ -70,23 +70,23 @@ Per adventure, the ⚙ menu setting **Ideas every turn** (`sessions.auto_ideas`)
 
 | Call | Where | Model variable | Default | When |
 |---|---|---|---|---|
-| **Turn narration** (1-4 agents) | `dmTurnOrchestrator.ts` | `OPENAI_MODEL_NARRATION` | `gpt-4.1-mini` | Every action: narration always; combat/inventory/recovery agents only when relevant |
+| **Turn narration** (1-4 agents) | `dmTurnOrchestrator.ts` | `OPENAI_MODEL_NARRATION` | `gpt-6-luna` (Fast mode) | Every action: narration always; combat/inventory/recovery agents only when relevant |
 | **Ideas** | `ideasService.ts` | `OPENAI_MODEL_PREVIEW` (retry on narration model) | `gpt-5.6-luna` | Only when a player asks |
 | **Ask the DM** | `askDmService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-5.6-luna` | Only when a player asks |
 | **Action preview** | `actionPreviewService.ts`, `statSuggestionService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-5.6-luna` | Before an action is sent |
 | **Stat suggestion** | `statSuggestionService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-5.6-luna` | Character creation and action routing |
 | **Adventure naming** | `sessionNameService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-5.6-luna` | Once at creation |
-| **TLDR summary** | `turnRoutes.ts` | `OPENAI_MODEL_NARRATION` | `gpt-4.1-mini` | On demand in the recap screen |
-| **Character history** | `characterRoutes.ts` | `OPENAI_MODEL_NARRATION` | `gpt-4.1-mini` | When importing a hero from another adventure |
-| **Campaign brief / DM Prep** | `storySummaryService.ts` | `OPENAI_MODEL_ASYNC` | `gpt-4.1` | At creation |
+| **TLDR summary** | `turnRoutes.ts` | `OPENAI_MODEL_NARRATION` | `gpt-6-luna` (Fast mode) | On demand in the recap screen |
+| **Character history** | `characterRoutes.ts` | `OPENAI_MODEL_NARRATION` | `gpt-6-luna` (Fast mode) | When importing a hero from another adventure |
+| **Campaign brief / DM Prep** | `storySummaryService.ts` | `OPENAI_MODEL_ASYNC` | `gpt-6-luna` | At creation |
 | **DM Prep compilation** | `dmPrepCompilationService.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-5.6-luna` | After the campaign brief |
-| **Story summary** | `storySummaryService.ts` | `OPENAI_MODEL_ASYNC` | `gpt-4.1` | Every 5 turns, background |
+| **Story summary** | `storySummaryService.ts` | `OPENAI_MODEL_ASYNC` | `gpt-6-luna` | Every 5 turns, background |
 | **TTS narration** | `ttsService.ts` | `OPENAI_MODEL_TTS` | `gpt-realtime-2.1-mini` | When AI narration voice is on. Realtime session by default, `/audio/speech` for operator-named models and custom endpoints ([configuration](configuration.md#narration-voice)) |
 | **Scene image brief** | `imageBriefProvider.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-5.6-luna` | Before each scene image |
 | **Scene image** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | Per turn when images are on, async, cached by prompt hash |
 | **Adventure preview image** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | At creation when images are on |
 | **Hero portrait** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | Once per hero, cached |
-| **Metrics summary** | `.github/workflows/metrics.yml` | hardcoded | `gpt-4.1` | Weekly CI job |
+| **Metrics summary** | `.github/workflows/metrics.yml` | hardcoded | `gpt-6-luna` | Weekly CI job |
 
 Only the turn agents block the player's response. Images arrive later over SSE. Every provider request is recorded in `provider_usage` for usage limits and metrics (`npm run cli -- metrics`).
 

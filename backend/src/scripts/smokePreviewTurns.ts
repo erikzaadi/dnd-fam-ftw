@@ -23,6 +23,7 @@ import {
 } from './modelRefreshRecorder.js';
 import { MODEL_REFRESH_CHOICES_FIXTURES, MODEL_REFRESH_FIXTURE_VERSION } from '../tests/fixtures/model-refresh-choices.js';
 import { DmTurnOrchestrator } from '../services/dmTurnOrchestrator.js';
+import { getTierRequestSettings } from '../providers/ai/openAiClient.js';
 
 const MAX_REQUESTS = 45;
 // One per orchestrator path: plain exploration, active combat, encounter
@@ -85,6 +86,8 @@ async function main() {
   });
 
   const orchestrator = new DmTurnOrchestrator();
+  // Non-preview requests here are narration tier and must carry its own setting.
+  const narrationEffort = getTierRequestSettings('narration').reasoning_effort ?? null;
   let failures = 0;
   for (const fixture of fixtures) {
     currentLabel = fixture.id;
@@ -107,7 +110,7 @@ async function main() {
       ...hardErrors.map(d => `${d.agent} ${d.errorKind}: ${d.errorMessage ?? ''}`),
       previewRequests.length === 0 ? 'no preview-tier request' : null,
       previewRequests.some(r => r.reasoningEffort !== 'none' || r.hasTemperature) ? 'unexpected preview request settings' : null,
-      otherRequests.some(r => r.reasoningEffort !== null) ? 'preview settings leaked into another tier' : null,
+      otherRequests.some(r => r.reasoningEffort !== narrationEffort) ? 'preview settings leaked into another tier' : null,
       turnRequests.some(r => r.error && !/abort/i.test(r.error)) ? 'request error' : null,
     ].filter((p): p is string => p !== null);
     // Choices falling back or escalating is allowed behavior; report it.

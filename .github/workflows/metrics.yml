@@ -336,7 +336,8 @@ jobs:
           PAYLOAD=$(jq -n \
             --arg message "$MESSAGE" \
             '{
-              model: "gpt-4.1",
+              model: "gpt-6-luna",
+              reasoning_effort: "none",
               max_completion_tokens: 160,
               messages: [{
                 role: "user",

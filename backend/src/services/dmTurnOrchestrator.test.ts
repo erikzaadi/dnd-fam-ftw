@@ -822,7 +822,7 @@ describe('runChoicesWithRetry', () => {
     expect(result.initialIssues?.stale).toBe(true);
     expect(result.initial?.choices[0].label).toBe('Press deeper');
     expect(result.choices.choices[0].label).toBe('Smash through the barrier');
-    expect(mocks.stream.mock.calls[1][0].model).toBe('gpt-4.1-mini');
+    expect(mocks.stream.mock.calls[1][0].model).toBe('gpt-6-luna');
   });
 
   it('marks a stat-coverage retry as escalated even when the retry fails', async () => {
@@ -976,7 +976,7 @@ describe('runChoicesWithRetry', () => {
 
     expect(recorder.starts).toEqual([
       { agent: 'choices', tier: 'preview', model: 'gpt-5.6-luna' },
-      { agent: 'choices-coverage-retry', tier: 'narration', model: 'gpt-4.1-mini' },
+      { agent: 'choices-coverage-retry', tier: 'narration', model: 'gpt-6-luna' },
     ]);
     expect(recorder.ends).toHaveLength(2);
     expect(recorder.ends[0]).toMatchObject({
@@ -1062,8 +1062,8 @@ describe('choices request settings by tier', () => {
     delete process.env.OPENAI_REASONING_EFFORT_PREVIEW;
   });
 
-  it('sends preview reasoning on the initial choices request but not on the narration-tier retry', async () => {
-    process.env.OPENAI_REASONING_EFFORT_PREVIEW = 'none';
+  it('sends preview reasoning on the initial choices request and narration settings on the retry', async () => {
+    process.env.OPENAI_REASONING_EFFORT_PREVIEW = 'low';
     const input = { ...baseInput(), nextCharacterName: 'Pip' };
     // Initial choices lack Pip's top stat (mischief), forcing a coverage retry
     mockStreamOnce(makeChoicesCompletion());
@@ -1073,9 +1073,9 @@ describe('choices request settings by tier', () => {
 
     expect(result.escalated).toBe(true);
     const [initialRequest, retryRequest] = mocks.stream.mock.calls.map(call => call[0]);
-    expect(initialRequest).toMatchObject({ model: 'gpt-5.6-luna', reasoning_effort: 'none', max_completion_tokens: 450 });
-    expect(retryRequest.model).toBe('gpt-4.1-mini');
-    expect(retryRequest).not.toHaveProperty('reasoning_effort');
+    expect(initialRequest).toMatchObject({ model: 'gpt-5.6-luna', reasoning_effort: 'low', max_completion_tokens: 450 });
+    expect(initialRequest).not.toHaveProperty('service_tier');
+    expect(retryRequest).toMatchObject({ model: 'gpt-6-luna', reasoning_effort: 'none', service_tier: 'priority' });
   });
 
   it('sends the built-in reasoning none on choices requests when the preview setting is unset', async () => {
@@ -1096,31 +1096,34 @@ describe('choices request settings by tier', () => {
   });
 
   it('never sends preview reasoning on narration or mechanics agent requests', async () => {
-    process.env.OPENAI_REASONING_EFFORT_PREVIEW = 'none';
+    process.env.OPENAI_REASONING_EFFORT_PREVIEW = 'low';
     mockStreamOnce(makeNarrationCompletion('Onward.'));
 
     await new DmTurnOrchestrator().orchestrate(baseInput());
 
     const [narrationRequest] = mocks.stream.mock.calls.map(call => call[0]);
-    expect(narrationRequest.model).toBe('gpt-4.1-mini');
-    expect(narrationRequest).not.toHaveProperty('reasoning_effort');
+    expect(narrationRequest).toMatchObject({ model: 'gpt-6-luna', reasoning_effort: 'none', service_tier: 'priority' });
   });
 
-  it('sends the narration reasoning setting on narration agent and narration-tier retry requests', async () => {
-    process.env.OPENAI_REASONING_EFFORT_NARRATION = 'none';
+  it('sends the configured narration settings on narration agent and narration-tier retry requests', async () => {
+    process.env.OPENAI_REASONING_EFFORT_NARRATION = 'low';
+    process.env.OPENAI_SERVICE_TIER_NARRATION = 'omit';
     try {
       mockStreamOnce(makeNarrationCompletion('Onward.'));
       await new DmTurnOrchestrator().orchestrate(baseInput());
-      expect(mocks.stream.mock.calls[0][0]).toMatchObject({ model: 'gpt-4.1-mini', reasoning_effort: 'none' });
+      expect(mocks.stream.mock.calls[0][0]).toMatchObject({ model: 'gpt-6-luna', reasoning_effort: 'low' });
+      expect(mocks.stream.mock.calls[0][0]).not.toHaveProperty('service_tier');
 
       mocks.stream.mockClear();
       mockStreamOnce(makeChoicesCompletion());
       mockStreamOnce(makeChoicesCompletion());
       await runChoicesWithRetry({ ...baseInput(), nextCharacterName: 'Pip' });
       const retryRequest = mocks.stream.mock.calls[1][0];
-      expect(retryRequest).toMatchObject({ model: 'gpt-4.1-mini', reasoning_effort: 'none' });
+      expect(retryRequest).toMatchObject({ model: 'gpt-6-luna', reasoning_effort: 'low' });
+      expect(retryRequest).not.toHaveProperty('service_tier');
     } finally {
       delete process.env.OPENAI_REASONING_EFFORT_NARRATION;
+      delete process.env.OPENAI_SERVICE_TIER_NARRATION;
     }
   });
 });

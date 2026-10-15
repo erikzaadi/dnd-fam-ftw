@@ -209,11 +209,11 @@ describe('invalid preview reasoning setting', () => {
   });
 
   it('never applies preview settings to other tiers', async () => {
-    process.env.OPENAI_REASONING_EFFORT_PREVIEW = 'none';
+    process.env.OPENAI_REASONING_EFFORT_PREVIEW = 'low';
     const { getTierRequestSettings } = await import('./openAiClient.js');
 
-    expect(getTierRequestSettings('preview')).toEqual({ reasoning_effort: 'none' });
-    expect(getTierRequestSettings('narration')).toEqual({});
-    expect(getTierRequestSettings('async')).toEqual({});
+    expect(getTierRequestSettings('preview')).toEqual({ reasoning_effort: 'low' });
+    expect(getTierRequestSettings('narration').reasoning_effort).toBe('none');
+    expect(getTierRequestSettings('async').reasoning_effort).toBe('none');
   });
 });
