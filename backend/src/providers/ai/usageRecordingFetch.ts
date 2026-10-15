@@ -21,6 +21,7 @@ interface RequestInfo {
   stream: boolean;
   ttsCharacters: number | null;
   imageCount: number | null;
+  serviceTier: string | null;
 }
 
 // Every OpenAI SDK request goes through this fetch, so each attempt that reaches the
@@ -168,6 +169,7 @@ function describeRequest(input: string | URL | Request, init?: RequestInit): Req
     stream: body?.stream === true,
     ttsCharacters: kind === 'tts' && typeof body?.input === 'string' ? body.input.length : null,
     imageCount: kind === 'image' ? (typeof body?.n === 'number' ? body.n : 1) : null,
+    serviceTier: typeof body?.service_tier === 'string' ? body.service_tier : null,
   };
 }
 
@@ -281,6 +283,7 @@ function record(info: RequestInfo, attribution: AttributionSnapshot, success: bo
         outputTokens: usage.outputTokens,
         ttsCharacters: info.ttsCharacters,
         imageCount: info.imageCount,
+        serviceTier: info.serviceTier,
       }),
     });
   } catch (err) {

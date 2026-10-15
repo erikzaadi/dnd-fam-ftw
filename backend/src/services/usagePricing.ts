@@ -9,7 +9,11 @@ interface TokenPrice {
   output: number;
 }
 
+// Standard-tier list prices, checked 2026-10-15. Image models: text input and
+// image output (image input for edits is not used).
 const KNOWN_PRICES: Record<string, TokenPrice> = {
+  'gpt-6-luna': { input: 0.1, output: 0.5 },
+  'gpt-5.6-luna': { input: 0.2, output: 1.2 },
   'gpt-4.1': { input: 2, output: 8 },
   'gpt-4.1-mini': { input: 0.4, output: 1.6 },
   'gpt-4.1-nano': { input: 0.1, output: 0.4 },
@@ -17,7 +21,14 @@ const KNOWN_PRICES: Record<string, TokenPrice> = {
   'gpt-4o-mini': { input: 0.15, output: 0.6 },
   'gpt-image-1': { input: 5, output: 40 },
   'gpt-image-1-mini': { input: 2, output: 8 },
+  'gpt-image-2': { input: 5, output: 30 },
 };
+
+// Fast mode (service_tier "priority" or "fast") is billed at 2x Standard. The
+// requested tier is used even if the provider downgrades the request, so the
+// estimate errs high. Other tiers are estimated at Standard prices.
+const FAST_MODE_MULTIPLIER = 2;
+const FAST_SERVICE_TIERS = new Set(['priority', 'fast']);
 
 // Unknown models are priced conservatively so limits err on the safe side.
 const FALLBACK_TEXT_PRICE: TokenPrice = { input: 2, output: 8 };
@@ -91,6 +102,7 @@ export interface CostInput {
   outputTokens: number | null;
   ttsCharacters: number | null;
   imageCount: number | null;
+  serviceTier?: string | null;
 }
 
 export function estimateCostUsd(input: CostInput): number {
@@ -101,7 +113,8 @@ export function estimateCostUsd(input: CostInput): number {
     return input.kind === 'image' ? FALLBACK_IMAGE_COST_USD * Math.max(1, input.imageCount ?? 1) : 0;
   }
   const price = priceFor(input.model, input.kind);
-  return ((input.inputTokens ?? 0) * price.input + (input.outputTokens ?? 0) * price.output) / 1_000_000;
+  const multiplier = input.serviceTier && FAST_SERVICE_TIERS.has(input.serviceTier) ? FAST_MODE_MULTIPLIER : 1;
+  return multiplier * ((input.inputTokens ?? 0) * price.input + (input.outputTokens ?? 0) * price.output) / 1_000_000;
 }
 
 export interface RealtimeSpeechCostInput {

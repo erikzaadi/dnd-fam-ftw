@@ -47,6 +47,13 @@ describe('createUsageRecordingFetch', () => {
     expect(recorded()[0].estimatedCostUsd).toBeCloseTo((1000 * 0.4 + 500 * 1.6) / 1_000_000);
   });
 
+  it('records Fast mode requests at twice the Standard estimate', async () => {
+    const recordingFetch = createUsageRecordingFetch(async () => jsonResponse({ usage: { prompt_tokens: 1000, completion_tokens: 500 } }), allowAll);
+    await recordingFetch('https://api.openai.com/v1/chat/completions', { method: 'POST', body: JSON.stringify({ model: 'gpt-6-luna', service_tier: 'priority' }) });
+    await flush();
+    expect(recorded()[0].estimatedCostUsd).toBeCloseTo(2 * (1000 * 0.1 + 500 * 0.5) / 1_000_000);
+  });
+
   it('records work outside a request with a null namespace', async () => {
     const recordingFetch = createUsageRecordingFetch(async () => jsonResponse({}), allowAll);
     await recordingFetch('https://api.openai.com/v1/images/generations', { method: 'POST', body: JSON.stringify({ model: 'gpt-image-2' }) });

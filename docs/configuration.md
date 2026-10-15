@@ -98,7 +98,7 @@ Every narration-tier request (narration and mechanics agents, ideas retries, TLD
 
 OpenAI retires `gpt-4.1` and `gpt-4.1-mini` on 2027-01-14. When the built-in defaults move to a reasoning model, the model and its reasoning default change together, as `NARRATION_DEFAULTS` and `ASYNC_DEFAULTS` in `openAiClient.ts`. If you pin a reasoning model for these tiers yourself, also set its effort (usually `none`): the provider default is `medium`, which can spend the small token budgets before any text is written.
 
-`OPENAI_SERVICE_TIER_<TIER>` (`NARRATION`, `PREVIEW`, `ASYNC`) sends `service_tier` on that tier's requests; unset leaves it to the OpenAI project default. `priority` is OpenAI's Fast mode: lower latency at a higher per-token price. Usage estimates (`usagePricing.ts`) do not account for the tier, so Fast mode spend is underestimated in the app's limits and reports.
+`OPENAI_SERVICE_TIER_<TIER>` (`NARRATION`, `PREVIEW`, `ASYNC`) sends `service_tier` on that tier's requests; unset leaves it to the OpenAI project default. `priority` is OpenAI's Fast mode: lower latency at a higher per-token price. Usage estimates (`usagePricing.ts`) count Fast mode requests at twice the Standard price; other tiers are estimated at Standard prices.
 
 `[Metrics] turn_complete` log lines still include `choicesFailed=` and `choicesEscalated=`; both are always false now that turns carry no suggestions.
 
