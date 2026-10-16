@@ -1,5 +1,5 @@
 import { devLog } from '../lib/devLog.js';
-import type { SessionState, TurnResult } from '../types.js';
+import type { Choice, SessionState, TurnResult } from '../types.js';
 import { computeInventoryChanges } from './turnChangeService.js';
 
 // Post-generation repairs that keep narration and choices consistent with the
@@ -133,56 +133,48 @@ export const alignTurnWithResolvedEncounter = (
   const lootNarration = buildLootNarration(addedLoot);
   const followThrough = buildPostEncounterFollowThrough(previousSession);
   turnResult.narration = `${enemyNames} ${resolution}.${lootNarration} The immediate fight is over.${followThrough}`;
-  // AI choices for this turn already point forward - let stripChoicesTargetingDefeatedEnemies
-  // clean up any stale enemy references rather than replacing with generic fallbacks.
   newState.lastChoices = turnResult.choices;
 };
 
-export const stripChoicesTargetingDefeatedEnemies = (
-  newState: SessionState,
-  turnResult: TurnResult,
-): boolean => {
-  // Defeated terms come from the live encounter (updated statuses cover both active
-  // and just-resolved fights) plus the most recently archived encounter, so the turn
-  // right after resolution moves the encounter to pastEncounters is still covered.
-  const lastArchived = newState.pastEncounters?.[newState.pastEncounters.length - 1];
-  const defeatedTerms = new Set([
-    ...(newState.encounterState?.enemies ?? [])
-      .filter(e => e.status !== 'active')
-      .flatMap(e => [e.name, ...(e.aliases ?? [])].map(t => t.toLowerCase())),
-    ...(!newState.encounterState && lastArchived
-      ? lastArchived.enemies.flatMap(e => [e.name, ...(e.aliases ?? [])].map(t => t.toLowerCase()))
-      : []),
-  ]);
-  if (defeatedTerms.size === 0) {
-    return false;
+// Ideas that still target a defeated enemy ("Attack the troll" after it fell) are replaced
+// with fresh options, keeping each choice's id. Whole-word matches only, so "rat" does not
+// catch "pirate". Defeated names come from the live encounter plus, right after a fight
+// was archived, the most recent past encounter. Returns the input when nothing matched.
+export const replaceChoicesTargetingDefeatedEnemies = (state: SessionState, choices: Choice[]): Choice[] => {
+  const lastArchived = state.pastEncounters?.[state.pastEncounters.length - 1];
+  const defeated = [
+    ...(state.encounterState?.enemies ?? []).filter(e => e.status !== 'active'),
+    ...(!state.encounterState && lastArchived ? lastArchived.enemies : []),
+  ];
+  const terms = defeated.flatMap(e => [e.name, ...(e.aliases ?? [])]);
+  if (terms.length === 0) {
+    return choices;
   }
-  const activeEnemies = (newState.encounterState?.enemies ?? []).filter(e => e.status === 'active');
+  const target = (state.encounterState?.enemies ?? []).find(e => e.status === 'active');
+  const variants = target
+    ? [
+      { label: `Press the attack on the ${target.name}`, narration: `Keep the pressure on the ${target.name} while the moment allows.` },
+      { label: `Find an opening against the ${target.name}`, narration: `Watch the ${target.name} for a weakness to exploit.` },
+      { label: `Throw the ${target.name} off balance`, narration: `Disrupt the ${target.name} before they can regroup.` },
+    ]
+    : [
+      { label: 'Hold position and stay ready', narration: 'Brace and stay alert for what comes next.' },
+      { label: 'Scan the area for the next threat', narration: 'Sweep the surroundings before moving on.' },
+      { label: 'Regroup with the party', narration: 'Pull together and plan the next move.' },
+    ];
+  let replaced = 0;
   let changed = false;
-  let replacedCount = 0;
-  const fixedChoices = turnResult.choices.map(choice => {
-    const lower = `${choice.label} ${choice.narration ?? ''}`.toLowerCase();
-    if (![...defeatedTerms].some(term => lower.includes(term))) {
+  const fixed = choices.map(choice => {
+    const text = `${choice.label} ${choice.narration ?? ''}`;
+    if (!terms.some(term => mentions(text, term))) {
       return choice;
     }
     changed = true;
-    const target = activeEnemies[0];
-    // Vary replacements so multiple stripped choices don't render as identical buttons
-    const variants = target
-      ? [
-        { label: `Press the attack on the ${target.name}`, narration: `Keep the pressure on the ${target.name} while the moment allows.` },
-        { label: `Find an opening against the ${target.name}`, narration: `Watch the ${target.name} for a weakness to exploit.` },
-        { label: `Throw the ${target.name} off balance`, narration: `Disrupt the ${target.name} before they can regroup.` },
-      ]
-      : [
-        { label: 'Hold position and stay ready', narration: 'Brace and stay alert for what comes next.' },
-        { label: 'Scan the area for the next threat', narration: 'Sweep the surroundings before moving on.' },
-        { label: 'Regroup with the party', narration: 'Pull together and plan the next move.' },
-      ];
-    const replacement = variants[replacedCount % variants.length];
-    replacedCount++;
-    devLog.warn(`[Guard] choice targets defeated enemy - replacing. original="${choice.label}" new="${replacement.label}"`);
+    // Vary replacements so several stripped choices don't render as identical buttons.
+    const replacement = variants[replaced++ % variants.length];
+    devLog.warn(`[Guard] idea targets defeated enemy - replacing. original="${choice.label}" new="${replacement.label}"`);
     return {
+      ...(choice.id !== undefined && { id: choice.id }),
       label: replacement.label,
       difficulty: choice.difficulty,
       stat: choice.stat,
@@ -191,9 +183,5 @@ export const stripChoicesTargetingDefeatedEnemies = (
       flavor: 'standard' as const,
     };
   });
-  if (changed) {
-    turnResult.choices = fixedChoices;
-    newState.lastChoices = fixedChoices;
-  }
-  return changed;
+  return changed ? fixed : choices;
 };

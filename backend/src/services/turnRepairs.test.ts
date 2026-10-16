@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EncounterState, SessionState, TurnResult } from '../types.js';
-import { alignTurnWithResolvedEncounter } from './turnRepairs.js';
+import { alignTurnWithResolvedEncounter, replaceChoicesTargetingDefeatedEnemies } from './turnRepairs.js';
 
 const swarm = (status: 'active' | 'defeated') => ({
   id: 'e1',
@@ -79,5 +79,28 @@ describe('alignTurnWithResolvedEncounter', () => {
     alignTurnWithResolvedEncounter(before, after, result);
 
     expect(result.narration).toContain('Whirling Contract Swarm collapses, defeated.');
+  });
+});
+
+describe('replaceChoicesTargetingDefeatedEnemies', () => {
+  const choice = (id: number, label: string) => ({ id, label, difficulty: 'normal' as const, stat: 'might' as const, difficultyValue: 12 });
+  const state = (enemies: EncounterState['enemies']): SessionState => ({
+    encounterState: { id: 'enc', name: 'Rat Fight', status: 'active', round: 1, enemies, areas: [] },
+  } as unknown as SessionState);
+
+  it('replaces ideas naming a defeated foe, keeping their ids', () => {
+    const s = state([
+      { id: 'r', name: 'Giant Rat', role: 'standard', hp: 0, maxHp: 4, status: 'defeated' },
+      { id: 'k', name: 'Rat King', role: 'boss', hp: 9, maxHp: 9, status: 'active' },
+    ]);
+    const result = replaceChoicesTargetingDefeatedEnemies(s, [choice(1, 'Kick the Giant Rat'), choice(2, 'Search the cellar')]);
+    expect(result[0]).toMatchObject({ id: 1, label: 'Press the attack on the Rat King' });
+    expect(result[1]).toMatchObject({ id: 2, label: 'Search the cellar' });
+  });
+
+  it('matches whole words only', () => {
+    const s = state([{ id: 'r', name: 'Rat', role: 'minion', hp: 0, maxHp: 2, status: 'defeated' }]);
+    const ideas = [choice(1, 'Bribe the pirate'), choice(2, 'Thank the grateful cook')];
+    expect(replaceChoicesTargetingDefeatedEnemies(s, ideas)).toBe(ideas);
   });
 });

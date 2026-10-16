@@ -9,6 +9,7 @@ import { runChoicesWithRetry, toPlayerChoices } from './dmTurnOrchestrator.js';
 import { createNarrationProvider } from '../providers/ai/AiProviderFactory.js';
 import { ensureActiveRiddle, syncRiddleChoices } from './riddleService.js';
 import { toPublicChoice } from './sessionProjection.js';
+import { replaceChoicesTargetingDefeatedEnemies } from './turnRepairs.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { createSlidingWindowLimiter } from '../lib/slidingWindowLimiter.js';
 
@@ -81,7 +82,8 @@ const generate = async (session: SessionState, history: TurnResult[]): Promise<{
   const generated = provider.generateIdeas
     ? await provider.generateIdeas(input)
     : await runChoicesWithRetry(input).then(flow => ({ choices: toPlayerChoices(flow.choices, input), degraded: flow.usedFallback }));
-  const choices = generated.choices;
+  // Ideas are built from the scene as it stands, but may still name a foe that already fell.
+  const choices = replaceChoicesTargetingDefeatedEnemies(session, generated.choices);
   // Riddle answers follow the recorded riddle, never the agent's guess.
   const riddle = ensureActiveRiddle(session);
   const synced = syncRiddleChoices(choices, !riddle ? null : riddle.canonicalAnswer ? { canonicalAnswer: riddle.canonicalAnswer, aliases: riddle.aliases } : 'unknown');

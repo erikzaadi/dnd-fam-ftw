@@ -4,7 +4,6 @@ import { GameEngine } from '../../services/gameEngine.js';
 import { sessionRepository } from '../../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../../repositories/turnHistoryRepository.js';
 import { executeTurnAction } from '../../services/turnService.js';
-import type { SessionState } from '../../types.js';
 import {
   FIXED_NARRATION_OUTPUT,
   TURN_STRATEGIES,
@@ -235,40 +234,5 @@ describe('turn resolution characterization (resolved_first only)', () => {
 
     await expect(executeTurnAction(id, 'local', { action: 'Pip juggles three apples', statUsed: 'mischief' })).rejects.toThrow('provider down');
     expect(await turnHistoryRepository.getTurnHistory(id)).toHaveLength(0);
-  });
-
-  it('strips choices that still target an enemy the frozen mechanics defeated', async () => {
-    const id = 'tr-rf-strip-defeated';
-    const encounterSession: Partial<SessionState> = {
-      id,
-      encounterState: {
-        id: 'enc-ambusher',
-        name: 'Ambusher Skirmish',
-        status: 'active',
-        round: 1,
-        enemies: [{ id: 'enemy-ambusher', name: 'Ambusher', role: 'standard', hp: 1, maxHp: 6, status: 'active' }],
-        areas: [],
-      },
-    };
-    await insertSessionState(makeTestSession(encounterSession));
-    vi.spyOn(GameEngine, 'rollDice').mockReturnValue({ roll: 15, total: 20 });
-    mockNarrateResolved.mockResolvedValueOnce({
-      narration: 'Pip lands the blow.',
-      currentTensionLevel: 'medium',
-      choices: [
-        { label: 'Finish off the Ambusher', difficulty: 'normal', stat: 'might', difficultyValue: 12 },
-        { label: 'Search the kitchen', difficulty: 'easy', stat: 'mischief', difficultyValue: 8 },
-      ],
-      objectiveOutcome: null,
-    });
-
-    const result = await executeTurnAction(id, 'local', { action: 'Pip strikes the Ambusher with a precise blade thrust', statUsed: 'magic', difficulty: 'easy', difficultyValue: 1 });
-
-    expectTurnStrategy(result, 'resolved_first');
-    if (!result.ok) {
-      return;
-    }
-    expect(result.body.turnResult.choices.map(choice => choice.label).join(' ').toLowerCase()).not.toContain('ambusher');
-    expect(result.diagnostics?.repairs).toContain('strip_defeated_enemy_choices');
   });
 });

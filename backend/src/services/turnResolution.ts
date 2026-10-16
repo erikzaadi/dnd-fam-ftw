@@ -7,7 +7,7 @@ import type { TurnDecision } from './freeActionPolicyService.js';
 import { GameEngine } from './gameEngine.js';
 import { buildResolvedTurnFacts, type ResolvedTurnFacts } from './resolvedTurn.js';
 import { applyTurnPolicies, type TurnDiagnostics } from './turnDiagnostics.js';
-import { alignTurnWithResolvedEncounter, stripChoicesTargetingDefeatedEnemies } from './turnRepairs.js';
+import { alignTurnWithResolvedEncounter } from './turnRepairs.js';
 import { checkTurnResultConsistency } from './turnResultConsistencyService.js';
 
 // Turn resolution: everything between "the action attempt is known" and "here is the
@@ -22,7 +22,6 @@ import { checkTurnResultConsistency } from './turnResultConsistencyService.js';
 //   engine apply                  after generation  after gen.      once, before narration (c)
 //   encounter name repair         with narration    with narration  without narration
 //   align narration to encounter  yes               yes             no (c)
-//   strip defeated-enemy choices  yes               yes             yes, safety net
 //
 //   (a) Item turns: the engine already applied the item. A policy reading the attempt
 //       text ("healing Pip") would add its effect a second time.
@@ -100,9 +99,6 @@ const resolveParallel = async (
   if (turnResult.narration !== narrationBeforeAlign) {
     diagnostics.repair('align_resolved_encounter_narration');
   }
-  if (stripChoicesTargetingDefeatedEnemies(newState, turnResult)) {
-    diagnostics.repair('strip_defeated_enemy_choices');
-  }
   return { turnResult, newState };
 };
 
@@ -173,11 +169,6 @@ const resolveFirst = async (
   };
   frozen.lastChoices = turnResult.choices;
 
-  // Safety net only: choices were built from the post-turn encounter, so this should
-  // rarely fire. Counted as a repair so the comparison shows how often it still does.
-  if (stripChoicesTargetingDefeatedEnemies(frozen, turnResult)) {
-    diagnostics.repair('strip_defeated_enemy_choices');
-  }
   checkTurnResultConsistency(turnResult, session, attempt);
 
   return { turnResult, newState: frozen, facts };
