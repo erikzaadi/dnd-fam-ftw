@@ -1,4 +1,5 @@
 import type { NarrationInput } from './NarrationProvider.js';
+import { BUFF_INTENTS } from '../../../lib/actionIntents.js';
 import { isTradeTurn, isRiddleTurn } from './narrationPrompt.js';
 import {
   SECTION_PREAMBLE_PACING_TENSION,
@@ -50,10 +51,8 @@ const ACTIVE_ENCOUNTER_NARRATION_CONTEXT = `ACTIVE ENCOUNTER - Narration Context
 
 const TYPOGRAPHY_RULE = `CRITICAL - Typography: NEVER use em dashes in any output field. Use a comma, colon, or hyphen instead.`;
 
-const BUFF_ACTION_INTENTS = new Set(['bless_character', 'aid_character', 'party_boost']);
-
 function isBuffTurn(input: NarrationInput): boolean {
-  if (input.actionIntent && BUFF_ACTION_INTENTS.has(input.actionIntent)) {
+  if (input.actionIntent && BUFF_INTENTS.has(input.actionIntent)) {
     return true;
   }
   return input.party.some(c => c.buffs && c.buffs.length > 0);
@@ -181,7 +180,7 @@ export function buildRecoveryAgentSystemPrompt(input: NarrationInput): string {
   const restTurn = isRestTurn(input);
   const buffTurn = isBuffTurn(input);
   const isBuffIntent = input.actionIntent
-    ? BUFF_ACTION_INTENTS.has(input.actionIntent)
+    ? BUFF_INTENTS.has(input.actionIntent)
     : false;
 
   const sections = [

@@ -28,6 +28,7 @@ import {
 } from '../providers/ai/narration/agentSchemas.js';
 import { createOpenAIClient, getModelForTier, getTierRequestSettings, type TierRequestSettings } from '../providers/ai/openAiClient.js';
 import { devLog } from '../lib/devLog.js';
+import { BUFF_INTENTS } from '../lib/actionIntents.js';
 import type { NarratedRiddle } from '../types.js';
 
 export type { AgentDiagnostic, AgentErrorKind };
@@ -174,13 +175,11 @@ export function shouldRunInventoryAgent(input: NarrationInput): boolean {
   return isTradeTurn(input) || isLootTurn || isEnchantTurn;
 }
 
-const BUFF_INTENT_SET = new Set(['bless_character', 'aid_character', 'party_boost']);
-
 export function shouldRunRecoveryAgent(input: NarrationInput): boolean {
   const hasDownedMember = input.party.some(c => c.status === 'downed');
   const hasActiveBuff = input.party.some(c => c.buffs && c.buffs.length > 0);
   const isRestTurn = !!(input.sanctuaryRecovery || input.interventionRescue);
-  const isBuffIntent = input.actionIntent ? BUFF_INTENT_SET.has(input.actionIntent) : false;
+  const isBuffIntent = input.actionIntent ? BUFF_INTENTS.has(input.actionIntent) : false;
   return hasDownedMember || hasActiveBuff || isRestTurn || isBuffIntent;
 }
 

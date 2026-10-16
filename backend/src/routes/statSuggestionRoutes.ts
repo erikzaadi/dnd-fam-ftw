@@ -5,6 +5,7 @@ import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
 import { getTierRequestSettings, warnIfEmptyTruncation } from '../providers/ai/openAiClient.js';
 import { parseSuggestedStats, STAT_FALLBACK, suggestStatForSessionAction } from '../services/statSuggestionService.js';
 import { parseBody } from './routeValidation.js';
+import { PREVIEW_ACTION_INTENTS } from '../lib/actionIntents.js';
 import { registerSessionIdParam } from '../middleware/sessionParam.js';
 import { MAX_CLARIFICATION_ROUNDS, previewAction } from '../services/actionPreviewService.js';
 import { requirePaidWork } from '../middleware/usageAdmission.js';
@@ -17,7 +18,7 @@ const suggestStatBodySchema = z.object({
 
 const previewActionBodySchema = z.object({
   action: z.string().min(1).optional(),
-  intent: z.enum(['use_item_scene', 'improve_item', 'bless_character', 'aid_character', 'party_boost']).optional(),
+  intent: z.enum(PREVIEW_ACTION_INTENTS).optional(),
   targetCharacterId: z.string().optional(),
   itemOwnerCharacterId: z.string().optional(),
   itemId: z.string().optional(),

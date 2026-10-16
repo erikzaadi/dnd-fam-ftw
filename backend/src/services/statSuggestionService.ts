@@ -7,6 +7,7 @@ import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js'
 import type { Character, EncounterEnemy, EncounterWeakness, FreeActionPreview } from '../types.js';
 
 import { devLog } from '../lib/devLog.js';
+import type { PreviewActionIntent } from '../lib/actionIntents.js';
 
 export const STAT_FALLBACK = { might: 2, magic: 2, mischief: 3 };
 
@@ -21,12 +22,6 @@ const PREVIEW_CLARIFY_RULE = 'Set "clarify" to one short question (at most 12 wo
 const MAX_CLARIFY_QUESTION_LENGTH = 160;
 export type SuggestedStat = 'might' | 'magic' | 'mischief';
 export type SessionActionStatSuggestion = FreeActionBonusPreview & { stat: SuggestedStat };
-export type PreviewActionIntent =
-  | 'use_item_scene'
-  | 'improve_item'
-  | 'bless_character'
-  | 'aid_character'
-  | 'party_boost';
 
 export type PreviewActionContext = {
   intent?: PreviewActionIntent;

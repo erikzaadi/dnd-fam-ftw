@@ -1,5 +1,6 @@
 import type { ActionAttempt, Character, Difficulty, SessionState, TurnResult } from '../types.js';
 import { HEALING_ACTION_RE, searchable, containsSearchable } from '../lib/textUtils.js';
+import { SUPPORT_INTENTS } from '../lib/actionIntents.js';
 
 const ENCHANT_ACTION_RE = /\b(enchant|enchanting|bless|blessing|empower|empowering|infuse|infusing|imbue|imbuing|charge|charging|strengthen|strengthening|upgrade|upgrading)\b/i;
 const PARTY_WIDE_RE = /\b(party|everyone|everybody|all|whole group|the group|the team|teammates|friends|allies|share|shared|together|feast|meal)\b/i;
@@ -279,13 +280,11 @@ export function ensureSuccessfulSupportSuggestion(
   return turnResult;
 }
 
-const SUPPORT_BUFF_INTENTS = new Set(['bless_character', 'aid_character', 'party_boost', 'improve_item']);
-
 // Support and healing attempts never punish the acting hero with HP damage on
 // failure - the DM prompts promise this, but the agent that owns
 // suggestedDamage only runs during encounters, so enforce it deterministically.
 export function isNoFailureDamageAction(action: string, actionIntent?: string): boolean {
-  return (!!actionIntent && SUPPORT_BUFF_INTENTS.has(actionIntent)) || isHealingFreeAction(action);
+  return (!!actionIntent && SUPPORT_INTENTS.has(actionIntent)) || isHealingFreeAction(action);
 }
 
 // What the turn pipeline decides about an action before generation, once: the early
@@ -329,7 +328,7 @@ export function dropUnearnedBuffAdds(
   if (!Array.isArray(turnResult.suggestedBuffAdd) || turnResult.suggestedBuffAdd.length === 0) {
     return turnResult;
   }
-  if (actionIntent && SUPPORT_BUFF_INTENTS.has(actionIntent)) {
+  if (actionIntent && SUPPORT_INTENTS.has(actionIntent)) {
     return turnResult;
   }
   const action = actionAttempt.actionAttempt;
@@ -354,7 +353,7 @@ export function dropRedundantBuffAdds(
   if (!Array.isArray(turnResult.suggestedBuffAdd) || turnResult.suggestedBuffAdd.length === 0) {
     return turnResult;
   }
-  if (actionIntent && SUPPORT_BUFF_INTENTS.has(actionIntent)) {
+  if (actionIntent && SUPPORT_INTENTS.has(actionIntent)) {
     return turnResult;
   }
   const kept = turnResult.suggestedBuffAdd.filter(buff => {

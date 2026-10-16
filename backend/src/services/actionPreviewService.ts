@@ -2,6 +2,7 @@ import type { ActionClarification, FreeActionPreview, PreviewClarification, Sess
 import { buildEncounterContextFromEnemies, previewFreeAction } from './statSuggestionService.js';
 import { buildFreeActionWarnings, getFreeActionDifficulty } from './freeActionPolicyService.js';
 import { devLog } from '../lib/devLog.js';
+import { SUPPORT_INTENTS, type PreviewActionIntent } from '../lib/actionIntents.js';
 import { storeActionPreviewRecord, type StoredActionPreview } from './actionPreviewStore.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { assessRiddleAction, ensureActiveRiddle, RIDDLE_ANSWER_UNKNOWN_MESSAGE } from './riddleService.js';
@@ -18,7 +19,7 @@ export type ItemAttachment = { actionType: 'use_item' | 'give_item'; itemId: str
 
 export type ActionPreviewRequest = {
   action?: string;
-  intent?: 'use_item_scene' | 'improve_item' | 'bless_character' | 'aid_character' | 'party_boost';
+  intent?: PreviewActionIntent;
   targetCharacterId?: string;
   itemOwnerCharacterId?: string;
   itemId?: string;
@@ -83,8 +84,6 @@ const buildItemPreview = (
     },
   };
 };
-
-const SUPPORT_INTENTS = new Set(['bless_character', 'aid_character', 'improve_item', 'party_boost']);
 
 export const previewAction = async (
   session: SessionState,
