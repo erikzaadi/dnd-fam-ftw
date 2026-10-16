@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Home } from './pages/Home';
 import { SessionPage } from './pages/Session';
@@ -20,6 +20,9 @@ import { VerifyEmail } from './pages/VerifyEmail';
 import { AcceptInvite } from './pages/AcceptInvite';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AudioUnlockOverlay } from './components/AudioUnlockOverlay';
+
+// Lazy: keeps the QR encoder out of the main bundle.
+const TvSignIn = lazy(() => import('./pages/TvSignIn').then(m => ({ default: m.TvSignIn })));
 
 function AuthUnavailable({ onRetry }: { onRetry: () => void }) {
   return (
@@ -130,6 +133,7 @@ function App() {
         <Route path="/namespace-picker" element={<NamespacePicker />} />
         <Route path="/request-invite" element={<RequestInvite />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />
+        <Route path="/tv" element={<Suspense fallback={null}><TvSignIn /></Suspense>} />
         <Route path="/*" element={<AppRoutes />} />
       </Routes>
     </AuthProvider>

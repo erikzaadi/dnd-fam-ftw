@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiFetch, apiUrl } from '../lib/api';
 import { formatWait, savePendingEmailSignIn } from '../lib/emailSignIn';
 import { useAuth } from '../contexts/AuthContext';
@@ -149,6 +149,16 @@ export const Login = () => {
               </svg>
               {emailEnabled ? 'Continue with Google' : 'Sign in with Google'}
             </button>
+          )}
+
+          {config?.deviceSignIn && (
+            <Link
+              to="/tv"
+              className="w-full py-4 px-5 bg-slate-800 hover:bg-slate-700 border-2 border-slate-700 rounded-[20px] font-black uppercase italic tracking-tighter transition-colors text-slate-100 flex items-center justify-center gap-3 focus:outline-none focus:ring-4 focus:ring-amber-500/60"
+            >
+              <span aria-hidden="true" className="text-2xl not-italic">📺</span>
+              Playing on a TV?
+            </Link>
           )}
 
           {!signupOpen && (

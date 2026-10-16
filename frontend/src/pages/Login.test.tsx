@@ -54,6 +54,14 @@ describe('Login', () => {
     expect(screen.getByRole('button', { name: /Sign in with Google/ })).toBeTruthy();
   });
 
+  it('offers TV sign-in only when the realm allows it', () => {
+    renderLogin();
+    expect(screen.queryByRole('link', { name: /Playing on a TV/ })).toBeNull();
+    mocks.config = { ...mocks.config!, deviceSignIn: true };
+    renderLogin();
+    expect(screen.getByRole('link', { name: /Playing on a TV/ }).getAttribute('href')).toBe('/tv');
+  });
+
   it('starts an email sign-in and moves to the code screen', async () => {
     mocks.apiFetch.mockResolvedValue(new Response(JSON.stringify({
       challengeId: 'challenge-1', maskedEmail: 'h***@example.com', resendAfterSeconds: 60, expiresInSeconds: 600,
