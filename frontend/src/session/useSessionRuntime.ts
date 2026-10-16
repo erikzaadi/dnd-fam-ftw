@@ -262,6 +262,8 @@ export function useSessionRuntime({ sessionId, presenter = {}, onboardingIdeas =
 
   const { connectionState } = useSessionEvents({
     sessionId,
+    // Deleted, or no longer in this realm: same as a failed load.
+    onUnavailable: () => navigate('/'),
     onConnected: () => {
       presenterRef.current.onConnected?.();
       void reconcile();

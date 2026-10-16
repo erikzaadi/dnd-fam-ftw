@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Session, TurnResult, Character, ImageReadyEvent, ActionAttempt, HpChange, IdeasPayload } from '../types';
-import { apiUrl } from '../lib/api';
+import { apiFetch } from '../lib/api';
+import { openEventStream, type StreamState } from '../lib/eventStream';
 import { devLog } from '../lib/devLog';
-
-const SSE_STALE_TIMEOUT_MS = 60000;
-const SSE_STALE_CHECK_MS = 10000;
-const SSE_RECONNECT_DELAY_MS = 3000;
 
 export interface NarratingPayload {
   action?: string;
@@ -56,9 +53,11 @@ interface SessionEventHandlers {
   // Ideas were generated for a turn (by this viewer or another). Not a turn: no narration,
   // dice, or turn effects. Handlers must apply it idempotently.
   onIdeasUpdated?: (payload: IdeasPayload) => void;
+  // The adventure is gone (deleted, or this realm lost access): the stream stopped.
+  onUnavailable?: () => void;
 }
 
-export type ConnectionState = 'connected' | 'reconnecting' | 'disconnected';
+export type ConnectionState = StreamState;
 
 export const useSessionEvents = ({
   sessionId,
@@ -79,35 +78,29 @@ export const useSessionEvents = ({
   onAdventureConcluded,
   onAdventureConcluding,
   onIdeasUpdated,
+  onUnavailable,
 }: SessionEventHandlers) => {
   const [connectionState, setConnectionState] = useState<ConnectionState>('connected');
   const setConnectionStateRef = useRef(setConnectionState);
   setConnectionStateRef.current = setConnectionState;
+  const onUnavailableRef = useRef(onUnavailable);
+  onUnavailableRef.current = onUnavailable;
 
   useEffect(() => {
-    let es: EventSource;
-    let reconnectTimer: ReturnType<typeof setTimeout>;
-    let lastMessageAt = Date.now();
-    let closed = false;
-
-    const scheduleReconnect = () => {
-      if (closed) {
-        return;
-      }
-      es?.close();
-      setConnectionStateRef.current('reconnecting');
-      clearTimeout(reconnectTimer);
-      reconnectTimer = setTimeout(connect, SSE_RECONNECT_DELAY_MS);
-    };
-
-    const connect = () => {
-      lastMessageAt = Date.now();
-      es = new EventSource(apiUrl(`/session/${sessionId}/events`), { withCredentials: true });
-
-      es.onmessage = (e: MessageEvent) => {
-        setConnectionStateRef.current('connected');
-        lastMessageAt = Date.now();
-        const data = JSON.parse(e.data);
+    return openEventStream({
+      path: `/session/${sessionId}/events`,
+      onStateChange: state => setConnectionStateRef.current(state),
+      // A deleted adventure, or one this realm lost access to, answers 404: stop.
+      onRepeatedFailure: async () => {
+        const res = await apiFetch(`/session/${sessionId}`);
+        if (res.status === 404) {
+          onUnavailableRef.current?.();
+          return 'stop';
+        }
+        return 'retry';
+      },
+      onMessage: (raw) => {
+        const data = JSON.parse(raw);
         if (data.type !== 'narration_chunk') {
           devLog.log(`[SSE] ${data.type ?? 'message'}`, data);
         }
@@ -178,26 +171,8 @@ export const useSessionEvents = ({
         } else if (data.type === 'ideas_updated') {
           onIdeasUpdated?.(data as IdeasPayload);
         }
-      };
-
-      es.onerror = () => {
-        scheduleReconnect(); 
-      };
-    };
-
-    connect();
-    const staleTimer = setInterval(() => {
-      if (Date.now() - lastMessageAt > SSE_STALE_TIMEOUT_MS) {
-        scheduleReconnect(); 
-      }
-    }, SSE_STALE_CHECK_MS);
-
-    return () => {
-      closed = true;
-      es?.close();
-      clearTimeout(reconnectTimer);
-      clearInterval(staleTimer);
-    };
+      },
+    });
   // Handlers are intentionally excluded - they are stable callbacks from the parent.
   // Re-running the effect on every render would reconnect the SSE stream unnecessarily.
   // eslint-disable-next-line react-hooks/exhaustive-deps

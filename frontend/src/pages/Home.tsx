@@ -9,7 +9,8 @@ import { SetupTutorialOverlay } from '../components/SetupTutorialOverlay';
 import { SiteHeader } from '../components/SiteHeader';
 import { Tooltip } from '../components/Tooltip';
 import { CharacterPopup } from '../components/CharacterPopup';
-import { apiFetch, apiUrl, imgSrc } from '../lib/api';
+import { apiFetch, imgSrc } from '../lib/api';
+import { openEventStream } from '../lib/eventStream';
 import { createInstantStartWaiter } from '../lib/instantStartWait';
 import { useFirstRunWizard } from '../firstRun/useFirstRunWizard';
 import { HOME_TUTORIAL_KEY, HOME_TUTORIAL_PENDING_KEY, INVITE_TIP_KEY, type SetupTutorialStep, useSetupTutorial } from '../hooks/useSetupTutorial';
@@ -31,10 +32,6 @@ const PACING_LABELS: Record<string, { icon: string; label: string }> = {
   fast: { icon: '⚡', label: 'Fast' },
   'zug-ma-geddon': { icon: '💀', label: 'ZUG-MA-GEDDON' },
 };
-
-const SSE_STALE_TIMEOUT_MS = 60000;
-const SSE_STALE_CHECK_MS = 10000;
-const SSE_RECONNECT_DELAY_MS = 3000;
 
 const INVITE_STEP_BODY = 'Adventures are better together. Invite family or friends by email so they can join this realm. Everyone here shares its adventure energy.';
 
@@ -630,59 +627,20 @@ export const Home = () => {
     }
   }, [location.state, navigate]);
 
-  useEffect(() => {
-    let es: EventSource;
-    let reconnectTimer: ReturnType<typeof setTimeout>;
-    let lastMessageAt = Date.now();
-    let closed = false;
-
-    const refresh = () => {
-      loadSessions();
-      loadLimits();
-    };
-
-    const scheduleReconnect = () => {
-      if (closed) {
-        return; 
+  useEffect(() => openEventStream({
+    path: '/sessions/events',
+    onMessage: (raw) => {
+      const data = JSON.parse(raw) as { type?: string; sessionId?: string };
+      if (data.type === 'session_changed' || data.type === 'preview_image_available') {
+        loadSessions();
+        loadLimits();
+      } else if (data.type === 'instant_start_ready' && data.sessionId) {
+        instantStartWaiter.markReady(data.sessionId);
+      } else if (data.type === 'connected') {
+        instantStartWaiter.reconcile();
       }
-      es?.close();
-      clearTimeout(reconnectTimer);
-      reconnectTimer = setTimeout(connect, SSE_RECONNECT_DELAY_MS);
-    };
-
-    const connect = () => {
-      lastMessageAt = Date.now();
-      es = new EventSource(apiUrl('/sessions/events'), { withCredentials: true });
-      es.onmessage = (e: MessageEvent) => {
-        lastMessageAt = Date.now();
-        const data = JSON.parse(e.data) as { type?: string; sessionId?: string };
-        if (data.type === 'session_changed' || data.type === 'preview_image_available') {
-          refresh();
-        } else if (data.type === 'instant_start_ready' && data.sessionId) {
-          instantStartWaiter.markReady(data.sessionId);
-        } else if (data.type === 'connected') {
-          instantStartWaiter.reconcile();
-        }
-      };
-      es.onerror = () => {
-        scheduleReconnect(); 
-      };
-    };
-
-    connect();
-    const staleTimer = setInterval(() => {
-      if (Date.now() - lastMessageAt > SSE_STALE_TIMEOUT_MS) {
-        scheduleReconnect(); 
-      }
-    }, SSE_STALE_CHECK_MS);
-
-    return () => {
-      closed = true;
-      es?.close();
-      clearTimeout(reconnectTimer);
-      clearInterval(staleTimer);
-    };
-  }, [instantStartWaiter, loadLimits, loadSessions, navigate]);
+    },
+  }), [instantStartWaiter, loadLimits, loadSessions]);
 
   // Leaving Home stops a pending instant-start wait.
   useEffect(() => () => instantStartWaiter.cancel(), [instantStartWaiter]);
