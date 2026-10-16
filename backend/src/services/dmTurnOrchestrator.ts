@@ -72,22 +72,12 @@ async function withDeadline<T>(
   deadlineMs: number,
   diagnostics: AgentDiagnostic[],
   retryOnce = false,
-  // When set, the deadline does not fire before this promise settles. Used to let a
-  // choices retry keep working while narration is still streaming: the turn waits
-  // for narration anyway, so the extra time costs players nothing.
-  extendUntil?: Promise<unknown>,
 ): Promise<T> {
   const controller = new AbortController();
   const start = Date.now();
   let retried = false;
   let deadlineTimer: ReturnType<typeof setTimeout> | null = null;
-  let extensionSettled = !extendUntil;
   let finished = false;
-  void extendUntil?.then(() => {
-    extensionSettled = true;
-  }, () => {
-    extensionSettled = true;
-  });
   try {
     const result = await Promise.race([
       (async () => {
@@ -113,14 +103,7 @@ async function withDeadline<T>(
           controller.abort();
           reject(new Error('agent-deadline'));
         };
-        deadlineTimer = setTimeout(() => {
-          if (extensionSettled || !extendUntil) {
-            expire();
-            return;
-          }
-          const fireAfterExtension = () => expire();
-          extendUntil.then(fireAfterExtension, fireAfterExtension);
-        }, deadlineMs);
+        deadlineTimer = setTimeout(expire, deadlineMs);
       }),
     ]);
     finished = true;
@@ -799,16 +782,13 @@ export type ChoicesFlowResult = {
 };
 
 // Initial preview-tier choices attempt plus at most one narration-tier retry.
-// Shared by orchestrate() and the preview-choices evaluation script so both
+// Shared by generateIdeas() and the preview-choices evaluation script so both
 // exercise the same deadlines, retries, and repairs.
 export async function runChoicesWithRetry(
   input: NarrationInput,
   options: {
     diagnostics?: AgentDiagnostic[];
     observer?: ChoicesFlowObserver;
-    // Settles when the parallel narration call finishes. Retries may run until then
-    // (past their own deadline) because the turn cannot complete earlier anyway.
-    narrationSettled?: Promise<unknown>;
   } = {},
 ): Promise<ChoicesFlowResult> {
   const diagnostics = options.diagnostics ?? [];
@@ -863,8 +843,6 @@ export async function runChoicesWithRetry(
       null,
       choicesRetryDeadlineMs,
       diagnostics,
-      false,
-      options.narrationSettled,
     );
     const best = corrected ?? first;
     return {
@@ -882,8 +860,6 @@ export async function runChoicesWithRetry(
     choicesFallback,
     choicesRetryDeadlineMs,
     diagnostics,
-    false,
-    options.narrationSettled,
   );
   // The retry runs exactly when the first attempt failed, so the final
   // choices are fallback only if the retry itself failed.
@@ -952,56 +928,19 @@ export class DmTurnOrchestrator implements NarrationProvider {
       narration: fallbackOutput.narration,
       currentTensionLevel: fallbackOutput.currentTensionLevel,
     };
-    const combatFallback: CombatAgentOutput = {
-      suggestedDamage: null,
-      suggestedEncounterStart: null,
-      suggestedEncounterUpdate: null,
-    };
-    const inventoryFallback: InventoryAgentOutput = {
-      suggestedInventoryAdd: null,
-      suggestedInventoryRemove: null,
-      suggestedInventoryUpdate: null,
-    };
-    const recoveryFallback: RecoveryAgentOutput = {
-      suggestedRevive: null,
-      suggestedHeal: null,
-      suggestedBuffAdd: null,
-      suggestedBuffRemove: null,
-    };
-
-    const runCombat = shouldRunCombatAgent(input);
-    const runInventory = shouldRunInventoryAgent(input);
-    const runRecovery = shouldRunRecoveryAgent(input);
-
-    devLog.log([
-      '[Orchestrator] start',
-      `encounter=${input.encounterState?.status ?? 'none'}`,
-      `startSignal=${hasEncounterStartSignal(input)}`,
-      `runCombat=${runCombat}`,
-      `runInventory=${runInventory}`,
-      `runRecovery=${runRecovery}`,
-    ].join(' '));
-
     // Narration streams a few hundred tokens, so it regularly needs >3.5s; the
     // deadline is p99 hang protection, not a latency target - a fallback narration
     // is a much worse player outcome than a couple of extra seconds of streaming.
     // First/intervention/sanctuary turns are story-critical and run while heavy
     // background work (campaign media, origin story) competes for the API, and
     // the player is reading intro text anyway - give them an even longer budget.
-    const narrationPromise = runNarrationAgent(input, callbacks, narrationFallback, narrationDeadlineMs(input), diagnostics);
+    // Mechanics run in parallel with the same gates, deadlines and fallbacks as resolved_first.
     // A turn carries no suggestions: they come from generateIdeas when a player asks.
-    const [{ output: narration, usedFallback: narrationUsedFallback }, combat, inventory, recovery] = await Promise.all([
-      narrationPromise,
-      runCombat
-        ? withDeadline('combat', (signal) => callCombatAgent(input, signal), combatFallback, 2500, diagnostics, true)
-        : Promise.resolve(combatFallback),
-      runInventory
-        ? withDeadline('inventory', (signal) => callInventoryAgent(input, signal), inventoryFallback, 2500, diagnostics, true)
-        : Promise.resolve(inventoryFallback),
-      runRecovery
-        ? withDeadline('recovery', (signal) => callRecoveryAgent(input, signal), recoveryFallback, 3000, diagnostics, true)
-        : Promise.resolve(recoveryFallback),
+    const [{ output: narration, usedFallback: narrationUsedFallback }, mechanics] = await Promise.all([
+      runNarrationAgent(input, callbacks, narrationFallback, narrationDeadlineMs(input), diagnostics),
+      this.proposeMechanics(input),
     ]);
+    diagnostics.push(...(mechanics.agentDiagnostics ?? []));
 
     const durationMs = Date.now() - orchestratorStart;
     const agentStatuses = diagnostics.map(d => `${d.agent}:${d.status}(${d.durationMs}ms)`).join(' ');
@@ -1018,16 +957,7 @@ export class DmTurnOrchestrator implements NarrationProvider {
       objectiveOutcome: input.adventureDirective?.decisiveMoment && !narrationUsedFallback ? (narration.objectiveOutcome ?? null) : null,
       narratedRiddle: toNarratedRiddle(narration, narrationUsedFallback),
       choices: [],
-      suggestedDamage: combat.suggestedDamage ?? null,
-      suggestedEncounterStart: (combat.suggestedEncounterStart ?? null) as NarrationOutput['suggestedEncounterStart'],
-      suggestedEncounterUpdate: (combat.suggestedEncounterUpdate ?? null) as NarrationOutput['suggestedEncounterUpdate'],
-      suggestedInventoryAdd: (inventory.suggestedInventoryAdd ?? null) as NarrationOutput['suggestedInventoryAdd'],
-      suggestedInventoryRemove: inventory.suggestedInventoryRemove ?? null,
-      suggestedInventoryUpdate: (inventory.suggestedInventoryUpdate ?? null) as NarrationOutput['suggestedInventoryUpdate'],
-      suggestedRevive: recovery.suggestedRevive ?? null,
-      suggestedHeal: (recovery.suggestedHeal ?? null) as NarrationOutput['suggestedHeal'],
-      suggestedBuffAdd: (recovery.suggestedBuffAdd ?? null) as NarrationOutput['suggestedBuffAdd'],
-      suggestedBuffRemove: recovery.suggestedBuffRemove ?? null,
+      ...mechanics,
       narrationRetried: false,
       narrationFailed: narrationUsedFallback,
       choicesFailed: false,
