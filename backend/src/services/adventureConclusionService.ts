@@ -37,15 +37,18 @@ const RESOLUTION_GUIDANCE: Record<AdventureResolution, string> = {
 
 export const buildDeterministicEpilogue = (session: SessionState, history: TurnResult[], resolution: AdventureResolution): string => {
   const contributions = collectContributions(session, history);
+  // Objectives and actions keep their own capitalization (hero and place names), so they
+  // are quoted rather than lowercased into the sentence.
+  const quote = (text: string) => `"${text.replace(/[.?!]+$/, '')}"`;
   const objective = session.adventure?.objective;
   const opening = resolution === 'success'
-    ? `And so the tale of ${session.displayName} reaches its end${objective ? `: ${objective.replace(/[.?!]+$/, '').toLowerCase()} - done` : ''}.`
+    ? `And so the tale of ${session.displayName} reaches its end${objective ? `: ${quote(objective)}, done` : ''}.`
     : resolution === 'setback'
-      ? `The tale of ${session.displayName} ends with a hard lesson${objective ? `: ${objective.replace(/[.?!]+$/, '').toLowerCase()} slipped away this time` : ''}.`
+      ? `The tale of ${session.displayName} ends with a hard lesson${objective ? `: ${quote(objective)} slipped away this time` : ''}.`
       : `The party of ${session.displayName} makes camp for the night, the story paused mid-stride.`;
   const heroes = contributions.map(hero => {
     const last = hero.actions[hero.actions.length - 1];
-    return last ? `${hero.name} will be remembered for this: ${last.replace(/ \((succeeded|failed)\)$/, '').toLowerCase()}.` : `${hero.name} stood with the party to the end.`;
+    return last ? `${hero.name} will be remembered for this: ${quote(last.replace(/ \((succeeded|failed)\)$/, ''))}.` : `${hero.name} stood with the party to the end.`;
   });
   const close = resolution === 'ended_early'
     ? 'Whatever waits in the dark will still be there next time.'
