@@ -130,6 +130,9 @@ export interface EncounterState {
   round: number;
   objective?: string;
   lastResolvedEnemyName?: string;
+  // Set by the first-wipe rescue: this many committed turns (the rescue turn, then one
+  // rest step) skip combat while the fight stays active with its enemies frozen.
+  pausedTurns?: number;
 }
 
 export interface EncounterSeed {

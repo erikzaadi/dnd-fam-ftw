@@ -87,6 +87,8 @@ export type NarrationInput = {
   isFirstTurn?: boolean;
   interventionRescue?: boolean;
   sanctuaryRecovery?: boolean;
+  // The rest step after a rescue: the fight is paused for this action.
+  restStep?: boolean;
   actionIntent?: string;
   encounterState?: EncounterState;
   encounterJustResolved?: boolean;

@@ -1,7 +1,7 @@
 import { Character, SessionState, ActionAttempt, InventoryItem, Choice, type CharacterBuff, type Stat, type Difficulty, type TensionLevel, type TurnResult } from '../types.js';
 import { createId } from '../lib/ids.js';
 import { COMBAT_ACTION_RE } from '../lib/textUtils.js';
-import { handleEncounterStart, applyEncounterUpdate, computeImpactDamage, computeEnemyDamage, inferOrganicEncounterStart, inferSeededEncounterStart, resolveEncounterSeed } from './encounterService.js';
+import { handleEncounterStart, applyEncounterUpdate, isEncounterPaused, computeImpactDamage, computeEnemyDamage, inferOrganicEncounterStart, inferSeededEncounterStart, resolveEncounterSeed } from './encounterService.js';
 import type { EncounterStartProposal, EncounterUpdateProposal } from '../providers/ai/narration/narrationSchemas.js';
 
 // What a turn proposes before engine validation: narration/choices plus suggested
@@ -339,7 +339,8 @@ export class GameEngine {
     return Infinity;
   }
 
-  public static applySanctuaryRecovery(state: SessionState): SessionState {
+  // Shared by both rescues: downed heroes back at 1 HP, buffs cleared, first hero acts.
+  private static reviveDownedParty(state: SessionState): SessionState {
     const newState: SessionState = JSON.parse(JSON.stringify(state));
     for (const char of newState.party) {
       if (char.status === 'downed') {
@@ -355,18 +356,23 @@ export class GameEngine {
     return newState;
   }
 
-  public static applyIntervention(state: SessionState): SessionState {
-    const newState: SessionState = JSON.parse(JSON.stringify(state));
-    for (const char of newState.party) {
-      if (char.status === 'downed') {
-        char.status = 'active';
-        char.hp = 1;
-        char.buffs = [];
-      }
+  // Later wipes: the party wakes somewhere safe, so the fight is over. Archived directly
+  // (not through applyEncounterUpdate) so it grants no victory loot.
+  public static applySanctuaryRecovery(state: SessionState): SessionState {
+    const newState = this.reviveDownedParty(state);
+    if (newState.encounterState?.status === 'active') {
+      newState.pastEncounters = [...(newState.pastEncounters ?? []), { ...newState.encounterState, status: 'resolved' }];
+      newState.encounterState = undefined;
     }
-    newState.interventionState = { rescuesUsed: (state.interventionState?.rescuesUsed ?? 0) + 1 };
-    if (newState.party.length > 0) {
-      newState.activeCharacterId = newState.party[0].id;
+    return newState;
+  }
+
+  // First wipe: the rescuer pulls the party a step back. The fight pauses with its enemies
+  // frozen for the rescue turn and one rest step, then resumes.
+  public static applyIntervention(state: SessionState): SessionState {
+    const newState = this.reviveDownedParty(state);
+    if (newState.encounterState?.status === 'active') {
+      newState.encounterState.pausedTurns = 2;
     }
     return newState;
   }
@@ -718,8 +724,12 @@ export class GameEngine {
         }
       }
 
-      // Encounter: always apply update when active (ticks DoT, increments round); auto-damage when AI omitted enemy damage
-      if (newState.encounterState?.status === 'active') {
+      // Paused fight (after a rescue): enemies, effects and round stay exactly as they are.
+      if (isEncounterPaused(newState) && newState.encounterState) {
+        const left = (newState.encounterState.pausedTurns ?? 0) - 1;
+        newState.encounterState.pausedTurns = left > 0 ? left : undefined;
+      } else if (newState.encounterState?.status === 'active') {
+        // Encounter: always apply update when active (ticks DoT, increments round); auto-damage when AI omitted enemy damage
         const aiEncounterUpdate = aiSuggestedChanges?.suggestedEncounterUpdate;
         const baseUpdate: EncounterUpdateProposal = (aiEncounterUpdate && typeof aiEncounterUpdate === 'object')
           ? aiEncounterUpdate as EncounterUpdateProposal

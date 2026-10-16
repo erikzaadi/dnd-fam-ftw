@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isTradeTurn, isRiddleTurn } from './narrationPrompt.js';
+import { isTradeTurn, isRiddleTurn, buildNarrationUserContent } from './narrationPrompt.js';
 import {
   buildNarrationAgentSystemPrompt,
   buildChoicesAgentSystemPrompt,
@@ -467,5 +467,13 @@ describe('buildChoicesAgentSystemPrompt - actor section', () => {
     const prompt = buildNarrationAgentSystemPrompt(makeInput());
     expect(prompt).toContain('Narration MUST describe what THEY did');
     expect(prompt).not.toContain('Choice perspective:');
+  });
+});
+
+describe('buildNarrationUserContent rest step', () => {
+  it('tells the narrator the fight is paused on the rest step only', () => {
+    const base = { party: [], inventory: [] } as unknown as NarrationInput;
+    expect(buildNarrationUserContent({ ...base, restStep: true })).toMatch(/^\[REST STEP\]/);
+    expect(buildNarrationUserContent(base)).not.toMatch(/REST STEP/);
   });
 });

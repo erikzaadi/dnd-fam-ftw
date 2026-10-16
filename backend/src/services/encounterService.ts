@@ -1,4 +1,5 @@
 import { createId } from '../lib/ids.js';
+import { COMBAT_ACTION_RE } from '../lib/textUtils.js';
 import type { Choice, EncounterArea, EncounterEnemy, EncounterSeed, EncounterState, EncounterWeakness, Impact, Stat, TensionLevel } from '../types.js';
 import type { EncounterStartProposal, EncounterUpdateProposal } from '../providers/ai/narration/narrationSchemas.js';
 
@@ -615,6 +616,18 @@ export const resolveEnemy = (
   // Reject ambiguous matches
   return matches.length === 1 ? matches[0] : null;
 };
+
+// The fight is on hold after a rescue: no combat agent, no enemy damage or effect ticks,
+// no failure damage. It stays 'active' so no new encounter can replace it.
+export const isEncounterPaused = (state: { encounterState?: EncounterState | null }): boolean =>
+  state.encounterState?.status === 'active' && (state.encounterState.pausedTurns ?? 0) > 0;
+
+// Attacking during the rest step resumes the fight at once: the turn then runs under
+// normal combat rules (combat agent, damage, early HP preview).
+export const resumeEncounterIfAttacking = <T extends { encounterState?: EncounterState | null }>(state: T, actionText: string | undefined): T =>
+  isEncounterPaused(state) && actionText && COMBAT_ACTION_RE.test(actionText)
+    ? { ...state, encounterState: { ...state.encounterState!, pausedTurns: undefined } }
+    : state;
 
 // Apply a suggestedEncounterUpdate to an active encounter state (mutates a deep clone)
 export const applyEncounterUpdate = (

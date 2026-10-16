@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { isEncounterPaused, resumeEncounterIfAttacking } from './encounterService.js';
 import { GameEngine } from './gameEngine.js';
 import type { Character, EncounterSeed, EncounterState, SessionState } from '../types.js';
 
@@ -1041,5 +1042,60 @@ describe('GameEngine.updateState - encounter auto-damage', () => {
     });
 
     expect(result.encounterState).toBeUndefined();
+  });
+});
+
+describe('rescues and the paused fight', () => {
+  const fight = (): EncounterState => ({
+    id: 'enc-pause',
+    name: 'Troll Bridge',
+    status: 'active',
+    round: 3,
+    enemies: [{
+      id: 'troll',
+      name: 'Troll',
+      role: 'elite',
+      hp: 7,
+      maxHp: 10,
+      status: 'active',
+      weaknesses: [{ id: 'w1', label: 'sunlight', revealed: true }],
+      effects: [{ id: 'e1', name: 'Burning', description: 'On fire', kind: 'damage_over_time', damagePerTurn: 1, remainingTurns: 3 }],
+    }],
+    areas: [],
+  });
+  const wiped = () => makeSession({ party: [makeChar({ id: 'h1', status: 'downed', hp: 0 })], encounterState: fight() });
+  const rescueAttempt = { actionAttempt: 'A mysterious force saved the party from doom', actionResult: { success: true, roll: 0, statUsed: 'none' as const } };
+  const failedSafeAction = { actionAttempt: 'I catch my breath', actionResult: { success: false, roll: 3, statUsed: 'might' as const, difficulty: 'normal' as const } };
+
+  it('sanctuary archives the fight without loot and leaves no active encounter', () => {
+    const result = GameEngine.applySanctuaryRecovery(wiped());
+    expect(result.encounterState).toBeUndefined();
+    expect(result.pastEncounters?.at(-1)).toMatchObject({ id: 'enc-pause', status: 'resolved' });
+    expect(result.party[0].inventory).toEqual(wiped().party[0].inventory);
+  });
+
+  it('the dragon pauses the fight: rescue turn and rest step leave enemies frozen, then combat resumes', () => {
+    const rescued = GameEngine.applyIntervention(wiped());
+    expect(isEncounterPaused(rescued)).toBe(true);
+
+    const afterRescueTurn = GameEngine.updateState(rescued, rescueAttempt, {});
+    expect(afterRescueTurn.encounterState).toMatchObject({ round: 3, enemies: [{ hp: 7, effects: [{ remainingTurns: 3 }] }] });
+    expect(isEncounterPaused(afterRescueTurn)).toBe(true);
+
+    // The rest step: failure damage is suppressed by the turn policy (suggestedDamage 0).
+    const afterRest = GameEngine.updateState(afterRescueTurn, failedSafeAction, { suggestedDamage: 0, narration: 'A tense, high-danger moment.', currentTensionLevel: 'high' });
+    expect(afterRest.encounterState).toMatchObject({ id: 'enc-pause', round: 3, enemies: [{ hp: 7, weaknesses: [{ revealed: true }] }] });
+    expect(afterRest.party[0].hp).toBe(1);
+    expect(isEncounterPaused(afterRest)).toBe(false);
+
+    const resumed = GameEngine.updateState(afterRest, failedSafeAction, {});
+    expect(resumed.encounterState).toMatchObject({ round: 4, enemies: [{ hp: 6 }] });
+  });
+
+  it('an attack during the rest step resumes the fight at once', () => {
+    const paused = GameEngine.updateState(GameEngine.applyIntervention(wiped()), rescueAttempt, {});
+    expect(resumeEncounterIfAttacking(paused, 'I strike the troll')).not.toBe(paused);
+    expect(isEncounterPaused(resumeEncounterIfAttacking(paused, 'I strike the troll'))).toBe(false);
+    expect(resumeEncounterIfAttacking(paused, 'I bandage my arm')).toBe(paused);
   });
 });

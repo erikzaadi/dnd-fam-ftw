@@ -211,6 +211,7 @@ export function toNarrationInput(input: AIInput): NarrationInput {
       : {}),
     interventionRescue: input.interventionRescue,
     sanctuaryRecovery: input.sanctuaryRecovery,
+    ...(input.restStep && { restStep: true }),
     ...(input.adventureDirective && { adventureDirective: input.adventureDirective }),
   };
 }

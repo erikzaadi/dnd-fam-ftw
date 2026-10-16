@@ -28,6 +28,7 @@ import {
 } from '../providers/ai/narration/agentSchemas.js';
 import { createOpenAIClient, getModelForTier, getTierRequestSettings, type TierRequestSettings } from '../providers/ai/openAiClient.js';
 import { devLog } from '../lib/devLog.js';
+import { isEncounterPaused } from './encounterService.js';
 import { BUFF_INTENTS } from '../lib/actionIntents.js';
 import type { NarratedRiddle } from '../types.js';
 
@@ -165,6 +166,9 @@ export function hasEncounterStartSignal(input: NarrationInput): boolean {
 }
 
 export function shouldRunCombatAgent(input: NarrationInput): boolean {
+  if (isEncounterPaused(input)) {
+    return false;
+  }
   return input.encounterState?.status === 'active' || hasEncounterStartSignal(input);
 }
 

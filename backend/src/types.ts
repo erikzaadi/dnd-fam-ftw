@@ -80,6 +80,8 @@ export interface AIInput extends SessionState, ActionAttempt {
   sceneMomentum?: SceneMomentum;
   interventionRescue?: boolean;
   sanctuaryRecovery?: boolean;
+  // The rest step after a rescue: the fight is paused for this action.
+  restStep?: boolean;
   actionIntent?: string;
   recentChoiceLabels?: string[];
   adventureDirective?: AdventureDirective;

@@ -187,10 +187,10 @@ export const HowToPlay = () => {
               </p>
               <div className="space-y-2 mt-3">
                 <div className="text-base text-slate-300 p-4 bg-amber-900/20 border border-amber-800/40 rounded-2xl">
-                  <strong className="text-amber-400">First wipe 🐉</strong> - A magical intervention (dragon, time rewind, divine coincidence) saves the party at 1 HP each.
+                  <strong className="text-amber-400">First wipe 🐉</strong> - A magical intervention (dragon, time rewind, divine coincidence) saves the party at 1 HP each and pulls them a step back. A fight pauses: the foes wait, and your next action is a safe breather (attack and the fight is back on).
                 </div>
                 <div className="text-base text-slate-300 p-4 bg-slate-800/60 border border-slate-700 rounded-2xl">
-                  <strong className="text-slate-300">Further wipes 🏕️</strong> - The party wakes up somewhere safe and quiet. Battered, humbled, alive.
+                  <strong className="text-slate-300">Further wipes 🏕️</strong> - The party wakes up somewhere safe and quiet, and the fight is over. Battered, humbled, alive.
                 </div>
                 <div className="text-base text-slate-300 p-4 bg-rose-900/20 border border-rose-800/40 rounded-2xl">
                   <strong className="text-rose-400">No rescues left 💀</strong> - The campaign is over. How many chances you get depends on difficulty: easy is unlimited, normal gets 2, hard gets 1, and zug-ma-geddon gives you none.

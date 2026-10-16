@@ -185,7 +185,7 @@ export class StorySummaryService {
     }
   }
 
-  static async updateAfterIntervention(sessionId: string, interventionNarration: string, sourceTurn?: number): Promise<void> {
+  static async updateAfterIntervention(sessionId: string, interventionNarration: string, sourceTurn: number, outcome: 'intervention' | 'sanctuary'): Promise<void> {
     try {
       const session = await sessionRepository.getSession(sessionId);
       if (!session) {
@@ -194,8 +194,11 @@ export class StorySummaryService {
 
       const previous = session.storySummary ? `Previous Summary: ${session.storySummary}\n\n` : '';
       const prompt = `${previous}A major turning point occurred: "${interventionNarration}"\n\nWrite a NEW, concise story summary (2-4 sentences). 
-CRITICAL: The party has just been rescued or moved to a new location. Explicitly state that they have LEFT the previous scene behind. 
-Focus only on the current situation and the essential journey, ignoring defeated or bypassed enemies from the past.`;
+${outcome === 'sanctuary'
+    ? `CRITICAL: The party has just been moved to a safe new location. Explicitly state that they have LEFT the previous scene and its fight behind.
+Focus only on the current situation and the essential journey, ignoring defeated or bypassed enemies from the past.`
+    : `CRITICAL: The party has just been rescued and pulled a short step back from the fight. The same foes are still nearby and the fight will resume: say so explicitly.
+Focus on the current situation and the essential journey.`}`;
 
       const summary = await this.callSummarize(prompt);
       if (summary && await sessionRepository.updateStorySummary(sessionId, summary, sourceTurn ?? session.turn)) {

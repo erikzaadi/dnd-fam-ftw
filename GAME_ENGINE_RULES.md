@@ -326,17 +326,19 @@ When **all party members are downed at the end of a turn**, the backend checks `
 
 1. All downed characters are restored to `1 HP` and set `active`.
 2. `interventionState.rescuesUsed` is incremented to 1.
-3. The AI is called with a special `[INTERVENTION]` prefix, instructed to narrate a dramatic magical rescue (dragon, time rewind, divine blessing, absurd coincidence).
-4. The rescue narration is added to the story summary async.
-5. An `intervention` SSE event is broadcast to all clients : the frontend shows an amber banner.
+3. The AI is called with a special `[INTERVENTION]` prefix, instructed to narrate a dramatic magical rescue (dragon, time rewind, divine blessing, absurd coincidence) that pulls the party a short step back from any fight.
+4. An active fight is **paused**, not ended (`encounterState.pausedTurns = 2`): it stays active with every enemy's HP, effects, weaknesses and the round frozen through the rescue turn and the party's next action (the rest step). During the rest step the combat agent does not run, nothing ticks, and a failed roll costs no HP; the narrator gets a `[REST STEP]` prefix. Attacking during the rest step resumes the fight at once under normal rules. After the rest step the fight continues from the frozen state.
+5. The rescue narration is added to the story summary async (the summary says the same foes are still nearby).
+6. An `intervention` SSE event is broadcast to all clients : the frontend shows an amber banner.
 
 ### Sanctuary Recovery (subsequent wipes within limit)
 
 If the party wipes again and `rescuesUsed` is still below the difficulty limit:
 1. All downed characters are restored to `1 HP` and set `active`.
 2. `interventionState.rescuesUsed` is incremented.
-3. The AI is called with a special `[SANCTUARY]` prefix, instructed to narrate the party waking up somewhere safe and quiet.
-4. A `sanctuary_recovery` SSE event is broadcast : the frontend shows a grey banner.
+3. An active fight ends: it moves to `pastEncounters` with status `resolved`, granting no loot and no chapter success.
+4. The AI is called with a special `[SANCTUARY]` prefix, instructed to narrate the party waking up somewhere safe and quiet.
+5. A `sanctuary_recovery` SSE event is broadcast : the frontend shows a grey banner.
 
 ### Game Over (wipe with no rescues remaining)
 

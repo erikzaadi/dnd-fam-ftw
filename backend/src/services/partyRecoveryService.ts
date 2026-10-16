@@ -93,5 +93,5 @@ export const resolvePartyRecovery = async (params: {
     revision: committed.revision,
   });
   broadcastSessionChanged(namespaceId, sessionId, 'updated');
-  runBackground(`${outcome}-summary session=${sessionId}`, () => StorySummaryService.updateAfterIntervention(sessionId, recoveryTurn.narration, postState.turn));
+  runBackground(`${outcome}-summary session=${sessionId}`, () => StorySummaryService.updateAfterIntervention(sessionId, recoveryTurn.narration, postState.turn, outcome));
 };

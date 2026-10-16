@@ -1,5 +1,6 @@
 import { broadcastUpdate } from '../realtime/sessionEvents.js';
 import { devLog } from '../lib/devLog.js';
+import { isEncounterPaused, resumeEncounterIfAttacking } from './encounterService.js';
 import type { ActionAttempt, AIInput, Choice, NarratedRiddle, ServerTurnResult, SessionState, Stat, TurnResult } from '../types.js';
 import type { NarrationStreamCallbacks } from '../providers/ai/narration/NarrationProvider.js';
 import { createNarrationProvider } from '../providers/ai/AiProviderFactory.js';
@@ -100,7 +101,7 @@ const resolveItemTurn = async (
   const scenePressure = buildScenePressure(history, itemAttempt, itemState.scene);
   const sceneMomentum = buildSceneMomentum(history, itemAttempt, itemState, scenePressure);
   const itemDirective = buildAdventureDirective(session);
-  const aiInput: AIInput = { ...itemState, ...itemAttempt, activeCharacterId: nextCharIdForItem, characterId: actingCharId, scenePressure, sceneMomentum, lastChoices: ctx.latestChoices, ...(itemDirective && { adventureDirective: itemDirective }) };
+  const aiInput: AIInput = { ...itemState, ...itemAttempt, activeCharacterId: nextCharIdForItem, characterId: actingCharId, scenePressure, sceneMomentum, lastChoices: ctx.latestChoices, ...(itemDirective && { adventureDirective: itemDirective }), ...(isEncounterPaused(itemState) && { restStep: true }) };
   broadcastUpdate(sessionId, 'dm_narrating', { action: action.text, statUsed: 'none', character, operationId });
   stepStart = logTurnStep(sessionId, 'item-pre-llm', stepStart);
   const itemLlmStart = Date.now();
@@ -251,10 +252,12 @@ const resolveRolledTurn = async (
   const sceneMomentum = buildSceneMomentum(history, actionAttempt, session, scenePressure);
   const effectiveActionIntent = action.actionIntent ?? inferActionIntent(actionText, session);
   const adventureDirective = buildAdventureDirective(session);
-  const aiInput: AIInput = { ...(adventureDirective && { adventureDirective }), ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId, scenePressure, sceneMomentum, ...(effectiveActionIntent && { actionIntent: effectiveActionIntent }), lastChoices: latestChoices, ...(recentChoiceLabels.length > 0 && { recentChoiceLabels }) };
+  const aiInput: AIInput = { ...(adventureDirective && { adventureDirective }), ...session, ...actionAttempt, activeCharacterId: nextCharId, characterId: actingCharId, scenePressure, sceneMomentum, ...(effectiveActionIntent && { actionIntent: effectiveActionIntent }), lastChoices: latestChoices, ...(recentChoiceLabels.length > 0 && { recentChoiceLabels }), ...(isEncounterPaused(session) && { restStep: true }) };
   const targetCharName = action.targetCharacterId ? session.party.find(c => c.id === action.targetCharacterId)?.name : undefined;
   // One decision for the early HP preview below and the policies after generation.
-  const decision = decideTurn(actionText, effectiveActionIntent, targetCharName);
+  const baseDecision = decideTurn(actionText, effectiveActionIntent, targetCharName);
+  // The rest step after a rescue: a failed roll costs no HP.
+  const decision = isEncounterPaused(session) ? { ...baseDecision, noFailureDamage: true } : baseDecision;
   stepStart = logTurnStep(
     sessionId,
     'build-ai-input',
@@ -391,7 +394,7 @@ export const executeTurnAction = async (
     sessionId,
     namespaceId,
     operationId: options.operationId,
-    session,
+    session: action.kind === 'item_use' || action.kind === 'item_give' ? session : resumeEncounterIfAttacking(session, action.text),
     history,
     latestChoices,
     turnStart,
