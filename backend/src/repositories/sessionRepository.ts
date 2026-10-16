@@ -49,6 +49,7 @@ export type SessionListItem = {
 };
 
 export type SessionPatch = {
+  activeCharacterId?: string;
   difficulty?: string;
   gameMode?: string;
   dmPrep?: string | null;
@@ -491,6 +492,7 @@ export const sessionRepository = {
   patchSessionSync(id: string, fields: SessionPatch): void {
     const db = getDb();
     const colMap: Record<string, string> = {
+      activeCharacterId: 'activeCharacterId',
       difficulty: 'difficulty',
       gameMode: 'gameMode',
       dmPrep: 'dm_prep',

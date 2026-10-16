@@ -243,6 +243,19 @@ describe('TV sign-in route policy', () => {
     expect(stillHasAccess(tvReq)).toBe(false);
   });
 
+  it('hands the turn to the next hero when the active hero is deleted', async () => {
+    const base = makeTestSession();
+    const party = base.party.map(c => ({ ...c, id: `dh-${c.id}`, inventory: c.inventory.map(item => ({ ...item, id: `dh-${item.id}` })) }));
+    await insertSessionState(makeTestSession({ id: 'delete-handoff', party, activeCharacterId: party[0].id }));
+    const namespaceId = getDb().prepare('SELECT namespace_id FROM sessions WHERE id = ?').get(SESSION_ID) as { namespace_id: string };
+    getDb().prepare('UPDATE sessions SET namespace_id = ? WHERE id = ?').run(namespaceId.namespace_id, 'delete-handoff');
+
+    const res = await fetch(`${baseUrl}/session/delete-handoff/character/${party[0].id}`, { method: 'DELETE', headers: { cookie: tvCookie, origin: ORIGIN } });
+    expect(res.status).toBe(200);
+    const row = getDb().prepare('SELECT activeCharacterId FROM sessions WHERE id = ?').get('delete-handoff') as { activeCharacterId: string };
+    expect(row.activeCharacterId).toBe(party[1].id);
+  });
+
   it('marks pairing and device responses as not cacheable', async () => {
     const res = await fetch(`${baseUrl}/auth/device/poll`);
     expect(res.headers.get('cache-control')).toBe('no-store');

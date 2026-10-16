@@ -115,3 +115,22 @@ describe('normalizeTurnAction', () => {
       .toMatchObject({ status: 400, body: { error: 'missing_item' } });
   });
 });
+
+describe('normalizeTurnAction actor rule', () => {
+  it('refuses a rolled action from a hero who is not up', () => {
+    expect(normalizeTurnAction({ action: 'Juggle', statUsed: 'mischief', characterId: 'zara' }, session, choices))
+      .toMatchObject({ status: 409, body: { error: 'not_your_turn' } });
+    expect(normalizeTurnAction({ action: 'Old', statUsed: 'might', choiceId: 11, characterId: 'ghost' }, session, choices))
+      .toMatchObject({ status: 409, body: { error: 'not_your_turn' } });
+  });
+
+  it('still lets an item owner use or give their item on another hero\'s turn', () => {
+    expect(normalizeTurnAction({ action: 'use item', statUsed: 'none', actionType: 'use_item', itemId: 'potion', ownerCharId: 'zara' }, session, choices))
+      .toMatchObject({ kind: 'item_use', actorId: 'zara' });
+  });
+
+  it('accepts the active hero, named or implied', () => {
+    expect(normalizeTurnAction({ action: 'Juggle', statUsed: 'mischief', characterId: 'pip' }, session, choices)).toMatchObject({ actorId: 'pip' });
+    expect(normalizeTurnAction({ action: 'Juggle', statUsed: 'mischief' }, session, choices)).toMatchObject({ actorId: 'pip' });
+  });
+});

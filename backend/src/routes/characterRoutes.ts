@@ -13,6 +13,7 @@ import { parseBody } from './routeValidation.js';
 import { registerSessionIdParam } from '../middleware/sessionParam.js';
 import { runBackground } from '../middleware/runBackground.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
+import { GameEngine } from '../services/gameEngine.js';
 import { applyGuardedSessionMutation } from '../services/sessionMutationService.js';
 import { requirePaidWork, respondIfPaidWorkRefused } from '../middleware/usageAdmission.js';
 
@@ -197,8 +198,20 @@ export const createCharacterRouter = () => {
       res.status(404).json({ error: 'Character not found' });
       return;
     }
-    const mutation = applyGuardedSessionMutation(sessionId as string, undefined, () => {
+    // Deleting the hero whose turn it is hands the turn to the next one, computed from the
+    // party before the delete (or no one when nobody else can act).
+    let handOff: string | null = null;
+    if (session.activeCharacterId === charId) {
+      const next = GameEngine.getNextActiveCharacter(session.party, charId as string);
+      // Only downed heroes left: the first remaining one (the wipe rules take it from there).
+      handOff = next !== charId ? next : session.party.find(c => c.id !== charId)?.id ?? '';
+    }
+    // With a hand-off, the revision check keeps it from acting on a party a turn just changed.
+    const mutation = applyGuardedSessionMutation(sessionId as string, handOff === null ? undefined : session.revision ?? 0, () => {
       characterRepository.deleteCharacter(charId as string);
+      if (handOff !== null) {
+        sessionRepository.patchSessionSync(sessionId as string, { activeCharacterId: handOff });
+      }
     });
     if (!mutation.ok) {
       res.status(mutation.status).json(mutation.body);

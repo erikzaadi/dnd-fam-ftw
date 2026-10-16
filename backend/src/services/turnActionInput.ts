@@ -127,6 +127,21 @@ export const normalizeTurnAction = (
   session: Pick<SessionState, 'id' | 'revision' | 'activeCharacterId'>,
   latestChoices: Choice[],
 ): TurnAction | TurnActionRejection => {
+  const action = buildTurnAction(request, session, latestChoices);
+  // The engine applies damage, buffs and turn order to the active hero, so a rolled
+  // action must come from that hero. Item use and give may come from the item's owner.
+  if (!isRejection(action) && (action.kind === 'choice' || action.kind === 'free_text')
+    && session.activeCharacterId && action.actorId !== session.activeCharacterId) {
+    return rejectTurnAction(409, { error: 'not_your_turn', message: 'It is another hero\'s turn. Refresh to see who acts next.' });
+  }
+  return action;
+};
+
+const buildTurnAction = (
+  request: TurnActionRequest,
+  session: Pick<SessionState, 'id' | 'revision' | 'activeCharacterId'>,
+  latestChoices: Choice[],
+): TurnAction | TurnActionRejection => {
   if (request.previewId) {
     return actionFromPreview(request, session, request.previewId);
   }
