@@ -83,6 +83,17 @@ const containsNormalizedTerm = (text: string, term: string): boolean => {
   return normalizedText.includes(normalizedTerm);
 };
 
+// The active enemy an action names, for fallback damage: whole-word match on the name or
+// an alias. No match, or several enemies matching, falls back to the first active enemy.
+export const targetedActiveEnemy = (encounter: EncounterState, actionText: string): EncounterEnemy | undefined => {
+  const active = encounter.enemies.filter(e => e.status === 'active');
+  const text = ` ${normalizeEnemyName(actionText)} `;
+  const named = active.filter(enemy => [enemy.name, ...(enemy.aliases ?? [])]
+    .map(normalizeEnemyName)
+    .some(term => !!term && text.includes(` ${term} `)));
+  return named.length === 1 ? named[0] : active[0];
+};
+
 // Generate aliases from a name: words of 4+ chars as additional short forms
 const buildAliases = (name: string): string[] => {
   const normalized = normalizeEnemyName(name);

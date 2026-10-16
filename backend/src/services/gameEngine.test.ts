@@ -1099,3 +1099,31 @@ describe('rescues and the paused fight', () => {
     expect(resumeEncounterIfAttacking(paused, 'I bandage my arm')).toBe(paused);
   });
 });
+
+describe('fallback enemy damage targets the named enemy', () => {
+  const twoGoblins = (): EncounterState => ({
+    id: 'enc-two',
+    name: 'Goblin Camp',
+    status: 'active',
+    round: 1,
+    enemies: [
+      { id: 'chief', name: 'Goblin Chief', role: 'elite', hp: 8, maxHp: 8, status: 'active' },
+      { id: 'archer', name: 'Goblin Archer', role: 'standard', hp: 6, maxHp: 6, status: 'active', aliases: ['archer'] },
+    ],
+    areas: [],
+  });
+  const hit = (actionAttempt: string) => GameEngine.updateState(
+    makeSession({ encounterState: twoGoblins() }),
+    { actionAttempt, actionResult: { success: true, roll: 14, statUsed: 'might' as const, impact: 'normal' as const } },
+    {},
+  ).encounterState!.enemies;
+
+  it('hits the enemy named by name or alias', () => {
+    expect(hit('I shoot the archer').map(e => e.hp)).toEqual([8, 4]);
+  });
+
+  it('falls back to the first active enemy when no one, or several, are named', () => {
+    expect(hit('I swing wildly').map(e => e.hp)).toEqual([6, 6]);
+    expect(hit('I strike at every goblin').map(e => e.hp)).toEqual([6, 6]);
+  });
+});

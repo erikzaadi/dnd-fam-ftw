@@ -1,7 +1,7 @@
 import { Character, SessionState, ActionAttempt, InventoryItem, Choice, type CharacterBuff, type Stat, type Difficulty, type TensionLevel, type TurnResult } from '../types.js';
 import { createId } from '../lib/ids.js';
 import { COMBAT_ACTION_RE } from '../lib/textUtils.js';
-import { handleEncounterStart, applyEncounterUpdate, isEncounterPaused, computeImpactDamage, computeEnemyDamage, inferOrganicEncounterStart, inferSeededEncounterStart, resolveEncounterSeed } from './encounterService.js';
+import { handleEncounterStart, applyEncounterUpdate, isEncounterPaused, targetedActiveEnemy, computeImpactDamage, computeEnemyDamage, inferOrganicEncounterStart, inferSeededEncounterStart, resolveEncounterSeed } from './encounterService.js';
 import type { EncounterStartProposal, EncounterUpdateProposal } from '../providers/ai/narration/narrationSchemas.js';
 
 // What a turn proposes before engine validation: narration/choices plus suggested
@@ -743,7 +743,7 @@ export class GameEngine {
         const aiDealtDamage = (baseUpdate.enemyDamage?.length ?? 0) > 0;
         const { success, statUsed, impact } = actionAttempt.actionResult;
         if (success && statUsed !== 'none' && !aiDealtDamage && !isNonOffensiveEncounterAction) {
-          const activeEnemy = newState.encounterState.enemies.find(e => e.status === 'active');
+          const activeEnemy = targetedActiveEnemy(newState.encounterState, actionAttempt.actionAttempt);
           if (activeEnemy) {
             const baseDamage = computeImpactDamage(impact);
             const damage = computeEnemyDamage(activeEnemy, baseDamage, statUsed);
