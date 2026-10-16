@@ -206,7 +206,7 @@ describe('GameEngine.resolveAction - edge cases', () => {
   });
 
   it('item stat bonus is applied to the roll total', () => {
-    // Stat 1, but item gives +10 bonus — should always beat difficulty 8
+    // Stat 1, but item gives +10 bonus, so it should always beat difficulty 8
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
     const charWithBonus = makeChar({
       stats: { might: 1, magic: 1, mischief: 1 },

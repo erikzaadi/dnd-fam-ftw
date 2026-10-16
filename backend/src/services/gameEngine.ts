@@ -588,7 +588,7 @@ export class GameEngine {
         }
       }
 
-      // HP healing — also handles downed targets in case AI used suggestedHeal instead of suggestedRevive
+      // HP healing: also handles downed targets in case AI used suggestedHeal instead of suggestedRevive
       const heals = aiSuggestedChanges?.suggestedHeal as Array<{ characterName: string; hp: number }> | null | undefined;
       if (Array.isArray(heals)) {
         for (const heal of heals) {
@@ -597,7 +597,7 @@ export class GameEngine {
             continue;
           }
           if (target.status === 'downed') {
-            // AI should have used suggestedRevive but didn't — revive anyway
+            // AI should have used suggestedRevive but did not, so revive anyway
             target.hp = Math.min(target.max_hp, Math.max(1, Math.round(heal.hp)));
             target.status = 'active';
             target.buffs = [];
@@ -623,7 +623,7 @@ export class GameEngine {
         }
       }
 
-      // Inventory remove from AI suggestion (trade/vendor — item given away)
+      // Inventory remove from AI suggestion (trade/vendor: item given away)
       const remove = aiSuggestedChanges?.suggestedInventoryRemove as { characterName: string; itemName: string } | null | undefined;
       if (remove && typeof remove === 'object' && remove.characterName && remove.itemName) {
         const owner = GameEngine.findCharacter(newState.party, remove.characterName);
