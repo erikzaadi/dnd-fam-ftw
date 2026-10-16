@@ -275,6 +275,7 @@ describe('party wipe recovery stays inside the operation', () => {
     const stored = await sessionRepository.getSession('wipe-rescue');
     expect(stored?.party.every(c => c.status === 'active' && c.hp === 1)).toBe(true);
     expect(stored?.interventionState.rescuesUsed).toBe(1);
+    expect(stored?.activeCharacterId).toBe(session.party[0].id);
     const history = await turnHistoryRepository.getTurnHistory('wipe-rescue');
     expect(history.map(h => h.turnType)).toEqual(['normal', 'intervention']);
     expect(operationRepository.get('wipe-rescue', accepted.operation.id)).toMatchObject({ status: 'completed', resultRevision: 2 });

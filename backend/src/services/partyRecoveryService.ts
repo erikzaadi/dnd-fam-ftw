@@ -73,6 +73,9 @@ export const resolvePartyRecovery = async (params: {
   recoveryTurn.imageUrl = isIntervention ? '/images/intervention_dragon.png' : '/images/sanctuary_light.png';
 
   const postState = GameEngine.applyTurnProposal(recoveredState, recoveryInput, recoveryTurn);
+  // The rescue is nobody's turn: the hero the narration names (the first one) acts next,
+  // not the one the engine's rotation would pick.
+  postState.activeCharacterId = recoveredState.activeCharacterId;
   recoveryTurn.encounterId = getTurnEncounterId(recoveredState, postState);
   const committed = commitTurn({
     sessionId,
