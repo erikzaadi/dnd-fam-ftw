@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  buildEnemyAliases,
   normalizeEnemyName,
   resolveEncounterSeed,
   handleEncounterStart,
@@ -33,6 +34,12 @@ const SHADOW_SEED: EncounterSeed = {
 };
 
 const SEEDS = [THORN_SEED, SHADOW_SEED];
+
+describe('buildEnemyAliases', () => {
+  it('skips filler words', () => {
+    expect(buildEnemyAliases('Ogre with Giant Net')).toEqual(['ogre', 'giant']);
+  });
+});
 
 describe('normalizeEnemyName', () => {
   it('lowercases and strips leading articles', () => {

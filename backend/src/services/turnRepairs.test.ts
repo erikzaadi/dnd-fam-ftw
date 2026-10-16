@@ -103,4 +103,14 @@ describe('replaceChoicesTargetingDefeatedEnemies', () => {
     const ideas = [choice(1, 'Bribe the pirate'), choice(2, 'Thank the grateful cook')];
     expect(replaceChoicesTargetingDefeatedEnemies(s, ideas)).toBe(ideas);
   });
+
+  it('ignores a word a living foe also answers to', () => {
+    const s = state([
+      { id: 'g1', name: 'Goblin Wolf-Rider 1', aliases: ['goblin', 'wolfrider'], role: 'minion', hp: 0, maxHp: 2, status: 'defeated' },
+      { id: 'g2', name: 'Goblin Wolf-Rider 2', aliases: ['goblin', 'wolfrider'], role: 'minion', hp: 2, maxHp: 2, status: 'active' },
+    ]);
+    const ideas = [choice(1, 'Trip the goblin off its wolf')];
+    expect(replaceChoicesTargetingDefeatedEnemies(s, ideas)).toBe(ideas);
+    expect(replaceChoicesTargetingDefeatedEnemies(s, [choice(1, 'Loot Goblin Wolf-Rider 1')])[0].label).toBe('Press the attack on the Goblin Wolf-Rider 2');
+  });
 });

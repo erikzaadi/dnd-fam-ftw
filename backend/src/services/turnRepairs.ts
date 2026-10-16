@@ -146,7 +146,12 @@ export const replaceChoicesTargetingDefeatedEnemies = (state: SessionState, choi
     ...(state.encounterState?.enemies ?? []).filter(e => e.status !== 'active'),
     ...(!state.encounterState && lastArchived ? lastArchived.enemies : []),
   ];
-  const terms = defeated.flatMap(e => [e.name, ...(e.aliases ?? [])]);
+  // A word a living foe also answers to ("goblin" for two goblin riders) is not a sign
+  // the idea targets the fallen one.
+  const living = new Set((state.encounterState?.enemies ?? [])
+    .filter(e => e.status === 'active')
+    .flatMap(e => [e.name, ...(e.aliases ?? [])].map(normalizeForMatch)));
+  const terms = defeated.flatMap(e => [e.name, ...(e.aliases ?? [])]).filter(term => !living.has(normalizeForMatch(term)));
   if (terms.length === 0) {
     return choices;
   }

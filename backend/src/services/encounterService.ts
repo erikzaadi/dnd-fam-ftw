@@ -94,10 +94,11 @@ export const targetedActiveEnemy = (encounter: EncounterState, actionText: strin
   return named.length === 1 ? named[0] : active[0];
 };
 
-// Generate aliases from a name: words of 4+ chars as additional short forms
+// Generate aliases from a name: words of 4+ chars as additional short forms, minus
+// filler words ("Ogre with Giant Net" must not answer to "with").
 const buildAliases = (name: string): string[] => {
   const normalized = normalizeEnemyName(name);
-  const words = normalized.split(' ').filter(w => w.length >= 4);
+  const words = normalized.split(' ').filter(w => w.length >= 4 && !TRAILING_ENEMY_NAME_STOPWORDS.has(w));
   const aliases = [...new Set([normalized, ...words])];
   return aliases.filter(a => a !== normalized).slice(0, 3);
 };
