@@ -271,6 +271,55 @@ async function callNarrationAgent(
   return parsed.data;
 }
 
+// Narration streams to players while it is written. If the agent fails or passes its
+// deadline after text went out, the turn uses fallback narration: tell views to drop the
+// streamed text (onAbort) exactly once, before the fallback is returned, and ignore any
+// chunk the provider still sends afterwards.
+async function runNarrationAgent(
+  input: NarrationInput,
+  callbacks: NarrationStreamCallbacks | undefined,
+  fallback: NarrationAgentOutput,
+  deadlineMs: number,
+  diagnostics: AgentDiagnostic[],
+): Promise<{ output: NarrationAgentOutput; usedFallback: boolean }> {
+  let live = true;
+  let emitted = false;
+  const gated: NarrationStreamCallbacks | undefined = callbacks
+    ? {
+      onChunk: (text, field) => {
+        if (live) {
+          emitted = true;
+          callbacks.onChunk(text, field);
+        }
+      },
+      onRollNarrationDone: callbacks.onRollNarrationDone
+        ? (rollNarration) => {
+          if (live) {
+            callbacks.onRollNarrationDone?.(rollNarration);
+          }
+        }
+        : undefined,
+      onStreamingDone: (narration, rollNarration) => {
+        if (live) {
+          callbacks.onStreamingDone(narration, rollNarration);
+        }
+      },
+      onAbort: () => {},
+    }
+    : undefined;
+  const before = diagnostics.length;
+  const output = await withDeadline('narration', (signal) => callNarrationAgent(input, gated, signal), fallback, deadlineMs, diagnostics);
+  live = false;
+  const usedFallback = diagnostics.slice(before).some(d => d.agent === 'narration' && (d.status === 'fallback' || d.status === 'timeout'));
+  if (usedFallback && emitted) {
+    callbacks?.onAbort();
+  }
+  return { output, usedFallback };
+}
+
+const narrationDeadlineMs = (input: NarrationInput): number =>
+  input.isFirstTurn || input.interventionRescue || input.sanctuaryRecovery ? 8000 : 6000;
+
 function choicesUserContent(input: NarrationInput): string {
   const isActiveCombat = input.encounterState?.status === 'active';
   const isEncounterResolution = !isActiveCombat && !!input.encounterJustResolved;
@@ -929,52 +978,15 @@ export class DmTurnOrchestrator implements NarrationProvider {
       `runRecovery=${runRecovery}`,
     ].join(' '));
 
-    let callbacksLive = true;
-    const gatedCallbacks: NarrationStreamCallbacks | undefined = callbacks
-      ? {
-        onChunk: (text, field) => {
-          if (callbacksLive) {
-            callbacks.onChunk(text, field); 
-          } 
-        },
-        onRollNarrationDone: callbacks.onRollNarrationDone
-          ? (r) => {
-            if (callbacksLive) {
-              callbacks.onRollNarrationDone?.(r); 
-            } 
-          }
-          : undefined,
-        onStreamingDone: (narration, rollNarration) => {
-          if (callbacksLive) {
-            callbacks.onStreamingDone(narration, rollNarration); 
-          } 
-        },
-        onAbort: () => {
-          if (callbacksLive) {
-            callbacks.onAbort?.(); 
-          } 
-        },
-      }
-      : undefined;
-
     // Narration streams a few hundred tokens, so it regularly needs >3.5s; the
     // deadline is p99 hang protection, not a latency target - a fallback narration
     // is a much worse player outcome than a couple of extra seconds of streaming.
     // First/intervention/sanctuary turns are story-critical and run while heavy
     // background work (campaign media, origin story) competes for the API, and
     // the player is reading intro text anyway - give them an even longer budget.
-    const relaxedDeadlines = !!(input.isFirstTurn || input.interventionRescue || input.sanctuaryRecovery);
-    const narrationDeadlineMs = relaxedDeadlines ? 8000 : 6000;
-
-    const narrationPromise = withDeadline(
-      'narration',
-      (signal) => callNarrationAgent(input, gatedCallbacks, signal),
-      narrationFallback,
-      narrationDeadlineMs,
-      diagnostics,
-    );
+    const narrationPromise = runNarrationAgent(input, callbacks, narrationFallback, narrationDeadlineMs(input), diagnostics);
     // A turn carries no suggestions: they come from generateIdeas when a player asks.
-    const [narration, combat, inventory, recovery] = await Promise.all([
+    const [{ output: narration, usedFallback: narrationUsedFallback }, combat, inventory, recovery] = await Promise.all([
       narrationPromise,
       runCombat
         ? withDeadline('combat', (signal) => callCombatAgent(input, signal), combatFallback, 2500, diagnostics, true)
@@ -987,15 +999,9 @@ export class DmTurnOrchestrator implements NarrationProvider {
         : Promise.resolve(recoveryFallback),
     ]);
 
-    callbacksLive = false;
-
     const durationMs = Date.now() - orchestratorStart;
     const agentStatuses = diagnostics.map(d => `${d.agent}:${d.status}(${d.durationMs}ms)`).join(' ');
     devLog.log(`[Metrics] orchestrator durationMs=${durationMs} agents=${diagnostics.length} ${agentStatuses}`);
-
-    const narrationUsedFallback = diagnostics.some(
-      d => d.agent === 'narration' && (d.status === 'fallback' || d.status === 'timeout'),
-    );
 
     // Zod schemas allow null for optional fields but NarrationOutput uses undefined.
     // Coerce choices explicitly; use runtime-safe casts for complex nested types
@@ -1066,15 +1072,13 @@ export class DmTurnOrchestrator implements NarrationProvider {
   async narrateResolved(input: NarrationInput, callbacks?: NarrationStreamCallbacks): Promise<ResolvedPresentation> {
     const diagnostics: AgentDiagnostic[] = [];
     const fallbackOutput = buildNarrationFallback(input);
-    const narrationDeadlineMs = input.isFirstTurn || input.interventionRescue || input.sanctuaryRecovery ? 8000 : 6000;
-    const narration = await withDeadline<NarrationAgentOutput>(
-      'narration',
-      (signal) => callNarrationAgent(input, callbacks, signal),
+    const { output: narration, usedFallback: narrationUsedFallback } = await runNarrationAgent(
+      input,
+      callbacks,
       { narration: fallbackOutput.narration, currentTensionLevel: fallbackOutput.currentTensionLevel },
-      narrationDeadlineMs,
+      narrationDeadlineMs(input),
       diagnostics,
     );
-    const narrationUsedFallback = diagnostics.some(d => d.agent === 'narration' && (d.status === 'fallback' || d.status === 'timeout'));
     return {
       narration: cleanText(narration.narration),
       rollNarration: narration.rollNarration ? cleanText(narration.rollNarration) : undefined,

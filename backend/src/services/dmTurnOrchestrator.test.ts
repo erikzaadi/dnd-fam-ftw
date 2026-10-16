@@ -1127,3 +1127,90 @@ describe('choices request settings by tier', () => {
     }
   });
 });
+
+// ---- Streamed narration abort ----
+
+describe('narration abort after streamed text', () => {
+  type ContentListener = (delta: string, snapshot: string) => void;
+  const controllableStream = () => {
+    let listener: ContentListener = () => {};
+    let settle: { resolve: (value: unknown) => void; reject: (err: unknown) => void } = { resolve: () => {}, reject: () => {} };
+    mocks.stream.mockReturnValueOnce({
+      on: vi.fn((event: string, cb: ContentListener) => {
+        if (event === 'content') {
+          listener = cb;
+        }
+      }),
+      finalChatCompletion: vi.fn(() => new Promise((resolve, reject) => {
+        settle = { resolve, reject };
+      })),
+    });
+    return {
+      emit: (snapshot: string) => listener('', snapshot),
+      resolve: (value: unknown) => settle.resolve(value),
+      reject: (err: unknown) => settle.reject(err),
+    };
+  };
+  const makeCallbacks = () => ({ onChunk: vi.fn(), onStreamingDone: vi.fn(), onAbort: vi.fn() });
+
+  it('aborts once when the stream fails after text went out', async () => {
+    const stream = controllableStream();
+    const callbacks = makeCallbacks();
+    const promise = new DmTurnOrchestrator().narrateResolved(baseInput(), callbacks);
+    await Promise.resolve();
+    stream.emit('{"narration":"The gate');
+    stream.reject(new Error('network down'));
+    const result = await promise;
+    expect(callbacks.onChunk).toHaveBeenCalledTimes(1);
+    expect(callbacks.onAbort).toHaveBeenCalledTimes(1);
+    expect(result.narrationFailed).toBe(true);
+  });
+
+  it('aborts at the deadline before the fallback returns, and ignores late chunks', async () => {
+    vi.useFakeTimers();
+    try {
+      const stream = controllableStream();
+      const callbacks = makeCallbacks();
+      const promise = new DmTurnOrchestrator().orchestrate(baseInput(), callbacks);
+      await Promise.resolve();
+      stream.emit('{"narration":"The gate');
+      await vi.advanceTimersByTimeAsync(6100);
+      const result = await promise;
+      expect(callbacks.onAbort).toHaveBeenCalledTimes(1);
+      expect(result.narrationFailed).toBe(true);
+
+      stream.emit('{"narration":"The gate creaks open');
+      stream.reject(new Error('aborted late'));
+      await Promise.resolve();
+      expect(callbacks.onChunk).toHaveBeenCalledTimes(1);
+      expect(callbacks.onAbort).toHaveBeenCalledTimes(1);
+      expect(callbacks.onStreamingDone).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not abort a clean stream', async () => {
+    const stream = controllableStream();
+    const callbacks = makeCallbacks();
+    const promise = new DmTurnOrchestrator().narrateResolved(baseInput(), callbacks);
+    await Promise.resolve();
+    stream.emit('{"narration":"The gate');
+    stream.resolve(makeNarrationCompletion('The gate creaks open.'));
+    const result = await promise;
+    expect(callbacks.onAbort).not.toHaveBeenCalled();
+    expect(callbacks.onStreamingDone).toHaveBeenCalledTimes(1);
+    expect(result.narration).toBe('The gate creaks open.');
+  });
+
+  it('does not abort a failure before any text', async () => {
+    const stream = controllableStream();
+    const callbacks = makeCallbacks();
+    const promise = new DmTurnOrchestrator().narrateResolved(baseInput(), callbacks);
+    await Promise.resolve();
+    stream.reject(new Error('network down'));
+    const result = await promise;
+    expect(callbacks.onAbort).not.toHaveBeenCalled();
+    expect(result.narrationFailed).toBe(true);
+  });
+});
