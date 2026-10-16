@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
@@ -44,7 +43,7 @@ export const createTurnRouter = () => {
   const router = Router();
   registerSessionIdParam(router);
 
-  router.get('/session/:id/summary', requirePaidWork('summary'), asyncHandler(async (req, res) => {
+  router.get('/session/:id/summary', requirePaidWork('summary'), async (req, res) => {
     const [history, session] = await Promise.all([
       turnHistoryRepository.getTurnHistory(req.params.id as string),
       sessionRepository.getSession(req.params.id as string),
@@ -56,9 +55,9 @@ export const createTurnRouter = () => {
         throw err;
       }
     }
-  }));
+  });
 
-  router.post('/session/:id/action', asyncHandler(async (req, res) => {
+  router.post('/session/:id/action', async (req, res) => {
     const body = parseBody(req, res, actionBodySchema);
     if (!body) {
       return;
@@ -91,30 +90,30 @@ export const createTurnRouter = () => {
     if (isAcceptanceResult(result)) {
       respondToAcceptance(res, result);
     }
-  }));
+  });
 
-  router.get('/session/:id/snapshot', asyncHandler(async (req, res) => {
+  router.get('/session/:id/snapshot', async (req, res) => {
     const snapshot = await readCoherentSnapshot(req.params.id as string);
     if (!snapshot) {
       res.status(503).json({ error: 'snapshot_unavailable', message: 'The session is changing quickly. Try again.' });
       return;
     }
     res.json(snapshot);
-  }));
+  });
 
-  router.get('/session/:id/operations/:operationId', asyncHandler(async (req, res) => {
+  router.get('/session/:id/operations/:operationId', async (req, res) => {
     const operation = operationRepository.get(req.params.id as string, req.params.operationId as string);
     if (!operation) {
       res.status(404).json({ error: 'Operation not found' });
       return;
     }
     res.json(toPublicOperation(operation));
-  }));
+  });
 
-  router.get('/session/:id/history', asyncHandler(async (req, res) => {
+  router.get('/session/:id/history', async (req, res) => {
     const history = await turnHistoryRepository.getTurnHistory(req.params.id as string);
     res.json(history.map(toPublicTurn));
-  }));
+  });
 
   return router;
 };

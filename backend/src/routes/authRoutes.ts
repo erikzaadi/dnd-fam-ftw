@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
-import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { getConfig, isAllowedOrigin, isAuthEnabled, isEmailAuthEnabled, isGoogleAuthConfigured } from '../config/env.js';
 import { resendEmailCode, startEmailSignIn, verifyEmailCode } from '../services/emailAuthService.js';
@@ -112,7 +111,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
     next();
   };
 
-  router.post('/auth/email/start', requireEmailAuth, asyncHandler(async (req, res) => {
+  router.post('/auth/email/start', requireEmailAuth, async (req, res) => {
     const body = parseBody(req, res, emailStartBodySchema);
     if (!body) {
       return;
@@ -138,7 +137,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
       expiresInSeconds: result.expiresInSeconds,
     };
     res.status(202).json(response);
-  }));
+  });
 
   router.post('/auth/email/verify', requireEmailAuth, (req, res) => {
     const body = parseBody(req, res, emailVerifyBodySchema);
@@ -164,7 +163,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
     res.json(response);
   });
 
-  router.post('/auth/email/resend', requireEmailAuth, asyncHandler(async (req, res) => {
+  router.post('/auth/email/resend', requireEmailAuth, async (req, res) => {
     const body = parseBody(req, res, emailResendBodySchema);
     if (!body) {
       return;
@@ -185,7 +184,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
     }
     const response: EmailSignInResendResponse = { resendAfterSeconds: result.resendAfterSeconds, expiresInSeconds: result.expiresInSeconds };
     res.json(response);
-  }));
+  });
 
   router.get('/auth/config', (_req, res) => {
     res.json(getAuthPublicConfig());
@@ -211,7 +210,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
     res.redirect(url);
   });
   
-  router.get('/auth/google/callback', asyncHandler(async (req, res) => {
+  router.get('/auth/google/callback', async (req, res) => {
     console.log(`[Auth] Callback hit - query keys: ${Object.keys(req.query).join(', ')}`);
     if (!isAuthEnabled() || !isGoogleAuthConfigured()) {
       res.status(404).json({ error: 'Auth not configured' });
@@ -251,7 +250,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
     }
     const next = completeSignIn(res, outcome);
     res.redirect(`${config.FRONTEND_URL ?? ''}${config.APP_BASE_PATH}${next.slice(1)}`);
-  }));
+  });
   
   router.post('/auth/logout', (req, res) => {
     // Signing out on a TV ends its grant; signing out elsewhere leaves TVs alone.
@@ -269,7 +268,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
     res.json({ namespaces });
   });
   
-  router.post('/auth/select-namespace', requirePendingNamespaceToken, asyncHandler(async (req, res) => {
+  router.post('/auth/select-namespace', requirePendingNamespaceToken, async (req, res) => {
     const body = parseBody(req, res, selectNamespaceBodySchema);
     if (!body) {
       return;
@@ -284,7 +283,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
     userRepository.recordLogin(user.email);
     setFullAuthCookie(res, { email: user.email, namespaceId, type: 'full', userId: user.id }, { isProduction });
     res.json({ ok: true });
-  }));
+  });
   
   // Realm switching for an already signed-in user. Uses the identity-only check so a
   // user removed from their active realm can still list and pick another membership.
@@ -320,7 +319,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
     res.json({ email: req.pendingPayload!.email, alreadyRequested: req.pendingPayload!.type === 'invite-requested' });
   });
   
-  router.post('/auth/request-invite', requirePendingInviteToken, asyncHandler(async (req, res) => {
+  router.post('/auth/request-invite', requirePendingInviteToken, async (req, res) => {
     if (req.pendingPayload!.type !== 'pending-invite') {
       res.status(403).json({ error: 'Invalid token or invite already submitted' });
       return;
@@ -335,7 +334,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
     void dispatchOutbox();
     res.clearCookie('jwt_pending_invite', { path: '/' });
     res.json({ ok: true });
-  }));
+  });
 
   return router;
 };

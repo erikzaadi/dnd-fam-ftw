@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { registerSessionIdParam } from '../middleware/sessionParam.js';
 import { continueAdventureWorld, endAdventureHere, wrapUpAdventure } from '../services/adventureLifecycleCommands.js';
@@ -22,7 +21,7 @@ export const createAdventureRouter = () => {
   const router = Router();
   registerSessionIdParam(router);
 
-  router.post('/session/:id/adventure/wrap-up', requirePaidWork('website'), asyncHandler(async (req, res) => {
+  router.post('/session/:id/adventure/wrap-up', requirePaidWork('website'), async (req, res) => {
     const body = parseBody(req, res, operationBodySchema);
     if (!body) {
       return;
@@ -33,18 +32,18 @@ export const createAdventureRouter = () => {
       return;
     }
     res.json({ revision: result.revision, adventure: result.adventure });
-  }));
+  });
 
-  router.post('/session/:id/adventure/end', asyncHandler(async (req, res) => {
+  router.post('/session/:id/adventure/end', async (req, res) => {
     const body = parseBody(req, res, operationBodySchema);
     if (!body) {
       return;
     }
     const outcome = endAdventureHere({ session: req.session!, namespaceId: req.namespaceId, requestId: body.requestId, expectedRevision: body.expectedRevision });
     res.status(outcome.status).json(outcome.body);
-  }));
+  });
 
-  router.post('/session/:id/adventure/continue', requirePaidWork('website'), asyncHandler(async (req, res) => {
+  router.post('/session/:id/adventure/continue', requirePaidWork('website'), async (req, res) => {
     const body = parseBody(req, res, continueBodySchema);
     if (!body) {
       return;
@@ -57,7 +56,7 @@ export const createAdventureRouter = () => {
       expectedRevision: body.expectedRevision,
     });
     res.status(outcome.status).json(outcome.body);
-  }));
+  });
 
   return router;
 };

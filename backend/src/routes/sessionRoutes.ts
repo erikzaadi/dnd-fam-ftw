@@ -1,6 +1,5 @@
 import { Router, type Response } from 'express';
 import { denyDeviceSessions } from '../middleware/auth.js';
-import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { broadcastSessionChanged, broadcastSessionListUpdate, broadcastSessionUpdated, broadcastUpdate } from '../realtime/sessionEvents.js';
 import { buildInstantStartParty, runInstantStartBackground } from '../services/instantStartService.js';
@@ -75,12 +74,12 @@ export const createSessionRouter = () => {
   const router = Router();
   registerSessionIdParam(router);
 
-  router.get('/sessions', asyncHandler(async (req, res) => {
+  router.get('/sessions', async (req, res) => {
     const sessions = await sessionRepository.listSessions(req.namespaceId);
     res.json(sessions);
-  }));
+  });
 
-  router.post('/session/quick-start', requirePaidWork('website'), asyncHandler(async (req, res) => {
+  router.post('/session/quick-start', requirePaidWork('website'), async (req, res) => {
     if (refuseOverAdventureCap(req.namespaceId, res)) {
       return;
     }
@@ -99,9 +98,9 @@ export const createSessionRouter = () => {
     }
     broadcastSessionChanged(req.namespaceId, id, 'created');
     res.json({ id });
-  }));
+  });
 
-  router.post('/session/instant-start', requirePaidWork('website'), asyncHandler(async (req, res) => {
+  router.post('/session/instant-start', requirePaidWork('website'), async (req, res) => {
     if (refuseOverAdventureCap(req.namespaceId, res)) {
       return;
     }
@@ -151,9 +150,9 @@ export const createSessionRouter = () => {
     res.json({ id: session.id, savingsMode });
 
     void runInstantStartBackground(session.id, session, req.namespaceId, seed, acceptance.type === 'accepted' ? acceptance.operation : null);
-  }));
+  });
 
-  router.delete('/session/:id', denyDeviceSessions, asyncHandler(async (req, res) => {
+  router.delete('/session/:id', denyDeviceSessions, async (req, res) => {
     const sessionId = req.params.id as string;
     try {
       await deleteAdventure(sessionId);
@@ -166,9 +165,9 @@ export const createSessionRouter = () => {
     }
     broadcastSessionChanged(req.namespaceId, sessionId, 'deleted');
     res.json({ success: true });
-  }));
+  });
 
-  router.post('/session/create', requirePaidWork('website'), asyncHandler(async (req, res) => {
+  router.post('/session/create', requirePaidWork('website'), async (req, res) => {
     const body = parseBody(req, res, createSessionBodySchema);
     if (!body) {
       return;
@@ -213,13 +212,13 @@ export const createSessionRouter = () => {
       }
       throw error;
     }
-  }));
+  });
 
-  router.get('/session/:id', asyncHandler(async (req, res) => {
+  router.get('/session/:id', async (req, res) => {
     res.json(toPublicSession(req.session!));
-  }));
+  });
 
-  router.patch('/session/:id', asyncHandler(async (req, res) => {
+  router.patch('/session/:id', async (req, res) => {
     const session = req.session!;
     const sessionId = req.params.id as string;
     const body = parseBody(req, res, patchSessionBodySchema);
@@ -288,9 +287,9 @@ export const createSessionRouter = () => {
       autoIdeas: patch.autoIdeas ?? !!session.autoIdeas,
       ...(nextAdventure && { adventure: nextAdventure }),
     });
-  }));
+  });
 
-  router.post('/session/:id/preview-image', requirePaidWork('website'), asyncHandler(async (req, res) => {
+  router.post('/session/:id/preview-image', requirePaidWork('website'), async (req, res) => {
     const session = req.session!;
     if (session.savingsMode) {
       res.json({ previewImageUrl: null });
@@ -303,9 +302,9 @@ export const createSessionRouter = () => {
       broadcastSessionListUpdate(req.namespaceId, 'preview_image_available', { sessionId: session.id, previewImageUrl: result.url });
     }
     res.json({ previewImageUrl: result?.url ?? null });
-  }));
+  });
 
-  router.post('/session/:id/regenerate-dm-prep', requirePaidWork('website'), asyncHandler(async (req, res) => {
+  router.post('/session/:id/regenerate-dm-prep', requirePaidWork('website'), async (req, res) => {
     const session = req.session!;
     const body = parseBody(req, res, regenerateDmPrepBodySchema);
     if (body === undefined && req.body !== undefined && Object.keys(req.body as Record<string, unknown>).length > 0) {
@@ -328,9 +327,9 @@ export const createSessionRouter = () => {
     }
     const updated = await sessionRepository.getSession(session.id);
     res.json({ dmPrep: brief, dmPrepEncounters: updated?.dmPrepEncounters ?? null });
-  }));
+  });
 
-  router.post('/session/:id/start', requirePaidWork('website'), asyncHandler(async (req, res) => {
+  router.post('/session/:id/start', requirePaidWork('website'), async (req, res) => {
     const sessionId = req.params.id as string;
     const session = req.session!;
 
@@ -400,17 +399,17 @@ export const createSessionRouter = () => {
         });
       }
     }
-  }));
+  });
 
-  router.get('/session/:id/origin-story', asyncHandler(async (req, res) => {
+  router.get('/session/:id/origin-story', async (req, res) => {
     const session = req.session!;
     res.json({
       originStory: session.originStory ?? null,
       originStoryImageUrl: session.originStoryImageUrl ?? null,
     });
-  }));
+  });
 
-  router.post('/session/:id/origin-story', requirePaidWork('website'), asyncHandler(async (req, res) => {
+  router.post('/session/:id/origin-story', requirePaidWork('website'), async (req, res) => {
     const session = req.session!;
     if (!session.party.length) {
       res.status(400).json({ error: 'No party members' });
@@ -422,9 +421,9 @@ export const createSessionRouter = () => {
     }
     const originStory = await RealmOriginStoryService.generate(session.id);
     res.json({ originStory });
-  }));
+  });
 
-  router.post('/session/:id/savings-mode', asyncHandler(async (req, res) => {
+  router.post('/session/:id/savings-mode', async (req, res) => {
     const body = parseBody(req, res, booleanBodySchema);
     if (!body) {
       return;
@@ -432,7 +431,7 @@ export const createSessionRouter = () => {
     const { enabled } = body;
     await sessionRepository.setSavingsMode(req.params.id as string, enabled);
     res.json({ savingsMode: enabled });
-  }));
+  });
 
   return router;
 };

@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { registerSessionIdParam } from '../middleware/sessionParam.js';
 import { requestIdeas } from '../services/ideasService.js';
@@ -18,7 +17,7 @@ export const createIdeasRouter = () => {
   registerSessionIdParam(router);
 
   // Suggested actions for the current turn, on request. Never advances the story.
-  router.post('/session/:id/ideas', requirePaidWork('website'), asyncHandler(async (req, res) => {
+  router.post('/session/:id/ideas', requirePaidWork('website'), async (req, res) => {
     const body = parseBody(req, res, ideasBodySchema);
     if (!body) {
       return;
@@ -29,7 +28,7 @@ export const createIdeasRouter = () => {
       return;
     }
     res.json(result.payload);
-  }));
+  });
 
   return router;
 };

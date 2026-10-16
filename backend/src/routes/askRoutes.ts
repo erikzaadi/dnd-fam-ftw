@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { registerSessionIdParam } from '../middleware/sessionParam.js';
 import { askDm } from '../services/askDmService.js';
@@ -17,7 +16,7 @@ export const createAskRouter = () => {
   registerSessionIdParam(router);
 
   // "Ask the DM": a short answer about the current scene. Never advances the story.
-  router.post('/session/:id/ask', requirePaidWork('website'), asyncHandler(async (req, res) => {
+  router.post('/session/:id/ask', requirePaidWork('website'), async (req, res) => {
     const body = parseBody(req, res, askBodySchema);
     if (!body) {
       return;
@@ -28,7 +27,7 @@ export const createAskRouter = () => {
       return;
     }
     res.json(result.payload);
-  }));
+  });
 
   return router;
 };

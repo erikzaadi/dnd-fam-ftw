@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { createId } from '../lib/ids.js';
 import { summarizeHeroHistory } from '../services/playerSummaryService.js';
@@ -40,7 +39,7 @@ export const createCharacterRouter = () => {
   const router = Router();
   registerSessionIdParam(router, 'sessionId');
 
-  router.get('/characters/all', asyncHandler(async (req, res) => {
+  router.get('/characters/all', async (req, res) => {
     const characters = await characterRepository.listAllCharacters(req.namespaceId);
     const sessions = await sessionRepository.listSessions(req.namespaceId);
     const sessionMap = new Map(sessions.map(s => [s.id, s.displayName]));
@@ -50,9 +49,9 @@ export const createCharacterRouter = () => {
       return { ...char, sessionName: sessionId ? sessionMap.get(sessionId) : 'Unknown' };
     }));
     res.json(enhancedCharacters);
-  }));
+  });
 
-  router.post('/character/create', requirePaidWork('website'), asyncHandler(async (req, res) => {
+  router.post('/character/create', requirePaidWork('website'), async (req, res) => {
     const body = parseBody(req, res, characterBodySchema);
     if (!body) {
       return;
@@ -112,9 +111,9 @@ export const createCharacterRouter = () => {
         broadcastSessionChanged(capturedNamespaceId, sessionId, 'updated');
       });
     }
-  }));
+  });
 
-  router.put('/character/:charId', asyncHandler(async (req, res) => {
+  router.put('/character/:charId', async (req, res) => {
     const body = parseBody(req, res, characterBodySchema);
     if (!body) {
       return;
@@ -172,9 +171,9 @@ export const createCharacterRouter = () => {
         broadcastSessionChanged(capturedNamespaceId, sessionId, 'updated');
       });
     }
-  }));
+  });
 
-  router.get('/character/:charId/history-summary', asyncHandler(async (req, res) => {
+  router.get('/character/:charId/history-summary', async (req, res) => {
     const charId = req.params.charId as string;
     const turns = turnHistoryRepository.getCharacterTurnHistory(charId);
     if (turns.length === 0) {
@@ -188,9 +187,9 @@ export const createCharacterRouter = () => {
     const session = await sessionRepository.listSessions(req.namespaceId);
     const sessionWithChar = session.find(s => s.party.some(p => p.id === charId));
     res.json({ summary: await summarizeHeroHistory(turns, sessionWithChar?.displayName) });
-  }));
+  });
 
-  router.delete('/session/:sessionId/character/:charId', asyncHandler(async (req, res) => {
+  router.delete('/session/:sessionId/character/:charId', async (req, res) => {
     const { sessionId, charId } = req.params;
     const session = req.session!;
 
@@ -210,7 +209,7 @@ export const createCharacterRouter = () => {
     broadcastSessionChanged(req.namespaceId, sessionId as string, 'updated');
     triggerPreviewRegen(sessionId as string, req.namespaceId);
     res.json({ success: true });
-  }));
+  });
 
   return router;
 };

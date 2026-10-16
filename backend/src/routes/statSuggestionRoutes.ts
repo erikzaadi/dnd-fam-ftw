@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
 import { getTierRequestSettings, warnIfEmptyTruncation } from '../providers/ai/openAiClient.js';
@@ -52,16 +51,16 @@ export const createStatSuggestionRouter = () => {
   const router = Router();
   registerSessionIdParam(router);
 
-  router.post('/session/:id/suggest-stat', requirePaidWork('website'), asyncHandler(async (req, res) => {
+  router.post('/session/:id/suggest-stat', requirePaidWork('website'), async (req, res) => {
     const body = parseBody(req, res, suggestStatBodySchema);
     if (!body) {
       return;
     }
     const suggestion = await suggestStatForSessionAction(req.params.id as string, body);
     res.json(suggestion);
-  }));
+  });
 
-  router.post('/session/:id/preview-action', requirePaidWork('website'), asyncHandler(async (req, res) => {
+  router.post('/session/:id/preview-action', requirePaidWork('website'), async (req, res) => {
     const body = parseBody(req, res, previewActionBodySchema);
     if (!body) {
       return;
@@ -75,9 +74,9 @@ export const createStatSuggestionRouter = () => {
       return;
     }
     res.json(outcome.type === 'clarification' ? outcome.clarification : outcome.preview);
-  }));
+  });
 
-  router.post('/character/suggest-stats', requirePaidWork('website'), asyncHandler(async (req, res) => {
+  router.post('/character/suggest-stats', requirePaidWork('website'), async (req, res) => {
     const body = parseBody(req, res, suggestCharacterStatsBodySchema);
     if (!body) {
       return;
@@ -110,7 +109,7 @@ Reply with ONLY valid JSON: {"might": N, "magic": N, "mischief": N}`
     } catch {
       res.json({ ...STAT_FALLBACK });
     }
-  }));
+  });
 
   return router;
 };

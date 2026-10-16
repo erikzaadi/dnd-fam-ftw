@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { OPENAI_TTS_VOICES, OPENAI_TTS_DEFAULT_VOICE } from '@dnd-fam-ftw/shared';
 import { authMiddleware } from '../middleware/auth.js';
@@ -16,7 +15,7 @@ const ttsBodySchema = z.object({
 export const createTtsRouter = () => {
   const router = Router();
 
-  router.post('/tts', authMiddleware, requireTextBudget, asyncHandler(async (req, res) => {
+  router.post('/tts', authMiddleware, requireTextBudget, async (req, res) => {
     if (!process.env.OPENAI_API_KEY) {
       res.status(503).json({ error: 'tts_not_configured', message: 'OpenAI TTS is not configured' });
       return;
@@ -58,7 +57,7 @@ export const createTtsRouter = () => {
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Cache-Control', 'no-store');
     res.send(audio);
-  }));
+  });
 
   return router;
 };

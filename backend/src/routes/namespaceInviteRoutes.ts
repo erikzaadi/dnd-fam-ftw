@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
-import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { isAuthEnabled } from '../config/env.js';
 import { getUsageContext } from '../lib/usageContext.js';
@@ -140,7 +139,7 @@ export const createNamespaceInviteRouter = () => {
     }
   });
 
-  router.post('/namespace/invitations', noStore, asyncHandler(async (req, res) => {
+  router.post('/namespace/invitations', noStore, async (req, res) => {
     const userId = actor(res);
     const body = userId ? parseBody(req, res, createBodySchema) : null;
     if (!userId || !body) {
@@ -153,9 +152,9 @@ export const createNamespaceInviteRouter = () => {
     }
     const sent: InvitationSentResponse = { invitation: result.invitation };
     res.status(201).json(sent);
-  }));
+  });
 
-  router.post('/namespace/invitations/:id/resend', noStore, asyncHandler(async (req, res) => {
+  router.post('/namespace/invitations/:id/resend', noStore, async (req, res) => {
     const userId = actor(res);
     if (!userId) {
       return;
@@ -167,7 +166,7 @@ export const createNamespaceInviteRouter = () => {
     }
     const sent: InvitationSentResponse = { invitation: result.invitation };
     res.json(sent);
-  }));
+  });
 
   router.delete('/namespace/invitations/:id', (req, res) => {
     const userId = actor(res);

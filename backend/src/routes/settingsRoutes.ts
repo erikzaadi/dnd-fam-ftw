@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { SettingsService } from '../services/settingsService.js';
 import { parseBody } from './routeValidation.js';
@@ -16,14 +15,14 @@ export const createSettingsRouter = () => {
     res.json(SettingsService.get(req.namespaceId));
   });
   
-  router.post('/settings', denyDeviceSessions, asyncHandler(async (req, res) => {
+  router.post('/settings', denyDeviceSessions, async (req, res) => {
     const body = parseBody(req, res, settingsBodySchema);
     if (!body) {
       return;
     }
     const settings = SettingsService.save(req.namespaceId, body);
     res.json(settings);
-  }));
+  });
 
   return router;
 };
