@@ -199,7 +199,11 @@ export function assertAuthConfig(isProduction: boolean): void {
 // Exact browser origins allowed to make credentialed requests. Paths (APP_BASE_PATH)
 // are not part of an origin. Requests without an Origin header (CLI, curl) are not
 // affected by CORS and still need their own authentication. Outside production any
-// localhost origin is allowed, since dev, E2E, and screenshot runs pick their own ports.
+// localhost origin is allowed, since dev, E2E, and screenshot runs pick their own ports,
+// and so are private network addresses (RFC 1918) and .local names, so a phone or TV on
+// the home network can sign in to a dev server.
+const DEV_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1|10(\.\d{1,3}){3}|192\.168(\.\d{1,3}){2}|172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2}|[a-z0-9-]+\.local)(:\d+)?$/i;
+
 export function isAllowedOrigin(origin: string | undefined, isProduction: boolean): boolean {
   if (!origin || origin === 'null') {
     return false;
@@ -208,7 +212,7 @@ export function isAllowedOrigin(origin: string | undefined, isProduction: boolea
   if ([c.FRONTEND_URL, c.GOOGLE_CALLBACK_URL].some(url => toOrigin(url) === origin)) {
     return true;
   }
-  return !isProduction && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+  return !isProduction && DEV_ORIGIN.test(origin);
 }
 
 function toOrigin(url: string | undefined): string | null {

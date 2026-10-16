@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import { apiFetch, imgSrc } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { QrCode } from '../components/QrCode';
+import { markFirstRunWizardSkipped } from '../firstRun/firstRunPreferences';
+import { markTutorialSeen } from '../hooks/useOnboardingTutorial';
+import { markSetupTutorialsDone } from '../hooks/useSetupTutorial';
 import type { DevicePairingPollResponse, DevicePairingStartResponse } from '../types';
 
 const BASE = import.meta.env.BASE_URL;
@@ -32,7 +35,18 @@ function Countdown({ expiresAt }: { expiresAt: number }) {
 
 type StartOutcome = { pairing: Pairing; stopped: null } | { pairing: null; stopped: StopReason };
 
-async function requestPairing(): Promise<StartOutcome> {
+// One start at a time: StrictMode runs effects twice in development, and overlapping
+// starts would each use up the rate limit and leave a code nobody sees.
+let startInFlight: Promise<StartOutcome> | null = null;
+
+const requestPairing = (): Promise<StartOutcome> => {
+  startInFlight ??= startPairing().finally(() => {
+    startInFlight = null;
+  });
+  return startInFlight;
+};
+
+async function startPairing(): Promise<StartOutcome> {
   try {
     const res = await apiFetch('/auth/device/start', { method: 'POST' });
     if (res.status !== 202) {
@@ -81,6 +95,14 @@ export const TvSignIn = () => {
           return;
         }
         if (status === 'approved') {
+          // The approver already set up the game elsewhere: no first-run wizard or tours here.
+          try {
+            markFirstRunWizardSkipped();
+            markTutorialSeen();
+            markSetupTutorialsDone();
+          } catch {
+            // Storage unavailable: the guides show once, nothing breaks.
+          }
           // A full load picks up the new sign-in everywhere.
           window.location.assign(BASE);
           return;

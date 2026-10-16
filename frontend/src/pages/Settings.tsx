@@ -224,24 +224,26 @@ export const Settings = () => {
                   {!isTv && <AssistantAccessLink />}
                   {!isTv && config?.deviceSignIn && <SignedInTvs />}
 
-                  <h2 className="text-lg font-black uppercase tracking-tighter text-amber-500 pt-2">Tutorial</h2>
-                  <button
-                    onClick={() => navigate('/', { state: { showFirstRunWizard: true } })}
-                    className="w-full py-3 bg-slate-800 hover:bg-slate-700 border-2 border-slate-700 rounded-[20px] font-black uppercase italic tracking-tighter transition-colors text-slate-300 text-sm"
-                  >
-                    Replay First Setup
-                  </button>
-                  <button
-                    onClick={() => {
-                      resetTutorial();
-                      resetSetupTutorials();
-                      setTutorialQueued(true);
-                    }}
-                    disabled={tutorialQueued}
-                    className="w-full py-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed border-2 border-slate-700 rounded-[20px] font-black uppercase italic tracking-tighter transition-colors text-slate-300 text-sm"
-                  >
-                    {tutorialQueued ? 'Tutorials will restart on the next matching screen ✓' : 'Restart Tutorials'}
-                  </button>
+                  {!isTv && <>
+                    <h2 className="text-lg font-black uppercase tracking-tighter text-amber-500 pt-2">Tutorial</h2>
+                    <button
+                      onClick={() => navigate('/', { state: { showFirstRunWizard: true } })}
+                      className="w-full py-3 bg-slate-800 hover:bg-slate-700 border-2 border-slate-700 rounded-[20px] font-black uppercase italic tracking-tighter transition-colors text-slate-300 text-sm"
+                    >
+                      Replay First Setup
+                    </button>
+                    <button
+                      onClick={() => {
+                        resetTutorial();
+                        resetSetupTutorials();
+                        setTutorialQueued(true);
+                      }}
+                      disabled={tutorialQueued}
+                      className="w-full py-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed border-2 border-slate-700 rounded-[20px] font-black uppercase italic tracking-tighter transition-colors text-slate-300 text-sm"
+                    >
+                      {tutorialQueued ? 'Tutorials will restart on the next matching screen ✓' : 'Restart Tutorials'}
+                    </button>
+                  </>}
                 </>
               )}
 

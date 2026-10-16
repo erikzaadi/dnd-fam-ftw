@@ -23,6 +23,12 @@ export function resetTutorial() {
   localStorage.setItem(STORAGE_KEY, '1');
 }
 
+// For a browser that should never auto-start the in-game tutorial (a signed-in TV).
+export function markTutorialSeen() {
+  localStorage.setItem(EVER_STARTED_KEY, '1');
+  localStorage.removeItem(STORAGE_KEY);
+}
+
 export function useOnboardingTutorial({
   isLoading,
   lastRollVisible,

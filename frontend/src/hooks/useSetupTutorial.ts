@@ -26,6 +26,14 @@ export function resetSetupTutorials() {
   localStorage.removeItem(NEW_SESSION_TUTORIAL_KEY);
 }
 
+// For a browser whose player already knows the app (a signed-in TV): no tours or tips.
+export function markSetupTutorialsDone() {
+  for (const key of [HOME_TUTORIAL_KEY, CHARACTER_ASSEMBLY_TUTORIAL_KEY, NEW_SESSION_TUTORIAL_KEY, INVITE_TIP_KEY]) {
+    localStorage.setItem(key, '1');
+  }
+  localStorage.removeItem(HOME_TUTORIAL_PENDING_KEY);
+}
+
 export function useSetupTutorial(storageKey: string, steps: SetupTutorialStep[], onFinish?: () => void) {
   const [index, setIndex] = useState(() => localStorage.getItem(storageKey) ? null : 0);
 
