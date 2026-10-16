@@ -17,44 +17,52 @@ const setSseHeaders = (res: Response) => {
   res.setHeader('Connection', 'keep-alive');
 };
 
-const startHeartbeat = (res: Response) => setInterval(() => {
-  writeEvent(res, { type: 'heartbeat' });
-}, HEARTBEAT_INTERVAL_MS);
-
-export const registerSessionEventStream = (req: Request, res: Response, sessionId: string) => {
+// Access is checked when a stream connects and again on every heartbeat, so a removed
+// member or revoked TV loses the stream within one interval. Not per event: narration
+// chunks are too frequent for a database lookup each.
+const openStream = (
+  req: Request,
+  res: Response,
+  channel: 'update' | 'session-list-update',
+  matches: (data: Record<string, unknown>) => boolean,
+  stillAllowed: () => boolean,
+) => {
   setSseHeaders(res);
   writeEvent(res, { type: 'connected' });
-  const heartbeat = startHeartbeat(res);
 
   const onUpdate = (data: Record<string, unknown>) => {
-    if (data.sessionId === sessionId) {
+    if (matches(data)) {
       writeEvent(res, data);
     }
   };
-
-  eventEmitter.on('update', onUpdate);
-  req.on('close', () => {
+  let closed = false;
+  const close = () => {
+    if (closed) {
+      return;
+    }
+    closed = true;
     clearInterval(heartbeat);
-    eventEmitter.off('update', onUpdate);
-  });
+    eventEmitter.off(channel, onUpdate);
+    res.end();
+  };
+  const heartbeat = setInterval(() => {
+    if (!stillAllowed()) {
+      close();
+      return;
+    }
+    writeEvent(res, { type: 'heartbeat' });
+  }, HEARTBEAT_INTERVAL_MS);
+
+  eventEmitter.on(channel, onUpdate);
+  req.on('close', close);
 };
 
-export const registerSessionListEventStream = (req: Request, res: Response, namespaceId: string) => {
-  setSseHeaders(res);
-  writeEvent(res, { type: 'connected' });
-  const heartbeat = startHeartbeat(res);
+export const registerSessionEventStream = (req: Request, res: Response, sessionId: string, stillAllowed: () => boolean) => {
+  openStream(req, res, 'update', data => data.sessionId === sessionId, stillAllowed);
+};
 
-  const onUpdate = (data: Record<string, unknown>) => {
-    if (data.namespaceId === namespaceId) {
-      writeEvent(res, data);
-    }
-  };
-
-  eventEmitter.on('session-list-update', onUpdate);
-  req.on('close', () => {
-    clearInterval(heartbeat);
-    eventEmitter.off('session-list-update', onUpdate);
-  });
+export const registerSessionListEventStream = (req: Request, res: Response, namespaceId: string, stillAllowed: () => boolean) => {
+  openStream(req, res, 'session-list-update', data => data.namespaceId === namespaceId, stillAllowed);
 };
 
 export const broadcastUpdate = (sessionId: string, type: string, payload: Record<string, unknown>) => {

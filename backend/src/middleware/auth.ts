@@ -113,6 +113,17 @@ export function peekFullIdentity(req: Request): FullIdentity | null {
   return isAuthEnabled() ? identityFromCookie(req) : null;
 }
 
+// Rechecks an already-authorized request: the same cookie still names a valid identity
+// (user, TV grant) and the namespace authMiddleware let it into is still a membership.
+// For long-lived responses (SSE) that outlive the check made when they connected.
+export function stillHasAccess(req: Request): boolean {
+  if (!isAuthEnabled()) {
+    return true;
+  }
+  const identity = identityFromCookie(req);
+  return !!identity && identity.namespaceId === req.namespaceId && isMember(identity);
+}
+
 // The one place a jwt cookie becomes an identity. A TV cookie whose grant is revoked,
 // expired or switched off by the kill switch is no identity at all.
 function identityFromCookie(req: Request): FullIdentity | null {

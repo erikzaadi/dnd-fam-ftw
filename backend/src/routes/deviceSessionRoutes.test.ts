@@ -1,5 +1,6 @@
 import type { AddressInfo } from 'net';
 import type { Server } from 'http';
+import type { Request } from 'express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../app.js';
 import { getConfig, resetConfigForTests } from '../config/env.js';
@@ -8,6 +9,8 @@ import { signJwt } from '../services/authService.js';
 import { approvePairing, pollPairing, revokeDeviceGrant, startPairing } from '../services/devicePairingService.js';
 import { cleanupIntegrationEnvironment, insertSessionState, makeTestSession, setupIntegrationEnvironment, type IntegrationTestPaths } from '../tests/integration/testSessionFixtures.js';
 import { getDb } from '../persistence/database.js';
+import { stillHasAccess } from '../middleware/auth.js';
+import { realmAccess } from '../realms/access.js';
 
 // TV sign-ins are gameplay only (TV sign-in plan, decision 3). Every route of the real
 // app is classified here: a new route fails this test until it is listed as allowed
@@ -222,6 +225,22 @@ describe('TV sign-in route policy', () => {
     const res = await request('GET /session/:id/events', tvCookie);
     expect(res.status).toBe(200);
     await res.body?.cancel();
+  });
+
+  it('rechecks stream access for removed members and revoked TVs', () => {
+    const owner = accountService.createUser('stream-owner@example.com', 'Stream Owner', 'member', 'free');
+    const member = accountService.createUserInExistingNamespace('stream-member@example.com', owner.namespaceId);
+    const asRequest = (cookie: string) => ({ cookies: { jwt: cookie.slice('jwt='.length) }, namespaceId: owner.namespaceId }) as unknown as Request;
+    const memberReq = asRequest(`jwt=${signJwt({ email: 'stream-member@example.com', namespaceId: owner.namespaceId, type: 'full', userId: member.userId })}`);
+    expect(stillHasAccess(memberReq)).toBe(true);
+    realmAccess.removeMember(member.userId, owner.namespaceId);
+    expect(stillHasAccess(memberReq)).toBe(false);
+
+    const tv = pairTv({ ...owner, email: 'stream-owner@example.com' });
+    const tvReq = asRequest(tv.cookie);
+    expect(stillHasAccess(tvReq)).toBe(true);
+    revokeDeviceGrant(tv.grantId, owner.userId, 'user');
+    expect(stillHasAccess(tvReq)).toBe(false);
   });
 
   it('marks pairing and device responses as not cacheable', async () => {

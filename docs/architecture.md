@@ -92,6 +92,8 @@ Only the turn agents block the player's response. Images arrive later over SSE. 
 
 ## Real-time events (SSE)
 
+Both streams (`/session/:id/events` and the realm's `/sessions/events`) check access when they connect and again on every 25-second heartbeat: a removed member or a revoked TV loses an open stream within one heartbeat.
+
 Every open view of an adventure receives the same events:
 
 | Event | When |
