@@ -214,6 +214,16 @@ describe('TV sign-in route policy', () => {
     expect(await me.json()).toMatchObject({ enabled: true, deviceSession: true });
   });
 
+  it('streams live updates only to members of the adventure realm', async () => {
+    const outsider = accountService.createUser('events-outsider@example.com', 'Outsider', 'member', 'free');
+    const outsiderCookie = `jwt=${signJwt({ email: 'events-outsider@example.com', namespaceId: outsider.namespaceId, type: 'full', userId: outsider.userId })}`;
+    expect((await request('GET /session/:id/events', outsiderCookie)).status).toBe(404);
+
+    const res = await request('GET /session/:id/events', tvCookie);
+    expect(res.status).toBe(200);
+    await res.body?.cancel();
+  });
+
   it('marks pairing and device responses as not cacheable', async () => {
     const res = await fetch(`${baseUrl}/auth/device/poll`);
     expect(res.headers.get('cache-control')).toBe('no-store');
