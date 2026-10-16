@@ -10,6 +10,7 @@ import { SiteHeader } from '../components/SiteHeader';
 import { Tooltip } from '../components/Tooltip';
 import { CharacterPopup } from '../components/CharacterPopup';
 import { apiFetch, apiUrl, imgSrc } from '../lib/api';
+import { createInstantStartWaiter } from '../lib/instantStartWait';
 import { useFirstRunWizard } from '../firstRun/useFirstRunWizard';
 import { HOME_TUTORIAL_KEY, HOME_TUTORIAL_PENDING_KEY, INVITE_TIP_KEY, type SetupTutorialStep, useSetupTutorial } from '../hooks/useSetupTutorial';
 import { useSessionNamespaces } from '../hooks/useSessionNamespaces';
@@ -531,7 +532,7 @@ export const Home = () => {
   const [viewingChar, setViewingChar] = useState<PartyMember | null>(null);
   const [fullscreenCharAvatar, setFullscreenCharAvatar] = useState<string | null>(null);
   const [instantStartLoading, setInstantStartLoading] = useState(false);
-  const instantStartEsRef = useRef<EventSource | null>(null);
+  const [instantStartWaiter] = useState(createInstantStartWaiter);
   const navigate = useNavigate();
   const location = useLocation();
   const cardRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -584,7 +585,7 @@ export const Home = () => {
   }, []);
 
   const handleInstantStart = async () => {
-    instantStartEsRef.current?.close();
+    instantStartWaiter.cancel();
     setInstantStartLoading(true);
     setStartError(null);
     try {
@@ -600,35 +601,15 @@ export const Home = () => {
       }
       const { id } = await res.json() as { id: string };
 
-      // Check if the background job already finished before we got here (fast mock provider)
-      const histRes = await apiFetch(`/session/${id}/history`).catch(() => null);
-      if (histRes?.ok) {
-        const hist = await histRes.json() as unknown[];
-        if (hist.length > 0) {
-          navigate(`/session/${id}`);
-          return;
-        }
+      // Playable once the first turn is in history; the realm stream's instant_start_ready
+      // (success or failure) usually gets here first.
+      const isReady = async () => {
+        const histRes = await apiFetch(`/session/${id}/history`);
+        return histRes.ok && (await histRes.json() as unknown[]).length > 0;
+      };
+      if (await instantStartWaiter.wait(id, isReady) === 'cancelled') {
+        return;
       }
-
-      // Not ready yet: wait for the session-specific turn_complete SSE event
-      await new Promise<void>((resolve) => {
-        const es = new EventSource(apiUrl(`/session/${id}/events`), { withCredentials: true });
-        instantStartEsRef.current = es;
-        es.onmessage = (e: MessageEvent) => {
-          const data = JSON.parse(e.data) as { type?: string };
-          if (data.type === 'turn_complete') {
-            es.close();
-            instantStartEsRef.current = null;
-            resolve();
-          }
-        };
-        es.onerror = () => {
-          es.close();
-          instantStartEsRef.current = null;
-          resolve();
-        };
-      });
-
       navigate(`/session/${id}`);
     } catch (err) {
       console.error('[InstantStart] Request failed:', err);
@@ -674,9 +655,13 @@ export const Home = () => {
       es = new EventSource(apiUrl('/sessions/events'), { withCredentials: true });
       es.onmessage = (e: MessageEvent) => {
         lastMessageAt = Date.now();
-        const data = JSON.parse(e.data) as { type?: string };
+        const data = JSON.parse(e.data) as { type?: string; sessionId?: string };
         if (data.type === 'session_changed' || data.type === 'preview_image_available') {
           refresh();
+        } else if (data.type === 'instant_start_ready' && data.sessionId) {
+          instantStartWaiter.markReady(data.sessionId);
+        } else if (data.type === 'connected') {
+          instantStartWaiter.reconcile();
         }
       };
       es.onerror = () => {
@@ -697,7 +682,10 @@ export const Home = () => {
       clearTimeout(reconnectTimer);
       clearInterval(staleTimer);
     };
-  }, [loadLimits, loadSessions, navigate]);
+  }, [instantStartWaiter, loadLimits, loadSessions, navigate]);
+
+  // Leaving Home stops a pending instant-start wait.
+  useEffect(() => () => instantStartWaiter.cancel(), [instantStartWaiter]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
