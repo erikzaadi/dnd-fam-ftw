@@ -6,6 +6,7 @@ import { realmAccess } from '../realms/access.js';
 import { devicePairingRepository, type DeviceGrantRow, type DeviceRevokeReason } from '../repositories/devicePairingRepository.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
+import type { DeviceGrantSummary } from '../types.js';
 import { hitRateLimit } from './authRateLimit.js';
 import { enqueueDeviceSignInNotice, safeSingleLine } from './emailService.js';
 
@@ -289,8 +290,6 @@ export function checkDeviceGrant(grantId: string, userId: string, namespaceId: s
   }
   return { ok: true, maxExpiresAt: grant.max_expires_at };
 }
-
-export type DeviceGrantSummary = { id: string; label: string; createdAt: number; lastSeenAt: number; expiresAt: number };
 
 export function listDeviceGrants(userId: string, now: number = Date.now()): DeviceGrantSummary[] {
   return devicePairingRepository.listActiveGrants(userId, now - IDLE_LIMIT_MS, now).map(grant => ({

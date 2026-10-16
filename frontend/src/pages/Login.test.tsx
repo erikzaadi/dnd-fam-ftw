@@ -36,7 +36,7 @@ const renderLogin = (path = '/login') => render(
 beforeEach(() => {
   vi.clearAllMocks();
   sessionStorage.clear();
-  mocks.config = { enabled: true, signupMode: 'open', providers: { google: true, email: true } };
+  mocks.config = { enabled: true, signupMode: 'open', providers: { google: true, email: true }, deviceSignIn: false };
 });
 
 describe('Login', () => {
@@ -48,7 +48,7 @@ describe('Login', () => {
   });
 
   it('shows only Google when email sign-in is not configured', () => {
-    mocks.config = { enabled: true, signupMode: 'invite_only', providers: { google: true, email: false } };
+    mocks.config = { enabled: true, signupMode: 'invite_only', providers: { google: true, email: false }, deviceSignIn: false };
     renderLogin();
     expect(screen.queryByRole('button', { name: 'Email me a code' })).toBeNull();
     expect(screen.getByRole('button', { name: /Sign in with Google/ })).toBeTruthy();

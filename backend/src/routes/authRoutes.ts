@@ -6,7 +6,8 @@ import { getConfig, isAllowedOrigin, isAuthEnabled, isEmailAuthEnabled, isGoogle
 import { resendEmailCode, startEmailSignIn, verifyEmailCode } from '../services/emailAuthService.js';
 import { dispatchOutbox, enqueueInviteRequestNotice } from '../services/emailService.js';
 import { resolveGoogleSignIn, type SignInOutcome } from '../services/signupService.js';
-import { authMiddleware, requireFullIdentity, requirePendingInviteToken, requirePendingNamespaceToken } from '../middleware/auth.js';
+import { authMiddleware, denyDeviceSessions, peekFullIdentity, requireFullIdentity, requirePendingInviteToken, requirePendingNamespaceToken } from '../middleware/auth.js';
+import { revokeDeviceGrant } from '../services/devicePairingService.js';
 import { buildGoogleAuthUrl, createOAuthState, createPkcePair, exchangeCodeForIdentity, getAuthPublicConfig, safeEqual } from '../services/authService.js';
 import { userRepository } from '../repositories/userRepository.js';
 import { canInvite } from '../services/namespaceInviteService.js';
@@ -192,7 +193,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
   
   router.get('/auth/me', (req, res, next) => authMiddleware(req, res, next), (req, res) => {
     const body: AuthMeResponse = isAuthEnabled()
-      ? { enabled: true, email: req.userEmail, namespaceId: req.namespaceId }
+      ? { enabled: true, email: req.userEmail, namespaceId: req.namespaceId, deviceSession: req.deviceSession === true }
       : { enabled: false, email: null, namespaceId: 'local' };
     res.json(body);
   });
@@ -252,7 +253,12 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
     res.redirect(`${config.FRONTEND_URL ?? ''}${config.APP_BASE_PATH}${next.slice(1)}`);
   }));
   
-  router.post('/auth/logout', (_req, res) => {
+  router.post('/auth/logout', (req, res) => {
+    // Signing out on a TV ends its grant; signing out elsewhere leaves TVs alone.
+    const identity = peekFullIdentity(req);
+    if (identity?.deviceGrantId) {
+      revokeDeviceGrant(identity.deviceGrantId, identity.userId, 'tv-logout');
+    }
     clearAllAuthCookies(res);
     res.json({ ok: true });
   });
@@ -282,7 +288,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
   
   // Realm switching for an already signed-in user. Uses the identity-only check so a
   // user removed from their active realm can still list and pick another membership.
-  router.get('/auth/session/namespaces', requireFullIdentity, (req, res) => {
+  router.get('/auth/session/namespaces', requireFullIdentity, denyDeviceSessions, (req, res) => {
     const identity = req.fullIdentity!;
     const namespaces = realmAccess.realmsFor(identity.userId)
       .map(namespace => ({ ...namespace, isOwner: realmAccess.isOwner(identity.userId, namespace.id) }));
@@ -295,7 +301,7 @@ export const createAuthRouter = ({ isProduction }: AuthRoutesOptions) => {
     res.json(body);
   });
 
-  router.post('/auth/session/namespace', requireBrowserJsonPost(isProduction), requireFullIdentity, (req, res) => {
+  router.post('/auth/session/namespace', requireBrowserJsonPost(isProduction), requireFullIdentity, denyDeviceSessions, (req, res) => {
     const body = parseBody(req, res, selectNamespaceBodySchema);
     if (!body) {
       return;

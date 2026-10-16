@@ -1,9 +1,8 @@
 import type { Response } from 'express';
 import type { JwtPayload } from '../services/authService.js';
-import { signJwt } from '../services/authService.js';
+import { fullTokenSeconds, signJwt } from '../services/authService.js';
 
 const TEN_MINUTES_MS = 10 * 60 * 1000;
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 interface CookieOptions {
   isProduction: boolean;
@@ -17,8 +16,9 @@ const sessionCookieOptions = (maxAge: number, isProduction: boolean) => ({
   path: '/',
 });
 
-export const setFullAuthCookie = (res: Response, payload: JwtPayload, { isProduction }: CookieOptions) => {
-  res.cookie('jwt', signJwt(payload), sessionCookieOptions(THIRTY_DAYS_MS, isProduction));
+// maxExpiresAt (epoch ms) caps a TV sign-in at its grant's hard end.
+export const setFullAuthCookie = (res: Response, payload: JwtPayload, { isProduction, maxExpiresAt }: CookieOptions & { maxExpiresAt?: number }) => {
+  res.cookie('jwt', signJwt(payload, false, maxExpiresAt), sessionCookieOptions(fullTokenSeconds(maxExpiresAt) * 1000, isProduction));
 };
 
 export const setPendingNamespaceCookie = (res: Response, payload: JwtPayload, { isProduction }: CookieOptions) => {
@@ -31,11 +31,18 @@ export const setPendingInviteCookie = (res: Response, payload: JwtPayload, { isP
 
 const OAUTH_COOKIE = 'oauth_google';
 export const EMAIL_CHALLENGE_COOKIE = 'email_challenge';
-const ALL_AUTH_COOKIES = ['jwt', 'jwt_pending', 'jwt_pending_invite', OAUTH_COOKIE, EMAIL_CHALLENGE_COOKIE];
+export const DEVICE_PAIRING_COOKIE = 'device_pairing';
+const ALL_AUTH_COOKIES = ['jwt', 'jwt_pending', 'jwt_pending_invite', OAUTH_COOKIE, EMAIL_CHALLENGE_COOKIE, DEVICE_PAIRING_COOKIE];
 
 // Binds an email sign-in code to the browser that asked for it. Only a hash is stored.
 export const setEmailChallengeCookie = (res: Response, browserToken: string, { isProduction }: CookieOptions) => {
   res.cookie(EMAIL_CHALLENGE_COOKIE, browserToken, sessionCookieOptions(TEN_MINUTES_MS + 60 * 1000, isProduction));
+};
+
+// Binds a TV pairing to the TV that started it. Only a hash is stored. Outlives the
+// code by a minute so a poll right at expiry still gets a clear answer.
+export const setDevicePairingCookie = (res: Response, deviceToken: string, { isProduction }: CookieOptions) => {
+  res.cookie(DEVICE_PAIRING_COOKIE, deviceToken, sessionCookieOptions(TEN_MINUTES_MS + 60 * 1000, isProduction));
 };
 
 // Browser-bound OAuth state and PKCE verifier, consumed once by the callback.

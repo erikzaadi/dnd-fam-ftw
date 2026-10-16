@@ -7,6 +7,7 @@ import { createUsageContext } from '../services/usageAttribution.js';
 import { setFullAuthCookie } from '../routes/authCookies.js';
 import type { NamespaceAccessLostResponse, NamespaceChangedResponse } from '../types.js';
 import { realmAccess } from '../realms/access.js';
+import { checkDeviceGrant } from '../services/devicePairingService.js';
 
 // Sliding session: an active player whose login has less than this left gets a fresh
 // 30-day cookie, so only people who stop playing have to sign in again.
@@ -22,6 +23,9 @@ export interface FullIdentity {
   // The namespace in the cookie. Not yet checked against current memberships.
   namespaceId: string;
   payload: JwtPayload;
+  // TV sign-in (device pairing): its grant, already checked, and the grant's hard end.
+  deviceGrantId: string | null;
+  deviceMaxExpiresAt: number | null;
 }
 
 declare global {
@@ -32,6 +36,8 @@ declare global {
       userEmail: string | null;
       pendingPayload?: JwtPayload;
       fullIdentity?: FullIdentity;
+      // A TV sign-in: gameplay only (denyDeviceSessions).
+      deviceSession?: boolean;
     }
   }
 }
@@ -65,6 +71,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   }
 
   refreshFullCookie(res, identity);
+  req.deviceSession = identity.deviceGrantId !== null;
   req.namespaceId = identity.namespaceId;
   req.userEmail = identity.email;
   // Provider calls made for this request (and background work it starts) are
@@ -86,23 +93,56 @@ export function requireFullIdentity(req: Request, res: Response, next: NextFunct
     return;
   }
   req.fullIdentity = identity;
+  req.deviceSession = identity.deviceGrantId !== null;
   req.userEmail = identity.email;
+  next();
+}
+
+// TV sign-ins are gameplay only. Runs after authMiddleware or requireFullIdentity.
+export function denyDeviceSessions(req: Request, res: Response, next: NextFunction): void {
+  if (req.deviceSession) {
+    res.status(403).json({ error: 'device_session_restricted' });
+    return;
+  }
   next();
 }
 
 // The signed-in identity if the request carries a valid full sign-in, else null.
 // Never responds; for public routes that behave differently for a signed-in browser.
 export function peekFullIdentity(req: Request): FullIdentity | null {
-  if (!isAuthEnabled()) {
-    return null;
-  }
+  return isAuthEnabled() ? identityFromCookie(req) : null;
+}
+
+// The one place a jwt cookie becomes an identity. A TV cookie whose grant is revoked,
+// expired or switched off by the kill switch is no identity at all.
+function identityFromCookie(req: Request): FullIdentity | null {
   const token = (req.cookies as Record<string, string> | undefined)?.jwt;
   const payload = token ? verifyJwt(token) : null;
-  if (!payload || payload.type !== 'full' || typeof payload.email !== 'string' || typeof payload.namespaceId !== 'string') {
+  if (!payload || payload.type !== 'full'
+    || typeof payload.email !== 'string' || !payload.email.trim()
+    || typeof payload.namespaceId !== 'string' || !payload.namespaceId.trim()) {
     return null;
   }
   const user = resolveSessionUser(payload);
-  return user ? { userId: user.id, email: user.email, namespaceId: payload.namespaceId, payload } : null;
+  if (!user) {
+    return null;
+  }
+  let deviceMaxExpiresAt: number | null = null;
+  if (payload.deviceGrantId !== undefined) {
+    const check = typeof payload.deviceGrantId === 'string' ? checkDeviceGrant(payload.deviceGrantId, user.id, payload.namespaceId) : null;
+    if (!check?.ok) {
+      return null;
+    }
+    deviceMaxExpiresAt = check.maxExpiresAt;
+  }
+  return {
+    userId: user.id,
+    email: user.email,
+    namespaceId: payload.namespaceId,
+    payload,
+    deviceGrantId: payload.deviceGrantId ?? null,
+    deviceMaxExpiresAt,
+  };
 }
 
 function resolveFullIdentity(req: Request, res: Response): FullIdentity | null {
@@ -112,20 +152,11 @@ function resolveFullIdentity(req: Request, res: Response): FullIdentity | null {
     return null;
   }
 
-  const payload = verifyJwt(token);
-  if (!payload || payload.type !== 'full'
-    || typeof payload.email !== 'string' || !payload.email.trim()
-    || typeof payload.namespaceId !== 'string' || !payload.namespaceId.trim()) {
+  const identity = identityFromCookie(req);
+  if (!identity) {
     res.status(401).json({ error: 'Invalid or expired session' });
-    return null;
   }
-
-  const user = resolveSessionUser(payload);
-  if (!user) {
-    res.status(401).json({ error: 'Invalid or expired session' });
-    return null;
-  }
-  return { userId: user.id, email: user.email, namespaceId: payload.namespaceId, payload };
+  return identity;
 }
 
 function isMember(identity: FullIdentity): boolean {
@@ -133,12 +164,24 @@ function isMember(identity: FullIdentity): boolean {
 }
 
 function refreshFullCookie(res: Response, identity: FullIdentity): void {
-  if (typeof identity.payload.exp === 'number' && identity.payload.exp - Date.now() / 1000 < REFRESH_WITHIN_SECONDS) {
-    // Re-issued with userId, which also upgrades older email-only tokens.
-    setFullAuthCookie(res, { email: identity.email, namespaceId: identity.namespaceId, type: 'full', userId: identity.userId }, {
-      isProduction: process.env.NODE_ENV === 'production',
-    });
+  const { exp } = identity.payload;
+  const nowSeconds = Date.now() / 1000;
+  if (typeof exp !== 'number' || exp - nowSeconds >= REFRESH_WITHIN_SECONDS) {
+    return;
   }
+  const maxExpiresAt = identity.deviceMaxExpiresAt ?? undefined;
+  // A TV near its hard end cannot get a later cookie: skip instead of re-issuing every request.
+  if (maxExpiresAt !== undefined && maxExpiresAt / 1000 - exp < 60 * 60) {
+    return;
+  }
+  // Re-issued with userId, which also upgrades older email-only tokens.
+  setFullAuthCookie(res, {
+    email: identity.email,
+    namespaceId: identity.namespaceId,
+    type: 'full',
+    userId: identity.userId,
+    ...(identity.deviceGrantId ? { deviceGrantId: identity.deviceGrantId } : {}),
+  }, { isProduction: process.env.NODE_ENV === 'production', maxExpiresAt });
 }
 
 // New full tokens carry a userId, so a deleted account's cookie can never match a

@@ -10,6 +10,7 @@ import { mcpAccessRequestService, MAX_REQUESTS_PER_WINDOW } from '../services/mc
 import { ACCESS_TOKEN_SCOPE_VALUES, type AccessTokenCreatedResponse, type AccessTokenListResponse, type AutoConfirmListResponse, type McpAccessRequestErrorResponse, type OAuthGrantSummary } from '../types.js';
 import { autoConfirmRepository } from '../repositories/autoConfirmRepository.js';
 import { oauthTokenService } from '../oauth/tokenService.js';
+import { denyDeviceSessions } from '../middleware/auth.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { parseBody } from './routeValidation.js';
 
@@ -47,6 +48,8 @@ const CREATE_ERRORS: Record<Exclude<CreateTokenResult, { ok: true }>['error'], {
 // for a namespace member reaches these handlers. MCP tokens cannot call them.
 export const createAccessTokenRouter = ({ isProduction }: { isProduction: boolean }) => {
   const router = Router();
+  // Access tokens and assistant grants are account-level: never from a TV sign-in.
+  router.use('/access-tokens', denyDeviceSessions);
 
   // Minting a credential needs a browser request from our own frontend. Browsers always
   // send Origin on cross-origin and same-origin POSTs made with fetch.

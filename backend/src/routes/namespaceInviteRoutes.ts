@@ -4,7 +4,7 @@ import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { isAuthEnabled } from '../config/env.js';
 import { getUsageContext } from '../lib/usageContext.js';
-import { peekFullIdentity } from '../middleware/auth.js';
+import { denyDeviceSessions, peekFullIdentity } from '../middleware/auth.js';
 import { authChallengeRepository } from '../repositories/authChallengeRepository.js';
 import { dispatchOutbox } from '../services/emailService.js';
 import {
@@ -69,7 +69,15 @@ const limitByIp = (req: Request, res: Response, next: NextFunction) => {
 // Public: the invitation token is the proof. Mounted before the cookie auth middleware.
 export const createInvitationAuthRouter = ({ isProduction }: { isProduction: boolean }) => {
   const router = Router();
-  const guard = [noStore, requireBrowserJsonPost(isProduction), limitByIp];
+  // Joining a realm is account-level: a TV sign-in cannot accept invitations.
+  const denyTv = (req: Request, res: Response, next: NextFunction) => {
+    if (peekFullIdentity(req)?.deviceGrantId) {
+      res.status(403).json({ error: 'device_session_restricted' });
+      return;
+    }
+    next();
+  };
+  const guard = [noStore, requireBrowserJsonPost(isProduction), limitByIp, denyTv];
 
   router.post('/auth/invitations/inspect', ...guard, (req, res) => {
     if (!isAuthEnabled()) {
@@ -114,6 +122,7 @@ export const createInvitationAuthRouter = ({ isProduction }: { isProduction: boo
 // Realm members managing invitations for their current realm (cookie auth).
 export const createNamespaceInviteRouter = () => {
   const router = Router();
+  router.use(['/namespace/invitations', '/namespace/invitation-settings'], denyDeviceSessions);
 
   const actor = (res: Response): string | null => {
     const userId = getUsageContext()?.userId ?? null;

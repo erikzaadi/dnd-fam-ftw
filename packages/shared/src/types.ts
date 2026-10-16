@@ -538,6 +538,8 @@ export interface AuthConfigResponse {
     google: boolean;
     email: boolean;
   };
+  // TV sign-in (device pairing) is available.
+  deviceSignIn: boolean;
 }
 
 // POST /auth/email/start (202)
@@ -571,6 +573,48 @@ export interface AuthMeResponse {
   enabled: boolean;
   email: string | null;
   namespaceId: string;
+  // Signed in as a TV (device pairing): gameplay only.
+  deviceSession?: boolean;
+}
+
+// POST /auth/device/start (202). The device token itself is an HttpOnly cookie.
+export interface DevicePairingStartResponse {
+  userCode: string;
+  expiresInSeconds: number;
+  intervalSeconds: number;
+}
+
+// GET /auth/device/poll (200). On approved, the response also sets the sign-in cookie.
+export interface DevicePairingPollResponse {
+  status: 'pending' | 'slow_down' | 'approved' | 'denied' | 'expired';
+}
+
+// POST /auth/device/lookup (200)
+export interface DevicePairingLookupResponse {
+  deviceLabel: string;
+  createdAt: number;
+  expiresAt: number;
+}
+
+// POST /auth/device/approve (200). signedOutLabel: the TV signed out to stay within 5.
+export interface DevicePairingApproveResponse {
+  deviceLabel: string;
+  signedOutLabel: string | null;
+}
+
+// Error bodies from /auth/device/lookup, approve and deny.
+export interface DevicePairingErrorResponse {
+  error: 'invalid_code' | 'rate_limited' | 'not_member';
+  retryAfterSeconds?: number;
+}
+
+// GET /auth/devices: the signed-in user's TVs. Times are epoch ms.
+export interface DeviceGrantSummary {
+  id: string;
+  label: string;
+  createdAt: number;
+  lastSeenAt: number;
+  expiresAt: number;
 }
 
 // 409 body when the browser's X-Namespace-Id header (the namespace it believes is

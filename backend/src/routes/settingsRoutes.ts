@@ -3,6 +3,7 @@ import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { SettingsService } from '../services/settingsService.js';
 import { parseBody } from './routeValidation.js';
+import { denyDeviceSessions } from '../middleware/auth.js';
 
 const settingsBodySchema = z.object({
   imagesEnabled: z.boolean().optional(),
@@ -15,7 +16,7 @@ export const createSettingsRouter = () => {
     res.json(SettingsService.get(req.namespaceId));
   });
   
-  router.post('/settings', asyncHandler(async (req, res) => {
+  router.post('/settings', denyDeviceSessions, asyncHandler(async (req, res) => {
     const body = parseBody(req, res, settingsBodySchema);
     if (!body) {
       return;

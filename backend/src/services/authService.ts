@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import { getConfig, isAuthEnabled, isEmailAuthEnabled, isGoogleAuthConfigured } from '../config/env.js';
+import { getConfig, isAuthEnabled, isDeviceSignInEnabled, isEmailAuthEnabled, isGoogleAuthConfigured } from '../config/env.js';
 import type { AuthConfigResponse } from '../types.js';
 
 export type JwtType = 'full' | 'pending-namespace' | 'pending-invite' | 'invite-requested';
@@ -11,6 +11,8 @@ export interface JwtPayload {
   type?: JwtType;
   // Stable user binding for full sessions. Older full tokens have no userId.
   userId?: string;
+  // Set on a TV sign-in (device pairing): checked against its grant on every request.
+  deviceGrantId?: string;
   // Issued-at and expiry (seconds), set by jsonwebtoken.
   iat?: number;
   exp?: number;
@@ -31,6 +33,7 @@ export function getAuthPublicConfig(): AuthConfigResponse {
       google: enabled && isGoogleAuthConfigured(),
       email: isEmailAuthEnabled(),
     },
+    deviceSignIn: isDeviceSignInEnabled(),
   };
 }
 
@@ -110,11 +113,18 @@ export async function exchangeCodeForIdentity(code: string, codeVerifier: string
   return { email: userData.email, subject: userData.sub };
 }
 
-export function signJwt(payload: JwtPayload, shortLived: boolean = false): string {
+const THIRTY_DAYS_SECONDS = 30 * 24 * 60 * 60;
+
+// maxExpiresAt (epoch ms) caps a full token, for TV sign-ins with a hard end.
+export function signJwt(payload: JwtPayload, shortLived: boolean = false, maxExpiresAt?: number): string {
   const config = getConfig();
   // Never copy a previous token's iat/exp into a new token.
   const { iat: _iat, exp: _exp, ...claims } = payload;
-  return jwt.sign(claims, config.JWT_SECRET!, { expiresIn: shortLived ? '10m' : '30d' });
+  return jwt.sign(claims, config.JWT_SECRET!, { expiresIn: shortLived ? '10m' : fullTokenSeconds(maxExpiresAt) });
+}
+
+export function fullTokenSeconds(maxExpiresAt?: number, now: number = Date.now()): number {
+  return maxExpiresAt === undefined ? THIRTY_DAYS_SECONDS : Math.max(1, Math.min(THIRTY_DAYS_SECONDS, Math.floor((maxExpiresAt - now) / 1000)));
 }
 
 export function verifyJwt(token: string): JwtPayload | null {

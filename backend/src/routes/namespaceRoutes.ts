@@ -6,6 +6,7 @@ import { limitRequestRepository } from '../repositories/limitRequestRepository.j
 import { toSqliteTimestamp } from '../repositories/usageRepository.js';
 import { dispatchOutbox, enqueueLimitRequestNotice } from '../services/emailService.js';
 import { parseBody } from './routeValidation.js';
+import { denyDeviceSessions } from '../middleware/auth.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { KOFI_SUPPORTER_DAYS } from '../services/kofiWebhookService.js';
@@ -60,7 +61,7 @@ export const createNamespaceRouter = () => {
   });
 
   // "Ask for more": one open request per group, a few per day, owner is emailed.
-  router.post('/namespace/limit-request', (req, res) => {
+  router.post('/namespace/limit-request', denyDeviceSessions, (req, res) => {
     const body = parseBody(req, res, limitRequestBodySchema);
     if (!body) {
       return;

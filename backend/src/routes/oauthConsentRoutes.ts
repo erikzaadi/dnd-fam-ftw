@@ -7,6 +7,7 @@ import { oauthAuthorizationService } from '../oauth/authorizationService.js';
 import { ACCESS_TOKEN_SCOPE_VALUES, type OAuthConsentDecisionResponse } from '../types.js';
 import { requireBrowserJsonPost } from './browserPost.js';
 import { parseBody } from './routeValidation.js';
+import { denyDeviceSessions } from '../middleware/auth.js';
 
 const decisionBodySchema = z.discriminatedUnion('decision', [
   z.object({ decision: z.literal('deny') }).strict(),
@@ -27,6 +28,8 @@ const DECISION_ERRORS = {
 // that player at this moment.
 export const createOAuthConsentRouter = ({ isProduction }: { isProduction: boolean }) => {
   const router = Router();
+  // Connecting an assistant is account-level: never from a TV sign-in.
+  router.use('/oauth-consent', denyDeviceSessions);
 
   const requireOAuthUser = (req: Request, res: Response, next: NextFunction) => {
     if (!isAuthEnabled() || !isMcpOAuthEnabled() || !getUsageContext()?.userId || !req.userEmail) {

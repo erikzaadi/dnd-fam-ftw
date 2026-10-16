@@ -1,4 +1,5 @@
 import { Router, type Response } from 'express';
+import { denyDeviceSessions } from '../middleware/auth.js';
 import asyncHandler from 'express-async-handler';
 import { z } from 'zod';
 import { broadcastSessionChanged, broadcastSessionListUpdate, broadcastSessionUpdated, broadcastUpdate } from '../realtime/sessionEvents.js';
@@ -152,7 +153,7 @@ export const createSessionRouter = () => {
     void runInstantStartBackground(session.id, session, req.namespaceId, seed, acceptance.type === 'accepted' ? acceptance.operation : null);
   }));
 
-  router.delete('/session/:id', asyncHandler(async (req, res) => {
+  router.delete('/session/:id', denyDeviceSessions, asyncHandler(async (req, res) => {
     const sessionId = req.params.id as string;
     try {
       await deleteAdventure(sessionId);
