@@ -88,6 +88,9 @@ function mockStreamOnce(completion: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // clearAllMocks keeps queued mockReturnValueOnce values; a test that queues more
+  // streams than it uses would otherwise hand them to the next test.
+  mocks.stream.mockReset();
   process.env.OPENAI_API_KEY = 'test-key';
 });
 
