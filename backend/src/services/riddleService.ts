@@ -34,7 +34,7 @@ const ANSWER_MARKER_RE = /(?:\banswer(?:\s+is)?|\bsolution(?:\s+is)?|\bguess(?:\
 const WEAK_MARKER_RE = /\b(?:i\s+say|we\s+say|is\s+it|it'?s|it\s+is|must\s+be)\b/i;
 const NEGATION_RE = /^\s*(?:no\b|not\b|it'?s\s+not\b|it\s+is\s+not\b|it\s+isn'?t\b|isn'?t\b|definitely\s+not\b|i\s+don'?t\s+think\s+it'?s\b)/i;
 // Sentences and clauses are judged separately: "Oh I know! A piano!" asserts "a piano".
-const CLAUSE_SPLIT_RE = /[,;!?]|\bbut\b|\.(?:\s|$)/i;
+const CLAUSE_SPLIT_RE = /[,;!?]|\bbut\b|\bor\b|\.(?:\s|$)/i;
 // Exclamations around an answer carry no meaning of their own.
 const FILLER_RE = /^(?:(?:oh+|ooh+|ah+|aha+|hmm+|um+|wait|well|yes|yeah|yep|ok(?:ay)?|i\s+know|i\s+got\s+it|got\s+it|easy)\b[\s!.]*)+/i;
 const DETERMINER_RE = /^\s*(?:a|an|the|my|some)\s+/i;
@@ -131,6 +131,24 @@ const assessClause = (clause: string, riddle: StoredRiddle, forceAnswer: boolean
   return { type: 'not_answer' };
 };
 
+// What a clause guesses, or null when it is not a guess: a known answer it names, or an
+// answer-shaped phrase ("a candle", a quoted or "the answer is" phrase). Narrative clauses
+// like "it's dark" are not guesses.
+const guessOf = (clause: string, riddle: StoredRiddle, forceAnswer: boolean): string | null => {
+  const raw = extractCandidate(clause);
+  const candidate = normalize(raw);
+  if (!candidate) {
+    return null;
+  }
+  const known = [...correctAnswers(riddle), ...riddle.wrongAnswers].find(answer => matchesAnswer(candidate, answer));
+  if (known) {
+    return normalize(known);
+  }
+  const strong = forceAnswer || QUOTED_RE.test(clause) || STRONG_ANSWER_RE.test(clause);
+  const shortPhrase = candidate.split(' ').length <= 3 && (DETERMINER_RE.test(clause) || DETERMINER_RE.test(raw));
+  return strong || shortPhrase ? candidate : null;
+};
+
 const assessFreeText = (text: string, riddle: StoredRiddle, forceAnswer = false): RiddleAssessment => {
   // A quoted answer is kept whole: its own punctuation must not split it.
   const clauses = (QUOTED_RE.test(text) ? [text] : text.split(CLAUSE_SPLIT_RE))
@@ -145,6 +163,11 @@ const assessFreeText = (text: string, riddle: StoredRiddle, forceAnswer = false)
     return rulesOutAnswer ? { type: 'unclear', question: 'Then what is your answer to the riddle?' } : { type: 'not_answer' };
   }
 
+  // Several different guesses ("a dog, a candle or an echo?") are not one answer: listing
+  // guesses must not win a riddle.
+  if (riddle.answerKnown && new Set(asserted.map(clause => guessOf(clause, riddle, forceAnswer)).filter(Boolean)).size > 1) {
+    return { type: 'unclear', question: 'Which one is your answer to the riddle?' };
+  }
   const results = asserted.map(clause => assessClause(clause, riddle, forceAnswer));
   const answers = results.filter((r): r is Extract<RiddleAssessment, { type: 'answer' }> => r.type === 'answer');
   if (answers.length > 0) {

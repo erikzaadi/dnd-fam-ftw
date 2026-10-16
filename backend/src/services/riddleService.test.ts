@@ -60,6 +60,18 @@ describe('assessRiddleAction: typed answers', () => {
     expect(text('A piano! No wait, a jailer!')).toMatchObject({ type: 'unclear' });
   });
 
+  it.each([
+    'Is it a jailer, a candle or a piano?',
+    'is it a dog or a piano?',
+    'a lighthouse, a piano',
+  ])('asks which one when "%s" lists several guesses', value => {
+    expect(text(value)).toEqual({ type: 'unclear', question: 'Which one is your answer to the riddle?' });
+  });
+
+  it('does not count a narrative clause as another guess', () => {
+    expect(text('It\'s dark, is it a piano?')).toEqual({ type: 'answer', riddleId: 'r1', correct: true });
+  });
+
   it('treats a bare "yes" as no answer on its own (answering a question needs its context)', () => {
     expect(text('Yes!')).toEqual({ type: 'not_answer' });
   });
