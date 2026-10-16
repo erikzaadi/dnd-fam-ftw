@@ -5,6 +5,7 @@ import { operationRepository } from '../repositories/operationRepository.js';
 import { riddleRepository } from '../repositories/riddleRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
 import { devLog } from '../lib/devLog.js';
+import { createSlidingWindowLimiter } from '../lib/slidingWindowLimiter.js';
 import type { AskDmPayload, InventoryItem, SessionState } from '../types.js';
 import { mentionsRiddleAnswer } from './riddleService.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
@@ -24,9 +25,8 @@ export type AskDmResult =
   | { ok: false; status: number; body: { error: string; message: string } };
 
 const ASK_TIMEOUT_MS = 8_000;
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX_QUESTIONS = 6;
-const questionTimes = new Map<string, number[]>();
+// At most 6 questions per adventure per minute.
+const questionLimiter = createSlidingWindowLimiter(60_000, 6);
 
 // Replaces any reply that names the answer of the open riddle.
 export const RIDDLE_SAFE_ANSWER = "That's a riddle for you to solve! Have a guess, the DM is listening.";
@@ -36,18 +36,7 @@ const reject = (status: number, error: string, message: string): AskDmResult => 
 const answerSchema = z.object({ answer: z.string().trim().min(1).max(600) });
 
 export const resetAskDmStateForTests = (): void => {
-  questionTimes.clear();
-};
-
-const takeRateLimitSlot = (sessionId: string): boolean => {
-  const now = Date.now();
-  const recent = (questionTimes.get(sessionId) ?? []).filter(time => now - time < RATE_LIMIT_WINDOW_MS);
-  if (recent.length >= RATE_LIMIT_MAX_QUESTIONS) {
-    questionTimes.set(sessionId, recent);
-    return false;
-  }
-  questionTimes.set(sessionId, [...recent, now]);
-  return true;
+  questionLimiter.clear();
 };
 
 const describeItem = (item: InventoryItem): string => {
@@ -116,7 +105,7 @@ export const askDm = async (sessionId: string, request: AskDmRequest): Promise<A
   if (latestTurnId !== request.turnId || (session.revision ?? 0) !== request.revision) {
     return reject(409, 'stale_question', 'The story moved on. Ask again about the latest scene.');
   }
-  if (!takeRateLimitSlot(sessionId)) {
+  if (!questionLimiter.take(sessionId)) {
     return reject(429, 'ask_rate_limited', 'Lots of questions already! Try again in a minute, or just say what you try.');
   }
 

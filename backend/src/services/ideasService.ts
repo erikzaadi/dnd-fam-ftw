@@ -10,6 +10,7 @@ import { createNarrationProvider } from '../providers/ai/AiProviderFactory.js';
 import { ensureActiveRiddle, syncRiddleChoices } from './riddleService.js';
 import { toPublicChoice } from './sessionProjection.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
+import { createSlidingWindowLimiter } from '../lib/slidingWindowLimiter.js';
 
 // Suggested actions on request ("Give me ideas"). Ideas are the latest turn's choices,
 // generated lazily for the current turn, revision, and acting hero, and shared by every
@@ -28,9 +29,8 @@ export type IdeasResult =
   | { ok: true; payload: IdeasPayload }
   | { ok: false; status: number; body: { error: string; message: string } };
 
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX_GENERATIONS = 6;
-const generationTimes = new Map<string, number[]>();
+// At most 6 idea generations per adventure per minute.
+const generationLimiter = createSlidingWindowLimiter(60_000, 6);
 const inFlight = new Map<string, Promise<IdeasResult>>();
 
 const reject = (status: number, error: string, message: string): IdeasResult => ({ ok: false, status, body: { error, message } });
@@ -63,17 +63,6 @@ const checkRequestable = (session: SessionState, request: IdeasRequest): IdeasRe
     return STALE;
   }
   return null;
-};
-
-const takeRateLimitSlot = (sessionId: string): boolean => {
-  const now = Date.now();
-  const recent = (generationTimes.get(sessionId) ?? []).filter(time => now - time < RATE_LIMIT_WINDOW_MS);
-  if (recent.length >= RATE_LIMIT_MAX_GENERATIONS) {
-    generationTimes.set(sessionId, recent);
-    return false;
-  }
-  generationTimes.set(sessionId, [...recent, now]);
-  return true;
 };
 
 // Runs the same choices path as a turn (prompt, retries, top-stat coverage, sanitizers,
@@ -138,7 +127,7 @@ const produceIdeas = async (sessionId: string, request: IdeasRequest): Promise<I
   if (meta && session.lastChoices.length > 0 && areIdeasCurrent(meta, session) && !(request.retry && meta.ideasDegraded)) {
     return { ok: true, payload: toPayload(request.turnId, request.revision, characterId, session.lastChoices, meta.ideasDegraded) };
   }
-  if (!takeRateLimitSlot(sessionId)) {
+  if (!generationLimiter.take(sessionId)) {
     return reject(429, 'ideas_rate_limited', 'Lots of ideas already! Try one, or ask again in a minute.');
   }
 
@@ -181,6 +170,6 @@ export const requestIdeas = async (sessionId: string, request: IdeasRequest): Pr
 };
 
 export const resetIdeasStateForTests = (): void => {
-  generationTimes.clear();
+  generationLimiter.clear();
   inFlight.clear();
 };
