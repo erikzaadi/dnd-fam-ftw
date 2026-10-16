@@ -115,7 +115,7 @@ ENCOUNTER_SEEDS:
 ]
 ```
 
-The JSON block must be a valid JSON array. Omit null values instead of writing `null`. Up to 4 seeds are parsed; extras are ignored.
+The JSON block must be a valid JSON array. Omit null values instead of writing `null`. Up to 4 seeds are parsed; extras are ignored. Each seed needs a `name` and at least one enemy with a `name` and a valid `role`; a seed that does not is skipped (the others still load). `areas` may be left out.
 
 ### Enemy roles and HP
 

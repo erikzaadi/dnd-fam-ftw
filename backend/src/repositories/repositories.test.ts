@@ -369,6 +369,20 @@ describe('sessionRepository encounter state persistence', () => {
     expect(loaded?.dmPrepEncounters?.[0]).toMatchObject({ name: 'Shadow Ambush', lootHint: 'a shadow-touched amulet' });
   });
 
+  it('normalizes stored seeds on read: missing areas defaulted, malformed seeds dropped', async () => {
+    insertSession('repo-encounter-legacy');
+    const stored = [
+      { name: 'No Areas', triggerHint: 'alley', enemies: [{ name: 'Wraith', role: 'elite' }] },
+      { name: 'No Enemies', triggerHint: 'gate' },
+    ];
+    getDb().prepare('UPDATE sessions SET dm_prep_encounters = ? WHERE id = ?').run(JSON.stringify(stored), 'repo-encounter-legacy');
+    const loaded = await sessionRepository.getSession('repo-encounter-legacy');
+
+    expect(loaded?.dmPrepEncounters).toEqual([
+      { name: 'No Areas', triggerHint: 'alley', enemies: [{ name: 'Wraith', role: 'elite' }], areas: [] },
+    ]);
+  });
+
   it('clears encounter state when set to null', async () => {
     insertSession('repo-encounter-clear');
     const state: SessionState = {

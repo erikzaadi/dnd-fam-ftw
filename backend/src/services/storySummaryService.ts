@@ -1,5 +1,6 @@
 import { createChatClientForTier } from '../providers/ai/AiProviderFactory.js';
 import { getTierRequestSettings, warnIfEmptyTruncation } from '../providers/ai/openAiClient.js';
+import { normalizeEncounterSeeds } from '../lib/encounterSeeds.js';
 import { runBackground } from '../middleware/runBackground.js';
 import { sessionRepository } from '../repositories/sessionRepository.js';
 import { turnHistoryRepository } from '../repositories/turnHistoryRepository.js';
@@ -82,11 +83,7 @@ const tryParseJsonArray = (text: string): EncounterSeed[] | null => {
   const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const jsonStr = fenceMatch ? fenceMatch[1].trim() : text.trim();
   try {
-    const parsed = JSON.parse(jsonStr) as unknown;
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      return null;
-    }
-    return parsed as EncounterSeed[];
+    return normalizeEncounterSeeds(JSON.parse(jsonStr));
   } catch {
     return null;
   }

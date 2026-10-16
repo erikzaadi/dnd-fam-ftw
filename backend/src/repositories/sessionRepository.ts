@@ -1,3 +1,4 @@
+import { normalizeEncounterSeeds } from '../lib/encounterSeeds.js';
 import { createId } from '../lib/ids.js';
 import { getDb } from '../persistence/database.js';
 import { areIdeasCurrent } from './turnHistoryRepository.js';
@@ -274,7 +275,7 @@ export const sessionRepository = {
       dmPrepImageBrief: row.dm_prep_image_brief || undefined,
       encounterState: row.encounter_state ? (JSON.parse(row.encounter_state) as EncounterState) : undefined,
       pastEncounters: row.past_encounters ? (JSON.parse(row.past_encounters) as EncounterState[]) : undefined,
-      dmPrepEncounters: row.dm_prep_encounters ? (JSON.parse(row.dm_prep_encounters) as EncounterSeed[]) : undefined,
+      dmPrepEncounters: row.dm_prep_encounters ? normalizeEncounterSeeds(JSON.parse(row.dm_prep_encounters)) ?? undefined : undefined,
       turn: row.turn,
       party: characters.map(c => ({
         id: c.id,
