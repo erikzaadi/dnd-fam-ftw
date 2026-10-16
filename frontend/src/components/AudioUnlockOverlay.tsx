@@ -1,9 +1,14 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { audioManager } from '../audio/audioManager';
 import { useAudioSettings } from '../audio/useAudioSettings';
 
+// Sign-in and TV pairing pages play no audio; the prompt waits for the first game page.
+const QUIET_PATHS = ['/login', '/verify-email', '/namespace-picker', '/request-invite', '/accept-invite', '/tv', '/link'];
+
 export const AudioUnlockOverlay = () => {
   const [show, setShow] = useState(false);
+  const { pathname } = useLocation();
   const { settings } = useAudioSettings();
 
   useEffect(() => {
@@ -13,7 +18,7 @@ export const AudioUnlockOverlay = () => {
     }
   }, [settings.musicEnabled]);
 
-  if (!show) {
+  if (!show || QUIET_PATHS.includes(pathname)) {
     return null;
   }
 

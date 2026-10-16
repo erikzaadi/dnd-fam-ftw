@@ -57,7 +57,8 @@ packages/shared/src/
   types.ts                         # Canonical types shared by backend and frontend - add shared types here
 
 backend/src/
-  index.ts                         # Express routes + SSE
+  index.ts                         # Startup: config checks, migrations, maintenance, listen
+  app.ts                           # createApp(): middleware + routes (no side effects; tests build the real app)
   config/env.ts                    # All env var parsing - add new vars here
   services/
     authService.ts                 # Google OAuth + JWT
@@ -143,6 +144,7 @@ When enabled:
 - Google OAuth uses a browser-bound `state` + PKCE cookie (`oauth_google`) and requires `email_verified`
 - CORS allows only the `FRONTEND_URL` / `GOOGLE_CALLBACK_URL` origins (plus localhost outside production); state-changing `/auth/*` POSTs also check `Origin`. Endpoints that change which realm a cookie grants (`POST /auth/session/namespace`, `/auth/invitations/*`) use `requireBrowserJsonPost` (`routes/browserPost.ts`): Origin must be present and allowed, body must be JSON. `trust proxy` is `loopback` (nginx)
 - Realm switching: `GET /auth/session/namespaces` and `POST /auth/session/namespace` use `requireFullIdentity` (valid full sign-in, membership not required) so a user removed from their active realm can pick another. `apiFetch` sends `X-Namespace-Id`; a mismatch with the cookie gets 409 `namespace_changed` and the page reloads
+- TV sign-in (`services/devicePairingService.ts`, `routes/deviceAuthRoutes.ts`, frontend `/tv` and `/link`; `DEVICE_SIGN_IN_DISABLED=true` turns it off and rejects signed-in TVs): a signed-in user approves a TV's code; the TV's full cookie carries `deviceGrantId`, checked against `device_grants` on every request (`identityFromCookie` in `middleware/auth.ts`). TV sessions are gameplay only: guard new account-level routes with `denyDeviceSessions` and classify every new route in `routes/deviceSessionRoutes.test.ts`
 - Member invitations (`services/namespaceInviteService.ts`, on whenever auth, email and `FRONTEND_URL` are set; `MEMBER_INVITES_DISABLED=true` turns them off): single-use emailed link (`/accept-invite#token=`), only the SHA-256 is stored, sent directly (never via `email_outbox`). Accepting adds an ordinary membership; invite-created users get the invited realm as primary and own nothing
 
 ## Namespace isolation

@@ -294,6 +294,23 @@ jobs:
             echo "message=$MESSAGE"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Gather TV sign-ins
+        id: devices
+        env:
+          SINCE: ${{ steps.window.outputs.since }}
+        run: |
+          # Falls back to zero so the report still goes out if the deployed release
+          # predates the devices command.
+          # shellcheck disable=SC2029
+          DEVICES=$(ssh "$SSH_USER@${{ secrets.LIGHTSAIL_HOST }}" \
+            "bash -lc 'cd $CURRENT_DIR && node --env-file=$APP_ENV_FILE dist/scripts/cli.js metrics devices --since \"$SINCE\" --json'" \
+            || echo '{}')
+          APPROVED=$(echo "$DEVICES" | jq -r '.approved // 0' 2>/dev/null || echo 0)
+          SIGNED_IN=$(echo "$DEVICES" | jq -r '.signedInNow // 0' 2>/dev/null || echo 0)
+          {
+            echo "message=TV sign-ins approved since last report: $APPROVED ($SIGNED_IN TVs signed in now)."
+          } >> "$GITHUB_OUTPUT"
+
       - name: Generate AI summary
         id: summary
         env:
@@ -371,6 +388,7 @@ jobs:
           NEW_NAMESPACES_COUNT: ${{ steps.new_namespaces.outputs.count }}
           TOP_NAMESPACE: ${{ steps.top_namespace.outputs.message }}
           DONATIONS: ${{ steps.donations.outputs.message }}
+          DEVICES: ${{ steps.devices.outputs.message }}
         run: |
           MSG="$SUMMARY"
           MSG=$(printf '%s\n\n%s' "$MSG" "$SESSION_GROWTH")
@@ -384,6 +402,7 @@ jobs:
           fi
           MSG=$(printf '%s\n%s' "$MSG" "$TOP_NAMESPACE")
           MSG=$(printf '%s\n%s' "$MSG" "$DONATIONS")
+          MSG=$(printf '%s\n%s' "$MSG" "$DEVICES")
           if [ "${INVITES_COUNT:-0}" -gt 0 ]; then
             EMAILS=$(echo "$INVITES_JSON" | jq -r '.[].email' | paste -sd ', ')
             MSG=$(printf '%s\n\nPending invites (%s): %s' "$MSG" "$INVITES_COUNT" "$EMAILS")

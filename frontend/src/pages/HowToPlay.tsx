@@ -222,6 +222,15 @@ export const HowToPlay = () => {
               </p>
             </Section>
 
+            <Section title="📺 Playing on a TV">
+              <p className="text-slate-300 text-lg leading-relaxed">
+                On the TV's browser, press <strong>Playing on a TV?</strong> on the sign-in page. The TV shows a code and a QR code. Scan it with a phone that is signed in (or open <strong>/link</strong> and type the code), check that the codes match, and press <strong>Approve</strong>. No typing on the TV and no email on the TV.
+              </p>
+              <p className="text-slate-300 text-lg leading-relaxed">
+                A TV plays as the person who approved it, in the realm they picked, and can only play: realm, invitation and account settings stay on phones and computers. It signs out after 30 days unused, or 60 days at most. See and sign out your TVs under <strong>Signed-in TVs</strong> in Settings.
+              </p>
+            </Section>
+
             <Section title="Turns">
               <p className="text-slate-300 text-lg leading-relaxed">
                 Heroes take turns in order. The active hero is highlighted in the party bar at the top. Only the active hero can perform actions, but ideas may spotlight their traits, involve another active hero's help, use carried gear, turn an NPC conversation into the challenge, or use a specific terrain hazard. Spotlight, social, team-up, and gear ideas can add small bonuses to the roll, and clever typed actions can earn those bonuses too when they clearly name the ally, item, or character trait they use.

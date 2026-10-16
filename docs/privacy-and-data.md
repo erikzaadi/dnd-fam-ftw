@@ -17,7 +17,7 @@ When you play through an assistant such as Claude, Codex or Cursor, the story (s
 In its SQLite database:
 
 - **Adventures:** settings, DM Prep, heroes, every turn's narration, actions and roll results, story summaries, riddles and encounter state.
-- **Accounts** (when sign-in is on): email address, name, realm memberships, sign-in challenges (codes are stored hashed), pending invitations (only a hash of the link token), personal access tokens (hashed) and connected-assistant grants.
+- **Accounts** (when sign-in is on): email address, name, realm memberships, sign-in challenges (codes are stored hashed), pending invitations (only a hash of the link token), personal access tokens (hashed), connected-assistant grants, and signed-in TVs (a name, a shortened browser user agent and last-used time, kept 90 days after the TV is signed out; pairing codes are stored hashed).
 - **Usage records:** one row per AI provider request with the model, token counts, estimated cost, and which user and realm it was for. No prompt or story text.
 - **Email outbox:** signup and "ask for more" notices waiting to be sent to the operator.
 

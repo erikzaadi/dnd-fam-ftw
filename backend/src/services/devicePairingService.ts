@@ -3,7 +3,7 @@ import { getConfig, isDeviceSignInEnabled } from '../config/env.js';
 import { devLog } from '../lib/devLog.js';
 import { withTransaction } from '../persistence/transaction.js';
 import { realmAccess } from '../realms/access.js';
-import { devicePairingRepository, type DeviceGrantRow, type DeviceRevokeReason } from '../repositories/devicePairingRepository.js';
+import { devicePairingRepository, type DeviceGrantRow, type DeviceMetrics, type DeviceRevokeReason } from '../repositories/devicePairingRepository.js';
 import { namespaceRepository } from '../repositories/namespaceRepository.js';
 import { userRepository } from '../repositories/userRepository.js';
 import type { DeviceGrantSummary } from '../types.js';
@@ -311,6 +311,9 @@ export function revokeDeviceGrant(grantId: string, userId: string, reason: 'user
   logSignOut(grantId, userId, reason);
   return true;
 }
+
+export const deviceMetrics = (since: number, now: number = Date.now()): DeviceMetrics =>
+  devicePairingRepository.metrics(since, now, now - IDLE_LIMIT_MS);
 
 export function runDeviceMaintenance(now: number = Date.now()): void {
   for (const grant of [

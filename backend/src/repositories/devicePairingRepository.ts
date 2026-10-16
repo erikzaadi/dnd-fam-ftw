@@ -36,6 +36,16 @@ export type DeviceGrantRow = {
 
 export type RevokedGrant = { id: string; user_id: string; revoked_reason: DeviceRevokeReason };
 
+export type DeviceMetrics = {
+  since: string;
+  started: number;
+  approved: number;
+  denied: number;
+  expiredUnused: number;
+  signedInNow: number;
+  signOuts: Partial<Record<DeviceRevokeReason, number>>;
+};
+
 // Timestamps are epoch milliseconds.
 export const devicePairingRepository = {
   createPairing(row: Pick<DevicePairingRow, 'id' | 'device_hash' | 'user_code_hmac' | 'user_agent' | 'created_at' | 'expires_at'>): void {
@@ -139,5 +149,23 @@ export const devicePairingRepository = {
     const db = getDb();
     db.prepare('DELETE FROM device_pairings WHERE created_at < ?').run(before);
     db.prepare('DELETE FROM device_grants WHERE revoked_at IS NOT NULL AND revoked_at < ?').run(before);
+  },
+
+  // TV sign-in counts since a time, each by its own event timestamp; no emails or codes.
+  metrics(since: number, now: number, idleSince: number): DeviceMetrics {
+    const db = getDb();
+    const count = (sql: string, ...args: number[]) => (db.prepare(sql).get(...args) as { n: number }).n;
+    const signOuts = db.prepare(`
+      SELECT revoked_reason AS reason, COUNT(*) AS n FROM device_grants WHERE revoked_at >= ? GROUP BY revoked_reason ORDER BY revoked_reason
+    `).all(since) as { reason: DeviceRevokeReason; n: number }[];
+    return {
+      since: new Date(since).toISOString(),
+      started: count('SELECT COUNT(*) AS n FROM device_pairings WHERE created_at >= ?', since),
+      approved: count('SELECT COUNT(*) AS n FROM device_pairings WHERE approved_at >= ?', since),
+      denied: count('SELECT COUNT(*) AS n FROM device_pairings WHERE denied_at >= ?', since),
+      expiredUnused: count("SELECT COUNT(*) AS n FROM device_pairings WHERE status = 'pending' AND expires_at >= ? AND expires_at <= ?", since, now),
+      signedInNow: count('SELECT COUNT(*) AS n FROM device_grants WHERE revoked_at IS NULL AND last_seen_at > ? AND max_expires_at > ?', idleSince, now),
+      signOuts: Object.fromEntries(signOuts.map(row => [row.reason, row.n])),
+    };
   },
 };

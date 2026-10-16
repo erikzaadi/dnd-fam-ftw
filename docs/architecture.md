@@ -23,7 +23,7 @@ A short map of how the app fits together. Details live in [MULTI_AGENT_WORKFLOW.
 
 | Path | Role |
 |---|---|
-| `backend/src/index.ts`, `backend/src/routes/` | Express app and routes |
+| `backend/src/index.ts`, `backend/src/app.ts`, `backend/src/routes/` | Startup, the Express app (`createApp`) and routes |
 | `backend/src/services/turnService.ts`, `turnResolution.ts`, `turnFinalizer.ts` | Player turns from request to commit |
 | `backend/src/services/dmTurnOrchestrator.ts` | AI agents per turn, and ideas |
 | `backend/src/services/gameEngine.ts` | Dice, damage, items, rotation, party wipes |
@@ -105,3 +105,14 @@ Every open view of an adventure receives the same events:
 | `intervention` / `sanctuary_recovery` | The party was rescued after a wipe |
 | `game_over` | A wipe with no rescues left |
 | `adventure_concluding` / `adventure_concluded` | The finale resolved and the epilogue is being written / is done |
+
+## TV sign-in
+
+A TV signs in without typing: it shows a code and a QR code (`/tv`), and a signed-in phone or computer approves it on `/link` (the OAuth device flow shape, inside the app's own cookie sign-in).
+
+1. The TV calls `POST /auth/device/start` and gets an HttpOnly `device_pairing` cookie (only its hash is stored) and a short code (stored as a keyed HMAC, valid 10 minutes). It polls `GET /auth/device/poll`.
+2. The approver looks the code up, compares it with the TV, picks a realm and approves. Approval creates a device grant, signs out the approver's oldest TV past 5, and queues a notice email, in one transaction.
+3. The next poll sets a sign-in cookie for that grant, with a `deviceGrantId` claim. Polls stay repeatable until the code expires, always for the same grant, so a lost response recovers.
+
+Every request with a TV cookie checks its grant (`checkDeviceGrant` via `middleware/auth.ts`): revoked, 30 days unused, 60 days old, or `DEVICE_SIGN_IN_DISABLED` all count as signed out. TV sign-ins are gameplay only: `denyDeviceSessions` returns 403 on account-level routes, and `routes/deviceSessionRoutes.test.ts` classifies every route of the app. Code in `services/devicePairingService.ts` and `routes/deviceAuthRoutes.ts`.
+

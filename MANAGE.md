@@ -171,7 +171,14 @@ Member invitation counts per day (sent, failed, accepted, new accounts), without
 ./dnd-fam-ftw-cli metrics invites --since 2026-09-01 --json
 ```
 
-The weekly metrics workflow tracks the timestamp of its last run in SSM and passes it as `--since` to `metrics` and `metrics narration`, so all weekly figures (new sessions, new narration failures, most active namespace, active users) are computed directly from real row timestamps rather than diffing snapshots.
+TV sign-in counts (pairings started, approved, denied and expired unused, TVs signed in now, sign-outs by reason), each counted by its own event time, without emails, codes or user agents:
+
+```bash
+./dnd-fam-ftw-cli metrics devices
+./dnd-fam-ftw-cli metrics devices --since 2026-10-01 --json
+```
+
+The weekly metrics workflow tracks the timestamp of its last run in SSM and passes it as `--since` to `metrics`, `metrics narration` and `metrics devices`, so all weekly figures (new sessions, new narration failures, most active namespace, active users, TV sign-ins) are computed directly from real row timestamps rather than diffing snapshots.
 
 ### invite-requests
 

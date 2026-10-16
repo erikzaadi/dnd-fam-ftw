@@ -16,6 +16,7 @@
  *   metrics         [--json] [--since <ISO date>] | usage [--json] [--since <ISO date>] [--namespace <id>] [--by-owner] [--owner-user-id <id>]
  *                   | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]
  *                   | invites [--json] [--since <ISO date>]
+ *                   | devices [--json] [--since <ISO date>]
  *   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
  *   limit-requests  list [--status <s>] [--json] | approve <id> [--tier <tier>] | deny <id>
  *   mcp-requests    list [--status <s>] [--json] | approve <id> | deny <id>
@@ -58,6 +59,7 @@ import { namespaceInviteRepository } from '../repositories/namespaceInviteReposi
 import { realmAccess } from '../realms/access.js';
 import { accountService } from '../services/accountService.js';
 import { deleteAdventure } from '../archive/adventureDeletion.js';
+import { deviceMetrics } from '../services/devicePairingService.js';
 
 const [, , resource, subcommand, ...rest] = process.argv;
 const allArgs = [subcommand, ...rest].filter(Boolean);
@@ -850,6 +852,24 @@ case 'metrics': {
     break;
   }
 
+  // TV sign-in counts (device pairing): no emails, codes or user agents.
+  if (subcommand === 'devices') {
+    const sinceArg = parseArgValue(allArgs.find(a => a === '--since' || a.startsWith('--since=')));
+    const since = sinceArg ? Date.parse(sinceArg) : Date.now() - 30 * 24 * 60 * 60 * 1000;
+    if (Number.isNaN(since)) {
+      fail('Usage: cli metrics devices [--since <ISO date>] [--json]');
+    }
+    const metrics = deviceMetrics(since);
+    if (jsonMode) {
+      process.stdout.write(JSON.stringify(metrics, null, 2) + '\n');
+    } else {
+      const { signOuts, ...counts } = metrics;
+      console.table(counts);
+      console.log(`Sign-outs by reason: ${Object.entries(signOuts).map(([reason, n]) => `${reason} ${n}`).join(', ') || 'none'}`);
+    }
+    break;
+  }
+
   if (subcommand === 'narration') {
     interface NarrationMetricsRow {
       turn_id: number;
@@ -1490,6 +1510,7 @@ Resources:
   metrics         [--json] [--since <ISO date>] | narration [--json|--format csv] [--failed-only] [--namespace <id>] [--session <id>] [--since <ISO date>]
                   usage [--json] [--since <ISO date>] [--namespace <id>] [--by-owner] [--owner-user-id <id>]
                   invites [--json] [--since <ISO date>]
+                  devices [--json] [--since <ISO date>]
   invite-requests list [--json] | approve <email> [--namespace <name>] | clear
   limit-requests  list [--status <s>] [--json] | approve <id> [--tier <tier>] | deny <id>
   mcp-requests    list [--status <s>] [--json] | approve <id> | deny <id>
