@@ -1,3 +1,4 @@
+import { readStorage, writeStorage } from '../lib/storage';
 import type { GameMode } from '../types';
 
 export const FIRST_RUN_WIZARD_VERSION = 1;
@@ -23,7 +24,7 @@ const DEFAULT_PREFERENCES: FirstRunPreferences = {
 const GAME_MODES = new Set<GameMode>(['cinematic', 'balanced', 'fast', 'zug-ma-geddon']);
 
 function readJson<T>(key: string, fallback: T): T {
-  const stored = localStorage.getItem(key);
+  const stored = readStorage(key);
   if (!stored) {
     return fallback;
   }
@@ -49,7 +50,7 @@ export function markFirstRunWizardCompleted(): FirstRunWizardRecord {
     completedVersion: FIRST_RUN_WIZARD_VERSION,
     completedAt: new Date().toISOString(),
   };
-  localStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(next));
+  writeStorage(WIZARD_STORAGE_KEY, JSON.stringify(next));
   return next;
 }
 
@@ -59,7 +60,7 @@ export function markFirstRunWizardSkipped(): FirstRunWizardRecord {
     skippedVersion: FIRST_RUN_WIZARD_VERSION,
     skippedAt: new Date().toISOString(),
   };
-  localStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(next));
+  writeStorage(WIZARD_STORAGE_KEY, JSON.stringify(next));
   return next;
 }
 
@@ -73,6 +74,6 @@ export function loadFirstRunPreferences(): FirstRunPreferences {
 
 export function saveFirstRunPreferences(patch: Partial<FirstRunPreferences>): FirstRunPreferences {
   const next = { ...loadFirstRunPreferences(), ...patch };
-  localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(next));
+  writeStorage(PREFERENCES_STORAGE_KEY, JSON.stringify(next));
   return next;
 }

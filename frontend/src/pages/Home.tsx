@@ -1,3 +1,4 @@
+import { readStorage, writeStorage } from '../lib/storage';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -538,29 +539,29 @@ export const Home = () => {
     Boolean((location.state as { showFirstRunWizard?: boolean } | null)?.showFirstRunWizard),
   );
   const [homeTutorialQueued, setHomeTutorialQueued] = useState(() =>
-    localStorage.getItem(HOME_TUTORIAL_PENDING_KEY) === '1' &&
-    !localStorage.getItem(HOME_TUTORIAL_KEY)
+    readStorage(HOME_TUTORIAL_PENDING_KEY) === '1' &&
+    !readStorage(HOME_TUTORIAL_KEY)
   );
 
   const queueHomeTutorial = useCallback(() => {
-    localStorage.removeItem(HOME_TUTORIAL_KEY);
-    localStorage.setItem(HOME_TUTORIAL_PENDING_KEY, '1');
+    writeStorage(HOME_TUTORIAL_KEY, null);
+    writeStorage(HOME_TUTORIAL_PENDING_KEY, '1');
     setHomeTutorialQueued(true);
   }, []);
 
   const { enabled: authEnabled, user } = useAuth();
   const canInvite = useSessionNamespaces(authEnabled && !!user && !user.deviceSession)?.canInvite ?? false;
-  const [inviteTipDone, setInviteTipDone] = useState(() => !!localStorage.getItem(INVITE_TIP_KEY));
+  const [inviteTipDone, setInviteTipDone] = useState(() => !!readStorage(INVITE_TIP_KEY));
   const dismissInviteTip = useCallback(() => {
-    localStorage.setItem(INVITE_TIP_KEY, '1');
+    writeStorage(INVITE_TIP_KEY, '1');
     setInviteTipDone(true);
   }, []);
 
   const finishHomeTutorial = useCallback(() => {
-    localStorage.removeItem(HOME_TUTORIAL_PENDING_KEY);
+    writeStorage(HOME_TUTORIAL_PENDING_KEY, null);
     setHomeTutorialQueued(false);
     // The tour already offered invitations; no separate tip afterwards.
-    localStorage.setItem(INVITE_TIP_KEY, '1');
+    writeStorage(INVITE_TIP_KEY, '1');
     setInviteTipDone(true);
   }, []);
 
@@ -682,7 +683,7 @@ export const Home = () => {
     });
   };
 
-  const onboardingSessionId = localStorage.getItem('onboarding_session_id');
+  const onboardingSessionId = readStorage('onboarding_session_id');
   const showGettingStarted = !onboardingSessionId || !activeSessions.some(s => s.id === onboardingSessionId);
   const wizardVisible = firstRunWizard.shouldShow || replayFirstRunWizard;
   const showHomeTutorial = homeTutorialQueued && !wizardVisible && !instantStartLoading && !editSession && !viewingChar && !fullscreenCharAvatar && !confirmDialog;
@@ -770,7 +771,7 @@ export const Home = () => {
       {/* Single scrollable content area - no nested scroll boxes */}
       <div className="flex-1 overflow-y-auto min-h-0">
         <div className="flex flex-col gap-4 px-4 md:px-8 pt-4 pb-6 relative z-[10] w-full max-w-6xl mx-auto min-h-full">
-          {canInvite && !inviteTipDone && !homeTutorialQueued && localStorage.getItem(HOME_TUTORIAL_KEY) && (
+          {canInvite && !inviteTipDone && !homeTutorialQueued && readStorage(HOME_TUTORIAL_KEY) && (
             <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-slate-900/80 border border-amber-700/40 rounded-2xl">
               <span aria-hidden className="text-xl">✉️</span>
               <p className="flex-1 min-w-[12rem] text-sm text-slate-300">

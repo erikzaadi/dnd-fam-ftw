@@ -1,3 +1,4 @@
+import { readStorage, writeStorage } from '../lib/storage';
 import { useCallback, useState } from 'react';
 
 export const CHARACTER_ASSEMBLY_TUTORIAL_KEY = 'character_assembly_tutorial_done';
@@ -20,25 +21,25 @@ export type SetupTutorialStep = {
 export const INVITE_TIP_KEY = 'invite_party_tip_done';
 
 export function resetSetupTutorials() {
-  localStorage.removeItem(HOME_TUTORIAL_KEY);
-  localStorage.setItem(HOME_TUTORIAL_PENDING_KEY, '1');
-  localStorage.removeItem(CHARACTER_ASSEMBLY_TUTORIAL_KEY);
-  localStorage.removeItem(NEW_SESSION_TUTORIAL_KEY);
+  writeStorage(HOME_TUTORIAL_KEY, null);
+  writeStorage(HOME_TUTORIAL_PENDING_KEY, '1');
+  writeStorage(CHARACTER_ASSEMBLY_TUTORIAL_KEY, null);
+  writeStorage(NEW_SESSION_TUTORIAL_KEY, null);
 }
 
 // For a browser whose player already knows the app (a signed-in TV): no tours or tips.
 export function markSetupTutorialsDone() {
   for (const key of [HOME_TUTORIAL_KEY, CHARACTER_ASSEMBLY_TUTORIAL_KEY, NEW_SESSION_TUTORIAL_KEY, INVITE_TIP_KEY]) {
-    localStorage.setItem(key, '1');
+    writeStorage(key, '1');
   }
-  localStorage.removeItem(HOME_TUTORIAL_PENDING_KEY);
+  writeStorage(HOME_TUTORIAL_PENDING_KEY, null);
 }
 
 export function useSetupTutorial(storageKey: string, steps: SetupTutorialStep[], onFinish?: () => void) {
-  const [index, setIndex] = useState(() => localStorage.getItem(storageKey) ? null : 0);
+  const [index, setIndex] = useState(() => readStorage(storageKey) ? null : 0);
 
   const dismiss = useCallback(() => {
-    localStorage.setItem(storageKey, '1');
+    writeStorage(storageKey, '1');
     onFinish?.();
     setIndex(null);
   }, [onFinish, storageKey]);
@@ -50,7 +51,7 @@ export function useSetupTutorial(storageKey: string, steps: SetupTutorialStep[],
       }
       const next = current + 1;
       if (next >= steps.length) {
-        localStorage.setItem(storageKey, '1');
+        writeStorage(storageKey, '1');
         onFinish?.();
         return null;
       }

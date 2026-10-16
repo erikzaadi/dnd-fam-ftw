@@ -1,3 +1,4 @@
+import { writeStorage } from '../lib/storage';
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { DmFooter } from '../components/DmFooter';
@@ -46,7 +47,7 @@ export const GetMeRollin = () => {
       setError('Something went wrong. Try again in a moment.');
       return;
     }
-    localStorage.setItem('onboarding_session_id', data.id);
+    writeStorage('onboarding_session_id', data.id);
     navigate(`/session/${data.id}`);
   };
 

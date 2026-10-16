@@ -1,3 +1,4 @@
+import { readStorage } from '../lib/storage';
 import { musicPlayer } from './musicPlayer';
 import { SfxPlayer } from './sfxPlayer';
 import type { AudioSettings, SfxEvent } from './audioTypes';
@@ -10,7 +11,7 @@ export class AudioManager {
   private pendingPlayback = false;
 
   constructor() {
-    const stored = localStorage.getItem('dnd-audio-settings');
+    const stored = readStorage('dnd-audio-settings');
     this.settings = stored ? JSON.parse(stored) : {
       enabled: true,
       musicEnabled: true,

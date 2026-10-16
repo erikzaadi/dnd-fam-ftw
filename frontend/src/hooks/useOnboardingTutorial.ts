@@ -1,3 +1,4 @@
+import { readStorage, writeStorage } from '../lib/storage';
 import { useState, useCallback } from 'react';
 
 const STORAGE_KEY = 'onboarding_tutorial_step';
@@ -5,28 +6,28 @@ const EVER_STARTED_KEY = 'tutorial_ever_started';
 const COMPLETE_STEP = 9;
 
 function readStep(): number | null {
-  const stored = localStorage.getItem(STORAGE_KEY);
+  const stored = readStorage(STORAGE_KEY);
   if (stored) {
     const n = parseInt(stored, 10);
     return isNaN(n) || n >= COMPLETE_STEP ? null : n;
   }
   // Auto-start on first session ever
-  if (!localStorage.getItem(EVER_STARTED_KEY)) {
-    localStorage.setItem(EVER_STARTED_KEY, '1');
-    localStorage.setItem(STORAGE_KEY, '1');
+  if (!readStorage(EVER_STARTED_KEY)) {
+    writeStorage(EVER_STARTED_KEY, '1');
+    writeStorage(STORAGE_KEY, '1');
     return 1;
   }
   return null;
 }
 
 export function resetTutorial() {
-  localStorage.setItem(STORAGE_KEY, '1');
+  writeStorage(STORAGE_KEY, '1');
 }
 
 // For a browser that should never auto-start the in-game tutorial (a signed-in TV).
 export function markTutorialSeen() {
-  localStorage.setItem(EVER_STARTED_KEY, '1');
-  localStorage.removeItem(STORAGE_KEY);
+  writeStorage(EVER_STARTED_KEY, '1');
+  writeStorage(STORAGE_KEY, null);
 }
 
 export function useOnboardingTutorial({
@@ -47,7 +48,7 @@ export function useOnboardingTutorial({
   if (prevIsLoading !== isLoading) {
     setPrevIsLoading(isLoading);
     if (step === 3 && isLoading) {
-      localStorage.setItem(STORAGE_KEY, '4');
+      writeStorage(STORAGE_KEY, '4');
       setStep(4);
     }
   }
@@ -65,10 +66,10 @@ export function useOnboardingTutorial({
     }
     const next = effectiveStep + 1;
     if (next >= COMPLETE_STEP) {
-      localStorage.removeItem(STORAGE_KEY);
+      writeStorage(STORAGE_KEY, null);
       setStep(null);
     } else {
-      localStorage.setItem(STORAGE_KEY, String(next));
+      writeStorage(STORAGE_KEY, String(next));
       setStep(next);
     }
   }, [effectiveStep]);
