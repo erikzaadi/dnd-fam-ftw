@@ -24,6 +24,7 @@ const facts = (overrides: Partial<ArcTurnFacts> = {}): ArcTurnFacts => ({
   objectiveOutcome: null,
   encounterResolvedThisTurn: false,
   partyWiped: false,
+  narrationFailed: false,
   ...overrides,
 });
 
@@ -84,9 +85,14 @@ describe('advanceArcAfterTurn', () => {
     expect(secondFail.resolution).toBe('setback');
   });
 
-  it('treats a finale encounter resolved with silent narration as success', () => {
+  it('treats a finale encounter resolved while narration failed as success', () => {
     const decisive = advanceArcAfterTurn(playTurns(evening(), 8), facts()).progress;
-    expect(advanceArcAfterTurn(decisive, facts({ encounterResolvedThisTurn: true })).resolution).toBe('success');
+    expect(advanceArcAfterTurn(decisive, facts({ encounterResolvedThisTurn: true, narrationFailed: true })).resolution).toBe('success');
+  });
+
+  it('does not end the chapter when a fight ends and a working narrator reports nothing', () => {
+    const decisive = advanceArcAfterTurn(playTurns(evening(), 8), facts()).progress;
+    expect(advanceArcAfterTurn(decisive, facts({ encounterResolvedThisTurn: true })).resolution).toBeUndefined();
   });
 
   it('never resolves on a party wipe', () => {

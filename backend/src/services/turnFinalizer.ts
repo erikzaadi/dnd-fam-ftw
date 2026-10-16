@@ -104,6 +104,7 @@ export const finalizeTurn = ({
       objectiveOutcome: turnResult.objectiveOutcome,
       encounterResolvedThisTurn: encounterResolvedThisTurn(previousSession.encounterState, newState.encounterState),
       partyWiped: wipeOutcome !== 'none',
+      narrationFailed: turnResult.narrationFailed ?? false,
     });
     newState.adventure = advanced.progress;
     pendingConclusion = pendingRecovery || wipeOutcome === 'game_over' ? undefined : advanced.resolution;

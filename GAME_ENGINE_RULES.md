@@ -367,7 +367,7 @@ State lives in `adventure_format`, `adventure_status` (`active` | `concluding` |
 **Finale.** The first finale turn sets up the decisive moment. Later actions are decisive attempts. Narration proposes `objectiveOutcome`; the server accepts:
 - `resolved_success` only if the action succeeded (or needed no roll), or the finale encounter was defeated/fled/surrendered this turn;
 - `resolved_setback` only on a failed attempt after at least one earlier failed attempt (fail forward first);
-- with no proposal (fallback narration), a finale encounter resolved this turn counts as success.
+- with no proposal because narration failed (fallback narration), a finale encounter resolved this turn counts as success. A working narrator that proposes nothing means the chapter goes on, even if a fight ended.
 After `resolveBy + 2` actions without resolution, `continueOffered` is set and views offer **Keep playing** (switch to long-lived) or **End here with an epilogue**. No outcome is forced.
 
 **Ending.** A resolved finale sets status `concluding` atomically with that turn; the same operation then writes a `conclusion` turn (no choices, no roll, no actor rotation) and sets status `completed`. The epilogue uses only committed facts (objective, heroes' actual actions, battles, last scenes) and never DM Prep. If generation fails, a deterministic epilogue is used; if persistence fails, status stays `concluding` and **Finish the story** retries without duplicating it.

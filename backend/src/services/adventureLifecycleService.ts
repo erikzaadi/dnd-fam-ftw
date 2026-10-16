@@ -186,6 +186,8 @@ export type ArcTurnFacts = {
   objectiveOutcome?: ObjectiveOutcome | null;
   encounterResolvedThisTurn: boolean;
   partyWiped: boolean;
+  // The narrator failed and fallback narration was used, so it could not report the outcome.
+  narrationFailed: boolean;
 };
 
 export type ArcTurnResult = {
@@ -209,9 +211,10 @@ export const validateObjectiveOutcome = (facts: ArcTurnFacts, priorFailedAttempt
     // failed attempt so the party always gets a fail-forward chance.
     return facts.rollSucceeded === false && priorFailedAttempts >= 1 ? 'setback' : null;
   }
-  // Narration unavailable (fallback) or silent: a finale encounter defeated/fled/
-  // surrendered this turn is itself committed proof the decisive moment was won.
-  if (proposal === null && facts.encounterResolvedThisTurn) {
+  // Narration unavailable (fallback): a finale encounter defeated/fled/surrendered this
+  // turn stands in for the missing report. A working narrator that says nothing means
+  // "not resolved yet", whatever fight ended, so the chapter goes on.
+  if (proposal === null && facts.narrationFailed && facts.encounterResolvedThisTurn) {
     return 'success';
   }
   return null;
