@@ -265,7 +265,9 @@ const resolveRolledTurn = async (
     `scenePressure=${scenePressure.kind} momentum=${sceneMomentum.directive}`,
   );
 
-  const earlyHpChange = decision.noFailureDamage
+  // In a fight (paused included) the combat agent chooses the damage later, so the formula
+  // would show a number that changes: the turn's real hpChanges arrive with turn_complete.
+  const earlyHpChange = decision.noFailureDamage || session.encounterState?.status === 'active'
     ? null
     : GameEngine.computeDeterministicHpChange(session, actingCharId, actionAttempt);
   if (actionAttempt.actionResult.statUsed !== 'none') {
