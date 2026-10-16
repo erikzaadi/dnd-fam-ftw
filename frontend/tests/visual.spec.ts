@@ -80,6 +80,16 @@ function seedSessionsFixture(): void {
   });
 }
 
+// Every test assumes auth is off (the `local` realm); with auth on each one times out at the sign-in page.
+test.beforeAll(async ({ playwright }, testInfo) => {
+  const api = await playwright.request.newContext({ baseURL: testInfo.project.use.baseURL });
+  const res = await api.get('/api/sessions');
+  await api.dispose();
+  if (res.status() === 401) {
+    throw new Error('The dev server has auth enabled. Restart it with: AUTH_MODE=disabled npm run dev');
+  }
+});
+
 test('home', async ({ page }) => {
   await suppressFirstRunOverlays(page);
   // Stub sessions so the snapshot is stable regardless of database state
