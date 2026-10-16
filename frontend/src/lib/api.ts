@@ -44,12 +44,32 @@ const reloadIfNamespaceChanged = async (res: Response): Promise<void> => {
   }
 };
 
+// Called once when an app API call answers 401 (the sign-in ended mid-session, e.g. a
+// TV that was signed out). /auth/* calls are excluded, so sign-in errors never loop.
+let onUnauthorized: (() => Promise<void>) | null = null;
+let handlingUnauthorized = false;
+
+export const setUnauthorizedHandler = (handler: (() => Promise<void>) | null) => {
+  onUnauthorized = handler;
+};
+
+const reportUnauthorized = (path: string, res: Response) => {
+  if (res.status !== 401 || path.startsWith('/auth/') || !onUnauthorized || handlingUnauthorized) {
+    return;
+  }
+  handlingUnauthorized = true;
+  void onUnauthorized().finally(() => {
+    handlingUnauthorized = false;
+  });
+};
+
 /** Fetch an API endpoint with credentials. Builds the correct URL for dev and prod.
  *  apiFetch('/sessions') or apiFetch('/session/123', { method: 'DELETE' })
  */
 export const apiFetch = async (path: string, init?: RequestInit) => {
   const res = await fetch(apiUrl(path), { credentials: 'include', ...withNamespaceHeader(path, init) });
   await reloadIfNamespaceChanged(res);
+  reportUnauthorized(path, res);
   return res;
 };
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { apiFetch } from '../lib/api';
+import { apiFetch, imgSrc } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { QrCode } from '../components/QrCode';
 import type { DevicePairingPollResponse, DevicePairingStartResponse } from '../types';
@@ -127,8 +127,9 @@ export const TvSignIn = () => {
   const linkUrl = `${window.location.origin}${BASE}link`;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center px-6 py-10">
-      <div className="max-w-4xl w-full text-center space-y-8">
+    <div className="relative min-h-screen bg-slate-950 text-white flex items-center justify-center px-6 py-10 overflow-hidden">
+      <img src={imgSrc('/images/home_banner.png')} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover opacity-50" />
+      <div className="relative max-w-4xl w-full text-center space-y-8 bg-slate-950/75 backdrop-blur-sm border-2 border-slate-800 rounded-[32px] px-6 py-8 md:px-10 md:py-10">
         <h1 className="text-4xl md:text-6xl font-display font-black text-amber-400 italic tracking-tighter">Sign in this TV</h1>
 
         {!config && <p className="text-slate-400 text-2xl animate-pulse">Opening the realm gate...</p>}

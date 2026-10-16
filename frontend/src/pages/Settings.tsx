@@ -9,6 +9,8 @@ import { RangeSlider } from '../components/RangeSlider';
 import { YourRealm } from '../components/YourRealm';
 import { InvitePartyPanel } from '../components/InvitePartyPanel';
 import { AssistantAccessLink } from '../components/AssistantAccessLink';
+import { SignedInTvs } from '../components/SignedInTvs';
+import { useAuth } from '../contexts/AuthContext';
 
 interface AppSettings {
   imagesEnabled: boolean;
@@ -64,6 +66,9 @@ export const Settings = () => {
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [samplePlayingVoice, setSamplePlayingVoice] = useState<OpenAiTtsVoice | null>(null);
   const navigate = useNavigate();
+  const { user, config, logout } = useAuth();
+  // A TV sign-in keeps the device-local sections (audio, narration, voice input) only.
+  const isTv = user?.deviceSession ?? false;
 
   // Poll TTS playing state
   useEffect(() => {
@@ -129,11 +134,13 @@ export const Settings = () => {
     if (!settings) {
       return;
     }
-    await apiFetch('/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(settings),
-    });
+    if (!isTv) {
+      await apiFetch('/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+    }
     setSaved(true);
     setTimeout(() => navigate('/'), 1200);
   };
@@ -185,21 +192,37 @@ export const Settings = () => {
               {/* GAME TAB */}
               {tab === 'game' && (
                 <>
-                  <YourRealm />
-                  <InvitePartyPanel />
+                  {isTv ? (
+                    <>
+                      <h2 className="text-lg font-black uppercase tracking-tighter text-amber-500">This TV</h2>
+                      <p className="text-sm text-slate-400 px-2">Signed in as a TV for {user?.email}. Realm, invitations and image settings are changed from a phone or computer.</p>
+                      <button
+                        onClick={() => void logout().then(() => navigate('/tv'))}
+                        className="w-full py-3 bg-slate-800 hover:bg-slate-700 border-2 border-slate-700 rounded-[20px] font-black uppercase italic tracking-tighter transition-colors text-slate-300 text-sm"
+                      >
+                        Sign out this TV
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <YourRealm />
+                      <InvitePartyPanel />
 
-                  <h2 className="text-lg font-black uppercase tracking-tighter text-amber-500">Images</h2>
-                  <Toggle
-                    checked={settings.imagesEnabled}
-                    onChange={v => update({ imagesEnabled: v })}
-                    label="Image generation"
-                    description="Generate scene illustrations and character avatars for your group's new realms. Disable for faster turns or when image generation is unavailable."
-                  />
+                      <h2 className="text-lg font-black uppercase tracking-tighter text-amber-500">Images</h2>
+                      <Toggle
+                        checked={settings.imagesEnabled}
+                        onChange={v => update({ imagesEnabled: v })}
+                        label="Image generation"
+                        description="Generate scene illustrations and character avatars for your group's new realms. Disable for faster turns or when image generation is unavailable."
+                      />
+                    </>
+                  )}
                   {!settings.imagesEnabled && (
                     <p className="text-xs text-slate-500 px-2">Character avatars will use SVG initials instead.</p>
                   )}
 
-                  <AssistantAccessLink />
+                  {!isTv && <AssistantAccessLink />}
+                  {!isTv && config?.deviceSignIn && <SignedInTvs />}
 
                   <h2 className="text-lg font-black uppercase tracking-tighter text-amber-500 pt-2">Tutorial</h2>
                   <button

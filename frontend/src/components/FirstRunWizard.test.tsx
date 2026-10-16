@@ -29,6 +29,8 @@ vi.mock('../lib/api', () => ({
   imgSrc: (url: string | null | undefined) => url ?? '/images/default_scene.png',
 }));
 
+vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ user: null }) }));
+
 vi.mock('../hooks/useCapabilities', () => ({
   useCapabilities: () => ({ capabilities: { hasCloudAI: true, hasTts: true }, loading: false }),
 }));

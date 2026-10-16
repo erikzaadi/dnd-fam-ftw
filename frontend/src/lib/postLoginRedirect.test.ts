@@ -15,8 +15,13 @@ describe('postLoginRedirect', () => {
     expect(peekPostLoginPath()).toBeNull();
   });
 
+  it('remembers a TV approval code', () => {
+    rememberPostLoginPath('/link?code=WDJB-MJHT');
+    expect(peekPostLoginPath()).toBe('/link?code=WDJB-MJHT');
+  });
+
   it('ignores paths outside the allowlist', () => {
-    for (const path of ['/', '/settings', '//evil.example.com/oauth/consent', 'https://evil.example.com/oauth/consent', '/oauth/consentx']) {
+    for (const path of ['/', '/settings', '/linked', '//evil.example.com/oauth/consent', 'https://evil.example.com/oauth/consent', '/oauth/consentx']) {
       rememberPostLoginPath(path);
       expect(peekPostLoginPath()).toBeNull();
     }

@@ -18,7 +18,8 @@ import { NamespacePicker } from './pages/NamespacePicker';
 import { RequestInvite } from './pages/RequestInvite';
 import { VerifyEmail } from './pages/VerifyEmail';
 import { AcceptInvite } from './pages/AcceptInvite';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { LinkTv } from './pages/LinkTv';
+import { AuthProvider, useAuth, wasTvDevice } from './contexts/AuthContext';
 import { AudioUnlockOverlay } from './components/AudioUnlockOverlay';
 
 // Lazy: keeps the QR encoder out of the main bundle.
@@ -56,6 +57,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (unavailable) {
     return <AuthUnavailable onRetry={() => void refetch()} />;
+  }
+
+  // A TV that was signed out (or lost its realm) pairs again; it cannot pick realms.
+  if (enabled && !user && wasTvDevice()) {
+    return <Navigate to="/tv" replace />;
   }
 
   if (enabled && !user && namespaceLost) {
@@ -133,6 +139,7 @@ function App() {
         <Route path="/namespace-picker" element={<NamespacePicker />} />
         <Route path="/request-invite" element={<RequestInvite />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />
+        <Route path="/link" element={<LinkTv />} />
         <Route path="/tv" element={<Suspense fallback={null}><TvSignIn /></Suspense>} />
         <Route path="/*" element={<AppRoutes />} />
       </Routes>

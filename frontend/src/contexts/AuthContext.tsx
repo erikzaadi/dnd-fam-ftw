@@ -1,13 +1,39 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { apiFetch, setExpectedNamespace } from '../lib/api';
+import { apiFetch, setExpectedNamespace, setUnauthorizedHandler } from '../lib/api';
 import type { AuthConfigResponse, AuthMeResponse, NamespaceAccessLostResponse } from '../types';
 
 interface AuthUser {
   email: string;
   namespaceId: string;
+  // Signed in as a TV (device pairing): gameplay only.
+  deviceSession: boolean;
 }
+
+// Remembers that this browser was signed in as a TV, so a TV that gets signed out
+// returns to the pairing screen instead of the email sign-in.
+const TV_KEY = 'dnd-tv-device';
+
+export const wasTvDevice = (): boolean => {
+  try {
+    return localStorage.getItem(TV_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
+const rememberTvDevice = (isTv: boolean) => {
+  try {
+    if (isTv) {
+      localStorage.setItem(TV_KEY, '1');
+    } else {
+      localStorage.removeItem(TV_KEY);
+    }
+  } catch {
+    // Storage unavailable: a signed-out TV lands on the normal sign-in page.
+  }
+};
 
 interface AuthState {
   enabled: boolean;
@@ -47,7 +73,9 @@ async function loadAuthState(): Promise<AuthState> {
       const me = await meRes.json() as AuthMeResponse;
       if (me.email) {
         setExpectedNamespace(me.namespaceId);
-        return { enabled: true, user: { email: me.email, namespaceId: me.namespaceId }, loading: false, unavailable: false, config, namespaceLost: false };
+        const deviceSession = me.deviceSession === true;
+        rememberTvDevice(deviceSession);
+        return { enabled: true, user: { email: me.email, namespaceId: me.namespaceId, deviceSession }, loading: false, unavailable: false, config, namespaceLost: false };
       }
     } else if (meRes.status === 401) {
       const body = await meRes.json().catch(() => null) as Partial<NamespaceAccessLostResponse> | null;
@@ -77,11 +105,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loadAuthState().then(setState).catch(() => {
       setState(UNAVAILABLE);
     });
+    // A 401 mid-session reloads the auth state, so AuthGuard can send the player on.
+    setUnauthorizedHandler(() => loadAuthState().then(setState));
+    return () => setUnauthorizedHandler(null);
   }, []);
 
   const logout = async () => {
     await apiFetch('/auth/logout', { method: 'POST' });
     setExpectedNamespace(null);
+    rememberTvDevice(false);
     setState(s => ({ ...s, user: null, namespaceLost: false }));
   };
 

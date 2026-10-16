@@ -322,7 +322,8 @@ const WorldCard = ({
   session: SessionPreview;
   onEnter: () => void;
   onCarMode: () => void;
-  onDelete: () => void;
+  // Absent on a TV sign-in: deleting an adventure is account-level.
+  onDelete?: () => void;
   onEdit: () => void;
   onAssemble: () => void;
   onCharacterClick: (char: SessionPreview['party'][number]) => void;
@@ -446,7 +447,7 @@ const WorldCard = ({
             <span className="text-xs font-semibold uppercase tracking-widest lg:hidden">{session.gameOver ? 'Info' : 'Edit'}</span>
           </button>
         </Tooltip>
-        <Tooltip content="Delete adventure" align="right" as="div" wrapperClassName="flex-shrink-0">
+        {onDelete && <Tooltip content="Delete adventure" align="right" as="div" wrapperClassName="flex-shrink-0">
           <button
             onClick={e => {
               e.stopPropagation(); onDelete();
@@ -457,7 +458,7 @@ const WorldCard = ({
             <span>✕</span>
             <span className="text-xs font-semibold uppercase tracking-widest lg:hidden">Delete</span>
           </button>
-        </Tooltip>
+        </Tooltip>}
       </div>
 
       {/* Collapsible details */}
@@ -550,7 +551,7 @@ export const Home = () => {
   }, []);
 
   const { enabled: authEnabled, user } = useAuth();
-  const canInvite = useSessionNamespaces(authEnabled && !!user)?.canInvite ?? false;
+  const canInvite = useSessionNamespaces(authEnabled && !!user && !user.deviceSession)?.canInvite ?? false;
   const [inviteTipDone, setInviteTipDone] = useState(() => !!localStorage.getItem(INVITE_TIP_KEY));
   const dismissInviteTip = useCallback(() => {
     localStorage.setItem(INVITE_TIP_KEY, '1');
@@ -942,7 +943,7 @@ export const Home = () => {
                   }}
                   session={sess}
                   onEnter={() => navigate(getSessionEntryPath(sess))}
-                  onDelete={() => deleteSession(sess.id, sess.displayName)}
+                  onDelete={user?.deviceSession ? undefined : () => deleteSession(sess.id, sess.displayName)}
                   onEdit={() => setEditSession({ id: sess.id, displayName: sess.displayName, difficulty: sess.difficulty, gameMode: sess.gameMode, dmPrep: sess.dmPrep, worldDescription: sess.worldDescription, readOnly: sess.gameOver })}
                   onAssemble={() => navigate(`/session/${sess.id}/assembly`)}
                   onCarMode={() => navigate(getCarModePath(sess.id))}

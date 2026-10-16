@@ -1,10 +1,11 @@
-// Remembers where to return after sign-in, for pages an outside app sends the player
-// to (the MCP OAuth consent page). Only allowlisted in-app paths are stored, and the
-// entry expires, so it can never become an open redirect or a stale detour.
+// Remembers where to return after sign-in, for pages the player is sent to from
+// elsewhere (the MCP OAuth consent page, TV approval on /link). Only allowlisted in-app
+// paths are stored, and the entry expires, so it can never become an open redirect or
+// a stale detour.
 
 const KEY = 'dnd-post-login-redirect';
 const LIFETIME_MS = 15 * 60 * 1000;
-const ALLOWED_PREFIXES = ['/oauth/consent'];
+const ALLOWED_PREFIXES = ['/oauth/consent', '/link'];
 
 const isAllowed = (path: string): boolean =>
   path.startsWith('/') && !path.startsWith('//') && ALLOWED_PREFIXES.some(prefix => path === prefix || path.startsWith(`${prefix}?`));

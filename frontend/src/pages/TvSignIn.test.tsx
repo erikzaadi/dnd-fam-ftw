@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   config: null as AuthConfigResponse | null,
 }));
 
-vi.mock('../lib/api', () => ({ apiFetch: mocks.apiFetch }));
+vi.mock('../lib/api', () => ({ apiFetch: mocks.apiFetch, imgSrc: (path: string) => path }));
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ config: mocks.config }) }));
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });

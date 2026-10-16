@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAudioSettings } from '../audio/useAudioSettings';
+import { useAuth } from '../contexts/AuthContext';
 import { loadFirstRunPreferences, saveFirstRunPreferences } from '../firstRun/firstRunPreferences';
 import { useCapabilities } from '../hooks/useCapabilities';
 import { apiFetch, imgSrc } from '../lib/api';
@@ -105,6 +106,8 @@ export const FirstRunWizard = ({ onComplete, onSkip, onStartGetMeRollin }: First
   const [error, setError] = useState<string | null>(null);
   const [assetSrc, setAssetSrc] = useState(imgSrc('/images/first_run_wizard.png'));
   const [imagesEnabled, setImagesEnabled] = useState(true);
+  // The image setting is realm-wide: a TV sign-in shows it but cannot change it.
+  const isTv = useAuth().user?.deviceSession ?? false;
   const [narrationEnabled, setNarrationEnabled] = useState(ttsSettings.enabled);
   const [autoSpeakNarration, setAutoSpeakNarration] = useState(ttsSettings.autoSpeakNarration);
   const [audioEnabled, setAudioEnabled] = useState(audioSettings.enabled);
@@ -117,6 +120,9 @@ export const FirstRunWizard = ({ onComplete, onSkip, onStartGetMeRollin }: First
   const preferredTtsProvider = capabilities.hasTts ? 'openai' : 'browser';
 
   const persistImagesEnabled = useCallback((value: boolean) => {
+    if (isTv) {
+      return;
+    }
     setImagesEnabled(value);
     setError(null);
     apiFetch('/settings', {
@@ -130,7 +136,7 @@ export const FirstRunWizard = ({ onComplete, onSkip, onStartGetMeRollin }: First
     }).catch(() => {
       setError('Could not save setup choices. Try again in a moment.');
     });
-  }, []);
+  }, [isTv]);
 
   const persistNarrationEnabled = useCallback((value: boolean) => {
     setNarrationEnabled(value);
@@ -206,13 +212,15 @@ export const FirstRunWizard = ({ onComplete, onSkip, onStartGetMeRollin }: First
     setSaving(true);
     setError(null);
     try {
-      const settingsResponse = await apiFetch('/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imagesEnabled }),
-      });
-      if (!settingsResponse.ok) {
-        throw new Error('Failed to save settings');
+      if (!isTv) {
+        const settingsResponse = await apiFetch('/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imagesEnabled }),
+        });
+        if (!settingsResponse.ok) {
+          throw new Error('Failed to save settings');
+        }
       }
 
       setTtsSettingProvider(preferredTtsProvider);
@@ -303,6 +311,7 @@ export const FirstRunWizard = ({ onComplete, onSkip, onStartGetMeRollin }: First
                     onClick={() => persistImagesEnabled(false)}
                   />
                 </div>
+                {isTv && <p className="text-sm text-slate-400">This TV shows the realm's choice. Change it from a phone or computer.</p>}
               </div>
             )}
 

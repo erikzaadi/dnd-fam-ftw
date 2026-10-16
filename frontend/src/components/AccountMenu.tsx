@@ -21,7 +21,8 @@ export const AccountMenu = () => {
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const [inviting, setInviting] = useState(false);
-  const sessionNamespaces = useSessionNamespaces(!!user);
+  // A TV sign-in is fixed to one realm and cannot list or switch realms.
+  const sessionNamespaces = useSessionNamespaces(!!user && !user.deviceSession);
   const realms = sessionNamespaces?.namespaces ?? [];
   const canInvite = sessionNamespaces?.canInvite ?? false;
   const [confirmTarget, setConfirmTarget] = useState<SessionNamespace | null>(null);
@@ -87,8 +88,9 @@ export const AccountMenu = () => {
   };
 
   const handleLogout = async () => {
+    const wasTv = user.deviceSession;
     await logout();
-    navigate('/login');
+    navigate(wasTv ? '/tv' : '/login');
   };
 
   const onMenuKeyDown = (e: ReactKeyboardEvent) => {
