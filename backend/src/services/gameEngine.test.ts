@@ -768,6 +768,34 @@ describe('GameEngine.updateState - encounter auto-damage', () => {
     expect(result.encounterState!.enemies[0].status).toBe('active');
   });
 
+  it.each([
+    'I bash the goblin with my shield',
+    'I swing at the goblin to protect Mia',
+    'I shoot the goblin to help Zara',
+  ])('lets an attack that mentions support words land: %s', (actionAttempt) => {
+    const session = makeSession({ encounterState: makeEncounter() });
+    const attempt = { actionAttempt, actionResult: { success: true, roll: 14, statUsed: 'might' as const, impact: 'normal' as const } };
+    expect(GameEngine.updateState(session, attempt, {}).encounterState!.enemies[0].hp).toBe(4);
+  });
+
+  it('keeps AI enemy damage on an attack that also chips an item', () => {
+    const session = makeSession({ encounterState: makeEncounter() });
+    const attempt = { actionAttempt: 'I strike the goblin', actionResult: { success: true, roll: 14, statUsed: 'might' as const, impact: 'normal' as const } };
+    const result = GameEngine.updateState(session, attempt, {
+      suggestedInventoryUpdate: { characterName: 'Hero', itemName: 'Sword', condition: 'chipped' },
+      suggestedEncounterUpdate: { enemyDamage: [{ enemyId: 'enemy-1', enemyName: 'Goblin', amount: 3, reason: 'hit' }] },
+    });
+    expect(result.encounterState!.enemies[0].hp).toBe(3);
+  });
+
+  it('still treats a pure support action, or a hyphenated name, as non-offensive', () => {
+    const session = makeSession({ encounterState: makeEncounter() });
+    for (const actionAttempt of ['I protect Mia', 'I rally the party against the Hit-Me-Not']) {
+      const attempt = { actionAttempt, actionResult: { success: true, roll: 14, statUsed: 'magic' as const, impact: 'normal' as const } };
+      expect(GameEngine.updateState(session, attempt, {}).encounterState!.enemies[0].hp).toBe(6);
+    }
+  });
+
   it('does not auto-damage when encounter is not active', () => {
     const session = makeSession({
       encounterState: { ...makeEncounter(), status: 'defeated' },

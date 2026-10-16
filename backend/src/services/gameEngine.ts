@@ -1,5 +1,6 @@
 import { Character, SessionState, ActionAttempt, InventoryItem, Choice, type CharacterBuff, type Stat, type Difficulty, type TensionLevel, type TurnResult } from '../types.js';
 import { createId } from '../lib/ids.js';
+import { COMBAT_ACTION_RE } from '../lib/textUtils.js';
 import { handleEncounterStart, applyEncounterUpdate, computeImpactDamage, computeEnemyDamage, inferOrganicEncounterStart, inferSeededEncounterStart, resolveEncounterSeed } from './encounterService.js';
 import type { EncounterStartProposal, EncounterUpdateProposal } from '../providers/ai/narration/narrationSchemas.js';
 
@@ -90,18 +91,20 @@ export class GameEngine {
   }
 
   private static isNonOffensiveEncounterAction(actionAttempt: ActionAttempt, aiSuggestedChanges?: Record<string, unknown>): boolean {
-    const text = actionAttempt.actionAttempt.toLowerCase();
-    if (/\b(heal|healing|mend|restore|revive|prayer|bless|aid|help|support|bolster|rally|inspire|encourage|protect|shield|recover|rest|stabilize)\b/.test(text)) {
-      return true;
-    }
+    const text = actionAttempt.actionAttempt;
     const hasHealing = Array.isArray(aiSuggestedChanges?.suggestedHeal) && aiSuggestedChanges.suggestedHeal.length > 0;
     const hasRevive = !!aiSuggestedChanges?.suggestedRevive;
+    // An attack stays an attack even when it mentions a shield, protecting or helping, or
+    // when another agent adds a buff or item change (a chipped sword). Only an explicit
+    // heal or revive of a hero ("throw a potion to Mia") outranks the combat verb.
+    if (COMBAT_ACTION_RE.test(text)) {
+      return hasHealing || hasRevive;
+    }
+    if (/(?<![\w-])(heal|healing|mend|restore|revive|prayer|bless|aid|help|support|bolster|rally|inspire|encourage|protect|shield|recover|rest|stabilize)(?![\w-])/i.test(text)) {
+      return true;
+    }
     const hasItemUpdate = !!aiSuggestedChanges?.suggestedInventoryUpdate;
-    // A buff suggestion alone is not a reliable non-offensive signal: the AI model sometimes
-    // adds spurious buffs to combat actions (e.g. "Strike a holy blow"). Only treat hasBuff
-    // as non-offensive when the action text does not contain combat verbs.
-    const hasCombatVerb = /\b(strike|attack|hit|slash|stab|smash|bash|charge|blow|blows|thrust|swing|swings|lunge|lunges|punch|punches|cleave|cleaves)\b/.test(text);
-    const hasBuff = !hasCombatVerb && Array.isArray(aiSuggestedChanges?.suggestedBuffAdd) && aiSuggestedChanges.suggestedBuffAdd.length > 0;
+    const hasBuff = Array.isArray(aiSuggestedChanges?.suggestedBuffAdd) && aiSuggestedChanges.suggestedBuffAdd.length > 0;
     return hasHealing || hasRevive || hasBuff || hasItemUpdate;
   }
 
