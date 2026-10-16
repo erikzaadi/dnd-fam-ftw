@@ -1,5 +1,4 @@
 import crypto from 'crypto';
-import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { createImageProvider } from '../providers/ai/AiProviderFactory.js';
@@ -7,6 +6,8 @@ import type { ImageProvider } from '../providers/ai/images/ImageProvider.js';
 import { getImageStorageProvider } from '../providers/storage/storageProviderFactory.js';
 import type { ImageStorageProvider } from '../providers/storage/ImageStorageProvider.js';
 import { getConfig } from '../config/env.js';
+
+const IMAGE_DOWNLOAD_TIMEOUT_MS = 60_000;
 
 export type ImageResult = { url: string; storageKey: string; storageProvider: string };
 type ImageOutputOptions = {
@@ -311,8 +312,12 @@ export class ImageService {
       const base64 = imageUrl.split(',')[1];
       return Buffer.from(base64, 'base64');
     }
-    const res = await axios.get<ArrayBuffer>(imageUrl, { responseType: 'arraybuffer' });
-    return Buffer.from(res.data);
+    // A stalled download would otherwise hold the adventure's image job forever.
+    const res = await fetch(imageUrl, { signal: AbortSignal.timeout(IMAGE_DOWNLOAD_TIMEOUT_MS) });
+    if (!res.ok) {
+      throw new Error(`Image download failed: HTTP ${res.status}`);
+    }
+    return Buffer.from(await res.arrayBuffer());
   }
 
   private static sanitizePrompt(prompt: string): string {

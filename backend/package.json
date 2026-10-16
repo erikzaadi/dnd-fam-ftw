@@ -30,7 +30,6 @@
     "@breezystack/lamejs": "^1.2.7",
     "@dnd-fam-ftw/shared": "file:../packages/shared",
     "@modelcontextprotocol/sdk": "1.30.1",
-    "axios": "^1.14.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.1",
