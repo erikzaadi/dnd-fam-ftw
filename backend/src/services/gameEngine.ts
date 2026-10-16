@@ -22,6 +22,13 @@ export class GameEngine {
     none: 0
   };
 
+  // Damage to the acting hero on a failed roll when no agent chose an amount: by the
+  // action's own difficulty, plus 1 for a strong failure and 2 for an extreme one.
+  private static failureDamage(result: ActionAttempt['actionResult']): number {
+    const base = this.DAMAGE_BY_DIFFICULTY[result.difficulty ?? 'normal'] ?? 2;
+    return base + (result.impact === 'strong' ? 1 : result.impact === 'extreme' ? 2 : 0);
+  }
+
   private static normalize(s: string): string {
     return s.toLowerCase().replace(/[^a-z0-9]/g, '');
   }
@@ -565,14 +572,7 @@ export class GameEngine {
         if (aiDamage !== null) {
           damage = aiDamage;
         } else {
-          // The action's own difficulty, whether it was a suggestion or typed text.
-          const difficultyLabel = actionAttempt.actionResult.difficulty ?? 'normal';
-          damage = this.DAMAGE_BY_DIFFICULTY[difficultyLabel] || 2;
-          if (actionAttempt.actionResult.impact === 'strong') {
-            damage += 1;
-          } else if (actionAttempt.actionResult.impact === 'extreme') {
-            damage += 2;
-          }
+          damage = this.failureDamage(actionAttempt.actionResult);
         }
 
         if (damage > 0) {
@@ -888,7 +888,7 @@ export class GameEngine {
     actingCharId: string,
     actionAttempt: ActionAttempt,
   ): { characterId: string; characterName: string; change: number; newHp: number; maxHp: number } | null {
-    const { success, statUsed, impact } = actionAttempt.actionResult;
+    const { success, statUsed } = actionAttempt.actionResult;
     if (success || statUsed === 'none') {
       return null;
     }
@@ -896,13 +896,7 @@ export class GameEngine {
     if (!actingChar || actingChar.status === 'downed') {
       return null;
     }
-    const difficultyLabel = actionAttempt.actionResult.difficulty ?? 'normal';
-    let damage = this.DAMAGE_BY_DIFFICULTY[difficultyLabel] ?? 2;
-    if (impact === 'strong') {
-      damage += 1;
-    } else if (impact === 'extreme') {
-      damage += 2;
-    }
+    const damage = this.failureDamage(actionAttempt.actionResult);
     if (damage <= 0) {
       return null;
     }
