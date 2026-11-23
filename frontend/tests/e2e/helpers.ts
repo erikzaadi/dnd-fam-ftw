@@ -22,16 +22,6 @@ export async function suppressFirstRunOverlays(page: Page): Promise<void> {
   });
 }
 
-export async function dismissAudioOverlay(page: Page): Promise<void> {
-  const btn = page.getByRole('button', { name: 'Enable Audio' });
-  try {
-    await btn.waitFor({ state: 'visible', timeout: 2000 });
-    await btn.click();
-  } catch {
-    // overlay not present
-  }
-}
-
 export async function dismissOriginView(page: Page): Promise<void> {
   const btn = page.getByRole('button', { name: 'Skip' });
   try {
@@ -44,7 +34,6 @@ export async function dismissOriginView(page: Page): Promise<void> {
 
 export async function openSeedSession(page: Page, sessionId: string): Promise<void> {
   await page.goto(`/session/${sessionId}`);
-  await dismissAudioOverlay(page);
   await dismissOriginView(page);
   await expect(page.getByText('What do you try?', { exact: true })).toBeVisible({ timeout: 30_000 });
 }

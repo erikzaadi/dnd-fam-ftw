@@ -3,6 +3,7 @@ import { openAiTtsService } from './openaiTtsService';
 import type { TtsSettings, OpenAiTtsVoice } from './ttsTypes';
 import { devLog } from '../lib/devLog';
 import { effectiveTtsVoice } from './ttsVoiceSupport';
+import { audioManager } from '../audio/audioManager';
 
 type SpeakNarrationInput = {
   text: string;
@@ -51,7 +52,8 @@ class NarrationTtsService {
     mainNarration = true,
     carMode = false,
   }: SpeakNarrationInput): Promise<void> {
-    if (!settings.enabled) {
+    // Narration is part of the sound opt-in: silent until the player turns sound on.
+    if (!settings.enabled || !audioManager.isAudible) {
       return;
     }
 

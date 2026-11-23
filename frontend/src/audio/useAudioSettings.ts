@@ -1,12 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import type { AudioSettings } from './audioTypes';
 import { audioManager } from './audioManager';
 import { narrationTtsService } from '../tts/narrationTtsService';
 
 const STORAGE_KEY = 'dnd-audio-settings';
 
-const DEFAULT_SETTINGS: AudioSettings = {
-  enabled: true,
+// Sound is opt-in: `enabled` stays false until the player taps the sound chip (or a toggle).
+export const DEFAULT_AUDIO_SETTINGS: AudioSettings = {
+  enabled: false,
   musicEnabled: true,
   sfxEnabled: true,
   masterMuted: false,
@@ -15,70 +16,70 @@ const DEFAULT_SETTINGS: AudioSettings = {
   sillyMode: false,
 };
 
-export function useAudioSettings() {
-  const [settings, setSettings] = useState<AudioSettings>(() => {
+export function loadAudioSettings(): AudioSettings {
+  try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      try {
-        return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
-      } catch (e) {
-        console.error('Failed to parse audio settings', e);
-      }
+      return { ...DEFAULT_AUDIO_SETTINGS, ...JSON.parse(stored) };
     }
-    return DEFAULT_SETTINGS;
-  });
+  } catch (e) {
+    console.error('Failed to parse audio settings', e);
+  }
+  return DEFAULT_AUDIO_SETTINGS;
+}
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-  }, [settings]);
+// One store for every component, so the sound chip, the gear menu and Settings never disagree.
+let current: AudioSettings = loadAudioSettings();
+const listeners = new Set<() => void>();
 
-  const updateSetting = useCallback(<K extends keyof AudioSettings>(key: K, value: AudioSettings[K]) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
-  }, []);
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+};
+
+const getSnapshot = () => current;
+
+function write<K extends keyof AudioSettings>(key: K, value: AudioSettings[K]) {
+  current = { ...current, [key]: value };
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+  } catch (e) {
+    console.warn('Failed to save audio settings', e);
+  }
+  audioManager.updateSettings(current);
+  listeners.forEach(listener => listener());
+}
+
+export function useAudioSettings() {
+  const settings = useSyncExternalStore(subscribe, getSnapshot);
 
   const setEnabled = useCallback((value: boolean) => {
-    updateSetting('enabled', value);
-    audioManager.updateSettings({ ...settings, enabled: value });
+    write('enabled', value);
     if (!value) {
       narrationTtsService.stopNarration();
     }
-  }, [updateSetting, settings]);
+  }, []);
 
   const setMasterMuted = useCallback((value: boolean) => {
-    updateSetting('masterMuted', value);
-    audioManager.updateSettings({ ...settings, masterMuted: value });
+    write('masterMuted', value);
     if (value) {
       narrationTtsService.stopNarration();
     }
-  }, [updateSetting, settings]);
+  }, []);
 
   const setMusicEnabled = useCallback((value: boolean) => {
-    updateSetting('musicEnabled', value);
     if (value && !audioManager.isUnlocked) {
       audioManager.unlock();
     }
-    audioManager.updateSettings({ ...settings, musicEnabled: value });
-  }, [updateSetting, settings]);
+    write('musicEnabled', value);
+  }, []);
 
-  const setMusicVolume = useCallback((value: number) => {
-    updateSetting('musicVolume', value);
-    audioManager.updateSettings({ ...settings, musicVolume: value });
-  }, [updateSetting, settings]);
-
-  const setSfxEnabled = useCallback((value: boolean) => {
-    updateSetting('sfxEnabled', value);
-    audioManager.updateSettings({ ...settings, sfxEnabled: value });
-  }, [updateSetting, settings]);
-
-  const setSfxVolume = useCallback((value: number) => {
-    updateSetting('sfxVolume', value);
-    audioManager.updateSettings({ ...settings, sfxVolume: value });
-  }, [updateSetting, settings]);
-
-  const setSillyMode = useCallback((value: boolean) => {
-    updateSetting('sillyMode', value);
-    audioManager.updateSettings({ ...settings, sillyMode: value });
-  }, [updateSetting, settings]);
+  const setMusicVolume = useCallback((value: number) => write('musicVolume', value), []);
+  const setSfxEnabled = useCallback((value: boolean) => write('sfxEnabled', value), []);
+  const setSfxVolume = useCallback((value: number) => write('sfxVolume', value), []);
+  const setSillyMode = useCallback((value: boolean) => write('sillyMode', value), []);
 
   return {
     settings,

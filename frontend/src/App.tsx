@@ -20,7 +20,7 @@ import { VerifyEmail } from './pages/VerifyEmail';
 import { AcceptInvite } from './pages/AcceptInvite';
 import { LinkTv } from './pages/LinkTv';
 import { AuthProvider, useAuth, wasTvDevice } from './contexts/AuthContext';
-import { AudioUnlockOverlay } from './components/AudioUnlockOverlay';
+import { SoundChip } from './components/SoundChip';
 
 // Lazy: keeps the QR encoder out of the main bundle.
 const TvSignIn = lazy(() => import('./pages/TvSignIn').then(m => ({ default: m.TvSignIn })));
@@ -126,13 +126,16 @@ function App() {
     }
   }, [location.pathname]);
 
+  // A device that opted in resumes sound on the first tap; others wait for the sound chip.
   useEffect(() => {
-    audioManager.unlockOnFirstGesture();
-  }, []);
+    if (settings.enabled) {
+      audioManager.unlockOnFirstGesture();
+    }
+  }, [settings.enabled]);
 
   return (
     <AuthProvider>
-      <AudioUnlockOverlay />
+      <SoundChip />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/verify-email" element={<VerifyEmail />} />

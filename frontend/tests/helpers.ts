@@ -20,16 +20,6 @@ export type SessionDetail = {
   party: VisualCharacter[];
 };
 
-export async function dismissAudioOverlay(page: Page): Promise<void> {
-  const btn = page.getByRole('button', { name: 'Enable Audio' });
-  try {
-    await btn.waitFor({ state: 'visible', timeout: 2000 });
-    await btn.click();
-  } catch {
-    // overlay not present
-  }
-}
-
 export async function waitForSessionReady(page: Page): Promise<void> {
   // Session screenshots should not capture transient image-generation state.
   try {

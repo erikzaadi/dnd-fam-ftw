@@ -14,10 +14,12 @@ const mocks = vi.hoisted(() => ({
     stop: vi.fn(),
     speakNarration: vi.fn(),
   },
+  audio: { isAudible: true },
 }));
 
 vi.mock('./openaiTtsService', () => ({ openAiTtsService: mocks.openAi }));
 vi.mock('./browserTtsService', () => ({ browserTtsService: mocks.browser }));
+vi.mock('../audio/audioManager', () => ({ audioManager: mocks.audio }));
 
 import { narrationTtsService } from './narrationTtsService';
 
@@ -46,6 +48,7 @@ beforeEach(() => {
   mocks.browser.isSupported.mockReturnValue(true);
   mocks.openAi.speakNarration.mockResolvedValue(undefined);
   mocks.browser.speakNarration.mockResolvedValue(undefined);
+  mocks.audio.isAudible = true;
 });
 
 describe('narrationTtsService.speakNarration', () => {
@@ -111,6 +114,15 @@ describe('narrationTtsService.speakNarration', () => {
 
   it('does nothing when narration is turned off', async () => {
     await speak({ settings: { ...settings, enabled: false } });
+
+    expect(mocks.openAi.speakNarration).not.toHaveBeenCalled();
+    expect(mocks.browser.speakNarration).not.toHaveBeenCalled();
+  });
+
+  it('does nothing until the player opts in to sound', async () => {
+    mocks.audio.isAudible = false;
+
+    await speak();
 
     expect(mocks.openAi.speakNarration).not.toHaveBeenCalled();
     expect(mocks.browser.speakNarration).not.toHaveBeenCalled();

@@ -4,7 +4,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   SESSIONS,
-  dismissAudioOverlay,
   waitForSessionReady,
   getSessionOrFail,
   enableSavingsMode,
@@ -99,7 +98,6 @@ test('home', async ({ page }) => {
     body: JSON.stringify([]),
   }));
   await page.goto('/');
-  await dismissAudioOverlay(page);
   await screenshotViewports(page, 'home');
 });
 
@@ -153,7 +151,6 @@ test('home returning user', async ({ page }) => {
     }]),
   }));
   await page.goto('/');
-  await dismissAudioOverlay(page);
   await screenshotViewports(page, 'home-returning-user');
 });
 
@@ -173,7 +170,6 @@ test('instant-start-loader', async ({ page }) => {
   await page.route('**/api/sessions/events', route => route.abort());
 
   await page.goto('/');
-  await dismissAudioOverlay(page);
   await page.getByRole('button', { name: /Quick Start/i }).click();
 
   // Wait for the loader to mount before freezing the pun text
@@ -192,7 +188,6 @@ test('instant-start-loader', async ({ page }) => {
 test('settings', async ({ page }) => {
   await suppressFirstRunOverlays(page);
   await page.goto('/settings');
-  await dismissAudioOverlay(page);
   // Wait for settings to load from API before screenshotting
   await page.waitForSelector('h2', { state: 'visible' });
   await screenshotViewports(page, 'settings');
@@ -201,7 +196,6 @@ test('settings', async ({ page }) => {
 test('get-me-rollin', async ({ page }) => {
   await suppressFirstRunOverlays(page);
   await page.goto('/get-me-rollin');
-  await dismissAudioOverlay(page);
   // Wait for stat icons to load before screenshotting
   await page.waitForSelector('img[src*="icon_might"]', { state: 'visible' });
   await screenshotViewports(page, 'get-me-rollin');
@@ -213,7 +207,6 @@ test('session banner hidden', async ({ page, request }) => {
   const session = await getSessionOrFail(request, SESSIONS.standard);
   await enableSavingsMode(request, session.id);
   await page.goto(`/session/${session.id}`);
-  await dismissAudioOverlay(page);
   await waitForSessionReady(page);
   await page.getByRole('button', { name: 'Hide banner' }).click();
   await expect(page.getByRole('button', { name: 'Show banner' })).toBeVisible();
@@ -235,7 +228,6 @@ test('session narration fullscreen', async ({ page, request }) => {
   }
 
   await page.goto(`/session/${session.id}`);
-  await dismissAudioOverlay(page);
   await waitForSessionReady(page);
   await page.getByRole('button', { name: 'Hide banner' }).click();
 
@@ -265,7 +257,6 @@ test('session riddle shown in the story', async ({ page, request }) => {
   await enableSavingsMode(request, session.id);
 
   await page.goto(`/session/${session.id}`);
-  await dismissAudioOverlay(page);
   await waitForSessionReady(page);
   await page.getByRole('button', { name: 'Hide banner' }).click();
 
@@ -295,7 +286,6 @@ test('session chronicle open and second turn', async ({ page, request }) => {
   const secondTurnNarration = history[history.length - 2].narration;
 
   await page.goto(`/session/${session.id}`);
-  await dismissAudioOverlay(page);
   await waitForSessionReady(page);
 
   // Verify party count and names via avatar alt text in the HUD
@@ -334,7 +324,6 @@ test('session inventory panel', async ({ page, request }) => {
   }
 
   await page.goto(`/session/${session.id}`);
-  await dismissAudioOverlay(page);
   await waitForSessionReady(page);
 
   // Verify party count and names via avatar alt text in the HUD
@@ -361,7 +350,6 @@ test('session inventory gear helper preview', async ({ page, request }) => {
   await enableSavingsMode(request, session.id);
 
   await page.goto(`/session/${session.id}`);
-  await dismissAudioOverlay(page);
   await waitForSessionReady(page);
 
   await expect(page.getByRole('button', { name: 'Help someone' }).first()).toBeVisible();
@@ -386,7 +374,6 @@ test('session character popup', async ({ page, request }) => {
   await enableSavingsMode(request, session.id);
 
   await page.goto(`/session/${session.id}`);
-  await dismissAudioOverlay(page);
   await waitForSessionReady(page);
 
   await page.getByAltText(CHARACTER_POPUP_TARGET.characterName).first().click();
@@ -425,7 +412,6 @@ test('session character support popup', async ({ page, request }) => {
   }
 
   await page.goto(`/session/${session.id}`);
-  await dismissAudioOverlay(page);
   await waitForSessionReady(page);
 
   await page.getByAltText(target.name).first().click();
@@ -450,7 +436,6 @@ test('session mechanics showcase visual asserts', async ({ page, request }) => {
   const longNarration = history.find(turn => turn.narration.includes('Clockwork Bridge unfolds'))?.narration ?? '';
 
   await page.goto(`/session/${session.id}`);
-  await dismissAudioOverlay(page);
   await waitForSessionReady(page);
 
   for (const label of ['Team Up', 'Gear', 'Social', 'Obstacle']) {
@@ -514,7 +499,6 @@ test('seeded sessions', async ({ page, request }) => {
     const lastNarration = history[history.length - 1]?.narration ?? null;
 
     await page.goto(`/session/${session.id}`);
-    await dismissAudioOverlay(page);
     await waitForSessionReady(page);
 
     // Game-over sessions show a "Campaign Over" screen without the narration text
@@ -667,7 +651,6 @@ test('session encounter panel - all HP label states', async ({ page }) => {
   }));
 
   await page.goto(`/session/${sessionId}`);
-  await dismissAudioOverlay(page);
   await expect(page.getByTestId('encounter-panel')).toBeVisible({ timeout: 10_000 });
   await screenshotViewports(page, 'session-encounter-panel');
 });
@@ -796,7 +779,6 @@ test('session encounter panel - area card with image, effect, avatar, and lightb
   }));
 
   await page.goto(`/session/${sessionId}`);
-  await dismissAudioOverlay(page);
   await expect(page.getByTestId('encounter-panel')).toBeVisible({ timeout: 10_000 });
   await screenshotViewports(page, 'session-encounter-panel-area-media');
 
@@ -820,7 +802,6 @@ test('session chronicle - encounter areas in combat log', async ({ page, request
   await enableSavingsMode(request, session.id);
 
   await page.goto(`/session/${session.id}`);
-  await dismissAudioOverlay(page);
   await waitForSessionReady(page);
 
   await page.keyboard.press('c');
@@ -849,7 +830,6 @@ test('session chronicle - encounter enemy changes in turn detail', async ({ page
   }
 
   await page.goto(`/session/${session.id}`);
-  await dismissAudioOverlay(page);
   await waitForSessionReady(page);
 
   await page.keyboard.press('c');
@@ -981,7 +961,6 @@ test('session dm-recap panel - narrating phase', async ({ page }) => {
   ]);
   await setupDmRecapRoutes(page, sessionId);
   await page.goto(`/session/${sessionId}`);
-  await dismissAudioOverlay(page);
   // Wait for the spinning dice that marks the narrating phase
   await expect(page.locator('img[class*="animate-dice-spin"]')).toBeVisible({ timeout: 5_000 });
   // Freeze the animated flavor text to a stable value for the snapshot
@@ -1021,7 +1000,6 @@ test('session dm-recap panel - roll result success', async ({ page }) => {
   ]);
   await setupDmRecapRoutes(page, sessionId);
   await page.goto(`/session/${sessionId}`);
-  await dismissAudioOverlay(page);
   await expect(page.getByText('The realm responds...')).toBeVisible({ timeout: 5_000 });
   await screenshotViewports(page, 'session-dm-recap-roll-success');
 });
@@ -1057,7 +1035,6 @@ test('session dm-recap panel - roll result failure with HP loss', async ({ page 
   ]);
   await setupDmRecapRoutes(page, sessionId);
   await page.goto(`/session/${sessionId}`);
-  await dismissAudioOverlay(page);
   await expect(page.getByText('The realm responds...')).toBeVisible({ timeout: 5_000 });
   await screenshotViewports(page, 'session-dm-recap-roll-failure');
 });
@@ -1071,7 +1048,6 @@ test('car-mode-setup-blocking', async ({ page }) => {
   });
   await setupCarModeRoutes(page, sessionId);
   await page.goto(`/session/${sessionId}/car`);
-  await dismissAudioOverlay(page);
   await expect(page.getByText('Voice Setup Required')).toBeVisible({ timeout: 5_000 });
   await screenshotViewports(page, 'car-mode-setup-blocking');
 });
@@ -1085,7 +1061,6 @@ test('car-mode-active', async ({ page }) => {
   });
   await setupCarModeRoutes(page, sessionId);
   await page.goto(`/session/${sessionId}/car`);
-  await dismissAudioOverlay(page);
   await expect(page.getByText('Car Mode Adventure')).toBeVisible({ timeout: 5_000 });
   await screenshotViewports(page, 'car-mode-active');
 });

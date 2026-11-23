@@ -3,7 +3,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   SESSIONS,
-  dismissAudioOverlay,
   waitForSessionReady,
   getSessionOrFail,
   enableSavingsMode,
@@ -41,7 +40,6 @@ test('home', async ({ page, request }) => {
   const session = await getSessionOrFail(request, SESSIONS.standard);
   await page.setViewportSize(DESKTOP);
   await page.goto('/');
-  await dismissAudioOverlay(page);
   await expect(page.getByText(session.displayName).first()).toBeVisible();
   await shoot(page, 'home');
 });
@@ -50,7 +48,6 @@ test('create-world', async ({ page }) => {
   await prepare(page);
   await page.setViewportSize(DESKTOP);
   await page.goto('/create-session');
-  await dismissAudioOverlay(page);
   await expect(page.getByText('New Journey')).toBeVisible();
   await expect(page.getByRole('button', { name: 'ZUG-MA-GEDDON' })).toBeVisible();
   await shoot(page, 'create-world');
@@ -61,7 +58,6 @@ test('assemble-party and create-hero-form', async ({ page, request }) => {
   const session = await getSessionOrFail(request, SESSIONS.standard);
   await page.setViewportSize(DESKTOP);
   await page.goto(`/session/${session.id}/assembly`);
-  await dismissAudioOverlay(page);
   await expect(page.getByRole('heading', { name: 'Assemble Your Party' })).toBeVisible();
   await expect(page.getByText('Current Heroes')).toBeVisible();
   await shoot(page, 'assemble-party');
@@ -80,7 +76,6 @@ test('recap-mode-select', async ({ page, request }) => {
   await enableSavingsMode(request, session.id);
   await page.setViewportSize(DESKTOP);
   await page.goto(`/session/${session.id}/recap`);
-  await dismissAudioOverlay(page);
   await expect(page.getByText('How would you like to catch up?')).toBeVisible();
   await shoot(page, 'recap-mode-select');
 });
@@ -91,7 +86,6 @@ test('inventory-panel', async ({ page, request }) => {
   await enableSavingsMode(request, session.id);
   await page.setViewportSize(DESKTOP);
   await page.goto(`/session/${session.id}`);
-  await dismissAudioOverlay(page);
   await waitForSessionReady(page);
   await page.getByRole('button', { name: 'Show party gear' }).click();
   await expect(page.getByRole('heading', { name: /Treasure & Gear/i })).toBeVisible();
@@ -104,7 +98,6 @@ test('character-popup', async ({ page, request }) => {
   await enableSavingsMode(request, session.id);
   await page.setViewportSize(DESKTOP);
   await page.goto(`/session/${session.id}`);
-  await dismissAudioOverlay(page);
   await waitForSessionReady(page);
   await page.getByAltText('Pipwick').first().click();
   const popup = page.locator('div.bg-slate-900').filter({ has: page.getByRole('heading', { name: 'Pipwick' }) }).first();
@@ -121,7 +114,6 @@ test('terminal-mode', async ({ page, request }) => {
   await enableSavingsMode(request, session.id);
   await page.setViewportSize(DESKTOP);
   await page.goto(`/session/${session.id}/terminal`);
-  await dismissAudioOverlay(page);
   await expect(page.getByText('Adventure Shell Ready', { exact: false })).toBeVisible({ timeout: 10_000 });
   await shoot(page, 'terminal-mode');
 });
@@ -132,7 +124,6 @@ test('story-scene (mobile)', async ({ page, request }) => {
   await enableSavingsMode(request, session.id);
   await page.setViewportSize(MOBILE_PORTRAIT);
   await page.goto(`/session/${session.id}`);
-  await dismissAudioOverlay(page);
   await waitForSessionReady(page);
   await shoot(page, 'story-scene');
 });
@@ -143,7 +134,6 @@ test('action-choices (mobile)', async ({ page, request }) => {
   await enableSavingsMode(request, session.id);
   await page.setViewportSize(MOBILE_PORTRAIT);
   await page.goto(`/session/${session.id}`);
-  await dismissAudioOverlay(page);
   await waitForSessionReady(page);
   await page.getByRole('button', { name: 'Actions' }).click();
   // On mobile the action dock also renders behind the overlay, so scope to the overlay
@@ -163,7 +153,6 @@ test('car-mode (mobile landscape)', async ({ page }) => {
   await setupCarModeRoutes(page, sessionId);
   await page.setViewportSize(MOBILE_LANDSCAPE);
   await page.goto(`/session/${sessionId}/car`);
-  await dismissAudioOverlay(page);
   await expect(page.getByText('Car Mode Adventure')).toBeVisible({ timeout: 5_000 });
   await shoot(page, 'car-mode');
 });

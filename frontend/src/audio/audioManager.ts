@@ -12,8 +12,9 @@ export class AudioManager {
 
   constructor() {
     const stored = readStorage('dnd-audio-settings');
+    // Same defaults as useAudioSettings: sound is opt-in.
     this.settings = stored ? JSON.parse(stored) : {
-      enabled: true,
+      enabled: false,
       musicEnabled: true,
       sfxEnabled: true,
       masterMuted: false,
@@ -26,6 +27,11 @@ export class AudioManager {
 
   public get isUnlocked() {
     return this.unlocked;
+  }
+
+  // Anything audible (music, sfx, narration) waits for the player's opt-in on this page load.
+  public get isAudible() {
+    return this.unlocked && this.settings.enabled && !this.settings.masterMuted;
   }
 
   public unlockOnFirstGesture() {
@@ -48,6 +54,7 @@ export class AudioManager {
     // Mark unlocked optimistically - Safari requires the gesture context to stay
     // synchronous; awaiting a promise can lose the user-gesture association.
     this.unlocked = true;
+    document.dispatchEvent(new CustomEvent('audio-unlocked'));
 
     const silent = new Audio();
     silent.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
@@ -149,6 +156,9 @@ export class AudioManager {
 
   public playSfx(event: SfxEvent) {
     this.stopNarratingAudio();
+    if (!this.unlocked) {
+      return;
+    }
     const { diceRoll, successRoll, failedRoll, roll20 } = audioCatalog.sfx;
     if (event === 'dice-roll') {
       this.sfxPlayer.playWithSillyChance(diceRoll.normal, diceRoll.silly);
@@ -162,7 +172,7 @@ export class AudioManager {
   }
 
   public startNarrating() {
-    if (!this.settings?.enabled || !this.settings?.sfxEnabled || this.settings.masterMuted) {
+    if (!this.settings?.enabled || !this.settings?.sfxEnabled || this.settings.masterMuted || !this.unlocked) {
       return;
     }
     musicPlayer.fadeVolumeTo(this.settings.musicVolume * 0.5);

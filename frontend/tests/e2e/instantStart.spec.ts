@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { dismissAudioOverlay, dismissOriginView, suppressFirstRunOverlays } from './helpers';
+import { dismissOriginView, suppressFirstRunOverlays } from './helpers';
 
 test.beforeEach(async ({ request }) => {
   // Disable images so the background flow uses instant_start_ready (savings mode path)
@@ -17,7 +17,6 @@ test('instant start: loader appears and navigates to a new session', async ({ pa
 
   await suppressFirstRunOverlays(page);
   await page.goto('/');
-  await dismissAudioOverlay(page);
 
   await expect(page.getByRole('button', { name: /Quick Start/i })).toBeVisible();
 
@@ -36,7 +35,6 @@ test('instant start: loader appears and navigates to a new session', async ({ pa
   await expect(page).toHaveURL(/\/session\//, { timeout: 60_000 });
 
   // Session page should load with an action dock
-  await dismissAudioOverlay(page);
   await dismissOriginView(page);
   await expect(page.getByText('What do you try?', { exact: true })).toBeVisible({ timeout: 30_000 });
 });
