@@ -83,9 +83,9 @@ Per adventure, the ⚙ menu setting **Ideas every turn** (`sessions.auto_ideas`)
 | **Story summary** | `storySummaryService.ts` | `OPENAI_MODEL_ASYNC` | `gpt-6-luna` | Every 5 turns, background |
 | **TTS narration** | `ttsService.ts` | `OPENAI_MODEL_TTS` | `gpt-realtime-2.1-mini` | When AI narration voice is on. Realtime session by default, `/audio/speech` for operator-named models and custom endpoints ([configuration](configuration.md#narration-voice)) |
 | **Scene image brief** | `imageBriefProvider.ts` | `OPENAI_MODEL_PREVIEW` | `gpt-5.6-luna` | Before each scene image |
-| **Scene image** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | Per turn when images are on, async, cached by prompt hash |
-| **Adventure preview image** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | At creation when images are on |
-| **Hero portrait** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | `gpt-image-2` | Once per hero, cached |
+| **Scene image** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | `gpt-image-2.6-flare` | Per turn when images are on, async, cached by prompt hash |
+| **Adventure preview image** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | `gpt-image-2.6-flare` | At creation when images are on |
+| **Hero portrait** | `imageService.ts` | `OPENAI_IMAGE_MODEL` | `gpt-image-2.6-flare` | Once per hero, cached |
 | **Metrics summary** | `.github/workflows/metrics.yml` | hardcoded | `gpt-6-luna` | Weekly CI job |
 
 Only the turn agents block the player's response. Images arrive later over SSE. Every provider request is recorded in `provider_usage` for usage limits and metrics (`npm run cli -- metrics`).

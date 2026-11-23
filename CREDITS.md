@@ -8,7 +8,7 @@ The project's own code and documentation are licensed under [AGPL-3.0-or-later](
 
 ## Runtime-generated images and audio
 
-Scene images, adventure previews and hero portraits are generated at runtime by the configured OpenAI-compatible image model (`OPENAI_IMAGE_MODEL`, default `gpt-image-2`; see `.env.example`). Optional narration audio uses the configured TTS model (`OPENAI_MODEL_TTS`, default `gpt-realtime-2.1-mini`). None of this is bundled with the project.
+Scene images, adventure previews and hero portraits are generated at runtime by the configured OpenAI-compatible image model (`OPENAI_IMAGE_MODEL`, default `gpt-image-2.6-flare`; see `.env.example`). Optional narration audio uses the configured TTS model (`OPENAI_MODEL_TTS`, default `gpt-realtime-2.1-mini`). None of this is bundled with the project.
 
 ## Bundled images (`frontend/public/images/`)
 

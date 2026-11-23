@@ -89,8 +89,7 @@ S3_IMAGE_PUBLIC_BASE_URL=$IMAGE_BUCKET_URL
 # AI
 # Text models, reasoning and service tier use the paired code defaults per tier
 # (preview gpt-5.6-luna; narration gpt-6-luna with Fast mode; async gpt-6-luna).
-# Do not pin OPENAI_MODEL_*, OPENAI_REASONING_EFFORT_* or OPENAI_SERVICE_TIER_* here or in SSM.
-OPENAI_IMAGE_MODEL=gpt-image-2
+# Do not pin OPENAI_MODEL_*, OPENAI_REASONING_EFFORT_*, OPENAI_SERVICE_TIER_* or OPENAI_IMAGE_MODEL here or in SSM.
 
 # Auth
 AUTH_MODE=enabled

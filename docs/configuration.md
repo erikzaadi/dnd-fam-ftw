@@ -26,7 +26,7 @@ The backend uses the OpenAI SDK for narration, helper calls, images and TTS. `OP
 | `OPENAI_REASONING_EFFORT_ASYNC` | `none` | See [Narration and async request settings](#narration-and-async-request-settings) |
 | `OPENAI_MODEL_TTS` | `gpt-realtime-2.1-mini` | Narration voice. See [Narration voice](#narration-voice) |
 | `OPENAI_SERVICE_TIER_NARRATION`, `_PREVIEW`, `_ASYNC` | narration `priority`, others not sent | OpenAI processing tier per tier: `auto`, `default`, `flex`, `scale`, `priority` (Fast mode), or `omit`. Invalid values stop startup |
-| `OPENAI_IMAGE_MODEL` | `gpt-image-2` | Scene images, adventure previews, hero portraits |
+| `OPENAI_IMAGE_MODEL` | `gpt-image-2.6-flare` | Scene images, adventure previews, hero portraits. OpenAI retires `gpt-image-2` on 2027-02-10; pinning it until then restores the old model |
 | `OPENAI_MAX_RETRIES` | SDK default (2) | Client-wide retry count; evaluation scripts require `0` |
 | `AI_TURN_STRATEGY` | `resolved_first` | See [Turn strategy](#turn-strategy) |
 

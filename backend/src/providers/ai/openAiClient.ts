@@ -158,5 +158,5 @@ export function getNarrationTextVerbosity(): OpenAITextVerbosity | undefined {
 }
 
 export function getOpenAIImageModel(): string {
-  return process.env.OPENAI_IMAGE_MODEL ?? 'gpt-image-2';
+  return process.env.OPENAI_IMAGE_MODEL ?? 'gpt-image-2.6-flare';
 }
