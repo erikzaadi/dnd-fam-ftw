@@ -18,7 +18,7 @@ A family-friendly story game for short, hilarious evenings. You pick heroes, the
 - **Type anything** : "offer the troll a sandwich" is a valid strategy. Stuck? **Give me ideas** suggests a few. Curious? **Ask the DM** answers without using your turn.
 - **Real stakes, kind rules** : the game rolls a d20 for you, heroes can fall, and the party gets rescued a number of times that depends on difficulty.
 - **Heroes that stick** : custom heroes with generated portraits, quirks the DM takes seriously, and a hero library to bring them into the next adventure.
-- **Pictures and sound, optional** : generated scene art, music that turns tense in a fight, sound effects and a narration voice, all switchable per adventure or in Settings.
+- **Pictures and sound, optional** : generated scene art, music that turns tense in a fight, sound effects and a narration voice. Sound stays off until you tap the sound chip; everything is switchable per adventure or in Settings.
 - **Play together** : every phone and tablet at the table follows along live, and you can invite family into your realm by email.
 - **Other ways to play** : hands-free car mode with voice, recap and movie mode for latecomers, and a hidden retro terminal for the most hoodie-driven hackers (it remembers the old code).
 

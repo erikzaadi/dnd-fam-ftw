@@ -6,6 +6,7 @@ import { useSttSettings } from '../stt/useSttSettings';
 import { useCapabilities } from '../hooks/useCapabilities';
 import { useCarSessionRuntime } from '../session/car/useCarSessionRuntime';
 import { useCarConductor } from '../session/car/useCarConductor';
+import { useSoundOptIn } from '../audio/useSoundOptIn';
 
 export const CarMode = () => {
   const { id } = useParams<{ id: string }>();
@@ -14,6 +15,7 @@ export const CarMode = () => {
   const { settings: ttsSettings, setEnabled: setTtsEnabled } = useTtsSettings();
   const { settings: sttSettings, setEnabled: setSttEnabled } = useSttSettings();
   const { capabilities } = useCapabilities();
+  const soundOptIn = useSoundOptIn();
 
   // If either narration voice or voice actions is disabled, we render setup view.
   const needsSetup = !ttsSettings.enabled || !sttSettings.enabled;
@@ -208,9 +210,21 @@ export const CarMode = () => {
       <div className="flex-1 flex flex-col px-6 py-4 overflow-y-auto space-y-6">
         {/* Adventure Header Info */}
         <div className="text-center">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-400/10 text-amber-400 border border-amber-400/20 tracking-wider uppercase mb-1">
-            Car Mode Active
-          </span>
+          {/* Car mode is voice-first, so its sound opt-in takes the badge's spot instead of a floating chip. */}
+          {soundOptIn.needed ? (
+            <button
+              type="button"
+              onClick={soundOptIn.enable}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-900 text-slate-200 border border-slate-600 hover:border-amber-400/60 hover:text-amber-200 tracking-wider uppercase mb-1 transition-colors"
+            >
+              <span aria-hidden="true">{soundOptIn.icon}</span>
+              {soundOptIn.label}
+            </button>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-400/10 text-amber-400 border border-amber-400/20 tracking-wider uppercase mb-1">
+              Car Mode Active
+            </span>
+          )}
           <h2 className="text-2xl font-display font-black tracking-tight leading-tight truncate">
             {session?.displayName || 'Loading Adventure...'}
           </h2>

@@ -803,6 +803,8 @@ test('session chronicle - encounter areas in combat log', async ({ page, request
 
   await page.goto(`/session/${session.id}`);
   await waitForSessionReady(page);
+  // The c shortcut is wired once the play view renders; waitForSessionReady alone can return before that.
+  await expect(page.getByRole('button', { name: 'Open Chronicle' })).toBeVisible();
 
   await page.keyboard.press('c');
   await expect(page.getByRole('heading', { name: 'Chronicle' })).toBeVisible();
@@ -831,6 +833,8 @@ test('session chronicle - encounter enemy changes in turn detail', async ({ page
 
   await page.goto(`/session/${session.id}`);
   await waitForSessionReady(page);
+  // The c shortcut is wired once the play view renders; waitForSessionReady alone can return before that.
+  await expect(page.getByRole('button', { name: 'Open Chronicle' })).toBeVisible();
 
   await page.keyboard.press('c');
   await expect(page.getByRole('heading', { name: 'Chronicle' })).toBeVisible();
@@ -1062,6 +1066,8 @@ test('car-mode-active', async ({ page }) => {
   await setupCarModeRoutes(page, sessionId);
   await page.goto(`/session/${sessionId}/car`);
   await expect(page.getByText('Car Mode Adventure')).toBeVisible({ timeout: 5_000 });
+  // Wait for the connection to settle so the shot shows the idle Paused state, not Reconnecting.
+  await expect(page.getByText('PAUSED', { exact: true })).toBeVisible();
   await screenshotViewports(page, 'car-mode-active');
 });
 

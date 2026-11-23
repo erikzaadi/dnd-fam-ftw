@@ -84,6 +84,15 @@ export async function freezeAnimations(page: Page): Promise<void> {
 }
 
 export async function setupCarModeRoutes(page: Page, sessionId: string): Promise<void> {
+  // The mocked adventure has no live-updates stream; a silent stand-in keeps car mode idle
+  // instead of flipping to Reconnecting on the backend's 404.
+  await page.addInitScript(() => {
+    window.EventSource = class {
+      onmessage: ((e: MessageEvent) => void) | null = null;
+      onerror: (() => void) | null = null;
+      close() {}
+    } as unknown as typeof EventSource;
+  });
   await page.route(`**/api/session/${sessionId}`, route => {
     return route.fulfill({
       status: 200,

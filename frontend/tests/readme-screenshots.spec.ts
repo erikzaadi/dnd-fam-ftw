@@ -154,5 +154,7 @@ test('car-mode (mobile landscape)', async ({ page }) => {
   await page.setViewportSize(MOBILE_LANDSCAPE);
   await page.goto(`/session/${sessionId}/car`);
   await expect(page.getByText('Car Mode Adventure')).toBeVisible({ timeout: 5_000 });
+  // Wait for the connection to settle so the shot shows the idle Paused state, not Reconnecting.
+  await expect(page.getByText('PAUSED', { exact: true })).toBeVisible();
   await shoot(page, 'car-mode');
 });
