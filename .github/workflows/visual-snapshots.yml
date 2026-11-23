@@ -32,7 +32,8 @@ env:
 
 jobs:
   snapshots:
-    runs-on: ubuntu-latest
+    # shortcut: pinned because Playwright has no Chromium for ubuntu-26.04 (ubuntu-latest); unpin once it does
+    runs-on: ubuntu-24.04
     environment: ci
     timeout-minutes: 45
 
