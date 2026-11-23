@@ -5,9 +5,10 @@
  * Paid, but bounded: 4 images per model at quality "low" (about $0.25 in total). Use a dev key.
  *
  * Run from backend/:
- *   npx tsx --env-file=../.env src/scripts/probeImageReplacement.ts [model ...]
+ *   npx tsx --env-file=../.env src/scripts/probeImageReplacement.ts [model[@complexity] ...]
+ *   e.g. gpt-image-2.6-flare@low gpt-image-2.6-flare@medium (2.6 models only; they default to high)
  *
- * Output: ../temp/image-probe/ ({model}-{shape}.jpg to look at, plus summary.json with
+ * Output: ../temp/image-probe/ ({model[@complexity]}-{shape}.jpg to look at, plus summary-{timestamp}.json with
  * failures, latency, token usage and estimated cost per request)
  */
 
@@ -44,8 +45,9 @@ async function main() {
   fs.mkdirSync(outDir, { recursive: true });
 
   const summary: Record<string, Record<string, unknown>> = {};
-  for (const model of models) {
-    summary[model] = {};
+  for (const run of models) {
+    const [model, complexity] = run.split('@');
+    summary[run] = {};
     for (const shape of SHAPES) {
       const started = Date.now();
       try {
@@ -57,15 +59,17 @@ async function main() {
           quality: 'low',
           output_format: 'jpeg',
           output_compression: shape.compression,
-        }, { signal: AbortSignal.timeout(120_000) });
+          // Not in the SDK types yet.
+          ...(complexity ? { complexity } : {}),
+        } as OpenAI.Images.ImageGenerateParamsNonStreaming, { signal: AbortSignal.timeout(120_000) });
         const b64 = response.data?.[0]?.b64_json;
         if (!b64) {
           throw new Error('no b64_json in response');
         }
-        const file = path.join(outDir, `${model}-${shape.label}.jpg`);
+        const file = path.join(outDir, `${run}-${shape.label}.jpg`);
         fs.writeFileSync(file, Buffer.from(b64, 'base64'));
         const usage = response.usage;
-        summary[model][shape.label] = {
+        summary[run][shape.label] = {
           ok: true,
           ms: Date.now() - started,
           kb: Math.round(Buffer.byteLength(b64, 'base64') / 1024),
@@ -75,14 +79,15 @@ async function main() {
           file,
         };
       } catch (err) {
-        summary[model][shape.label] = { ok: false, ms: Date.now() - started, error: err instanceof Error ? err.message : String(err) };
+        summary[run][shape.label] = { ok: false, ms: Date.now() - started, error: err instanceof Error ? err.message : String(err) };
       }
-      console.log(model, shape.label, JSON.stringify(summary[model][shape.label]));
+      console.log(run, shape.label, JSON.stringify(summary[run][shape.label]));
     }
   }
 
-  fs.writeFileSync(path.join(outDir, 'summary.json'), JSON.stringify({ date: new Date().toISOString(), summary }, null, 2));
-  console.log(`\nWrote ${path.join(outDir, 'summary.json')}. Compare the images in ${outDir}.`);
+  const summaryFile = path.join(outDir, `summary-${Date.now()}.json`);
+  fs.writeFileSync(summaryFile, JSON.stringify({ date: new Date().toISOString(), summary }, null, 2));
+  console.log(`\nWrote ${summaryFile}. Compare the images in ${outDir}.`);
 }
 
 main().catch(err => {
