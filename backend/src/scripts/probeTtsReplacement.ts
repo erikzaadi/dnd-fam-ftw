@@ -13,7 +13,6 @@
 
 import fs from 'fs';
 import path from 'path';
-import OpenAI from 'openai';
 
 const REALTIME_MODEL = 'gpt-realtime-2.1-mini';
 const NARRATOR = 'Speak as a refined British fantasy audiobook narrator. Calm, immersive, measured, and elegant. Use clear pronunciation, restrained drama, and natural pauses. Do not sound like an assistant or announcer.';
@@ -28,8 +27,6 @@ const LISTENING_REALTIME = [
   { label: 'ash-blend', voice: 'ash', narrator: BLEND },
   { label: 'ash-epic-take2', voice: 'ash', narrator: EPIC },
 ];
-const LISTENING_BASELINE: { label: string; voice: string; narrator: string }[] = [];
-const BASELINE_MODEL = 'gpt-4o-mini-tts';
 const TIMEOUT_MS = 45_000;
 const outDir = path.resolve(process.cwd(), '../temp/tts-probe');
 
@@ -68,10 +65,6 @@ function wav(pcm: Buffer, rate = 24000): Buffer {
   header.write('data', 36);
   header.writeUInt32LE(pcm.length, 40);
   return Buffer.concat([header, pcm]);
-}
-
-function errorText(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }
 
 function openRealtime(apiKey: string): WebSocket {
@@ -154,26 +147,10 @@ async function main() {
     console.warn(`OPENAI_BASE_URL is set (${process.env.OPENAI_BASE_URL}); this probe targets api.openai.com directly.`);
   }
   fs.mkdirSync(outDir, { recursive: true });
-  const client = new OpenAI({ apiKey });
 
   // Step 1 checks (model list, /audio/speech candidates, voice acceptance) ran on
   // 2026-10-04; results are in the migration plan. This run is the listening round.
   const summary: Summary = { date: new Date().toISOString(), text: RIDDLE_TEXT };
-
-  const baseline: Summary = {};
-  for (const { label, voice, narrator } of LISTENING_BASELINE) {
-    const started = Date.now();
-    try {
-      const response = await client.audio.speech.create({ model: BASELINE_MODEL, voice, input: RIDDLE_TEXT, instructions: narrator, response_format: 'mp3' });
-      const file = path.join(outDir, `riddle-current-${label}.mp3`);
-      fs.writeFileSync(file, Buffer.from(await response.arrayBuffer()));
-      baseline[label] = { ok: true, ms: Date.now() - started, file };
-    } catch (err) {
-      baseline[label] = { ok: false, error: errorText(err) };
-    }
-    console.log('current model', label, JSON.stringify(baseline[label]));
-  }
-  summary.baseline = baseline;
 
   const realtime: Summary = {};
   for (const { label, voice, narrator } of LISTENING_REALTIME) {
