@@ -23,8 +23,8 @@ describe('estimateCostUsd', () => {
     expect(estimateCostUsd(text('some-new-model', 1000, 100))).toBeCloseTo((1000 * 2 + 100 * 8) / 1_000_000);
   });
 
-  it('prices gpt-image-2 by text input and image output tokens', () => {
-    expect(estimateCostUsd({ kind: 'image', model: 'gpt-image-2', inputTokens: 100, outputTokens: 1000, ttsCharacters: null, imageCount: 1 }))
+  it.each(['gpt-image-2', 'gpt-image-2.6-sunburst', 'gpt-image-2.6-flare'])('prices %s by text input and image output tokens', (model) => {
+    expect(estimateCostUsd({ kind: 'image', model, inputTokens: 100, outputTokens: 1000, ttsCharacters: null, imageCount: 1 }))
       .toBeCloseTo((100 * 5 + 1000 * 30) / 1_000_000);
   });
 

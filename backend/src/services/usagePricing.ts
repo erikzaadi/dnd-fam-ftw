@@ -22,6 +22,9 @@ const KNOWN_PRICES: Record<string, TokenPrice> = {
   'gpt-image-1': { input: 5, output: 40 },
   'gpt-image-1-mini': { input: 2, output: 8 },
   'gpt-image-2': { input: 5, output: 30 },
+  // gpt-image-2 replacements, checked 2026-11-23.
+  'gpt-image-2.6-sunburst': { input: 5, output: 30 },
+  'gpt-image-2.6-flare': { input: 5, output: 30 },
 };
 
 // Fast mode (service_tier "priority" or "fast") is billed at 2x Standard. The
